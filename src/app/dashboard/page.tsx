@@ -56,6 +56,7 @@ export default async function DashboardPage() {
       const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
       return {
         id: inv.id,
+        clientId: inv.client.id,
         invoiceNumber: inv.invoiceNumber,
         clientName: inv.client.name,
         picName: inv.client.picName,

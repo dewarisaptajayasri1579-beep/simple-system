@@ -60,6 +60,7 @@ const CARD_PROPS = { variant: "panel" as const, padding: "none" as const };
 // ---------------------------------------------------------------------------
 export interface PiutangSummaryRow {
   id: string;
+  clientId: string;
   invoiceNumber: string;
   clientName: string;
   picName: string | null;
@@ -106,6 +107,8 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
       cell: (r) => (
         <FollowUpButtons
           phone={r.picPhone}
+          clientId={r.clientId}
+          clientName={r.clientName}
           message={piutangFollowUpMessage({ clientName: r.clientName, invoiceNumber: r.invoiceNumber, remaining: r.remaining, dueDate: r.dueDate })}
         />
       ),
@@ -119,7 +122,7 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
         <CardDescription>{rows.length} invoice belum lunas</CardDescription>
       </CardHeader>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={PIUTANG_STATUS_OPTIONS} counts={counts} total={rows.length} />
-      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada piutang terbuka." />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada piutang terbuka." mobileCardMode />
     </Card>
   );
 };
@@ -186,7 +189,7 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[] }> = ({ row
         <CardDescription>{rows.length} biaya berkala jatuh tempo bulan ini / lewat tempo</CardDescription>
       </CardHeader>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS.slice(0, 2)} counts={bucketCounts(rows)} total={rows.length} />
-      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada pembayaran rutin." />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada pembayaran rutin." mobileCardMode />
     </Card>
   );
 };
@@ -229,7 +232,12 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[] }> = ({
                 Tagih Sekarang
               </Button>
             </Link>
-            <FollowUpButtons phone={r.clientPhone} message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })} />
+            <FollowUpButtons
+              phone={r.clientPhone}
+              clientId={r.clientId}
+              clientName={r.owner}
+              message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
+            />
           </div>
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
@@ -244,7 +252,7 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[] }> = ({
         <CardDescription>{rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan</CardDescription>
       </CardHeader>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
-      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada domain yang perlu perhatian." />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada domain yang perlu perhatian." mobileCardMode />
     </Card>
   );
 };
@@ -287,7 +295,12 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[] }> = ({ rows }) =
                 Tagih Sekarang
               </Button>
             </Link>
-            <FollowUpButtons phone={r.clientPhone} message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })} />
+            <FollowUpButtons
+              phone={r.clientPhone}
+              clientId={r.clientId}
+              clientName={r.clientName ?? ""}
+              message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })}
+            />
           </div>
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
@@ -302,7 +315,7 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[] }> = ({ rows }) =
         <CardDescription>{rows.length} server sudah lewat tempo atau akan jatuh tempo bulan ini/depan</CardDescription>
       </CardHeader>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
-      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada server yang perlu perhatian." />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada server yang perlu perhatian." mobileCardMode />
     </Card>
   );
 };
