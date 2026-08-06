@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand Colors */
+  --brand-blue-50: #eff6ff;
+  --brand-blue-100: #dbeafe;
+  --brand-blue-500: #2563eb;
+  --brand-blue-600: #0b4ecb;
+  --brand-blue-700: #0544cc;
+  --brand-blue-800: #1e3a8a;
+  
+  /* Status Indicator Colors */
+  --status-safe: #10b981;    /* Hijau - aman/lunas */
+  --status-info: #0284c7;    /* Biru - bulan depan/dicicil */
+  --status-warn: #f59e0b;    /* Kuning - bulan ini/dicicil */
+  --status-danger: #ef4444;  /* Merah - expired/belum bayar */
+  --status-claim: #8b5cf6;   /* Ungu - klaim belum diverifikasi */
+  --status-inactive: #64748b;/* Abu-abu - nonaktif */
+
+  --background: #eef4fc;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-primary: var(--brand-blue-700);
+  --color-brand-dark: var(--brand-blue-800);
+  --font-sans: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom Reusable Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(220, 230, 245, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 200, 230, 0.8);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 170, 210, 1);
+}
+
+/* ==========================================================================
+   REUSABLE GLASSMORPHIC DESIGN SYSTEM UTILITIES
+   ========================================================================== */
+
+/* Main Glossy Card Container (Login, Dialogs, Cards) */
+.glass-mockup-card,
+.glass-card {
+  position: relative;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.76) 0%, rgba(240, 246, 255, 0.65) 60%, rgba(230, 240, 255, 0.72) 100%);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 
+    0 30px 65px -12px rgba(28, 78, 188, 0.18),
+    0 0 35px rgba(255, 255, 255, 0.9) inset,
+    0 15px 35px -5px rgba(37, 99, 235, 0.1);
+}
+
+/* Semi-transparent Glossy Feature & Stats Cards */
+.glass-mockup-feature-card,
+.glass-feature-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(240, 246, 255, 0.65) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 
+    0 15px 32px -8px rgba(28, 78, 188, 0.14),
+    0 0 20px rgba(255, 255, 255, 0.85) inset,
+    0 4px 14px rgba(37, 99, 235, 0.08);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-mockup-feature-card:hover,
+.glass-feature-card:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 246, 255, 0.75) 100%);
+  box-shadow: 
+    0 20px 40px -8px rgba(28, 78, 188, 0.2),
+    0 0 25px rgba(255, 255, 255, 0.95) inset;
+}
+
+/* Reusable Glass Panel Wrapper (Sections, Content Containers) */
+.glass-panel {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(245, 250, 255, 0.45) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 
+    0 35px 70px -15px rgba(15, 37, 85, 0.16),
+    0 0 30px rgba(255, 255, 255, 0.7) inset;
+}
+
+/* Reusable Glass Modal / Overlay Container */
+.glass-modal {
+  position: relative;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(243, 248, 255, 0.88) 100%);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 
+    0 35px 80px -15px rgba(15, 37, 85, 0.28),
+    0 0 40px rgba(255, 255, 255, 0.9) inset;
+}
+
+/* Reusable Glass Navigation Bar */
+.glass-header {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(28, 78, 188, 0.08);
+}
+
+/* Reusable Glass Dropdown Menu */
+.glass-dropdown {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(245, 250, 255, 0.85) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 40px -10px rgba(15, 37, 85, 0.18);
+}
+
+/* App Background Mesh Gradient */
+.bg-app-mesh {
+  background-color: #eef4fc;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(219, 234, 254, 0.9) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(191, 219, 254, 0.75) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(238, 242, 255, 0.95) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(224, 231, 255, 0.8) 0px, transparent 50%);
+}
+
+/* Smooth Subtle Animations */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Halaman cetak invoice — sembunyikan chrome aplikasi (sidebar/header/bottom bar/footer),
+   sisakan cuma konten invoice-nya. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+}

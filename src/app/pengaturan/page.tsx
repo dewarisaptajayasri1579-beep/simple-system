@@ -1,0 +1,68 @@
+import { AppLayout } from "@/components/layout/AppLayout"
+import { PengaturanPanel } from "@/components/pengaturan/PengaturanPanel"
+import { requirePageRole } from "@/lib/current-user"
+import { prisma } from "@/lib/prisma"
+
+export default async function PengaturanPage() {
+  const user = await requirePageRole(["owner"])
+
+  const [
+    settings,
+    users,
+    domains,
+    recurringBills,
+    clients,
+    legacySalesClients,
+    items,
+    vendors,
+    cloudTypes,
+    hostingPackages,
+    servers,
+    cpanelAccounts,
+  ] = await Promise.all([
+    prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.domain.findMany({ include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.recurringBill.findMany({ include: { vendor: true, period: true }, orderBy: { name: "asc" } }),
+    prisma.client.findMany({ orderBy: { name: "asc" } }),
+    prisma.legacySalesClient.findMany({ include: { client: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
+    prisma.item.findMany({ orderBy: { name: "asc" } }),
+    prisma.vendor.findMany({ orderBy: { name: "asc" } }),
+    prisma.cloudType.findMany({ orderBy: { name: "asc" } }),
+    prisma.hostingPackage.findMany({ orderBy: { name: "asc" } }),
+    prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true }, orderBy: { name: "asc" } }),
+    prisma.cpanelAccount.findMany({ include: { cloudType: true, package: true }, orderBy: { name: "asc" } }),
+  ])
+
+  return (
+    <AppLayout userName={user.name} userRole={user.role}>
+      <div className="space-y-6 max-w-6xl mx-auto">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Pengaturan</h1>
+          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Khusus Owner.</p>
+        </div>
+
+        <PengaturanPanel
+          settings={{
+            operasionalPct: settings.operasionalPct,
+            direksiPct: settings.direksiPct,
+            bonusPct: settings.bonusPct,
+            defaultPpnRate: settings.defaultPpnRate,
+            aiFollowUpEnabled: settings.aiFollowUpEnabled,
+          }}
+          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber }))}
+          domains={domains.map((d) => ({ ...d, lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null }))}
+          recurringBills={recurringBills.map((b) => ({ ...b, lastPaidAt: b.lastPaidAt ? b.lastPaidAt.toISOString() : null }))}
+          clients={clients}
+          legacySalesClients={legacySalesClients}
+          items={items}
+          vendors={vendors}
+          cloudTypes={cloudTypes}
+          hostingPackages={hostingPackages}
+          servers={servers.map((s) => ({ ...s, lastPaidAt: s.lastPaidAt ? s.lastPaidAt.toISOString() : null }))}
+          cpanelAccounts={cpanelAccounts}
+        />
+      </div>
+    </AppLayout>
+  )
+}

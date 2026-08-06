@@ -1,0 +1,17 @@
+import { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "SEVEN OS — Sistem Internal",
+    short_name: "SEVEN OS",
+    description: "Piutang, invoice, domain, biaya berkala, dan kas & bank dalam satu tempat.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#eef4fc",
+    theme_color: "#1e40af",
+    icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+  };
+}

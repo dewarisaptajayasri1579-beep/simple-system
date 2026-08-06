@@ -1,0 +1,99 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Avatar } from "../ui/Avatar";
+import { Calendar, ChevronDown, LogOut } from "lucide-react";
+
+export interface HeaderProps {
+  userName: string;
+  userRole?: string;
+  className?: string;
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Owner",
+  direktur: "Direktur",
+  admin: "Admin",
+};
+
+export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", className = "" }) => {
+  const router = useRouter();
+  const [currentDateTime, setCurrentDateTime] = useState<string>("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+      const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+      ];
+      const dayName = days[now.getDay()];
+      const dateNum = now.getDate();
+      const monthName = months[now.getMonth()];
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, "0");
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      setCurrentDateTime(`${dayName}, ${dateNum} ${monthName} ${year} | ${hours}:${minutes} WIB`);
+    };
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 1000 * 30);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
+
+  return (
+    <header className={`h-20 glass-header sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between transition-all duration-300 ${className}`}>
+      <div className="flex items-center gap-3">
+        <div className="lg:hidden flex flex-col">
+          <span className="font-extrabold text-base text-slate-800">SEVEN OS</span>
+          <span className="text-[10px] text-slate-500 font-semibold">Sistem Internal</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="hidden sm:flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-xs text-xs sm:text-sm font-bold text-slate-700">
+          <Calendar className="w-4 h-4 text-blue-700" />
+          <span>{currentDateTime}</span>
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-3 px-3 py-1.5 rounded-2xl bg-white/80 hover:bg-white border border-slate-200/90 shadow-sm transition-all cursor-pointer"
+          >
+            <Avatar name={userName} size="sm" status="online" />
+            <div className="hidden md:flex flex-col text-left">
+              <span className="text-xs font-bold text-slate-800 leading-tight">{userName}</span>
+              <span className="text-[10px] font-semibold text-slate-500">{ROLE_LABEL[userRole] ?? userRole}</span>
+            </div>
+            <ChevronDown className="w-4 h-4 text-slate-500" />
+          </button>
+
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-56 glass-dropdown p-2 rounded-2xl shadow-xl z-50">
+              <div className="px-3 py-2 border-b border-slate-200/60 mb-1">
+                <p className="text-xs font-bold text-slate-800">{userName}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{ROLE_LABEL[userRole] ?? userRole}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-rose-500" />
+                <span>Keluar (Logout)</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};

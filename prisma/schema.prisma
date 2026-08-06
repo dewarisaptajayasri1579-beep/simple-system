@@ -1,0 +1,534 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Sengaja pakai Postgres schema terpisah ("simple_system") di project Supabase yang sama
+// dengan Director Assistant, supaya nama tabel (users, sessions, transactions, dst) tidak
+// bentrok dengan schema "public" milik Director Assistant yang sudah jalan duluan.
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["simple_system"]
+}
+
+// ---------------------------------------------------------------------------
+// Auth & Role
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  phoneNumber  String?   @map("phone_number")
+  role         String    @default("admin") // "owner" | "direktur" | "admin"
+  createdAt    DateTime  @default(now()) @map("created_at")
+  sessions     Session[]
+
+  @@map("users")
+  @@schema("simple_system")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// Master data hasil migrasi dari aplikasi lama (lihat scripts/migrate-legacy.ts)
+// ---------------------------------------------------------------------------
+
+model Client {
+  id                   String   @id @default(uuid())
+  legacyId             Int?     @unique @map("legacy_id")
+  legacySalesClientId  String?  @unique @map("legacy_sales_client_id") // link manual ke LegacySalesClient (dicocokkan belakangan)
+  name        String
+  email       String?
+  phoneNumber String?  @map("phone_number")
+  picName     String?  @map("pic_name")
+  picPhone    String?  @map("pic_phone")
+  city        String?
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  domains            Domain[]
+  subdomains         Subdomain[]
+  invoices           Invoice[]
+  payments           Payment[]
+  legacySalesClient  LegacySalesClient? @relation(fields: [legacySalesClientId], references: [id])
+
+  @@map("clients")
+  @@schema("simple_system")
+}
+
+/// Staging: 326 pelanggan mentah dari aplikasi penjualan lama (m_pelanggan, server .86) —
+/// SENGAJA belum otomatis digabung ke tabel Client utama supaya bisa dicocokkan manual dulu
+/// (banyak kemungkinan duplikat dengan 125 client hasil migrasi pertama). Client baru yang
+/// dibuat otomatis saat migrasi piutang (karena Invoice butuh Client asli) tetap ditandai lewat
+/// relasi legacySalesClientId di atas.
+model LegacySalesClient {
+  id           String   @id @default(uuid())
+  legacyId     Int      @unique @map("legacy_id") // m_pelanggan.id
+  kode         String?
+  name         String   @map("namalengkap")
+  phoneNumber  String?  @map("phone_number")
+  address      String?
+  bankName     String?  @map("bank_name")
+  bankAccount  String?  @map("bank_account")
+  paymentTermDays Int?  @map("payment_term_days")
+  creditLimit  Float?   @map("credit_limit")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client Client?
+
+  @@map("legacy_sales_clients")
+  @@schema("simple_system")
+}
+
+model Vendor {
+  id       String @id @default(uuid())
+  legacyId Int?   @unique @map("legacy_id")
+  name     String
+  website  String?
+
+  servers        Server[]
+  recurringBills RecurringBill[]
+
+  @@map("vendors")
+  @@schema("simple_system")
+}
+
+model BillingPeriod {
+  id                 String @id @default(uuid())
+  legacyId           Int?   @unique @map("legacy_id")
+  name               String // "Bulanan", "Tahunan", "2 Tahunan", "3 Bulanan", "6 Bulanan"
+  reminderDaysBefore Int    @map("reminder_days_before")
+
+  servers        Server[]
+  recurringBills RecurringBill[]
+
+  @@map("billing_periods")
+  @@schema("simple_system")
+}
+
+model CloudType {
+  id       String @id @default(uuid())
+  legacyId Int?   @unique @map("legacy_id")
+  name     String
+
+  servers        Server[]
+  cpanelAccounts CpanelAccount[]
+
+  @@map("cloud_types")
+  @@schema("simple_system")
+}
+
+model HostingPackage {
+  id       String @id @default(uuid())
+  legacyId Int?   @unique @map("legacy_id")
+  name     String
+
+  cpanelAccounts CpanelAccount[]
+
+  @@map("hosting_packages")
+  @@schema("simple_system")
+}
+
+model Server {
+  id                String    @id @default(uuid())
+  legacyId          Int?      @unique @map("legacy_id")
+  name              String
+  ipAddress         String?   @map("ip_address")
+  vendorId          String?   @map("vendor_id")
+  cloudTypeId       String?   @map("cloud_type_id")
+  core              String?
+  ram               String?
+  storage           String?
+  dnsServer1        String?   @map("dns_server_1")
+  dnsServer2        String?   @map("dns_server_2")
+  subscriptionStart DateTime? @map("subscription_start")
+  billingDayOfMonth Int?      @map("billing_day_of_month")
+  periodId          String?   @map("period_id")
+  periodCount       Int?      @map("period_count")
+  price             Float?
+  lastPaidAt        DateTime? @map("last_paid_at")
+  lastCheckinAt     DateTime? @map("last_checkin_at")
+  active            Boolean   @default(true)
+  legacyActiveFlag  String?   @map("legacy_active_flag")
+
+  vendor    Vendor?        @relation(fields: [vendorId], references: [id])
+  cloudType CloudType?     @relation(fields: [cloudTypeId], references: [id])
+  period    BillingPeriod? @relation(fields: [periodId], references: [id])
+
+  @@map("servers")
+  @@schema("simple_system")
+}
+
+model CpanelAccount {
+  id          String  @id @default(uuid())
+  legacyId    Int?    @unique @map("legacy_id")
+  name        String
+  username    String?
+  password    String? // dimigrasi apa adanya (plaintext di sumber) — lihat catatan keamanan di plan
+  cloudTypeId String? @map("cloud_type_id")
+  packageId   String? @map("package_id")
+  active      Boolean @default(true)
+
+  cloudType CloudType?      @relation(fields: [cloudTypeId], references: [id])
+  package   HostingPackage? @relation(fields: [packageId], references: [id])
+  domains   Domain[]
+
+  @@map("cpanel_accounts")
+  @@schema("simple_system")
+}
+
+model Domain {
+  id               String    @id @default(uuid())
+  legacyId         Int?      @unique @map("legacy_id")
+  name             String
+  clientId         String?   @map("client_id")
+  cpanelAccountId  String?   @map("cpanel_account_id")
+  sellPrice        Float?    @map("sell_price")
+  activatedAt      DateTime? @map("activated_at")
+  lastPaidAt       DateTime? @map("last_paid_at")
+  active           Boolean   @default(true)
+  legacyActiveFlag String?   @map("legacy_active_flag")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  client        Client?        @relation(fields: [clientId], references: [id])
+  cpanelAccount CpanelAccount? @relation(fields: [cpanelAccountId], references: [id])
+  subdomains    Subdomain[]
+
+  @@map("domains")
+  @@schema("simple_system")
+}
+
+model Subdomain {
+  id               String    @id @default(uuid())
+  legacyId         Int?      @unique @map("legacy_id")
+  domainId         String?   @map("domain_id")
+  name             String
+  clientId         String?   @map("client_id")
+  sellPrice        Float?    @map("sell_price")
+  activatedAt      DateTime? @map("activated_at")
+  lastPaidAt       DateTime? @map("last_paid_at")
+  legacyActiveFlag String?   @map("legacy_active_flag")
+
+  domain Domain? @relation(fields: [domainId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
+
+  @@map("subdomains")
+  @@schema("simple_system")
+}
+
+model RecurringBill {
+  id                String    @id @default(uuid())
+  legacyId          Int?      @unique @map("legacy_id")
+  name              String
+  vendorId          String?   @map("vendor_id")
+  category          String    @default("kantor") // "kantor" | "pribadi" | "lainnya"
+  subscriptionStart DateTime? @map("subscription_start")
+  billingDayOfMonth Int?      @map("billing_day_of_month")
+  periodId          String?   @map("period_id")
+  periodCount       Int?      @map("period_count")
+  price             Float?
+  lastPaidAt        DateTime? @map("last_paid_at")
+  lastCheckinAt     DateTime? @map("last_checkin_at") // kapan terakhir ditanya "sudah dibayar?" via WA
+  active            Boolean   @default(true)
+
+  vendor Vendor?        @relation(fields: [vendorId], references: [id])
+  period BillingPeriod? @relation(fields: [periodId], references: [id])
+
+  @@map("recurring_bills")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// Penjualan / Invoicing — mekanisme Piutang
+// ---------------------------------------------------------------------------
+
+model Item {
+  id           String  @id @default(uuid())
+  legacyId     Int?    @unique @map("legacy_id") // dari m_jasa aplikasi penjualan lama (server .86)
+  name         String
+  type         String  @default("jasa") // "jasa" | "barang"
+  defaultPrice Float   @default(0) @map("default_price")
+  defaultCost  Float   @default(0) @map("default_cost")
+  unit         String?
+  active       Boolean @default(true)
+
+  invoiceLines InvoiceLine[]
+
+  @@map("items")
+  @@schema("simple_system")
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  legacyId      String?  @unique @map("legacy_id") // id (UUID) t_penjualan aplikasi penjualan lama, buat piutang migrasi
+  invoiceNumber String   @unique @map("invoice_number")
+  clientId      String   @map("client_id")
+  issuedAt      DateTime @default(now()) @map("issued_at")
+  dueDate       DateTime? @map("due_date")
+  subtotal      Float    @default(0)
+  discountAmount Float   @default(0) @map("discount_amount")
+  ppnEnabled    Boolean  @default(false) @map("ppn_enabled")
+  ppnRate       Float    @default(11) @map("ppn_rate")
+  ppnAmount     Float    @default(0) @map("ppn_amount")
+  totalAmount   Float    @default(0) @map("total_amount")
+  totalCost     Float    @default(0) @map("total_cost")
+  status        String   @default("unpaid") // "unpaid" | "partial" | "paid" | "claimed_paid"
+  notes         String?
+  lastFollowUpAt DateTime? @map("last_follow_up_at") // kapan terakhir AI Agent follow-up ke Client
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  client   Client           @relation(fields: [clientId], references: [id])
+  lines    InvoiceLine[]
+  payments InvoicePayment[]
+
+  @@map("invoices")
+  @@schema("simple_system")
+}
+
+model InvoiceLine {
+  id             String @id @default(uuid())
+  invoiceId      String @map("invoice_id")
+  itemId         String? @map("item_id")
+  description    String
+  qty            Float  @default(1)
+  unitPrice      Float  @map("unit_price")
+  unitCost       Float  @default(0) @map("unit_cost")
+  discountAmount Float  @default(0) @map("discount_amount")
+  lineTotal      Float  @map("line_total")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item    Item?   @relation(fields: [itemId], references: [id])
+
+  @@map("invoice_lines")
+  @@schema("simple_system")
+}
+
+model InvoicePayment {
+  id            String   @id @default(uuid())
+  invoiceId     String   @map("invoice_id")
+  accountId     String   @map("account_id")
+  paymentId     String?  @map("payment_id") // grup ke kwitansi Payment (menu Pembayaran) — null utk payment lama/migrasi
+  amount        Float
+  costAmount    Float    @default(0) @map("cost_amount") // HPP tambahan yang diinput manual saat transaksi ini (di luar HPP baris invoice)
+  paidAt        DateTime @default(now()) @map("paid_at")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  transactionId String?  @unique @map("transaction_id")
+
+  invoice     Invoice      @relation(fields: [invoiceId], references: [id])
+  account     Account      @relation(fields: [accountId], references: [id])
+  payment     Payment?     @relation(fields: [paymentId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@map("invoice_payments")
+  @@schema("simple_system")
+}
+
+/// Kwitansi pembayaran (menu Pembayaran) — satu Payment bisa melunasi/mencicil beberapa
+/// Invoice milik 1 Client sekaligus, tiap Invoice yang dibayar tercatat sbg 1 InvoicePayment.
+model Payment {
+  id            String   @id @default(uuid())
+  paymentNumber String   @unique @map("payment_number") // PMT/{tahun}/{5 digit berurut}
+  clientId      String   @map("client_id")
+  accountId     String   @map("account_id")
+  totalAmount   Float    @map("total_amount")
+  notes         String?
+  paidAt        DateTime @default(now()) @map("paid_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  client          Client           @relation(fields: [clientId], references: [id])
+  account         Account          @relation(fields: [accountId], references: [id])
+  invoicePayments InvoicePayment[]
+
+  @@map("payments")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// Keuangan
+// ---------------------------------------------------------------------------
+
+model Account {
+  id             String   @id @default(uuid())
+  name           String
+  type           String   // "kas" | "bank"
+  bankName       String?  @map("bank_name")
+  accountNumber  String?  @map("account_number")
+  openingBalance Float    @default(0) @map("opening_balance")
+  coaAccountId   String?  @map("coa_account_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  transactions    Transaction[]
+  invoicePayments InvoicePayment[]
+  payments        Payment[]
+  coaAccount      ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
+
+  @@map("accounts")
+  @@schema("simple_system")
+}
+
+model Category {
+  id           String  @id @default(uuid())
+  name         String
+  kind         String  // "income" | "expense" | "hpp"
+  coaAccountId String? @map("coa_account_id")
+
+  transactions Transaction[]
+  coaAccount   ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
+
+  @@map("categories")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// Akuntansi Akrual: Chart of Accounts + Jurnal Umum (double-entry)
+// Berjalan berdampingan dengan pencatatan cash-basis di atas — TIDAK
+// menggantikan Transaction/InvoicePayment, cuma menambah jurnal debit/kredit
+// otomatis di titik yang sama. Lihat src/lib/accounting/.
+// ---------------------------------------------------------------------------
+
+model ChartOfAccount {
+  id        String   @id @default(uuid())
+  code      String   @unique // "1-1001", "4-1000", dst — menentukan urutan tampil
+  name      String
+  type      String   // "asset" | "liability" | "equity" | "revenue" | "cogs" | "expense"
+  parentId  String?  @map("parent_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  isParent  Boolean  @default(false) @map("is_parent") // kalau true, akun ini boleh ditambahi sub-akun (anak)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent       ChartOfAccount?  @relation("COAHierarchy", fields: [parentId], references: [id])
+  children     ChartOfAccount[] @relation("COAHierarchy")
+  journalLines JournalLine[]
+  accounts     Account[]
+  categories   Category[]
+
+  @@map("chart_of_accounts")
+  @@schema("simple_system")
+}
+
+model JournalEntry {
+  id          String   @id @default(uuid())
+  entryNumber String   @unique @map("entry_number") // "JE-2026-000001"
+  date        DateTime
+  description String
+  sourceType  String   @map("source_type") // "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "manual"
+  sourceId    String?  @map("source_id")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  lines JournalLine[]
+
+  @@map("journal_entries")
+  @@schema("simple_system")
+}
+
+model JournalLine {
+  id             String @id @default(uuid())
+  journalEntryId String @map("journal_entry_id")
+  accountId      String @map("account_id")
+  debit          Float  @default(0)
+  credit         Float  @default(0)
+  memo           String?
+
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      ChartOfAccount @relation(fields: [accountId], references: [id])
+
+  @@map("journal_lines")
+  @@schema("simple_system")
+}
+
+model Transaction {
+  id                  String   @id @default(uuid())
+  accountId           String   @map("account_id")
+  type                String   // "income" | "expense"
+  categoryId          String?  @map("category_id")
+  grossAmount         Float    @map("gross_amount")
+  cost                Float    @default(0)
+  netAmount           Float    @map("net_amount")
+  splitOperasionalPct Float?   @map("split_operasional_pct")
+  splitDireksiPct     Float?   @map("split_direksi_pct")
+  splitBonusPct       Float?   @map("split_bonus_pct")
+  operasionalAmount   Float?   @map("operasional_amount")
+  direksiAmount       Float?   @map("direksi_amount")
+  bonusAmount         Float?   @map("bonus_amount")
+  description         String?
+  occurredAt          DateTime @default(now()) @map("occurred_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  account        Account         @relation(fields: [accountId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  invoicePayment InvoicePayment?
+
+  @@map("transactions")
+  @@schema("simple_system")
+}
+
+model Settings {
+  id                String   @id @default("default")
+  operasionalPct    Float    @default(40) @map("operasional_pct")
+  direksiPct        Float    @default(50) @map("direksi_pct")
+  bonusPct          Float    @default(10) @map("bonus_pct")
+  defaultPpnRate    Float    @default(11) @map("default_ppn_rate")
+  aiFollowUpEnabled Boolean  @default(false) @map("ai_follow_up_enabled")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+  @@schema("simple_system")
+}
+
+model FollowUp {
+  id           String   @id @default(uuid())
+  subject      String
+  note         String
+  followUpDate DateTime @map("follow_up_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("follow_ups")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// AI Agent (Fase 4)
+// ---------------------------------------------------------------------------
+
+model WhatsappThread {
+  id         String   @id @default(uuid())
+  senderType String   @map("sender_type") // "staff" | "client"
+  userId     String?  @map("user_id")
+  clientId   String?  @map("client_id")
+  history    Json
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([senderType, userId])
+  @@unique([senderType, clientId])
+  @@map("whatsapp_threads")
+  @@schema("simple_system")
+}
+
+model AgentRun {
+  id          String   @id @default(uuid())
+  actorType   String   @map("actor_type") // "staff" | "client"
+  actorId     String   @map("actor_id")
+  command     String
+  agentAction String   @map("agent_action")
+  result      String?
+  status      String   @default("success")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("agent_runs")
+  @@schema("simple_system")
+}
