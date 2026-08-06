@@ -107,7 +107,7 @@ export function FilterableTable<T>({
           </div>
         )}
 
-        {mobileCardMode ? (
+        {mobileCardMode && (
           <div className="block md:hidden p-3 sm:p-4 space-y-3">
             {pageRows.map((row, i) => (
               <div key={rowKey(row)} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
@@ -131,68 +131,68 @@ export function FilterableTable<T>({
               </div>
             )}
           </div>
-        ) : (
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
+        )}
+
+        <div className={mobileCardMode ? "hidden md:block" : "block"}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {columns.map((col) => (
+                  <TableHead key={col.key} className={col.headClassName}>
+                    {col.header}
+                  </TableHead>
+                ))}
+              </TableRow>
+              {hasFilters && (
+                <TableFilterRow>
                   {columns.map((col) => (
-                    <TableHead key={col.key} className={col.headClassName}>
-                      {col.header}
-                    </TableHead>
+                    <TableFilterCell key={col.key}>
+                      {col.filterOptions ? (
+                        <TableFilterSelect
+                          aria-label={`Filter ${typeof col.header === "string" ? col.header : col.key}`}
+                          value={filters[col.key] ?? ""}
+                          onChange={(e) => setFilter(col.key, e.target.value)}
+                        >
+                          <option value="">Semua</option>
+                          {col.filterOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </TableFilterSelect>
+                      ) : col.filterValue ? (
+                        <TableFilterInput
+                          aria-label={`Filter ${typeof col.header === "string" ? col.header : col.key}`}
+                          placeholder="Filter..."
+                          value={filters[col.key] ?? ""}
+                          onChange={(e) => setFilter(col.key, e.target.value)}
+                        />
+                      ) : null}
+                    </TableFilterCell>
+                  ))}
+                </TableFilterRow>
+              )}
+            </TableHeader>
+            <TableBody>
+              {pageRows.map((row, i) => (
+                <TableRow key={rowKey(row)}>
+                  {columns.map((col) => (
+                    <TableCell key={col.key} className={col.cellClassName}>
+                      {col.cell(row, pagination.start + i)}
+                    </TableCell>
                   ))}
                 </TableRow>
-                {hasFilters && (
-                  <TableFilterRow>
-                    {columns.map((col) => (
-                      <TableFilterCell key={col.key}>
-                        {col.filterOptions ? (
-                          <TableFilterSelect
-                            aria-label={`Filter ${typeof col.header === "string" ? col.header : col.key}`}
-                            value={filters[col.key] ?? ""}
-                            onChange={(e) => setFilter(col.key, e.target.value)}
-                          >
-                            <option value="">Semua</option>
-                            {col.filterOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </TableFilterSelect>
-                        ) : col.filterValue ? (
-                          <TableFilterInput
-                            aria-label={`Filter ${typeof col.header === "string" ? col.header : col.key}`}
-                            placeholder="Filter..."
-                            value={filters[col.key] ?? ""}
-                            onChange={(e) => setFilter(col.key, e.target.value)}
-                          />
-                        ) : null}
-                      </TableFilterCell>
-                    ))}
-                  </TableFilterRow>
-                )}
-              </TableHeader>
-              <TableBody>
-                {pageRows.map((row, i) => (
-                  <TableRow key={rowKey(row)}>
-                    {columns.map((col) => (
-                      <TableCell key={col.key} className={col.cellClassName}>
-                        {col.cell(row, pagination.start + i)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-                {pageRows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={columns.length} className="text-center text-slate-500 py-8">
-                      {emptyMessage}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+              ))}
+              {pageRows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center text-slate-500 py-8">
+                    {emptyMessage}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </TableContainer>
       <Pagination
         page={pagination.page}
