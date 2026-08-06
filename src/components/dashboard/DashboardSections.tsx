@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardDescription, FilterableTable, type FilterableColumn } from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
+import { FollowUpButtons } from "./FollowUpButtons";
+import { piutangFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
 import type { ExpiryBucket } from "@/lib/domain-status";
 
 function formatRupiah(n: number | null) {
@@ -98,6 +100,16 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
     { key: "dueDate", header: "Jatuh Tempo", cell: (r) => formatDate(r.dueDate) },
     { key: "remaining", header: "Sisa", cellClassName: "font-semibold text-rose-700", cell: (r) => formatRupiah(r.remaining) },
     { key: "status", header: "Status", cell: (r) => <StatusBadge type={r.status as StatusBadgeType} size="sm" /> },
+    {
+      key: "aksi",
+      header: "Follow Up",
+      cell: (r) => (
+        <FollowUpButtons
+          phone={r.picPhone}
+          message={piutangFollowUpMessage({ clientName: r.clientName, invoiceNumber: r.invoiceNumber, remaining: r.remaining, dueDate: r.dueDate })}
+        />
+      ),
+    },
   ];
 
   return (
@@ -186,6 +198,8 @@ export interface DomainExpiringRow {
   id: string;
   name: string;
   owner: string;
+  clientId: string | null;
+  clientPhone: string | null;
   price: number | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
@@ -202,6 +216,25 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[] }> = ({
     { key: "dueDate", header: "Estimasi Habis", cell: (r) => formatDate(r.dueDate) },
     { key: "price", header: "Harga Jual", cell: (r) => formatRupiah(r.price) },
     { key: "status", header: "Status", cell: (r) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> },
+    {
+      key: "aksi",
+      header: "Aksi",
+      cell: (r) =>
+        r.clientId ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+            >
+              <Button size="sm" variant="outline">
+                Tagih Sekarang
+              </Button>
+            </Link>
+            <FollowUpButtons phone={r.clientPhone} message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })} />
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">Internal</span>
+        ),
+    },
   ];
 
   return (
@@ -222,6 +255,9 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[] }> = ({
 export interface ServerDueRow {
   id: string;
   name: string;
+  clientId: string | null;
+  clientName: string | null;
+  clientPhone: string | null;
   price: number | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
@@ -234,9 +270,29 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[] }> = ({ rows }) =
 
   const columns: FilterableColumn<ServerDueRow>[] = [
     { key: "name", header: "Server", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
+    { key: "client", header: "Client", filterValue: (r) => r.clientName ?? "", cell: (r) => r.clientName ?? "Internal" },
     { key: "dueDate", header: "Estimasi Jatuh Tempo", cell: (r) => formatDate(r.dueDate) },
     { key: "price", header: "Harga", cell: (r) => formatRupiah(r.price) },
     { key: "status", header: "Status", cell: (r) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> },
+    {
+      key: "aksi",
+      header: "Aksi",
+      cell: (r) =>
+        r.clientId ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+            >
+              <Button size="sm" variant="outline">
+                Tagih Sekarang
+              </Button>
+            </Link>
+            <FollowUpButtons phone={r.clientPhone} message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })} />
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">Internal</span>
+        ),
+    },
   ];
 
   return (

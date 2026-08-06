@@ -7,6 +7,7 @@ import { computeSplit } from "@/lib/split"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { invoicePaymentLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
+import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
 
 export async function GET() {
   const user = await getApiUser()
@@ -20,10 +21,16 @@ export async function GET() {
   return NextResponse.json(payments)
 }
 
+interface CostLinkInput {
+  type: "domain" | "server"
+  id: string
+}
+
 interface LineInput {
   invoiceId: string
   amount: number
   costAmount?: number
+  costLink?: CostLinkInput
 }
 
 export async function POST(request: Request) {
@@ -40,14 +47,29 @@ export async function POST(request: Request) {
   if (!accountId) return NextResponse.json({ error: "Akun kas/bank wajib dipilih" }, { status: 400 })
 
   const lines = rawLines
-    .map((l) => ({
-      invoiceId: typeof l.invoiceId === "string" ? l.invoiceId : "",
-      amount: Number(l.amount) || 0,
-      costAmount: Math.max(0, Number(l.costAmount) || 0),
-    }))
+    .map((l) => {
+      const rawLink = l.costLink
+      const costLink: CostLinkInput | undefined =
+        rawLink && (rawLink.type === "domain" || rawLink.type === "server") && typeof rawLink.id === "string"
+          ? { type: rawLink.type, id: rawLink.id }
+          : undefined
+      return {
+        invoiceId: typeof l.invoiceId === "string" ? l.invoiceId : "",
+        amount: Number(l.amount) || 0,
+        costAmount: Math.max(0, Number(l.costAmount) || 0),
+        costLink,
+      }
+    })
     .filter((l) => l.invoiceId && l.amount > 0)
 
   if (lines.length === 0) return NextResponse.json({ error: "Pilih minimal 1 invoice untuk dibayar" }, { status: 400 })
+
+  // Mengaitkan biaya ke "Bayar Domain"/"Bayar Server" langsung menandai record itu lunas +
+  // posting jurnal beban — efeknya sama seperti kartu "Tandai Lunas" di Master Data, yang
+  // sengaja dibatasi Owner saja. Jangan longgarkan cuma karena masuk lewat form Pelunasan.
+  if (lines.some((l) => l.costLink) && user.role !== "owner") {
+    return NextResponse.json({ error: "Cuma Owner yang bisa mengaitkan biaya ke Bayar Domain/Server" }, { status: 403 })
+  }
 
   const invoiceIds = lines.map((l) => l.invoiceId)
   if (new Set(invoiceIds).size !== invoiceIds.length) {
@@ -142,6 +164,16 @@ export async function POST(request: Request) {
         createdBy: user.id,
         lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount }),
       })
+
+      // Biaya yang dikaitkan ke domain/server langsung dibayar dari kas yang sama dengan
+      // yang baru saja menerima pelunasan ini — bukan cuma angka pengurang split, tapi
+      // benaran menandai domain/server itu lunas (update lastPaidAt + jurnal beban),
+      // persis efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan.
+      if (line.costLink?.type === "domain") {
+        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id })
+      } else if (line.costLink?.type === "server") {
+        await markServerPaid(tx, { serverId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id })
+      }
     }
 
     return payment

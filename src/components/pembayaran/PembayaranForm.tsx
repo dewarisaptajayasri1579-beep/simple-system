@@ -34,10 +34,26 @@ interface InvoiceRow {
   remaining: number;
 }
 
+interface DomainOption {
+  id: string;
+  name: string;
+  sellPrice: number | null;
+}
+
+interface ServerOption {
+  id: string;
+  name: string;
+  price: number | null;
+}
+
+type CostMode = "none" | "manual" | "domain" | "server";
+
 interface LineState {
   checked: boolean;
   amount: number;
+  costMode: CostMode;
   costAmount: number;
+  costLinkId: string;
 }
 
 function formatRupiah(amount: number) {
@@ -49,12 +65,14 @@ function formatDate(iso: string | null) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
 }
 
-export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId?: string; prefillInvoiceId?: string }> = ({
-  clients,
-  prefillClientId,
-  prefillInvoiceId,
-}) => {
+export const PembayaranForm: React.FC<{
+  clients: ClientOption[];
+  userRole: string;
+  prefillClientId?: string;
+  prefillInvoiceId?: string;
+}> = ({ clients, userRole, prefillClientId, prefillInvoiceId }) => {
   const router = useRouter();
+  const isOwner = userRole === "owner";
   const [clientId, setClientId] = useState(prefillClientId ?? "");
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -62,6 +80,8 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [lines, setLines] = useState<Record<string, LineState>>({});
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [domains, setDomains] = useState<DomainOption[]>([]);
+  const [servers, setServers] = useState<ServerOption[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -75,9 +95,20 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
   }, []);
 
   useEffect(() => {
+    if (!isOwner) return;
+    fetch("/api/servers")
+      .then((r) => r.json())
+      .then((data: Array<{ id: string; name: string; price: number | null }>) =>
+        setServers(Array.isArray(data) ? data.filter((s) => (s.price ?? 0) > 0) : [])
+      )
+      .catch(() => {});
+  }, [isOwner]);
+
+  useEffect(() => {
     if (!clientId) {
       setInvoices([]);
       setLines({});
+      setDomains([]);
       return;
     }
     setIsLoadingInvoices(true);
@@ -97,14 +128,43 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
           })
           .filter((r) => r.remaining > 0.5);
         setInvoices(rows);
-        setLines(Object.fromEntries(rows.map((r) => [r.id, { checked: r.id === prefillInvoiceId, amount: r.remaining, costAmount: 0 }])));
+        setLines(
+          Object.fromEntries(
+            rows.map((r) => [
+              r.id,
+              { checked: r.id === prefillInvoiceId, amount: r.remaining, costMode: "none" as CostMode, costAmount: 0, costLinkId: "" },
+            ])
+          )
+        );
       })
       .finally(() => setIsLoadingInvoices(false));
+
+    if (isOwner) {
+      fetch(`/api/domains?clientId=${clientId}`)
+        .then((r) => r.json())
+        .then((data: Array<{ id: string; name: string; sellPrice: number | null }>) =>
+          setDomains(Array.isArray(data) ? data.filter((d) => (d.sellPrice ?? 0) > 0) : [])
+        )
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
   const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: a.name })), [accounts]);
+  const domainOptions = useMemo(() => domains.map((d) => ({ value: d.id, label: `${d.name} · ${formatRupiah(d.sellPrice ?? 0)}` })), [domains]);
+  const serverOptions = useMemo(() => servers.map((s) => ({ value: s.id, label: `${s.name} · ${formatRupiah(s.price ?? 0)}` })), [servers]);
+
+  const costModeOptions = useMemo(() => {
+    const base = [
+      { value: "none", label: "Tanpa biaya" },
+      { value: "manual", label: "Biaya manual" },
+    ];
+    if (isOwner) {
+      base.push({ value: "domain", label: "Bayar Domain" }, { value: "server", label: "Bayar Server" });
+    }
+    return base;
+  }, [isOwner]);
 
   const updateLine = (id: string, patch: Partial<LineState>) =>
     setLines((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -155,16 +215,48 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
     },
     {
       key: "cost",
-      header: "HPP (opsional)",
-      headClassName: "min-w-[10rem]",
-      cell: (inv) => (
-        <CurrencyInput
-          sizeVariant="sm"
-          value={lines[inv.id]?.costAmount ?? 0}
-          disabled={!lines[inv.id]?.checked}
-          onChange={(v) => updateLine(inv.id, { costAmount: v })}
-        />
-      ),
+      header: "Biaya",
+      headClassName: "min-w-[13rem]",
+      cell: (inv) => {
+        const line = lines[inv.id];
+        const disabled = !line?.checked;
+        return (
+          <div className="space-y-1.5 min-w-[12rem]">
+            <Select
+              sizeVariant="sm"
+              options={costModeOptions}
+              value={line?.costMode ?? "none"}
+              disabled={disabled}
+              onChange={(v) => updateLine(inv.id, { costMode: v as CostMode, costAmount: 0, costLinkId: "" })}
+              searchable={false}
+            />
+            {line?.costMode === "manual" && (
+              <CurrencyInput sizeVariant="sm" value={line.costAmount} disabled={disabled} onChange={(v) => updateLine(inv.id, { costAmount: v })} />
+            )}
+            {line?.costMode === "domain" && (
+              <Select
+                sizeVariant="sm"
+                options={domainOptions}
+                value={line.costLinkId}
+                disabled={disabled}
+                onChange={(v) => updateLine(inv.id, { costLinkId: v })}
+                placeholder="Pilih domain"
+                emptyText="Client ini belum punya domain berharga"
+              />
+            )}
+            {line?.costMode === "server" && (
+              <Select
+                sizeVariant="sm"
+                options={serverOptions}
+                value={line.costLinkId}
+                disabled={disabled}
+                onChange={(v) => updateLine(inv.id, { costLinkId: v })}
+                placeholder="Pilih server"
+              />
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -188,6 +280,11 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
       setError("Centang minimal 1 invoice & isi jumlah dibayar");
       return;
     }
+    const missingLink = selected.find(([, l]) => (l.costMode === "domain" || l.costMode === "server") && !l.costLinkId);
+    if (missingLink) {
+      setError("Ada baris biaya yang belum pilih domain/server-nya");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -198,7 +295,12 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
           clientId,
           accountId,
           notes,
-          lines: selected.map(([invoiceId, l]) => ({ invoiceId, amount: l.amount, costAmount: l.costAmount })),
+          lines: selected.map(([invoiceId, l]) => ({
+            invoiceId,
+            amount: l.amount,
+            costAmount: l.costMode === "manual" ? l.costAmount : 0,
+            costLink: l.costMode === "domain" || l.costMode === "server" ? { type: l.costMode, id: l.costLinkId } : undefined,
+          })),
         }),
       });
       const data = await res.json();
@@ -233,7 +335,10 @@ export const PembayaranForm: React.FC<{ clients: ClientOption[]; prefillClientId
         <Card variant="panel" padding="none">
           <div className="p-5 sm:p-6">
             <CardTitle>Invoice Belum Lunas</CardTitle>
-            <CardDescription>Centang invoice yang mau dibayar, sesuaikan nominal kalau dicicil sebagian.</CardDescription>
+            <CardDescription>
+              Centang invoice yang mau dibayar, sesuaikan nominal kalau dicicil sebagian.
+              {isOwner && " Biaya bisa dikaitkan ke Bayar Domain/Server supaya otomatis kecatat lunas di sana juga."}
+            </CardDescription>
           </div>
           <FilterableTable
             columns={columns}

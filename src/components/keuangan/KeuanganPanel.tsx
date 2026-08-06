@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Card,
-  CardHeader,
   CardTitle,
   CardDescription,
   Button,
@@ -12,38 +12,31 @@ import {
   Input,
   Select,
   Alert,
-  FilterableTable,
   CurrencyInput,
-  type FilterableColumn,
 } from "@/components/ui";
-import { Plus, Wallet, Landmark, Sparkles } from "lucide-react";
+import { Globe, Server as ServerIcon, ArrowUpRight, ArrowDownLeft, Wallet, Plus } from "lucide-react";
 import { guessCategoryId } from "@/lib/category-guess";
 
-export interface AccountRow {
+export interface AccountOption {
   id: string;
   name: string;
-  type: string;
-  bankName: string | null;
-  balance: number;
 }
 
-export interface TransactionRow {
+interface DomainOption {
   id: string;
-  type: string;
-  accountName: string;
-  categoryName: string | null;
-  grossAmount: number;
-  netAmount: number;
-  description: string | null;
-  occurredAt: string;
+  name: string;
+  sellPrice: number | null;
+  client: { name: string } | null;
+}
+
+interface ServerOption {
+  id: string;
+  name: string;
+  price: number | null;
 }
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-}
-
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
 }
 
 const BANK_KEYWORDS = ["mandiri", "bca", "bri", "bni", "bsi"];
@@ -55,30 +48,9 @@ function detectAccountType(name: string): "kas" | "bank" {
   return BANK_KEYWORDS.some((k) => lower.includes(k)) ? "bank" : "kas";
 }
 
-const TRANSACTION_COLUMNS: FilterableColumn<TransactionRow>[] = [
-  { key: "occurredAt", header: "Tanggal", cell: (t) => formatDate(t.occurredAt) },
-  { key: "accountName", header: "Akun", filterValue: (t) => t.accountName, cell: (t) => t.accountName },
-  { key: "categoryName", header: "Kategori", filterValue: (t) => t.categoryName ?? "", cell: (t) => t.categoryName ?? "-" },
-  { key: "description", header: "Keterangan", filterValue: (t) => t.description ?? "", cell: (t) => t.description ?? "-" },
-  {
-    key: "type",
-    header: "Tipe",
-    filterValue: (t) => t.type,
-    filterOptions: [
-      { value: "income", label: "Masuk" },
-      { value: "expense", label: "Keluar" },
-    ],
-    cell: (t) => (
-      <span className={t.type === "income" ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>
-        {t.type === "income" ? "Masuk" : "Keluar"}
-      </span>
-    ),
-  },
-  { key: "grossAmount", header: "Jumlah", cellClassName: "font-semibold", cell: (t) => formatRupiah(t.grossAmount) },
-];
-
-export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: TransactionRow[] }> = ({ accounts, transactions }) => {
+export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: string }> = ({ accounts, userRole }) => {
   const router = useRouter();
+  const isOwner = userRole === "owner";
   const [error, setError] = useState("");
 
   // Modal: akun baru
@@ -90,7 +62,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
   const [openingBalance, setOpeningBalance] = useState(0);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
 
-  // Modal: transaksi manual
+  // Modal: transaksi manual (Kas Masuk / Kas Keluar)
   const [txModalType, setTxModalType] = useState<"income" | "expense" | null>(null);
   const [txAccountId, setTxAccountId] = useState(accounts[0]?.id ?? "");
   const [txAmount, setTxAmount] = useState(0);
@@ -100,6 +72,14 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
   const [categoryAuto, setCategoryAuto] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
   const [isSavingTx, setIsSavingTx] = useState(false);
+
+  // Modal: Bayar Domain / Bayar Server
+  const [billModalType, setBillModalType] = useState<"domain" | "server" | null>(null);
+  const [domains, setDomains] = useState<DomainOption[]>([]);
+  const [servers, setServers] = useState<ServerOption[]>([]);
+  const [billItemId, setBillItemId] = useState("");
+  const [billAccountId, setBillAccountId] = useState(accounts[0]?.id ?? "");
+  const [isSavingBill, setIsSavingBill] = useState(false);
 
   const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: a.name })), [accounts]);
 
@@ -133,6 +113,22 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
       setCategoryAuto(false);
     }
   }, [txDescription, categoryOptions, txModalType, txCategoryId, categoryAuto]);
+
+  useEffect(() => {
+    if (billModalType === "domain" && domains.length === 0) {
+      fetch("/api/domains")
+        .then((r) => r.json())
+        .then((data: DomainOption[]) => setDomains(Array.isArray(data) ? data.filter((d) => (d.sellPrice ?? 0) > 0) : []))
+        .catch(() => {});
+    }
+    if (billModalType === "server" && servers.length === 0) {
+      fetch("/api/servers")
+        .then((r) => r.json())
+        .then((data: ServerOption[]) => setServers(Array.isArray(data) ? data.filter((s) => (s.price ?? 0) > 0) : []))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billModalType]);
 
   const handleCreateCategory = async (name: string) => {
     if (!txModalType) return null;
@@ -253,50 +249,140 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
     }
   };
 
+  const openBillModal = (type: "domain" | "server") => {
+    setBillModalType(type);
+    setBillItemId("");
+    setBillAccountId(accounts[0]?.id ?? "");
+    setError("");
+  };
+
+  const billItemOptions = useMemo(() => {
+    if (billModalType === "domain") {
+      return domains.map((d) => ({ value: d.id, label: `${d.name}${d.client ? ` — ${d.client.name}` : ""} · ${formatRupiah(d.sellPrice ?? 0)}` }));
+    }
+    if (billModalType === "server") {
+      return servers.map((s) => ({ value: s.id, label: `${s.name} · ${formatRupiah(s.price ?? 0)}` }));
+    }
+    return [];
+  }, [billModalType, domains, servers]);
+
+  const handleSaveBill = async () => {
+    if (!billItemId) {
+      setError(billModalType === "domain" ? "Pilih domain dulu" : "Pilih server dulu");
+      return;
+    }
+    if (!billAccountId) {
+      setError("Pilih akun kas/bank dulu");
+      return;
+    }
+    setIsSavingBill(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/${billModalType === "domain" ? "domains" : "servers"}/${billItemId}/mark-paid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: billAccountId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Gagal menandai lunas");
+        setIsSavingBill(false);
+        return;
+      }
+      setBillModalType(null);
+      router.refresh();
+    } catch {
+      setError("Gagal menghubungi server");
+      setIsSavingBill(false);
+    } finally {
+      setIsSavingBill(false);
+    }
+  };
+
+  const menuCards = [
+    isOwner && {
+      key: "domain",
+      icon: <Globe className="w-6 h-6" />,
+      title: "Bayar Domain",
+      description: "Tandai lunas perpanjangan domain",
+      onClick: () => openBillModal("domain"),
+      accent: "text-blue-600 bg-blue-50",
+    },
+    isOwner && {
+      key: "server",
+      icon: <ServerIcon className="w-6 h-6" />,
+      title: "Bayar Server",
+      description: "Tandai lunas sewa server/hosting",
+      onClick: () => openBillModal("server"),
+      accent: "text-indigo-600 bg-indigo-50",
+    },
+    {
+      key: "kas-keluar",
+      icon: <ArrowUpRight className="w-6 h-6" />,
+      title: "Kas Keluar",
+      description: "Catat pengeluaran kas/bank",
+      onClick: () => openTxModal("expense"),
+      accent: "text-rose-600 bg-rose-50",
+    },
+    {
+      key: "kas-masuk",
+      icon: <ArrowDownLeft className="w-6 h-6" />,
+      title: "Kas Masuk",
+      description: "Catat pemasukan kas/bank manual",
+      onClick: () => openTxModal("income"),
+      accent: "text-emerald-600 bg-emerald-50",
+    },
+    {
+      key: "pelunasan",
+      icon: <Wallet className="w-6 h-6" />,
+      title: "Pelunasan",
+      description: "Bayar piutang invoice client",
+      href: "/pembayaran",
+      accent: "text-amber-600 bg-amber-50",
+    },
+  ].filter(Boolean) as Array<{
+    key: string;
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+    accent: string;
+    onClick?: () => void;
+    href?: string;
+  }>;
+
   return (
     <div className="space-y-6">
-      {error && !txModalType && !isAccountModalOpen && (
+      {error && !txModalType && !isAccountModalOpen && !billModalType && (
         <Alert variant="error" onClose={() => setError("")}>
           {error}
         </Alert>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />} onClick={() => openTxModal("income")}>
-          Input Pemasukan Manual
-        </Button>
-        <Button variant="danger" leftIcon={<Plus className="w-4 h-4" />} onClick={() => openTxModal("expense")}>
-          Input Pengeluaran
-        </Button>
-        <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />} onClick={openAccountModal}>
-          Tambah Akun
-        </Button>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {menuCards.map((card) =>
+          card.href ? (
+            <Link key={card.key} href={card.href}>
+              <Card variant="feature" padding="md" className="h-full hover:-translate-y-0.5 transition-transform cursor-pointer">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${card.accent}`}>{card.icon}</div>
+                <CardTitle className="mt-3 text-base">{card.title}</CardTitle>
+                <CardDescription>{card.description}</CardDescription>
+              </Card>
+            </Link>
+          ) : (
+            <button key={card.key} type="button" onClick={card.onClick} className="text-left h-full cursor-pointer">
+              <Card variant="feature" padding="md" className="h-full hover:-translate-y-0.5 transition-transform">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${card.accent}`}>{card.icon}</div>
+                <CardTitle className="mt-3 text-base">{card.title}</CardTitle>
+                <CardDescription>{card.description}</CardDescription>
+              </Card>
+            </button>
+          )
+        )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {accounts.map((acc) => (
-          <Card key={acc.id} variant="feature" padding="md">
-            <div className="flex items-center gap-2 text-slate-500">
-              {acc.type === "bank" ? <Landmark className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
-              <CardDescription>{acc.name}{acc.bankName ? ` — ${acc.bankName}` : ""}</CardDescription>
-            </div>
-            <p className="text-xl font-black text-slate-900 mt-1">{formatRupiah(acc.balance)}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Card variant="panel" padding="none">
-        <CardHeader className="p-5 sm:p-6 mb-0">
-          <CardTitle>Riwayat Transaksi</CardTitle>
-          <CardDescription>{transactions.length} transaksi terbaru</CardDescription>
-        </CardHeader>
-        <FilterableTable
-          columns={TRANSACTION_COLUMNS}
-          rows={transactions}
-          rowKey={(t) => t.id}
-          emptyMessage="Belum ada transaksi manual."
-        />
-      </Card>
+      <Button variant="outline" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAccountModal}>
+        Tambah Akun Kas/Bank
+      </Button>
 
       <Modal
         isOpen={txModalType !== null}
@@ -306,7 +392,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
           // transaksi juga dan membuang input yang sedang diisi.
           if (!isAccountModalOpen) setTxModalType(null);
         }}
-        title={txModalType === "expense" ? "Input Pengeluaran" : "Input Pemasukan Manual"}
+        title={txModalType === "expense" ? "Kas Keluar" : "Kas Masuk"}
       >
         <div className="space-y-4">
           {error && (
@@ -350,7 +436,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
             />
             {categoryAuto && txCategoryId && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 mt-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Terdeteksi otomatis dari keterangan — COA ikut otomatis, ganti kalau salah
+                Terdeteksi otomatis dari keterangan — COA ikut otomatis, ganti kalau salah
               </p>
             )}
           </div>
@@ -360,6 +446,33 @@ export const KeuanganPanel: React.FC<{ accounts: AccountRow[]; transactions: Tra
             </Button>
             <Button variant="primary" onClick={handleSaveTx} isLoading={isSavingTx}>
               Simpan
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={billModalType !== null} onClose={() => setBillModalType(null)} title={billModalType === "domain" ? "Bayar Domain" : "Bayar Server"}>
+        <div className="space-y-4">
+          {error && (
+            <Alert variant="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+          <Select
+            label={billModalType === "domain" ? "Domain" : "Server"}
+            options={billItemOptions}
+            value={billItemId}
+            onChange={setBillItemId}
+            placeholder={billModalType === "domain" ? "Pilih domain" : "Pilih server"}
+            emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
+          />
+          <Select label="Bayar dari Akun" options={accountOptions} value={billAccountId} onChange={setBillAccountId} placeholder="Pilih Kas/Bank" />
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setBillModalType(null)}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleSaveBill} isLoading={isSavingBill}>
+              Tandai Lunas
             </Button>
           </div>
         </div>

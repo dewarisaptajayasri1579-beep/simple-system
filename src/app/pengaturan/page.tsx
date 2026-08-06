@@ -25,12 +25,15 @@ export default async function PengaturanPage() {
     prisma.domain.findMany({ include: { client: true }, orderBy: { name: "asc" } }),
     prisma.recurringBill.findMany({ include: { vendor: true, period: true }, orderBy: { name: "asc" } }),
     prisma.client.findMany({ orderBy: { name: "asc" } }),
-    prisma.legacySalesClient.findMany({ include: { client: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
+    prisma.legacySalesClient.findMany({
+      include: { client: { select: { id: true, name: true, picName: true, picPhone: true } } },
+      orderBy: { name: "asc" },
+    }),
     prisma.item.findMany({ orderBy: { name: "asc" } }),
     prisma.vendor.findMany({ orderBy: { name: "asc" } }),
     prisma.cloudType.findMany({ orderBy: { name: "asc" } }),
     prisma.hostingPackage.findMany({ orderBy: { name: "asc" } }),
-    prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true }, orderBy: { name: "asc" } }),
+    prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true, client: true }, orderBy: { name: "asc" } }),
     prisma.cpanelAccount.findMany({ include: { cloudType: true, package: true }, orderBy: { name: "asc" } }),
   ])
 

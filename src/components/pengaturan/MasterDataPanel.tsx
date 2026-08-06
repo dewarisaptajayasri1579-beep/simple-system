@@ -40,6 +40,7 @@ export interface ServerRow {
   ipAddress: string | null;
   vendorId: string | null;
   cloudTypeId: string | null;
+  clientId: string | null;
   core: string | null;
   ram: string | null;
   storage: string | null;
@@ -50,6 +51,7 @@ export interface ServerRow {
   active: boolean;
   vendor: { name: string } | null;
   cloudType: { name: string } | null;
+  client: { name: string } | null;
   period: { name: string; reminderDaysBefore: number } | null;
 }
 export interface CpanelAccountRow {
@@ -113,7 +115,7 @@ export interface LegacySalesClientRow {
   bankAccount: string | null;
   paymentTermDays: number | null;
   creditLimit: number | null;
-  client: { id: string; name: string } | null;
+  client: { id: string; name: string; picName: string | null; picPhone: string | null } | null;
 }
 
 function formatRupiah(n: number | null) {
@@ -290,6 +292,7 @@ const VendorSection: React.FC<{ rows: VendorRow[] }> = ({ rows: initialRows }) =
 const SERVER_COLUMNS = [
   { key: "ip", label: "IP" },
   { key: "vendor", label: "Vendor" },
+  { key: "client", label: "Client" },
   { key: "spec", label: "Spek" },
   { key: "price", label: "Harga" },
   { key: "lastPaid", label: "Terakhir Bayar" },
@@ -298,10 +301,11 @@ const SERVER_COLUMNS = [
   { key: "aktif", label: "Aktif" },
 ];
 
-const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTypes: LookupRow[] }> = ({
+const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTypes: LookupRow[]; clients: ClientRow[] }> = ({
   rows: initialRows,
   vendors,
   cloudTypes,
+  clients,
 }) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
@@ -315,6 +319,10 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
 
   const vendorOptions = useMemo(() => vendors.map((v) => ({ value: v.id, label: v.name })), [vendors]);
   const cloudTypeOptions = useMemo(() => cloudTypes.map((c) => ({ value: c.id, label: c.name })), [cloudTypes]);
+  const clientOptions = useMemo(
+    () => [{ value: "", label: "Internal (7Smarts)" }, ...clients.map((c) => ({ value: c.id, label: c.name }))],
+    [clients]
+  );
 
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [paying, setPaying] = useState<ServerRow | null>(null);
@@ -424,6 +432,9 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
     ...(isVisible("ip") ? [{ key: "ip", header: "IP", filterValue: (s: ServerRow) => s.ipAddress ?? "", cell: (s: ServerRow) => s.ipAddress ?? "-" }] : []),
     ...(isVisible("vendor")
       ? [{ key: "vendor", header: "Vendor", filterValue: (s: ServerRow) => s.vendor?.name ?? "", cell: (s: ServerRow) => s.vendor?.name ?? "-" }]
+      : []),
+    ...(isVisible("client")
+      ? [{ key: "client", header: "Client", filterValue: (s: ServerRow) => s.client?.name ?? "", cell: (s: ServerRow) => s.client?.name ?? "Internal" }]
       : []),
     ...(isVisible("spec")
       ? [
@@ -554,6 +565,12 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
             <Input label="IP Address" value={form.ipAddress ?? ""} onChange={(e) => setForm((f) => ({ ...f, ipAddress: e.target.value }))} />
             <Select label="Vendor" options={vendorOptions} value={form.vendorId ?? ""} onChange={(v) => setForm((f) => ({ ...f, vendorId: v }))} placeholder="Pilih vendor" />
             <Select label="Jenis Cloud" options={cloudTypeOptions} value={form.cloudTypeId ?? ""} onChange={(v) => setForm((f) => ({ ...f, cloudTypeId: v }))} placeholder="Pilih jenis" />
+            <Select
+              label="Client (disewakan ke)"
+              options={clientOptions}
+              value={form.clientId ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, clientId: v }))}
+            />
             <Input label="Core" value={form.core ?? ""} onChange={(e) => setForm((f) => ({ ...f, core: e.target.value }))} />
             <Input label="RAM" value={form.ram ?? ""} onChange={(e) => setForm((f) => ({ ...f, ram: e.target.value }))} />
             <Input label="Storage" value={form.storage ?? ""} onChange={(e) => setForm((f) => ({ ...f, storage: e.target.value }))} />
@@ -1521,6 +1538,8 @@ const LEGACY_CLIENT_COLUMNS = [
   { key: "bank", label: "Bank" },
   { key: "term", label: "Termin (hari)" },
   { key: "limit", label: "Plafon" },
+  { key: "pic", label: "PIC" },
+  { key: "picPhone", label: "No. WA PIC" },
   { key: "status", label: "Status" },
 ];
 
@@ -1543,7 +1562,13 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
       const res = await fetch(`/api/legacy-sales-clients/${row.id}/promote`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, client: { id: data.id, name: data.name } } : r)));
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === row.id
+              ? { ...r, client: { id: data.id, name: data.name, picName: data.picName ?? null, picPhone: data.picPhone ?? null } }
+              : r
+          )
+        );
         router.refresh();
       }
     } finally {
@@ -1563,6 +1588,10 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
       : []),
     ...(isVisible("term") ? [{ key: "term", header: "Termin (hari)", cell: (r: LegacySalesClientRow) => r.paymentTermDays ?? "-" }] : []),
     ...(isVisible("limit") ? [{ key: "limit", header: "Plafon", cell: (r: LegacySalesClientRow) => formatRupiah(r.creditLimit) }] : []),
+    ...(isVisible("pic") ? [{ key: "pic", header: "PIC", cell: (r: LegacySalesClientRow) => r.client?.picName ?? "-" }] : []),
+    ...(isVisible("picPhone")
+      ? [{ key: "picPhone", header: "No. WA PIC", cell: (r: LegacySalesClientRow) => r.client?.picPhone ?? "-" }]
+      : []),
     ...(isVisible("status")
       ? [
           {
@@ -1672,7 +1701,7 @@ export const MasterDataPanel: React.FC<{
       {tab === "legacy-client" && <LegacyClientStagingSection rows={legacySalesClients} />}
       {tab === "item" && <ItemSection rows={items} />}
       {tab === "kategori" && <CategorySection />}
-      {tab === "server" && <ServerSection rows={servers} vendors={vendors} cloudTypes={cloudTypes} />}
+      {tab === "server" && <ServerSection rows={servers} vendors={vendors} cloudTypes={cloudTypes} clients={clients} />}
       {tab === "cpanel" && <CpanelAccountSection rows={cpanelAccounts} cloudTypes={cloudTypes} packages={hostingPackages} />}
       {tab === "vendor" && <VendorSection rows={vendors} />}
       {tab === "cloud-type" && <LookupSection title="Jenis Cloud" endpoint="/api/cloud-types" rows={cloudTypes} />}

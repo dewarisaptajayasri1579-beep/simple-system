@@ -34,7 +34,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Catat pelunasan piutang — bisa gabung beberapa invoice dalam satu kwitansi.</p>
         </div>
 
-        <PembayaranForm clients={clients} prefillClientId={params.clientId} prefillInvoiceId={params.invoiceId} />
+        <PembayaranForm clients={clients} userRole={user.role} prefillClientId={params.clientId} prefillInvoiceId={params.invoiceId} />
 
         {recentPayments.length > 0 && (
           <Card variant="panel" padding="none">

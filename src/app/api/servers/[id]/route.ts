@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body) return NextResponse.json({ error: "Body tidak valid" }, { status: 400 })
 
   const data: Record<string, unknown> = {}
-  for (const key of ["name", "ipAddress", "vendorId", "cloudTypeId", "core", "ram", "storage", "dnsServer1", "dnsServer2", "periodId"]) {
+  for (const key of ["name", "ipAddress", "vendorId", "cloudTypeId", "clientId", "core", "ram", "storage", "dnsServer1", "dnsServer2", "periodId"]) {
     if (typeof body[key] === "string") data[key] = body[key] || null
   }
   if (typeof body.periodCount === "number") data.periodCount = body.periodCount

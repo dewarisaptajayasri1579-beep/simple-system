@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   const [clientCount, domains, servers, bills, openInvoices] = await Promise.all([
     prisma.client.count(),
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
-    prisma.server.findMany({ where: { active: true }, include: { period: true } }),
+    prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
     prisma.invoice.findMany({
       where: { status: { in: ["unpaid", "partial", "claimed_paid"] } },
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         invoiceNumber: inv.invoiceNumber,
         clientName: inv.client.name,
         picName: inv.client.picName,
-        picPhone: inv.client.picPhone,
+        picPhone: inv.client.picPhone || inv.client.phoneNumber,
         dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
         remaining: Math.max(0, inv.totalAmount - paid),
         status: inv.status,
@@ -95,6 +95,8 @@ export default async function DashboardPage() {
         id: d.id,
         name: d.name,
         owner: d.client?.name ?? "Internal",
+        clientId: d.clientId,
+        clientPhone: d.client ? d.client.picPhone || d.client.phoneNumber : null,
         price: d.sellPrice,
         dueDate: expiry ? expiry.toISOString() : null,
         bucket: getExpiryBucket(expiry),
@@ -110,6 +112,9 @@ export default async function DashboardPage() {
       return {
         id: s.id,
         name: s.name,
+        clientId: s.clientId,
+        clientName: s.client?.name ?? null,
+        clientPhone: s.client ? s.client.picPhone || s.client.phoneNumber : null,
         price: s.price,
         dueDate: nextDue ? nextDue.toISOString() : null,
         bucket: getExpiryBucket(nextDue),

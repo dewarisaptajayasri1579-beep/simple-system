@@ -63,6 +63,7 @@ model Client {
   subdomains         Subdomain[]
   invoices           Invoice[]
   payments           Payment[]
+  servers            Server[]
   legacySalesClient  LegacySalesClient? @relation(fields: [legacySalesClientId], references: [id])
 
   @@map("clients")
@@ -149,6 +150,7 @@ model Server {
   ipAddress         String?   @map("ip_address")
   vendorId          String?   @map("vendor_id")
   cloudTypeId       String?   @map("cloud_type_id")
+  clientId          String?   @map("client_id") // kosong = infra internal 7Smarts, terisi = disewakan ke client ini
   core              String?
   ram               String?
   storage           String?
@@ -167,6 +169,7 @@ model Server {
   vendor    Vendor?        @relation(fields: [vendorId], references: [id])
   cloudType CloudType?     @relation(fields: [cloudTypeId], references: [id])
   period    BillingPeriod? @relation(fields: [periodId], references: [id])
+  client    Client?        @relation(fields: [clientId], references: [id])
 
   @@map("servers")
   @@schema("simple_system")

@@ -8,7 +8,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
 
   const servers = await prisma.server.findMany({
-    include: { vendor: true, cloudType: true, period: true },
+    include: { vendor: true, cloudType: true, period: true, client: true },
     orderBy: { name: "asc" },
   })
   return NextResponse.json(servers)
@@ -19,6 +19,7 @@ interface ServerInput {
   ipAddress?: string
   vendorId?: string
   cloudTypeId?: string
+  clientId?: string
   core?: string
   ram?: string
   storage?: string
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       ipAddress: body.ipAddress || null,
       vendorId: body.vendorId || null,
       cloudTypeId: body.cloudTypeId || null,
+      clientId: body.clientId || null,
       core: body.core || null,
       ram: body.ram || null,
       storage: body.storage || null,
