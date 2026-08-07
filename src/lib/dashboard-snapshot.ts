@@ -16,23 +16,42 @@ export async function getDashboardSnapshot() {
     prisma.client.count(),
   ])
 
-  const domainRows = domains.map((d) => ({ domain: d, bucket: getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)) }))
+  const domainRows = domains.map((d) => {
+    const dueDate = computeDomainExpiryDate(d.lastPaidAt)
+    return { domain: d, dueDate, bucket: getExpiryBucket(dueDate) }
+  })
   const domainExpiring = domainRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
   const domainExpired = domainRows.filter((r) => r.bucket === "expired")
+  const domainDue = [...domainExpired, ...domainExpiring].sort((a, b) => {
+    const at = a.dueDate ? a.dueDate.getTime() : Infinity
+    const bt = b.dueDate ? b.dueDate.getTime() : Infinity
+    return at - bt
+  })
 
   // Server: sama seperti Domain — sudah lewat tempo, atau jatuh tempo bulan ini/depan.
-  const serverRows = servers.map((s) => ({
-    server: s,
-    bucket: getExpiryBucket(computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)),
-  }))
+  const serverRows = servers.map((s) => {
+    const dueDate = computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)
+    return { server: s, dueDate, bucket: getExpiryBucket(dueDate) }
+  })
   const serverExpiring = serverRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
   const serverExpired = serverRows.filter((r) => r.bucket === "expired")
+  const serverDue = [...serverExpired, ...serverExpiring].sort((a, b) => {
+    const at = a.dueDate ? a.dueDate.getTime() : Infinity
+    const bt = b.dueDate ? b.dueDate.getTime() : Infinity
+    return at - bt
+  })
 
-  const billRows = bills.map((b) => ({
-    bill: b,
-    bucket: getDueBucket(computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount), b.period?.reminderDaysBefore ?? 7),
-  }))
-  const billsDue = billRows.filter((r) => r.bucket === "overdue" || r.bucket === "due_soon")
+  const billRows = bills.map((b) => {
+    const dueDate = computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount)
+    return { bill: b, dueDate, bucket: getDueBucket(dueDate, b.period?.reminderDaysBefore ?? 7) }
+  })
+  const billsDue = billRows
+    .filter((r) => r.bucket === "overdue" || r.bucket === "due_soon")
+    .sort((a, b) => {
+      const at = a.dueDate ? a.dueDate.getTime() : Infinity
+      const bt = b.dueDate ? b.dueDate.getTime() : Infinity
+      return at - bt
+    })
 
   const invoicesWithRemaining = openInvoices
     .map((inv) => ({ inv, remaining: inv.totalAmount - inv.payments.reduce((s, p) => s + p.amount, 0) }))
@@ -58,15 +77,34 @@ export async function getDashboardSnapshot() {
       expiredCount: domainExpired.length,
       expiringCount: domainExpiring.length,
       expiring: domainExpiring.slice(0, 5).map((r) => ({ name: r.domain.name, clientName: r.domain.client?.name ?? "Internal" })),
+      due: domainDue.slice(0, 5).map((r) => ({
+        name: r.domain.name,
+        clientName: r.domain.client?.name ?? "Internal",
+        dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+        price: r.domain.sellPrice,
+        overdue: r.bucket === "expired",
+      })),
     },
     server: {
       expiredCount: serverExpired.length,
       expiringCount: serverExpiring.length,
       expiring: serverExpiring.slice(0, 5).map((r) => ({ name: r.server.name, clientName: r.server.client?.name ?? "Internal" })),
+      due: serverDue.slice(0, 5).map((r) => ({
+        name: r.server.name,
+        clientName: r.server.client?.name ?? "Internal",
+        dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+        price: r.server.price,
+        overdue: r.bucket === "expired",
+      })),
     },
     biayaBerkala: {
       dueCount: billsDue.length,
-      due: billsDue.slice(0, 5).map((r) => ({ name: r.bill.name, price: r.bill.price })),
+      due: billsDue.slice(0, 5).map((r) => ({
+        name: r.bill.name,
+        price: r.bill.price,
+        dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+        overdue: r.bucket === "overdue",
+      })),
     },
   }
 }

@@ -1,102 +1,129 @@
 import { ImageResponse } from "next/og"
 import { getDashboardSnapshot } from "@/lib/dashboard-snapshot"
+import {
+  COLORS,
+  PageShell,
+  ReportHeader,
+  ReportFooter,
+  StatCard,
+  SectionCard,
+  StatusPill,
+  formatRupiah,
+  formatTanggalSingkat,
+} from "@/lib/report-image-ui"
 
 export const runtime = "nodejs"
-
-function formatRupiah(amount: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
-}
-
-function StatRow({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        background: "rgba(255,255,255,0.08)",
-        borderRadius: 44,
-        padding: "48px 64px",
-        border: "1px solid rgba(255,255,255,0.15)",
-      }}
-    >
-      <div style={{ display: "flex", fontSize: 64, color: "#c7d6f5", fontWeight: 600 }}>{label}</div>
-      <div style={{ display: "flex", fontSize: 101, color: accent, fontWeight: 800, marginTop: 18 }}>{value}</div>
-    </div>
-  )
-}
 
 export async function GET() {
   const snapshot = await getDashboardSnapshot()
   const now = new Date()
-  const tanggal = new Intl.DateTimeFormat("id-ID", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Jakarta",
-  }).format(now)
-  const jam = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }).format(now)
+  const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
+
+  const piutangRows = snapshot.piutang.top.slice(0, 4)
+  const serverRows = snapshot.server.due.slice(0, 4)
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          padding: 110,
-          background: "linear-gradient(160deg, #0a2540 0%, #09356b 55%, #041c38 100%)",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 118, fontWeight: 800, color: "#ffffff", lineHeight: 1.15 }}>SEVEN OS</div>
-          <div style={{ display: "flex", fontSize: 73, fontWeight: 600, color: "#dbe6fb", marginTop: 10 }}>Ringkasan Dashboard</div>
-          <div style={{ display: "flex", fontSize: 59, color: "#9fb4dd", marginTop: 34 }}>
-            <span>{tanggal}</span>
-            <span style={{ margin: "0 20px" }}>·</span>
-            <span>{jam} WIB</span>
+      <PageShell>
+        <ReportHeader title="SEVEN OS" subtitle="Ringkasan Dashboard" now={now} />
+
+        {/* Stat grid: 3 baris x 2 kolom */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", gap: 24 }}>
+            <StatCard icon="dollarSign" iconBg={COLORS.rose} label="Piutang Outstanding" value={formatRupiah(snapshot.piutang.total)} valueColor="#fca5a5" />
+            <StatCard icon="landmark" iconBg={COLORS.emerald} label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} valueColor="#6ee7b7" />
+          </div>
+          <div style={{ display: "flex", gap: 24 }}>
+            <StatCard icon="fileText" iconBg={COLORS.sky} label="Invoice Belum Lunas" value={`${snapshot.piutang.count}`} valueColor="#7dd3fc" chevron />
+            <StatCard
+              icon="globe"
+              iconBg={COLORS.amber}
+              label="Domain Perlu Perhatian"
+              value={`${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`}
+              valueColor="#fcd34d"
+              chevron
+            />
+          </div>
+          <div style={{ display: "flex", gap: 24 }}>
+            <StatCard
+              icon="clock"
+              iconBg={COLORS.violet}
+              label="Biaya Berkala Jatuh Tempo"
+              value={`${snapshot.biayaBerkala.dueCount}`}
+              valueColor="#c4b5fd"
+              chevron
+            />
+            <StatCard
+              icon="server"
+              iconBg={COLORS.cyan}
+              label="Server Belum Dibayar"
+              value={`${snapshot.server.expiredCount + snapshot.server.expiringCount}`}
+              valueColor="#67e8f9"
+              chevron
+            />
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 36, marginTop: 76 }}>
-          <StatRow label="Piutang Outstanding" value={formatRupiah(snapshot.piutang.total)} accent="#fca5a5" />
-          <StatRow label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} accent="#86efac" />
-          <StatRow label="Invoice Belum Lunas" value={`${snapshot.piutang.count}`} accent="#fca5a5" />
-          <StatRow label="Domain Perlu Perhatian" value={`${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`} accent="#fcd34d" />
-          <StatRow label="Server Perlu Perhatian" value={`${snapshot.server.expiredCount + snapshot.server.expiringCount}`} accent="#c4b5fd" />
-          <StatRow label="Biaya Berkala Jatuh Tempo" value={`${snapshot.biayaBerkala.dueCount}`} accent="#fcd34d" />
-        </div>
-
-        {snapshot.piutang.top.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 68 }}>
-            <div style={{ display: "flex", fontSize: 67, color: "#c7d6f5", fontWeight: 700, marginBottom: 28 }}>Piutang Terbesar</div>
-            {snapshot.piutang.top.slice(0, 4).map((r, i, arr) => (
+        {/* Piutang Terbesar */}
+        {piutangRows.length > 0 && (
+          <SectionCard title="Piutang Terbesar">
+            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 18, marginBottom: 4 }}>
+              <div style={{ display: "flex", width: 90, fontSize: 26, color: COLORS.textDim }}>No</div>
+              <div style={{ display: "flex", flex: 1, fontSize: 26, color: COLORS.textDim }}>Nama Pelanggan</div>
+              <div style={{ display: "flex", fontSize: 26, color: COLORS.textDim }}>Total Piutang</div>
+            </div>
+            {piutangRows.map((r, i) => (
               <div
                 key={i}
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 59,
-                  color: "#e6ecfb",
-                  padding: "26px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
+                  alignItems: "center",
+                  padding: "22px 0",
+                  borderBottom: i < piutangRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
                 }}
               >
-                <span>{r.clientName}</span>
-                <span style={{ fontWeight: 700 }}>{formatRupiah(r.remaining)}</span>
+                <div style={{ display: "flex", width: 90, fontSize: 34, color: COLORS.textDim }}>{i + 1}</div>
+                <div style={{ display: "flex", flex: 1, fontSize: 36, color: "#e6ecfb" }}>{r.clientName}</div>
+                <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: "#fca5a5" }}>{formatRupiah(r.remaining)}</div>
               </div>
             ))}
-          </div>
+          </SectionCard>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", fontSize: 50, color: "#7f96c4", marginTop: "auto", paddingTop: 48 }}>
-          <span>Detail lengkap & aksi lanjut:</span>
-          <span style={{ color: "#a9bde8", fontWeight: 600, marginTop: 14 }}>{process.env.APP_BASE_URL || "https://app.onyseven.com"}/dashboard</span>
-        </div>
-      </div>
+        {/* Server Belum Dibayar */}
+        {serverRows.length > 0 && (
+          <SectionCard title="Server Belum Dibayar" badge={snapshot.server.expiredCount + snapshot.server.expiringCount}>
+            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 18, marginBottom: 4 }}>
+              <div style={{ display: "flex", width: 90, fontSize: 26, color: COLORS.textDim }}>No</div>
+              <div style={{ display: "flex", flex: 1.4, fontSize: 26, color: COLORS.textDim }}>Server / Layanan</div>
+              <div style={{ display: "flex", flex: 1.1, fontSize: 26, color: COLORS.textDim }}>Pelanggan</div>
+              <div style={{ display: "flex", flex: 1, fontSize: 26, color: COLORS.textDim }}>Jatuh Tempo</div>
+            </div>
+            {serverRows.map((r, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "22px 0",
+                  borderBottom: i < serverRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
+                }}
+              >
+                <div style={{ display: "flex", width: 90, fontSize: 32, color: COLORS.textDim }}>{i + 1}</div>
+                <div style={{ display: "flex", flex: 1.4, fontSize: 32, color: "#e6ecfb" }}>{r.name}</div>
+                <div style={{ display: "flex", flex: 1.1, fontSize: 32, color: "#e6ecfb" }}>{r.clientName}</div>
+                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 16 }}>
+                  <span style={{ display: "flex", fontSize: 32, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                  <StatusPill overdue={r.overdue} />
+                </div>
+              </div>
+            ))}
+          </SectionCard>
+        )}
+
+        <ReportFooter appBaseUrl={appBaseUrl} />
+      </PageShell>
     ),
-    { width: 2160, height: 3840 }
+    { width: 2160, height: 2320 }
   )
 }
