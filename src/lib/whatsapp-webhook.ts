@@ -9,6 +9,9 @@ const THREAD_IDLE_MS = 30 * 60 * 1000
 interface WahubIncomingMessage {
   from?: string
   senderNumber?: string
+  /** JID chat asal pesan ini (beda dari "from" kalau pesannya dari GRUP — "from" sudah
+   *  di-resolve ke JID pengirimnya, bukan chat/grupnya). Grup selalu berakhiran "@g.us". */
+  chatId?: string
   to?: string
   body?: string
 }
@@ -45,12 +48,13 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
 
   const command = message.body.trim()
 
-  // Pesan dari WA Grup ops internal — "from" adalah JID grup ("...@g.us"), pengirim asli ada di
-  // "senderNumber". Balasannya WAJIB ke grup itu sendiri, bukan DM pribadi ke pengirimnya, dan
-  // cuma diproses kalau pengirimnya staf terdaftar (biar aman kalau suatu saat ada orang luar
-  // masuk grup) — silent kalau tidak dikenal, sama seperti kebijakan nomor tak terdaftar di bawah.
+  // Pesan dari WA Grup ops internal — dideteksi lewat "chatId" (JID grup, "...@g.us"), BUKAN
+  // "from" (itu sudah di-resolve ke JID pengirimnya sendiri, bukan grupnya — lihat backend-wahub).
+  // Balasannya WAJIB ke grup itu sendiri, bukan DM pribadi ke pengirimnya, dan cuma diproses
+  // kalau pengirimnya staf terdaftar (biar aman kalau suatu saat ada orang luar masuk grup) —
+  // silent kalau tidak dikenal, sama seperti kebijakan nomor tak terdaftar di bawah.
   const groupJid = process.env.WAHUB_GROUP_JID
-  if (groupJid && message.from === groupJid) {
+  if (groupJid && message.chatId === groupJid) {
     if (!message.senderNumber) return { skipped: "group message without senderNumber" }
 
     const staff = await findRegisteredStaff(message.senderNumber)
