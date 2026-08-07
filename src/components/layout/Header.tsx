@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "../ui/Avatar";
-import { Calendar, ChevronDown, LogOut } from "lucide-react";
+import { Calendar, ChevronDown, LogOut, Search } from "lucide-react";
 
 export interface HeaderProps {
   userName: string;
@@ -73,7 +73,19 @@ export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", cl
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="hidden sm:flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-xs text-xs sm:text-sm font-bold text-slate-700">
+        <button
+          onClick={() => window.dispatchEvent(new Event("toggle-command-palette"))}
+          className="flex items-center gap-2.5 px-3 sm:px-4 py-2 rounded-2xl bg-white/70 hover:bg-white backdrop-blur-md border border-slate-200/80 shadow-xs text-xs sm:text-sm font-semibold text-slate-500 transition-colors cursor-pointer"
+          aria-label="Buka pencarian"
+        >
+          <Search className="w-4 h-4 text-slate-400" />
+          <span className="hidden md:inline">Cari...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono font-bold text-slate-400">
+            ⌘K
+          </kbd>
+        </button>
+
+        <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-xs text-xs sm:text-sm font-bold text-slate-700">
           <Calendar className="w-4 h-4 text-blue-700" />
           <span>{currentDateTime}</span>
         </div>

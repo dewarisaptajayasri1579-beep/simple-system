@@ -20,6 +20,15 @@ export function piutangFollowUpMessage(input: {
   )
 }
 
+/** Follow-up piutang per client (bukan per invoice) — dipakai tombol Follow Up di sebelah
+ *  data PIC, merangkum semua invoice belum lunas milik client itu jadi satu pesan. */
+export function piutangGroupFollowUpMessage(input: { clientName: string; totalRemaining: number; invoiceCount: number }) {
+  return (
+    `Halo, mengingatkan tagihan atas nama ${input.clientName} — total ${input.invoiceCount} invoice belum lunas sebesar ${formatRupiah(input.totalRemaining)}. ` +
+    `Mohon konfirmasi pembayarannya ya. Terima kasih 🙏`
+  )
+}
+
 /** Follow-up perpanjangan domain — dikirim sebelum/tanpa invoice terbit, jadi cuma info umum. */
 export function domainFollowUpMessage(input: { clientName: string; domainName: string; dueDate: string | null }) {
   return (

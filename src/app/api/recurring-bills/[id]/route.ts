@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body) return NextResponse.json({ error: "Body tidak valid" }, { status: 400 })
 
   const data: Record<string, unknown> = {}
-  for (const key of ["name", "vendorId", "category"]) {
+  for (const key of ["name", "identifier", "vendorId", "category"]) {
     if (typeof body[key] === "string") data[key] = body[key] || null
   }
   if (typeof body.price === "number") data.price = body.price

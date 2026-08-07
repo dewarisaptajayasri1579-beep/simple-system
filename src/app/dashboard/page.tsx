@@ -15,6 +15,8 @@ import {
   type DomainExpiringRow,
   type ServerDueRow,
 } from "@/components/dashboard/DashboardSections"
+import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
+import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
@@ -29,8 +31,9 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
 export default async function DashboardPage() {
   const user = await getCurrentUser()
 
-  const [clientCount, domains, servers, bills, openInvoices] = await Promise.all([
+  const [clientCount, clientOptions, domains, servers, bills, openInvoices, followUps] = await Promise.all([
     prisma.client.count(),
+    prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
     prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
@@ -39,6 +42,7 @@ export default async function DashboardPage() {
       include: { client: true, payments: true },
       orderBy: { dueDate: "asc" },
     }),
+    prisma.followUp.findMany({ orderBy: { followUpDate: "desc" } }),
   ])
 
   const domainBuckets = domains.map((d) => getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)))
@@ -61,6 +65,7 @@ export default async function DashboardPage() {
         clientName: inv.client.name,
         picName: inv.client.picName,
         picPhone: inv.client.picPhone || inv.client.phoneNumber,
+        issuedAt: inv.issuedAt.toISOString(),
         dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
         remaining: Math.max(0, inv.totalAmount - paid),
         status: inv.status,
@@ -78,6 +83,7 @@ export default async function DashboardPage() {
       return {
         id: b.id,
         name: b.name,
+        identifier: b.identifier,
         category: b.category,
         vendorName: b.vendor?.name ?? null,
         price: b.price,
@@ -124,6 +130,24 @@ export default async function DashboardPage() {
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
+  // Follow Up: catatan yang jatuh tempo hari ini atau sudah lewat.
+  const followUpRows = followUps.map((f) => ({
+    id: f.id,
+    subject: f.subject,
+    note: f.note,
+    followUpDate: f.followUpDate.toISOString(),
+  }))
+  const todayJakarta = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())
+  const followUpDueCount = followUpRows.filter((r) => r.followUpDate.slice(0, 10) <= todayJakarta).length
+
+  const navBadges: DashboardNavBadge[] = [
+    { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
+    { label: "Pembayaran Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
+    { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
+    { label: "Server", href: "#server", count: serverDueRows.length, color: "violet" },
+    { label: "Follow Up", href: "#follow-up", count: followUpDueCount, color: "emerald" },
+  ]
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 sm:space-y-8">
@@ -131,6 +155,8 @@ export default async function DashboardPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Ringkasan operasional hari ini.</p>
         </div>
+
+        <DashboardNavBadges items={navBadges} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           <Card variant="feature" padding="md">
@@ -151,10 +177,21 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        <PiutangSummarySection rows={piutangRows} />
-        <RecurringDueSection rows={recurringDueRows} />
-        <DomainExpiringSection rows={domainExpiringRows} />
-        <ServerDueSection rows={serverDueRows} />
+        <div id="piutang" className="scroll-mt-[150px]">
+          <PiutangSummarySection rows={piutangRows} />
+        </div>
+        <div id="pembayaran-rutin" className="scroll-mt-[150px]">
+          <RecurringDueSection rows={recurringDueRows} />
+        </div>
+        <div id="domain" className="scroll-mt-[150px]">
+          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} />
+        </div>
+        <div id="server" className="scroll-mt-[150px]">
+          <ServerDueSection rows={serverDueRows} />
+        </div>
+        <div id="follow-up" className="scroll-mt-[150px]">
+          <FollowUpPanel rows={followUpRows} />
+        </div>
 
         <Card variant="panel" padding="lg">
           <p className="text-sm text-slate-600 font-medium">

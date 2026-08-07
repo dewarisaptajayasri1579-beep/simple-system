@@ -236,6 +236,7 @@ model RecurringBill {
   id                String    @id @default(uuid())
   legacyId          Int?      @unique @map("legacy_id")
   name              String
+  identifier        String?   @map("identifier") // Nomor ID / Keterangan (mis. nomor pelanggan PLN, ID akun, dsb)
   vendorId          String?   @map("vendor_id")
   category          String    @default("kantor") // "kantor" | "pribadi" | "lainnya"
   subscriptionStart DateTime? @map("subscription_start")

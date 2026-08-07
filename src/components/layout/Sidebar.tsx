@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
-  ClipboardList,
 } from "lucide-react";
 
 export interface NavItem {
@@ -37,7 +36,6 @@ export const navItems: NavItem[] = [
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Penjualan", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
-  { label: "Follow Up", href: "/follow-up", icon: <ClipboardList className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Akuntansi", href: "/akuntansi", icon: <BookOpen className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/pengaturan", icon: <Settings className="w-5 h-5" /> },

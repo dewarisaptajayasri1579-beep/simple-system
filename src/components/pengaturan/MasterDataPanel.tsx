@@ -19,7 +19,7 @@ import {
   type FilterableColumn,
 } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
-import { Plus, Eye, EyeOff, Pencil } from "lucide-react";
+import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status";
 import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -88,6 +88,7 @@ export interface DomainRow {
 export interface RecurringBillRow {
   id: string;
   name: string;
+  identifier: string | null;
   category: string;
   vendorId: string | null;
   price: number | null;
@@ -156,6 +157,31 @@ const ActiveToggle: React.FC<{ active: boolean; onToggle: () => void; disabled?:
       }`}
     />
   </button>
+);
+
+// Internal (7Smarts, jadi Biaya) vs Client (ditagihkan, jadi Pendapatan - HPP).
+const OwnerToggle: React.FC<{ isExternal: boolean; onToggle: () => void; disabled?: boolean }> = ({ isExternal, onToggle, disabled }) => (
+  <div className="flex items-center gap-2">
+    <span className={`text-[11px] font-bold ${!isExternal ? "text-slate-700" : "text-slate-400"}`}>Internal</span>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isExternal}
+      aria-label={isExternal ? "Tandai sebagai Internal (7Smarts)" : "Tandai sebagai milik Client"}
+      onClick={onToggle}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+        isExternal ? "bg-[#0544cc]" : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          isExternal ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+    <span className={`text-[11px] font-bold ${isExternal ? "text-[#0544cc]" : "text-slate-400"}`}>Client</span>
+  </div>
 );
 
 // ---------------------------------------------------------------------------
@@ -920,7 +946,7 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
 // ---------------------------------------------------------------------------
 const DOMAIN_COLUMNS = [
   { key: "client", label: "Client" },
-  { key: "hasClient", label: "Status Client" },
+  { key: "hasClient", label: "Internal/External" },
   { key: "price", label: "Harga Jual" },
   { key: "lastPaid", label: "Terakhir Bayar" },
   { key: "expiry", label: "Estimasi Habis" },
@@ -929,8 +955,8 @@ const DOMAIN_COLUMNS = [
 ];
 
 const DOMAIN_CLIENT_STATUS_OPTIONS = [
-  { value: "belum", label: "Belum ada Client" },
-  { value: "ada", label: "Sudah ada Client" },
+  { value: "belum", label: "Internal (7Smarts)" },
+  { value: "ada", label: "Milik Client" },
 ];
 
 const DOMAIN_STATUS_OPTIONS = [
@@ -940,11 +966,44 @@ const DOMAIN_STATUS_OPTIONS = [
   { value: "safe", label: "Aman" },
 ];
 
-const DomainSection: React.FC<{ rows: DomainRow[] }> = ({ rows: initialRows }) => {
+const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients: initialClients }) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingOwnerId, setTogglingOwnerId] = useState<string | null>(null);
+  const [assigning, setAssigning] = useState<DomainRow | null>(null);
+  const [assignClientId, setAssignClientId] = useState("");
+  const [localClients, setLocalClients] = useState(initialClients);
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientError, setNewClientError] = useState("");
+  const [savingNewClient, setSavingNewClient] = useState(false);
+  const [stagingClients, setStagingClients] = useState<{ id: string; name: string; client: { id: string } | null }[]>([]);
+  const [assignError, setAssignError] = useState("");
   const { isVisible, toggle } = useColumnVisibility("domain", DOMAIN_COLUMNS);
+
+  useEffect(() => {
+    fetch("/api/legacy-sales-clients")
+      .then((r) => r.json())
+      .then(setStagingClients)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => setLocalClients(initialClients), [initialClients]);
+
+  const stagingOptions = useMemo(
+    () =>
+      stagingClients
+        .filter((s) => !s.client)
+        .map((s) => ({ value: `staging:${s.id}`, label: `${s.name} (Pelanggan Baru — Staging)` })),
+    [stagingClients]
+  );
+
+  const clientOptions = useMemo(
+    () => [...localClients.map((c) => ({ value: c.id, label: c.name })), ...stagingOptions],
+    [localClients, stagingOptions]
+  );
 
   const bucketOf = (domain: DomainRow) => getExpiryBucket(computeDomainExpiryDate(domain.lastPaidAt ? new Date(domain.lastPaidAt) : null));
 
@@ -970,6 +1029,89 @@ const DomainSection: React.FC<{ rows: DomainRow[] }> = ({ rows: initialRows }) =
     setTogglingId(null);
   };
 
+  const patchDomainClient = async (domainId: string, clientId: string) => {
+    setTogglingOwnerId(domainId);
+    const res = await fetch(`/api/domains/${domainId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setRows((prev) => prev.map((r) => (r.id === domainId ? { ...r, ...data } : r)));
+      router.refresh();
+    }
+    setTogglingOwnerId(null);
+  };
+
+  const handleToggleOwner = (domain: DomainRow) => {
+    if (domain.clientId) {
+      // Milik Client -> balik jadi Internal (7Smarts): lepas client-nya.
+      patchDomainClient(domain.id, "");
+    } else {
+      // Internal -> jadi milik Client: minta pilih client dulu.
+      setAssigning(domain);
+      setAssignClientId(localClients[0]?.id ?? "");
+      setShowNewClient(false);
+      setAssignError("");
+    }
+  };
+
+  const handleConfirmAssign = async () => {
+    if (!assigning || !assignClientId) return;
+
+    let targetClientId = assignClientId;
+
+    if (assignClientId.startsWith("staging:")) {
+      const stagingId = assignClientId.slice("staging:".length);
+      setTogglingOwnerId(assigning.id);
+      setAssignError("");
+      const res = await fetch(`/api/legacy-sales-clients/${stagingId}/promote`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setTogglingOwnerId(null);
+        setAssignError(data.error || "Gagal mempromosikan Pelanggan Baru (Staging) ini");
+        return;
+      }
+      targetClientId = data.id;
+      setLocalClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setStagingClients((prev) => prev.map((s) => (s.id === stagingId ? { ...s, client: { id: data.id } } : s)));
+    }
+
+    await patchDomainClient(assigning.id, targetClientId);
+    setAssigning(null);
+  };
+
+  const openNewClientForm = (prefillName: string) => {
+    setNewClientName(prefillName);
+    setNewClientPhone("");
+    setNewClientError("");
+    setShowNewClient(true);
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClientName.trim()) {
+      setNewClientError("Nama client wajib diisi");
+      return;
+    }
+    setSavingNewClient(true);
+    setNewClientError("");
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newClientName.trim(), phoneNumber: newClientPhone.trim() || undefined }),
+    });
+    const data = await res.json();
+    setSavingNewClient(false);
+    if (!res.ok) {
+      setNewClientError(data.error || "Gagal menambah client");
+      return;
+    }
+    setLocalClients((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setAssignClientId(data.id);
+    setShowNewClient(false);
+  };
+
   const columns: FilterableColumn<DomainRow>[] = [
     { key: "no", header: "No", headClassName: "w-12", cell: (_r, i) => <span className="text-slate-500">{i + 1}</span> },
     { key: "name", header: "Domain", filterValue: (d) => d.name, cellClassName: "font-semibold", cell: (d) => d.name },
@@ -980,15 +1122,12 @@ const DomainSection: React.FC<{ rows: DomainRow[] }> = ({ rows: initialRows }) =
       ? [
           {
             key: "hasClient",
-            header: "Status Client",
+            header: "Internal/External",
             filterValue: (d: DomainRow) => (d.clientId ? "ada" : "belum"),
             filterOptions: DOMAIN_CLIENT_STATUS_OPTIONS,
-            cell: (d: DomainRow) =>
-              d.clientId ? (
-                <span className="text-xs font-semibold text-emerald-700">Sudah ada</span>
-              ) : (
-                <span className="text-xs font-semibold text-amber-700">Belum ada</span>
-              ),
+            cell: (d: DomainRow) => (
+              <OwnerToggle isExternal={!!d.clientId} disabled={togglingOwnerId === d.id} onToggle={() => handleToggleOwner(d)} />
+            ),
           },
         ]
       : []),
@@ -1076,6 +1215,70 @@ const DomainSection: React.FC<{ rows: DomainRow[] }> = ({ rows: initialRows }) =
         </div>
         <FilterableTable columns={columns} rows={rows} rowKey={(d) => d.id} emptyMessage="Tidak ada domain yang cocok." />
       </Card>
+
+      <Modal
+        isOpen={!!assigning}
+        onClose={() => setAssigning(null)}
+        title={showNewClient ? "Tambah Client Baru" : "Pilih Client"}
+        subtitle={
+          assigning
+            ? showNewClient
+              ? `Client baru untuk domain "${assigning.name}"`
+              : `Tandai domain "${assigning.name}" sebagai milik client mana?`
+            : undefined
+        }
+        footer={
+          showNewClient ? (
+            <>
+              <Button variant="outline" onClick={() => setShowNewClient(false)}>
+                Kembali
+              </Button>
+              <Button onClick={handleCreateClient} disabled={savingNewClient || !newClientName.trim()}>
+                {savingNewClient ? "Menyimpan..." : "Simpan Client"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setAssigning(null)}>
+                Batal
+              </Button>
+              <Button onClick={handleConfirmAssign} disabled={!assignClientId || togglingOwnerId === assigning?.id}>
+                Simpan
+              </Button>
+            </>
+          )
+        }
+      >
+        {showNewClient ? (
+          <div className="space-y-4">
+            {newClientError && <Alert variant="error">{newClientError}</Alert>}
+            <Input label="Nama Client" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
+            <Input label="No. WA" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder="08xxxxxxxxxx" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {assignError && <Alert variant="error">{assignError}</Alert>}
+            <Select
+              label="Client"
+              value={assignClientId}
+              onChange={setAssignClientId}
+              options={clientOptions}
+              searchable
+              creatable
+              deferCreate
+              createOptionLabel={(q) => `+ Tambah client baru "${q}"`}
+              onCreateOption={(q) => openNewClientForm(q)}
+            />
+            <button
+              type="button"
+              onClick={() => openNewClientForm("")}
+              className="text-xs font-bold text-[#0544cc] hover:underline cursor-pointer"
+            >
+              Client belum ada di daftar? Tambah baru
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
@@ -1087,6 +1290,7 @@ const BILL_BUCKET_STATUS = { overdue: "expired", due_soon: "expiring_this_month"
 const BILL_BUCKET_LABEL = { overdue: "Lewat Jatuh Tempo", due_soon: "Segera Jatuh Tempo", ok: "Aman" } as const;
 
 const BILL_COLUMNS = [
+  { key: "identifier", label: "Nomor ID / Keterangan" },
   { key: "category", label: "Kategori" },
   { key: "vendor", label: "Vendor" },
   { key: "period", label: "Periode" },
@@ -1220,6 +1424,16 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
   const columns: FilterableColumn<RecurringBillRow>[] = [
     { key: "no", header: "No", headClassName: "w-12", cell: (_r, i) => <span className="text-slate-500">{i + 1}</span> },
     { key: "name", header: "Nama", filterValue: (b) => b.name, cellClassName: "font-semibold", cell: (b) => b.name },
+    ...(isVisible("identifier")
+      ? [
+          {
+            key: "identifier",
+            header: "Nomor ID / Keterangan",
+            filterValue: (b: RecurringBillRow) => b.identifier ?? "",
+            cell: (b: RecurringBillRow) => b.identifier ?? "-",
+          },
+        ]
+      : []),
     ...(isVisible("category")
       ? [{ key: "category", header: "Kategori", filterValue: (b: RecurringBillRow) => b.category, cellClassName: "capitalize", cell: (b: RecurringBillRow) => b.category }]
       : []),
@@ -1347,6 +1561,12 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Nama" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <Input
+              label="Nomor ID / Keterangan"
+              value={form.identifier ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))}
+              placeholder="mis. No. Pelanggan PLN 5312xxxx"
+            />
             <Select label="Vendor" options={vendorOptions} value={form.vendorId ?? ""} onChange={(v) => setForm((f) => ({ ...f, vendorId: v }))} placeholder="Pilih vendor" />
             <Select
               label="Kategori"
@@ -1552,6 +1772,11 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<LegacySalesClientRow | null>(null);
+  const [form, setForm] = useState<Partial<LegacySalesClientRow>>({});
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const { isVisible, toggle } = useColumnVisibility("legacy-client", LEGACY_CLIENT_COLUMNS);
 
   const linkedCount = rows.filter((r) => r.client).length;
@@ -1573,6 +1798,52 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
       }
     } finally {
       setPromotingId(null);
+    }
+  };
+
+  const openEdit = (row: LegacySalesClientRow) => {
+    setEditing(row);
+    setForm(row);
+    setError("");
+  };
+  const closeEdit = () => setEditing(null);
+
+  const handleSave = async () => {
+    if (!editing) return;
+    if (!form.name?.trim()) {
+      setError("Nama wajib diisi");
+      return;
+    }
+    setIsSaving(true);
+    setError("");
+    const res = await fetch(`/api/legacy-sales-clients/${editing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    setIsSaving(false);
+    if (!res.ok) {
+      setError(data.error || "Gagal menyimpan");
+      return;
+    }
+    setRows((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...data } : r)));
+    closeEdit();
+  };
+
+  const handleDelete = async (row: LegacySalesClientRow) => {
+    if (!window.confirm(`Hapus pelanggan "${row.name}" dari staging?`)) return;
+    setDeletingId(row.id);
+    try {
+      const res = await fetch(`/api/legacy-sales-clients/${row.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error || "Gagal menghapus");
+        return;
+      }
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -1611,12 +1882,23 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
     {
       key: "aksi",
       header: "Aksi",
-      cell: (r) =>
-        !r.client && (
-          <Button size="sm" variant="outline" onClick={() => handlePromote(r)} isLoading={promotingId === r.id}>
-            Jadikan Client Baru
+      cell: (r) => (
+        <div className="flex items-center gap-1">
+          {!r.client && (
+            <Button size="sm" variant="outline" onClick={() => handlePromote(r)} isLoading={promotingId === r.id}>
+              Jadikan Client Baru
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>
+            <Pencil className="w-4 h-4" />
           </Button>
-        ),
+          {!r.client && (
+            <Button size="sm" variant="ghost" onClick={() => handleDelete(r)} isLoading={deletingId === r.id}>
+              <Trash2 className="w-4 h-4 text-rose-500" />
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -1632,7 +1914,46 @@ const LegacyClientStagingSection: React.FC<{ rows: LegacySalesClientRow[] }> = (
         </div>
         <ColumnVisibilityMenu columns={LEGACY_CLIENT_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
+      {error && (
+        <div className="px-5 sm:px-6 pb-4">
+          <Alert variant="error" onClose={() => setError("")}>
+            {error}
+          </Alert>
+        </div>
+      )}
       <FilterableTable columns={columns} rows={rows} rowKey={(r) => r.id} emptyMessage="Tidak ada pelanggan yang cocok." />
+
+      <Modal isOpen={editing !== null} onClose={closeEdit} title={editing ? `Edit ${editing.name}` : ""} size="lg">
+        <div className="space-y-4">
+          {error && (
+            <Alert variant="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <Input label="No. HP" value={form.phoneNumber ?? ""} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} />
+            <Input label="Bank" value={form.bankName ?? ""} onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))} />
+            <Input label="No. Rekening" value={form.bankAccount ?? ""} onChange={(e) => setForm((f) => ({ ...f, bankAccount: e.target.value }))} />
+            <Input
+              label="Termin (hari)"
+              type="number"
+              value={form.paymentTermDays ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, paymentTermDays: e.target.value === "" ? null : Number(e.target.value) }))}
+            />
+            <CurrencyInput label="Plafon" value={form.creditLimit ?? 0} onChange={(v) => setForm((f) => ({ ...f, creditLimit: v }))} />
+          </div>
+          <Input label="Alamat" value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={closeEdit}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </Card>
   );
 };
@@ -1695,7 +2016,7 @@ export const MasterDataPanel: React.FC<{
         ))}
       </div>
 
-      {tab === "domain" && <DomainSection rows={domains} />}
+      {tab === "domain" && <DomainSection rows={domains} clients={clients} />}
       {tab === "recurring-bill" && <BiayaBerkalaSection rows={recurringBills} vendors={vendors} />}
       {tab === "client" && <ClientSection rows={clients} />}
       {tab === "legacy-client" && <LegacyClientStagingSection rows={legacySalesClients} />}
