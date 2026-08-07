@@ -17,6 +17,7 @@ import {
 } from "@/components/dashboard/DashboardSections"
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
 import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
+import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappReportButton"
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
@@ -151,9 +152,12 @@ export default async function DashboardPage() {
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 sm:space-y-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
-          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Ringkasan operasional hari ini.</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Ringkasan operasional hari ini.</p>
+          </div>
+          <SendWhatsappReportButton />
         </div>
 
         <DashboardNavBadges items={navBadges} />

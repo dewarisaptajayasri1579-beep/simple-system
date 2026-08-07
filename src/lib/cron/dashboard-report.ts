@@ -10,11 +10,11 @@ function formatRupiah(amount: number) {
  *  masing URL-nya sendiri, di-render on-the-fly lewat next/og):
  *  1. Resume + Piutang Terbesar + Server Belum Dibayar (/api/reports/dashboard-image)
  *  2. Domain Perlu Perhatian + Biaya Berkala Jatuh Tempo (/api/reports/dashboard-image-2) */
-export async function runDashboardReport(waktu: "Pagi" | "Sore") {
+export async function runDashboardReport(waktu: "Pagi" | "Sore" | "Manual") {
   const groupJid = process.env.WAHUB_GROUP_JID
   if (!groupJid) {
     console.warn("[cron] dashboard-report dilewati: WAHUB_GROUP_JID belum di-set")
-    return
+    throw new Error("WAHUB_GROUP_JID belum di-set")
   }
 
   const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000"
