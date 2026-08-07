@@ -44,9 +44,23 @@ export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", cl
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      });
+    } catch {
+      // tetap lanjutkan ke halaman login meski request gagal
+    } finally {
+      if (typeof window !== "undefined") {
+        document.cookie = "session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        window.location.replace("/login");
+      } else {
+        router.replace("/login");
+        router.refresh();
+      }
+    }
   };
 
   return (

@@ -151,15 +151,6 @@ export default async function DashboardPage() {
           </Card>
         </div>
 
-        {domainExpired > 0 && (
-          <Card variant="feature" padding="md" className="border-rose-300/60">
-            <p className="text-sm font-bold text-rose-700">
-              {domainExpired} domain sudah lewat masa aktifnya
-              {user.role === "owner" ? " — cek Pengaturan > Master Data." : "."}
-            </p>
-          </Card>
-        )}
-
         <PiutangSummarySection rows={piutangRows} />
         <RecurringDueSection rows={recurringDueRows} />
         <DomainExpiringSection rows={domainExpiringRows} />
