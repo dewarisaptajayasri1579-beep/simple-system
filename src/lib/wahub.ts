@@ -32,12 +32,44 @@ export async function sendWhatsappMessage(rawNumber: string, message: string) {
   return res.json() as Promise<{ success: boolean }>
 }
 
-/** Daftarkan ulang webhook sesi WAHUB milik simple-system (sesi/nomor WA-nya SENDIRI, terpisah
- *  dari sesi Director Assistant) — dipanggil tiap kali server start (lihat instrumentation.ts).
- *  PENTING: WAHUB_API_KEY di sini harus API key sesi baru khusus simple-system, BUKAN dipakai
- *  bareng punya Director Assistant — satu sesi cuma bisa punya satu webhookUrl aktif, jadi kalau
- *  key-nya sama akan saling menimpa webhook masing-masing app. */
+/** Kirim gambar/dokumen lewat URL (WAHUB yang fetch mediaUrl-nya sendiri) + caption opsional. */
+export async function sendWhatsappImage(rawNumber: string, mediaUrl: string, caption?: string) {
+  if (!WAHUB_BASE_URL || !WAHUB_API_KEY) {
+    throw new Error("WAHUB_BASE_URL / WAHUB_API_KEY belum di-set")
+  }
+
+  const number = rawNumber.includes("@") ? rawNumber : normalizePhoneNumber(rawNumber)
+
+  const res = await fetch(`${WAHUB_BASE_URL}/api/messages/send-media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": WAHUB_API_KEY },
+    body: JSON.stringify({ number, mediaUrl, caption }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal kirim media (${res.status}): ${text.slice(0, 200)}`)
+  }
+
+  return res.json() as Promise<{ success: boolean }>
+}
+
+/** Daftarkan ulang webhook sesi WAHUB milik simple-system — dipanggil tiap kali server start
+ *  (lihat instrumentation.ts).
+ *  PENTING: sesi WAHUB cuma bisa punya SATU webhookUrl aktif. Sejak simple-system ikut memakai
+ *  API key sesi WA milik Director Assistant (supaya bisa kirim/terima pesan dari WA Grup yang
+ *  sama), Director Assistant-lah yang wajib jadi pemilik webhook — kalau simple-system ikut
+ *  registerWahubWebhook() pakai key yang sama, itu akan MENIMPA webhook Director Assistant dan
+ *  mematikan fitur chat-nya. Makanya fungsi ini sengaja no-op kecuali WAHUB_MANAGE_WEBHOOK="true"
+ *  di-set eksplisit (dipakai kalau suatu saat simple-system balik pakai sesi WA sendiri lagi). */
 export async function registerWahubWebhook() {
+  if (process.env.WAHUB_MANAGE_WEBHOOK !== "true") {
+    console.log(
+      "[wahub] Lewati registrasi webhook — simple-system numpang sesi WA Director Assistant, jadi Director Assistant yang pegang webhook-nya."
+    )
+    return
+  }
+
   const appBaseUrl = process.env.APP_BASE_URL
   const webhookSecret = process.env.WAHUB_WEBHOOK_SECRET
 

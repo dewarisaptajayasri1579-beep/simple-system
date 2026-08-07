@@ -43,8 +43,36 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
   if (message.to !== "me") return { skipped: "outgoing message" }
   if (!message.body?.trim()) return { skipped: "empty body" }
 
-  const digits = message.senderNumber || message.from.replace(/@.*$/, "")
   const command = message.body.trim()
+
+  // Pesan dari WA Grup ops internal — "from" adalah JID grup ("...@g.us"), pengirim asli ada di
+  // "senderNumber". Balasannya WAJIB ke grup itu sendiri, bukan DM pribadi ke pengirimnya, dan
+  // cuma diproses kalau pengirimnya staf terdaftar (biar aman kalau suatu saat ada orang luar
+  // masuk grup) — silent kalau tidak dikenal, sama seperti kebijakan nomor tak terdaftar di bawah.
+  const groupJid = process.env.WAHUB_GROUP_JID
+  if (groupJid && message.from === groupJid) {
+    if (!message.senderNumber) return { skipped: "group message without senderNumber" }
+
+    const staff = await findRegisteredStaff(message.senderNumber)
+    if (!staff) return { skipped: "unregistered group sender" }
+
+    const thread = await getThread("staff", staff.id)
+    const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
+    const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
+
+    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, command, history })
+
+    if (thread) {
+      await prisma.whatsappThread.update({ where: { id: thread.id }, data: { history: messages as unknown as object } })
+    } else {
+      await prisma.whatsappThread.create({ data: { senderType: "staff", userId: staff.id, history: messages as unknown as object } })
+    }
+
+    await sendWhatsappMessage(groupJid, reply)
+    return { handled: true, actorType: "staff", name: staff.name, channel: "group" }
+  }
+
+  const digits = message.senderNumber || message.from.replace(/@.*$/, "")
 
   const staff = await findRegisteredStaff(digits)
   if (staff) {

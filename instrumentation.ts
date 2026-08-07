@@ -6,7 +6,7 @@ export async function register() {
   globalForCron.cronRegistered = true
 
   const cron = await import("node-cron")
-  const { runDailyReport } = await import("@/lib/cron/daily-report")
+  const { runDashboardReport } = await import("@/lib/cron/dashboard-report")
   const { runWeeklyReport } = await import("@/lib/cron/weekly-report")
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
@@ -15,11 +15,20 @@ export async function register() {
   // Daftarkan ulang webhook WAHUB (sesi WA khusus simple-system) tiap kali server start.
   registerWahubWebhook().catch((e) => console.error("[wahub] registrasi webhook saat startup gagal:", e))
 
-  // Reminder harian jam 07:00 WIB ke grup WA internal.
+  // Laporan pagi jam 07:00 WIB ke grup WA internal (gambar + caption + link Dashboard).
   cron.schedule(
     "0 7 * * *",
     () => {
-      runDailyReport().catch((e) => console.error("[cron] daily-report gagal:", e))
+      runDashboardReport("Pagi").catch((e) => console.error("[cron] dashboard-report (pagi) gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
+  // Laporan sore jam 16:00 WIB ke grup WA internal.
+  cron.schedule(
+    "0 16 * * *",
+    () => {
+      runDashboardReport("Sore").catch((e) => console.error("[cron] dashboard-report (sore) gagal:", e))
     },
     { timezone: "Asia/Jakarta" }
   )
@@ -52,6 +61,6 @@ export async function register() {
   )
 
   console.log(
-    "[cron] Terdaftar: reminder harian (07:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00) WIB"
+    "[cron] Terdaftar: laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00) WIB"
   )
 }
