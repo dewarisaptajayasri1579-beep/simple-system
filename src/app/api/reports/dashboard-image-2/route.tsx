@@ -9,8 +9,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const domainRows = snapshot.domain.due.slice(0, 2)
-  const billRows = snapshot.biayaBerkala.due.slice(0, 2)
+  const domainRows = snapshot.domain.due.slice(0, 6)
+  const billRows = snapshot.biayaBerkala.due.slice(0, 6)
 
   return new ImageResponse(
     (
@@ -54,6 +54,6 @@ export async function GET() {
         <ReportFooter appBaseUrl={appBaseUrl} />
       </PageShell>
     ),
-    { width: 2160, height: 3840 }
+    { width: 2160, height: 5000 }
   )
 }

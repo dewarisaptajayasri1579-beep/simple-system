@@ -77,7 +77,7 @@ export async function getDashboardSnapshot() {
       expiredCount: domainExpired.length,
       expiringCount: domainExpiring.length,
       expiring: domainExpiring.slice(0, 5).map((r) => ({ name: r.domain.name, clientName: r.domain.client?.name ?? "Internal" })),
-      due: domainDue.slice(0, 5).map((r) => ({
+      due: domainDue.slice(0, 7).map((r) => ({
         name: r.domain.name,
         clientName: r.domain.client?.name ?? "Internal",
         dueDate: r.dueDate ? r.dueDate.toISOString() : null,
@@ -99,7 +99,7 @@ export async function getDashboardSnapshot() {
     },
     biayaBerkala: {
       dueCount: billsDue.length,
-      due: billsDue.slice(0, 5).map((r) => ({
+      due: billsDue.slice(0, 7).map((r) => ({
         name: r.bill.name,
         price: r.bill.price,
         dueDate: r.dueDate ? r.dueDate.toISOString() : null,

@@ -21,8 +21,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const piutangRows = snapshot.piutang.top.slice(0, 2)
-  const serverRows = snapshot.server.due.slice(0, 2)
+  const piutangRows = snapshot.piutang.top.slice(0, 4)
+  const serverRows = snapshot.server.due.slice(0, 4)
 
   return new ImageResponse(
     (
@@ -98,6 +98,6 @@ export async function GET() {
         <ReportFooter appBaseUrl={appBaseUrl} />
       </PageShell>
     ),
-    { width: 2160, height: 3840 }
+    { width: 2160, height: 4300 }
   )
 }
