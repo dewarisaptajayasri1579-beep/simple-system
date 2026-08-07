@@ -22,7 +22,7 @@ export async function GET() {
           <SectionCard title="Domain Perlu Perhatian" badge={snapshot.domain.expiredCount + snapshot.domain.expiringCount}>
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               {domainRows.map((r, i) => (
-                <RowCard key={i} index={i + 1} title={r.name}>
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#fcd34d">
                   <RowCardDetail>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
@@ -54,6 +54,6 @@ export async function GET() {
         <ReportFooter appBaseUrl={appBaseUrl} />
       </PageShell>
     ),
-    { width: 2160, height: 5000 }
+    { width: 2160, height: 5450 }
   )
 }

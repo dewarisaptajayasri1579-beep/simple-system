@@ -405,12 +405,12 @@ export function StatusPill({ overdue }: { overdue: boolean }) {
     <span
       style={{
         display: "flex",
-        fontSize: 46,
+        fontSize: 58,
         fontWeight: 700,
         color: "#fff",
         background: overdue ? COLORS.rose : COLORS.amber,
         borderRadius: 999,
-        padding: "12px 32px",
+        padding: "14px 38px",
       }}
     >
       {overdue ? "Terlambat" : "Segera"}

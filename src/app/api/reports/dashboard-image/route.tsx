@@ -82,7 +82,7 @@ export async function GET() {
           <SectionCard title="Server Belum Dibayar" badge={snapshot.server.expiredCount + snapshot.server.expiringCount}>
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               {serverRows.map((r, i) => (
-                <RowCard key={i} index={i + 1} title={r.name}>
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#67e8f9">
                   <RowCardDetail>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
