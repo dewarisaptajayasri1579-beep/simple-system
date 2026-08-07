@@ -7,21 +7,21 @@ function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
+function StatRow({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
     <div
       style={{
         display: "flex",
-        flexDirection: "column",
-        flex: 1,
+        alignItems: "center",
+        justifyContent: "space-between",
         background: "rgba(255,255,255,0.08)",
-        borderRadius: 20,
-        padding: "22px 26px",
+        borderRadius: 22,
+        padding: "26px 32px",
         border: "1px solid rgba(255,255,255,0.15)",
       }}
     >
-      <div style={{ display: "flex", fontSize: 20, color: "#c7d6f5", fontWeight: 600 }}>{label}</div>
-      <div style={{ display: "flex", fontSize: 34, color: accent, fontWeight: 800, marginTop: 8 }}>{value}</div>
+      <div style={{ display: "flex", fontSize: 26, color: "#c7d6f5", fontWeight: 600 }}>{label}</div>
+      <div style={{ display: "flex", fontSize: 32, color: accent, fontWeight: 800 }}>{value}</div>
     </div>
   )
 }
@@ -46,47 +46,41 @@ export async function GET() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          padding: 48,
-          background: "linear-gradient(135deg, #0a2540 0%, #09356b 55%, #041c38 100%)",
+          padding: 56,
+          background: "linear-gradient(160deg, #0a2540 0%, #09356b 55%, #041c38 100%)",
           fontFamily: "sans-serif",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 30, fontWeight: 800, color: "#ffffff" }}>SEVEN OS — Ringkasan Dashboard</div>
-          <div style={{ display: "flex", fontSize: 18, color: "#9fb4dd", marginTop: 4 }}>
+          <div style={{ display: "flex", fontSize: 40, fontWeight: 800, color: "#ffffff", lineHeight: 1.15 }}>SEVEN OS</div>
+          <div style={{ display: "flex", fontSize: 26, fontWeight: 600, color: "#dbe6fb", marginTop: 2 }}>Ringkasan Dashboard</div>
+          <div style={{ display: "flex", fontSize: 22, color: "#9fb4dd", marginTop: 12 }}>
             <span>{tanggal}</span>
-            <span style={{ margin: "0 8px" }}>·</span>
+            <span style={{ margin: "0 10px" }}>·</span>
             <span>{jam} WIB</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 20, marginTop: 36 }}>
-          <StatCard label="Piutang Outstanding" value={formatRupiah(snapshot.piutang.total)} accent="#fca5a5" />
-          <StatCard label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} accent="#86efac" />
-        </div>
-
-        <div style={{ display: "flex", gap: 20, marginTop: 20 }}>
-          <StatCard label="Invoice Belum Lunas" value={`${snapshot.piutang.count} invoice`} accent="#fca5a5" />
-          <StatCard
-            label="Domain Perlu Perhatian"
-            value={`${snapshot.domain.expiredCount + snapshot.domain.expiringCount} domain`}
-            accent="#fcd34d"
-          />
-          <StatCard label="Biaya Berkala Jatuh Tempo" value={`${snapshot.biayaBerkala.dueCount} item`} accent="#fcd34d" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 44 }}>
+          <StatRow label="Piutang Outstanding" value={formatRupiah(snapshot.piutang.total)} accent="#fca5a5" />
+          <StatRow label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} accent="#86efac" />
+          <StatRow label="Invoice Belum Lunas" value={`${snapshot.piutang.count}`} accent="#fca5a5" />
+          <StatRow label="Domain Perlu Perhatian" value={`${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`} accent="#fcd34d" />
+          <StatRow label="Biaya Berkala Jatuh Tempo" value={`${snapshot.biayaBerkala.dueCount}`} accent="#fcd34d" />
         </div>
 
         {snapshot.piutang.top.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 28 }}>
-            <div style={{ display: "flex", fontSize: 18, color: "#c7d6f5", fontWeight: 700, marginBottom: 10 }}>Piutang Terbesar</div>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 40 }}>
+            <div style={{ display: "flex", fontSize: 24, color: "#c7d6f5", fontWeight: 700, marginBottom: 14 }}>Piutang Terbesar</div>
             {snapshot.piutang.top.slice(0, 4).map((r, i, arr) => (
               <div
                 key={i}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  fontSize: 18,
+                  fontSize: 23,
                   color: "#e6ecfb",
-                  padding: "6px 0",
+                  padding: "14px 0",
                   borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.1)" : "none",
                 }}
               >
@@ -97,12 +91,12 @@ export async function GET() {
           </div>
         )}
 
-        <div style={{ display: "flex", fontSize: 16, color: "#7f96c4", marginTop: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", fontSize: 20, color: "#7f96c4", marginTop: "auto", paddingTop: 32 }}>
           <span>Detail lengkap & aksi lanjut:</span>
-          <span style={{ marginLeft: 6 }}>{process.env.APP_BASE_URL || "https://app.onyseven.com"}/dashboard</span>
+          <span style={{ color: "#a9bde8", fontWeight: 600, marginTop: 4 }}>{process.env.APP_BASE_URL || "https://app.onyseven.com"}/dashboard</span>
         </div>
       </div>
     ),
-    { width: 1200, height: 800 }
+    { width: 1080, height: 1350 }
   )
 }
