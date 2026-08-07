@@ -29,7 +29,7 @@ export async function runDashboardReport(waktu: "Pagi" | "Sore" | "Manual") {
     `🖥️ Server perlu perhatian: ${snapshot.server.expiredCount + snapshot.server.expiringCount}`,
     `💸 Biaya berkala jatuh tempo: ${snapshot.biayaBerkala.dueCount}`,
     "",
-    `🔗 ${appBaseUrl}/dashboard`,
+    `🔗 ${appBaseUrl}/dashboard?quick=1`,
   ].join("\n")
 
   await sendWhatsappImage(groupJid, `${appBaseUrl}/api/reports/dashboard-image`, caption)

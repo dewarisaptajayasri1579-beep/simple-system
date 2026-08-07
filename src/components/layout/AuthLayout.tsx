@@ -1,12 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { AppLogo } from "../ui/AppLogo";
 import { LoginForm } from "../auth/LoginForm";
+import { QuickLoginModal } from "../auth/QuickLoginModal";
 import { MotivationalQuote } from "../ui/MotivationalQuote";
 import { Receipt, Globe, Landmark } from "lucide-react";
 
-export const AuthLayout: React.FC = () => {
+export const AuthLayout: React.FC<{ quickLogin?: boolean }> = ({ quickLogin = false }) => {
+  const [showQuickLogin, setShowQuickLogin] = useState(quickLogin);
+
   return (
     <div className="min-h-screen w-full bg-app-mesh flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-sans relative overflow-x-hidden">
       <div className="fixed -top-40 -left-40 w-[500px] h-[500px] bg-blue-400/25 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
@@ -65,6 +68,8 @@ export const AuthLayout: React.FC = () => {
         <MotivationalQuote />
         <p>&copy; {new Date().getFullYear()} SEVEN OS — Sistem Internal.</p>
       </footer>
+
+      <QuickLoginModal open={showQuickLogin} onManualLogin={() => setShowQuickLogin(false)} />
     </div>
   );
 };

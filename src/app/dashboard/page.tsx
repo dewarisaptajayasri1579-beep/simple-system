@@ -1,7 +1,8 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardDescription, Button } from "@/components/ui"
-import { getCurrentUser } from "@/lib/current-user"
+import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
@@ -29,8 +30,12 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
   return aTime - bTime
 }
 
-export default async function DashboardPage() {
-  const user = await getCurrentUser()
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quick?: string }> }) {
+  const params = await searchParams
+  // Link laporan WA (?quick=1) redirect ke modal "Login sebagai siapa?", bukan form password
+  // biasa — WA tidak bisa kasih tahu ini diklik dari nomor siapa (lihat QuickLoginModal).
+  const user = await getSessionUser()
+  if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
 
   const [clientCount, clientOptions, domains, servers, bills, openInvoices, followUps] = await Promise.all([
     prisma.client.count(),
