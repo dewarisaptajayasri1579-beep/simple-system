@@ -149,8 +149,8 @@ export function PageShell({ children }: { children: React.ReactNode }) {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        padding: 96,
-        gap: 52,
+        padding: 80,
+        gap: 44,
         background: `linear-gradient(160deg, ${COLORS.bg1} 0%, ${COLORS.bg2} 55%, ${COLORS.bg3} 100%)`,
         fontFamily: "sans-serif",
       }}
@@ -275,23 +275,23 @@ export function SectionCard({
         flexDirection: "column",
         background: COLORS.panel,
         border: `1px solid ${COLORS.panelBorder}`,
-        borderRadius: 40,
-        padding: "48px 54px",
+        borderRadius: 44,
+        padding: "44px 50px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 34 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div style={{ display: "flex", fontSize: 70, fontWeight: 800, color: "#ffffff" }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <div style={{ display: "flex", fontSize: 88, fontWeight: 800, color: "#ffffff" }}>{title}</div>
           {badge !== undefined && (
             <div
               style={{
                 display: "flex",
                 background: COLORS.rose,
                 color: "#fff",
-                fontSize: 40,
+                fontSize: 50,
                 fontWeight: 800,
                 borderRadius: 999,
-                padding: "8px 26px",
+                padding: "10px 30px",
               }}
             >
               {badge}
@@ -302,14 +302,14 @@ export function SectionCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 12,
             background: "rgba(255,255,255,0.07)",
             borderRadius: 999,
-            padding: "18px 32px",
+            padding: "20px 36px",
           }}
         >
-          <span style={{ display: "flex", fontSize: 36, color: COLORS.textLabel, fontWeight: 600 }}>Lihat Semua</span>
-          <Icon name="chevronRight" size={32} color={COLORS.textLabel} />
+          <span style={{ display: "flex", fontSize: 40, color: COLORS.textLabel, fontWeight: 600 }}>Lihat Semua</span>
+          <Icon name="chevronRight" size={36} color={COLORS.textLabel} />
         </div>
       </div>
       {children}
@@ -337,31 +337,31 @@ export function RowCard({
         flexDirection: "column",
         background: COLORS.card,
         border: `1px solid ${COLORS.cardBorder}`,
-        borderRadius: 32,
-        padding: "36px 40px",
-        gap: 20,
+        borderRadius: 36,
+        padding: "44px 48px",
+        gap: 26,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 22, flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 28, flex: 1 }}>
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 68,
-              height: 68,
-              borderRadius: 20,
+              width: 96,
+              height: 96,
+              borderRadius: 26,
               background: "rgba(255,255,255,0.08)",
               flexShrink: 0,
             }}
           >
-            <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim, fontWeight: 800 }}>{index}</span>
+            <span style={{ display: "flex", fontSize: 50, color: COLORS.textDim, fontWeight: 800 }}>{index}</span>
           </div>
-          <div style={{ display: "flex", fontSize: 46, color: "#ffffff", fontWeight: 700 }}>{title}</div>
+          <div style={{ display: "flex", fontSize: 68, color: "#ffffff", fontWeight: 700 }}>{title}</div>
         </div>
         {valueRight && (
-          <div style={{ display: "flex", fontSize: 48, fontWeight: 800, color: valueColor || "#ffffff", flexShrink: 0 }}>{valueRight}</div>
+          <div style={{ display: "flex", fontSize: 68, fontWeight: 800, color: valueColor || "#ffffff", flexShrink: 0 }}>{valueRight}</div>
         )}
       </div>
       {children}
@@ -370,7 +370,7 @@ export function RowCard({
 }
 
 export function RowCardDetail({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "flex", alignItems: "center", gap: 18, paddingLeft: 90, flexWrap: "wrap" }}>{children}</div>
+  return <div style={{ display: "flex", alignItems: "center", gap: 22, paddingLeft: 124, flexWrap: "wrap" }}>{children}</div>
 }
 
 export function ReportFooter({ appBaseUrl }: { appBaseUrl: string }) {
@@ -405,12 +405,12 @@ export function StatusPill({ overdue }: { overdue: boolean }) {
     <span
       style={{
         display: "flex",
-        fontSize: 32,
+        fontSize: 46,
         fontWeight: 700,
         color: "#fff",
         background: overdue ? COLORS.rose : COLORS.amber,
         borderRadius: 999,
-        padding: "8px 24px",
+        padding: "12px 32px",
       }}
     >
       {overdue ? "Terlambat" : "Segera"}

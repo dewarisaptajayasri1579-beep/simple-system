@@ -21,8 +21,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const piutangRows = snapshot.piutang.top.slice(0, 3)
-  const serverRows = snapshot.server.due.slice(0, 3)
+  const piutangRows = snapshot.piutang.top.slice(0, 2)
+  const serverRows = snapshot.server.due.slice(0, 2)
 
   return new ImageResponse(
     (
@@ -84,9 +84,9 @@ export async function GET() {
               {serverRows.map((r, i) => (
                 <RowCard key={i} index={i + 1} title={r.name}>
                   <RowCardDetail>
-                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>{r.clientName}</span>
-                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>·</span>
-                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
+                    <span style={{ display: "flex", fontSize: 46, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
                     <StatusPill overdue={r.overdue} />
                   </RowCardDetail>
                 </RowCard>

@@ -9,8 +9,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const domainRows = snapshot.domain.due.slice(0, 3)
-  const billRows = snapshot.biayaBerkala.due.slice(0, 3)
+  const domainRows = snapshot.domain.due.slice(0, 2)
+  const billRows = snapshot.biayaBerkala.due.slice(0, 2)
 
   return new ImageResponse(
     (
@@ -24,9 +24,9 @@ export async function GET() {
               {domainRows.map((r, i) => (
                 <RowCard key={i} index={i + 1} title={r.name}>
                   <RowCardDetail>
-                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>{r.clientName}</span>
-                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>·</span>
-                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
+                    <span style={{ display: "flex", fontSize: 46, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
                     <StatusPill overdue={r.overdue} />
                   </RowCardDetail>
                 </RowCard>
@@ -42,7 +42,7 @@ export async function GET() {
               {billRows.map((r, i) => (
                 <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#c4b5fd">
                   <RowCardDetail>
-                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
                     <StatusPill overdue={r.overdue} />
                   </RowCardDetail>
                 </RowCard>
