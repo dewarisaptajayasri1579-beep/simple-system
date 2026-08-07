@@ -149,8 +149,8 @@ export function PageShell({ children }: { children: React.ReactNode }) {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        padding: 72,
-        gap: 40,
+        padding: 96,
+        gap: 52,
         background: `linear-gradient(160deg, ${COLORS.bg1} 0%, ${COLORS.bg2} 55%, ${COLORS.bg3} 100%)`,
         fontFamily: "sans-serif",
       }}
@@ -164,14 +164,14 @@ export function ReportHeader({ title, subtitle, now }: { title: string; subtitle
   return (
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", fontSize: 84, fontWeight: 800, color: "#ffffff", lineHeight: 1.1 }}>{title}</div>
-        <div style={{ display: "flex", fontSize: 46, fontWeight: 600, color: "#dbe6fb", marginTop: 4 }}>{subtitle}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 22 }}>
-          <Icon name="calendar" size={30} color={COLORS.textMid} />
-          <span style={{ display: "flex", fontSize: 34, color: COLORS.textMid }}>{formatTanggalPanjang(now)}</span>
-          <span style={{ display: "flex", fontSize: 34, color: COLORS.textMid, margin: "0 4px" }}>·</span>
-          <Icon name="clock" size={28} color={COLORS.textMid} />
-          <span style={{ display: "flex", fontSize: 34, color: COLORS.textMid }}>{formatJam(now)} WIB</span>
+        <div style={{ display: "flex", fontSize: 126, fontWeight: 800, color: "#ffffff", lineHeight: 1.1 }}>{title}</div>
+        <div style={{ display: "flex", fontSize: 69, fontWeight: 600, color: "#dbe6fb", marginTop: 6 }}>{subtitle}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 30 }}>
+          <Icon name="calendar" size={42} color={COLORS.textMid} />
+          <span style={{ display: "flex", fontSize: 46, color: COLORS.textMid }}>{formatTanggalPanjang(now)}</span>
+          <span style={{ display: "flex", fontSize: 46, color: COLORS.textMid, margin: "0 6px" }}>·</span>
+          <Icon name="clock" size={40} color={COLORS.textMid} />
+          <span style={{ display: "flex", fontSize: 46, color: COLORS.textMid }}>{formatJam(now)} WIB</span>
         </div>
       </div>
 
@@ -179,11 +179,11 @@ export function ReportHeader({ title, subtitle, now }: { title: string; subtitle
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 18,
+          gap: 22,
           background: COLORS.card,
           border: `1px solid ${COLORS.cardBorder}`,
-          borderRadius: 26,
-          padding: "20px 30px",
+          borderRadius: 32,
+          padding: "26px 38px",
         }}
       >
         <div
@@ -191,17 +191,17 @@ export function ReportHeader({ title, subtitle, now }: { title: string; subtitle
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 64,
-            height: 64,
-            borderRadius: 18,
+            width: 88,
+            height: 88,
+            borderRadius: 24,
             background: COLORS.blue,
           }}
         >
-          <Icon name="shieldCheck" size={34} color="#fff" />
+          <Icon name="shieldCheck" size={48} color="#fff" />
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ display: "flex", fontSize: 30, fontWeight: 800, color: "#fff" }}>SEVEN OS</span>
-          <span style={{ display: "flex", fontSize: 22, color: COLORS.textMid, letterSpacing: 2 }}>CONTROL PANEL</span>
+          <span style={{ display: "flex", fontSize: 42, fontWeight: 800, color: "#fff" }}>SEVEN OS</span>
+          <span style={{ display: "flex", fontSize: 30, color: COLORS.textMid, letterSpacing: 2 }}>CONTROL PANEL</span>
         </div>
       </div>
     </div>
@@ -231,9 +231,9 @@ export function StatCard({
         flex: 1,
         background: COLORS.card,
         border: `1px solid ${COLORS.cardBorder}`,
-        borderRadius: 30,
-        padding: "30px 34px",
-        gap: 26,
+        borderRadius: 34,
+        padding: "38px 42px",
+        gap: 32,
       }}
     >
       <div
@@ -241,20 +241,20 @@ export function StatCard({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          width: 88,
-          height: 88,
-          borderRadius: 22,
+          width: 116,
+          height: 116,
+          borderRadius: 28,
           background: iconBg,
           flexShrink: 0,
         }}
       >
-        <Icon name={icon} size={42} color="#fff" />
+        <Icon name={icon} size={56} color="#fff" />
       </div>
       <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-        <div style={{ display: "flex", fontSize: 32, color: COLORS.textLabel }}>{label}</div>
-        <div style={{ display: "flex", fontSize: 54, fontWeight: 800, color: valueColor, marginTop: 6 }}>{value}</div>
+        <div style={{ display: "flex", fontSize: 42, color: COLORS.textLabel }}>{label}</div>
+        <div style={{ display: "flex", fontSize: 72, fontWeight: 800, color: valueColor, marginTop: 10 }}>{value}</div>
       </div>
-      {chevron && <Icon name="chevronRight" size={36} color="#4b5f88" />}
+      {chevron && <Icon name="chevronRight" size={44} color="#4b5f88" />}
     </div>
   )
 }
@@ -275,23 +275,23 @@ export function SectionCard({
         flexDirection: "column",
         background: COLORS.panel,
         border: `1px solid ${COLORS.panelBorder}`,
-        borderRadius: 34,
-        padding: "38px 42px",
+        borderRadius: 40,
+        padding: "48px 54px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 26 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", fontSize: 50, fontWeight: 800, color: "#ffffff" }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 34 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ display: "flex", fontSize: 70, fontWeight: 800, color: "#ffffff" }}>{title}</div>
           {badge !== undefined && (
             <div
               style={{
                 display: "flex",
                 background: COLORS.rose,
                 color: "#fff",
-                fontSize: 30,
+                fontSize: 40,
                 fontWeight: 800,
                 borderRadius: 999,
-                padding: "6px 20px",
+                padding: "8px 26px",
               }}
             >
               {badge}
@@ -302,14 +302,14 @@ export function SectionCard({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 10,
             background: "rgba(255,255,255,0.07)",
             borderRadius: 999,
-            padding: "14px 26px",
+            padding: "18px 32px",
           }}
         >
-          <span style={{ display: "flex", fontSize: 28, color: COLORS.textLabel, fontWeight: 600 }}>Lihat Semua</span>
-          <Icon name="chevronRight" size={26} color={COLORS.textLabel} />
+          <span style={{ display: "flex", fontSize: 36, color: COLORS.textLabel, fontWeight: 600 }}>Lihat Semua</span>
+          <Icon name="chevronRight" size={32} color={COLORS.textLabel} />
         </div>
       </div>
       {children}
@@ -320,25 +320,25 @@ export function SectionCard({
 export function ReportFooter({ appBaseUrl }: { appBaseUrl: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-        <Icon name="info" size={36} color={COLORS.textDim} />
+      <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
+        <Icon name="info" size={48} color={COLORS.textDim} />
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ display: "flex", fontSize: 30, color: COLORS.textDim }}>Detail lengkap & aksi lanjut:</span>
-          <span style={{ display: "flex", fontSize: 32, color: "#a9bde8", fontWeight: 600, marginTop: 4 }}>{appBaseUrl}/dashboard</span>
+          <span style={{ display: "flex", fontSize: 40, color: COLORS.textDim }}>Detail lengkap & aksi lanjut:</span>
+          <span style={{ display: "flex", fontSize: 42, color: "#a9bde8", fontWeight: 600, marginTop: 6 }}>{appBaseUrl}/dashboard</span>
         </div>
       </div>
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          gap: 20,
           background: COLORS.blue,
-          borderRadius: 24,
-          padding: "26px 44px",
+          borderRadius: 28,
+          padding: "32px 52px",
         }}
       >
-        <Icon name="rocket" size={34} color="#fff" />
-        <span style={{ display: "flex", fontSize: 36, fontWeight: 800, color: "#fff" }}>Kelola Sekarang</span>
+        <Icon name="rocket" size={44} color="#fff" />
+        <span style={{ display: "flex", fontSize: 46, fontWeight: 800, color: "#fff" }}>Kelola Sekarang</span>
       </div>
     </div>
   )
@@ -349,12 +349,12 @@ export function StatusPill({ overdue }: { overdue: boolean }) {
     <span
       style={{
         display: "flex",
-        fontSize: 24,
+        fontSize: 32,
         fontWeight: 700,
         color: "#fff",
         background: overdue ? COLORS.rose : COLORS.amber,
         borderRadius: 999,
-        padding: "6px 18px",
+        padding: "8px 24px",
       }}
     >
       {overdue ? "Terlambat" : "Segera"}

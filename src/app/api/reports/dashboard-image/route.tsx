@@ -28,12 +28,12 @@ export async function GET() {
         <ReportHeader title="SEVEN OS" subtitle="Ringkasan Dashboard" now={now} />
 
         {/* Stat grid: 3 baris x 2 kolom */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
+          <div style={{ display: "flex", gap: 34 }}>
             <StatCard icon="dollarSign" iconBg={COLORS.rose} label="Piutang Outstanding" value={formatRupiah(snapshot.piutang.total)} valueColor="#fca5a5" />
             <StatCard icon="landmark" iconBg={COLORS.emerald} label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} valueColor="#6ee7b7" />
           </div>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", gap: 34 }}>
             <StatCard icon="fileText" iconBg={COLORS.sky} label="Invoice Belum Lunas" value={`${snapshot.piutang.count}`} valueColor="#7dd3fc" chevron />
             <StatCard
               icon="globe"
@@ -44,7 +44,7 @@ export async function GET() {
               chevron
             />
           </div>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", gap: 34 }}>
             <StatCard
               icon="clock"
               iconBg={COLORS.violet}
@@ -67,10 +67,10 @@ export async function GET() {
         {/* Piutang Terbesar */}
         {piutangRows.length > 0 && (
           <SectionCard title="Piutang Terbesar">
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 18, marginBottom: 4 }}>
-              <div style={{ display: "flex", width: 90, fontSize: 26, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 26, color: COLORS.textDim }}>Nama Pelanggan</div>
-              <div style={{ display: "flex", fontSize: 26, color: COLORS.textDim }}>Total Piutang</div>
+            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
+              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
+              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Nama Pelanggan</div>
+              <div style={{ display: "flex", fontSize: 38, color: COLORS.textDim }}>Total Piutang</div>
             </div>
             {piutangRows.map((r, i) => (
               <div
@@ -78,13 +78,13 @@ export async function GET() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "22px 0",
+                  padding: "32px 0",
                   borderBottom: i < piutangRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
                 }}
               >
-                <div style={{ display: "flex", width: 90, fontSize: 34, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1, fontSize: 36, color: "#e6ecfb" }}>{r.clientName}</div>
-                <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: "#fca5a5" }}>{formatRupiah(r.remaining)}</div>
+                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
+                <div style={{ display: "flex", flex: 1, fontSize: 50, color: "#e6ecfb" }}>{r.clientName}</div>
+                <div style={{ display: "flex", fontSize: 50, fontWeight: 700, color: "#fca5a5" }}>{formatRupiah(r.remaining)}</div>
               </div>
             ))}
           </SectionCard>
@@ -93,11 +93,11 @@ export async function GET() {
         {/* Server Belum Dibayar */}
         {serverRows.length > 0 && (
           <SectionCard title="Server Belum Dibayar" badge={snapshot.server.expiredCount + snapshot.server.expiringCount}>
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 18, marginBottom: 4 }}>
-              <div style={{ display: "flex", width: 90, fontSize: 26, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1.4, fontSize: 26, color: COLORS.textDim }}>Server / Layanan</div>
-              <div style={{ display: "flex", flex: 1.1, fontSize: 26, color: COLORS.textDim }}>Pelanggan</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 26, color: COLORS.textDim }}>Jatuh Tempo</div>
+            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
+              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
+              <div style={{ display: "flex", flex: 1.4, fontSize: 38, color: COLORS.textDim }}>Server / Layanan</div>
+              <div style={{ display: "flex", flex: 1.1, fontSize: 38, color: COLORS.textDim }}>Pelanggan</div>
+              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Jatuh Tempo</div>
             </div>
             {serverRows.map((r, i) => (
               <div
@@ -105,15 +105,15 @@ export async function GET() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "22px 0",
+                  padding: "32px 0",
                   borderBottom: i < serverRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
                 }}
               >
-                <div style={{ display: "flex", width: 90, fontSize: 32, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1.4, fontSize: 32, color: "#e6ecfb" }}>{r.name}</div>
-                <div style={{ display: "flex", flex: 1.1, fontSize: 32, color: "#e6ecfb" }}>{r.clientName}</div>
-                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 16 }}>
-                  <span style={{ display: "flex", fontSize: 32, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
+                <div style={{ display: "flex", flex: 1.4, fontSize: 50, color: "#e6ecfb" }}>{r.name}</div>
+                <div style={{ display: "flex", flex: 1.1, fontSize: 50, color: "#e6ecfb" }}>{r.clientName}</div>
+                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 22 }}>
+                  <span style={{ display: "flex", fontSize: 50, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
                   <StatusPill overdue={r.overdue} />
                 </div>
               </div>
@@ -124,6 +124,6 @@ export async function GET() {
         <ReportFooter appBaseUrl={appBaseUrl} />
       </PageShell>
     ),
-    { width: 2160, height: 2320 }
+    { width: 2160, height: 3840 }
   )
 }
