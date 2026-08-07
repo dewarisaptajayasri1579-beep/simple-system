@@ -37,6 +37,17 @@ async function getThread(senderType: "staff" | "client", userId?: string, client
   return prisma.whatsappThread.findFirst({ where: { senderType, userId: userId ?? null, clientId: clientId ?? null } })
 }
 
+/** Grup itu tempat diskusi macam-macam, bukan cuma buat nanya bot — jadi cuma pesan yang
+ *  diawali "Naya" (case-insensitive, bebas dikasih koma/spasi/tanda baca sesudahnya) yang
+ *  dianggap ditujukan ke bot. Selain itu diabaikan total. Contoh valid: "Naya, cek piutang dong",
+ *  "naya cek piutang". Return null kalau tidak match (atau tidak ada isi setelah "Naya"-nya). */
+function stripNayaTrigger(text: string): string | null {
+  const match = text.match(/^naya\b[\s,.:!-]*/i)
+  if (!match) return null
+  const rest = text.slice(match[0].length).trim()
+  return rest || null
+}
+
 export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
   const message = payload.message
   if (!message?.from) return { skipped: "no message" }
@@ -55,6 +66,11 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
   // silent kalau tidak dikenal, sama seperti kebijakan nomor tak terdaftar di bawah.
   const groupJid = process.env.WAHUB_GROUP_JID
   if (groupJid && message.chatId === groupJid) {
+    // Grup itu ramai diskusi lain-lain — cuma pesan yang eksplisit manggil "Naya" yang direspon,
+    // biar bot tidak ikut-ikutan nimbrung ke semua chat.
+    const groupCommand = stripNayaTrigger(command)
+    if (!groupCommand) return { skipped: "group message without Naya trigger" }
+
     if (!message.senderNumber) return { skipped: "group message without senderNumber" }
 
     const staff = await findRegisteredStaff(message.senderNumber)
@@ -64,7 +80,7 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
     const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
     const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
 
-    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, command, history })
+    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, command: groupCommand, history })
 
     if (thread) {
       await prisma.whatsappThread.update({ where: { id: thread.id }, data: { history: messages as unknown as object } })
