@@ -65,6 +65,7 @@ export async function GET() {
           <StatRow label="Saldo Kas & Bank" value={formatRupiah(snapshot.totalSaldo)} accent="#86efac" />
           <StatRow label="Invoice Belum Lunas" value={`${snapshot.piutang.count}`} accent="#fca5a5" />
           <StatRow label="Domain Perlu Perhatian" value={`${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`} accent="#fcd34d" />
+          <StatRow label="Server Perlu Perhatian" value={`${snapshot.server.expiredCount + snapshot.server.expiringCount}`} accent="#c4b5fd" />
           <StatRow label="Biaya Berkala Jatuh Tempo" value={`${snapshot.biayaBerkala.dueCount}`} accent="#fcd34d" />
         </div>
 

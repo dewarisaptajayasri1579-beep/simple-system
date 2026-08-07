@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma"
 import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
 
-/** Ringkasan operasional (piutang, saldo, domain, biaya berkala) — dipakai bareng oleh laporan
- *  gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
+/** Ringkasan operasional (piutang, saldo, domain, server, biaya berkala) — dipakai bareng oleh
+ *  laporan gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
 export async function getDashboardSnapshot() {
-  const [domains, bills, openInvoices, clientCount] = await Promise.all([
+  const [domains, servers, bills, openInvoices, clientCount] = await Promise.all([
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
+    prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
       where: { status: { in: ["unpaid", "partial", "claimed_paid"] } },
@@ -18,6 +19,14 @@ export async function getDashboardSnapshot() {
   const domainRows = domains.map((d) => ({ domain: d, bucket: getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)) }))
   const domainExpiring = domainRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
   const domainExpired = domainRows.filter((r) => r.bucket === "expired")
+
+  // Server: sama seperti Domain — sudah lewat tempo, atau jatuh tempo bulan ini/depan.
+  const serverRows = servers.map((s) => ({
+    server: s,
+    bucket: getExpiryBucket(computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)),
+  }))
+  const serverExpiring = serverRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+  const serverExpired = serverRows.filter((r) => r.bucket === "expired")
 
   const billRows = bills.map((b) => ({
     bill: b,
@@ -49,6 +58,11 @@ export async function getDashboardSnapshot() {
       expiredCount: domainExpired.length,
       expiringCount: domainExpiring.length,
       expiring: domainExpiring.slice(0, 5).map((r) => ({ name: r.domain.name, clientName: r.domain.client?.name ?? "Internal" })),
+    },
+    server: {
+      expiredCount: serverExpired.length,
+      expiringCount: serverExpiring.length,
+      expiring: serverExpiring.slice(0, 5).map((r) => ({ name: r.server.name, clientName: r.server.client?.name ?? "Internal" })),
     },
     biayaBerkala: {
       dueCount: billsDue.length,

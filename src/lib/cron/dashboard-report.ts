@@ -24,6 +24,7 @@ export async function runDashboardReport(waktu: "Pagi" | "Sore") {
     `💰 Piutang: ${snapshot.piutang.count} invoice, ${formatRupiah(snapshot.piutang.total)}`,
     `🏦 Saldo Kas & Bank: ${formatRupiah(snapshot.totalSaldo)}`,
     `🌐 Domain perlu perhatian: ${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`,
+    `🖥️ Server perlu perhatian: ${snapshot.server.expiredCount + snapshot.server.expiringCount}`,
     `💸 Biaya berkala jatuh tempo: ${snapshot.biayaBerkala.dueCount}`,
     "",
     `🔗 ${appBaseUrl}/dashboard`,
