@@ -7,3 +7,6 @@ node_modules
 .next/
 .DS_Store
 *.tsbuildinfo
+
+# File gambar laporan WA sementara — di-generate & dihapus otomatis oleh runDashboardReport()
+public/reports/
