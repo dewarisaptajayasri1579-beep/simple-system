@@ -22,11 +22,11 @@ export async function GET() {
           <SectionCard title="Domain Perlu Perhatian" badge={snapshot.domain.expiredCount + snapshot.domain.expiringCount}>
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               {domainRows.map((r, i) => (
-                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#fcd34d">
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#b45309">
                   <RowCardDetail>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
                     <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
-                    <span style={{ display: "flex", fontSize: 46, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.heading }}>{formatTanggalSingkat(r.dueDate)}</span>
                     <StatusPill overdue={r.overdue} />
                   </RowCardDetail>
                 </RowCard>
@@ -40,9 +40,9 @@ export async function GET() {
           <SectionCard title="Biaya Berkala Jatuh Tempo" badge={snapshot.biayaBerkala.dueCount}>
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
               {billRows.map((r, i) => (
-                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#c4b5fd">
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#7c3aed">
                   <RowCardDetail>
-                    <span style={{ display: "flex", fontSize: 46, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.heading }}>{formatTanggalSingkat(r.dueDate)}</span>
                     <StatusPill overdue={r.overdue} />
                   </RowCardDetail>
                 </RowCard>
