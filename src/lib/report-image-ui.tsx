@@ -317,6 +317,62 @@ export function SectionCard({
   )
 }
 
+export function RowCard({
+  index,
+  title,
+  valueRight,
+  valueColor,
+  children,
+}: {
+  index: number
+  title: string
+  valueRight?: string
+  valueColor?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        background: COLORS.card,
+        border: `1px solid ${COLORS.cardBorder}`,
+        borderRadius: 32,
+        padding: "36px 40px",
+        gap: 20,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 22, flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 68,
+              height: 68,
+              borderRadius: 20,
+              background: "rgba(255,255,255,0.08)",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim, fontWeight: 800 }}>{index}</span>
+          </div>
+          <div style={{ display: "flex", fontSize: 46, color: "#ffffff", fontWeight: 700 }}>{title}</div>
+        </div>
+        {valueRight && (
+          <div style={{ display: "flex", fontSize: 48, fontWeight: 800, color: valueColor || "#ffffff", flexShrink: 0 }}>{valueRight}</div>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+export function RowCardDetail({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: "flex", alignItems: "center", gap: 18, paddingLeft: 90, flexWrap: "wrap" }}>{children}</div>
+}
+
 export function ReportFooter({ appBaseUrl }: { appBaseUrl: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto" }}>

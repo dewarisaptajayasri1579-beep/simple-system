@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og"
 import { getDashboardSnapshot } from "@/lib/dashboard-snapshot"
-import { COLORS, PageShell, ReportHeader, ReportFooter, SectionCard, StatusPill, formatRupiah, formatTanggalSingkat } from "@/lib/report-image-ui"
+import { COLORS, PageShell, ReportHeader, ReportFooter, SectionCard, RowCard, RowCardDetail, StatusPill, formatRupiah, formatTanggalSingkat } from "@/lib/report-image-ui"
 
 export const runtime = "nodejs"
 
@@ -9,8 +9,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const domainRows = snapshot.domain.due.slice(0, 5)
-  const billRows = snapshot.biayaBerkala.due.slice(0, 5)
+  const domainRows = snapshot.domain.due.slice(0, 3)
+  const billRows = snapshot.biayaBerkala.due.slice(0, 3)
 
   return new ImageResponse(
     (
@@ -20,62 +20,34 @@ export async function GET() {
         {/* Domain Perlu Perhatian */}
         {domainRows.length > 0 && (
           <SectionCard title="Domain Perlu Perhatian" badge={snapshot.domain.expiredCount + snapshot.domain.expiringCount}>
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
-              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1.3, fontSize: 38, color: COLORS.textDim }}>Domain</div>
-              <div style={{ display: "flex", flex: 1.1, fontSize: 38, color: COLORS.textDim }}>Pemilik</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Estimasi Habis</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {domainRows.map((r, i) => (
+                <RowCard key={i} index={i + 1} title={r.name}>
+                  <RowCardDetail>
+                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>{r.clientName}</span>
+                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>·</span>
+                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <StatusPill overdue={r.overdue} />
+                  </RowCardDetail>
+                </RowCard>
+              ))}
             </div>
-            {domainRows.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "32px 0",
-                  borderBottom: i < domainRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
-                }}
-              >
-                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1.3, fontSize: 50, color: "#e6ecfb" }}>{r.name}</div>
-                <div style={{ display: "flex", flex: 1.1, fontSize: 50, color: "#e6ecfb" }}>{r.clientName}</div>
-                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 22 }}>
-                  <span style={{ display: "flex", fontSize: 50, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
-                  <StatusPill overdue={r.overdue} />
-                </div>
-              </div>
-            ))}
           </SectionCard>
         )}
 
         {/* Biaya Berkala Jatuh Tempo */}
         {billRows.length > 0 && (
           <SectionCard title="Biaya Berkala Jatuh Tempo" badge={snapshot.biayaBerkala.dueCount}>
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
-              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1.4, fontSize: 38, color: COLORS.textDim }}>Nama</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Jatuh Tempo</div>
-              <div style={{ display: "flex", fontSize: 38, color: COLORS.textDim }}>Nominal</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {billRows.map((r, i) => (
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={formatRupiah(r.price)} valueColor="#c4b5fd">
+                  <RowCardDetail>
+                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <StatusPill overdue={r.overdue} />
+                  </RowCardDetail>
+                </RowCard>
+              ))}
             </div>
-            {billRows.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "32px 0",
-                  borderBottom: i < billRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
-                }}
-              >
-                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1.4, fontSize: 50, color: "#e6ecfb" }}>{r.name}</div>
-                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 22 }}>
-                  <span style={{ display: "flex", fontSize: 50, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
-                  <StatusPill overdue={r.overdue} />
-                </div>
-                <div style={{ display: "flex", fontSize: 50, fontWeight: 700, color: "#c4b5fd" }}>{formatRupiah(r.price)}</div>
-              </div>
-            ))}
           </SectionCard>
         )}
 

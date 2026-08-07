@@ -7,6 +7,8 @@ import {
   ReportFooter,
   StatCard,
   SectionCard,
+  RowCard,
+  RowCardDetail,
   StatusPill,
   formatRupiah,
   formatTanggalSingkat,
@@ -19,8 +21,8 @@ export async function GET() {
   const now = new Date()
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
 
-  const piutangRows = snapshot.piutang.top.slice(0, 4)
-  const serverRows = snapshot.server.due.slice(0, 4)
+  const piutangRows = snapshot.piutang.top.slice(0, 3)
+  const serverRows = snapshot.server.due.slice(0, 3)
 
   return new ImageResponse(
     (
@@ -67,57 +69,29 @@ export async function GET() {
         {/* Piutang Terbesar */}
         {piutangRows.length > 0 && (
           <SectionCard title="Piutang Terbesar">
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
-              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Nama Pelanggan</div>
-              <div style={{ display: "flex", fontSize: 38, color: COLORS.textDim }}>Total Piutang</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {piutangRows.map((r, i) => (
+                <RowCard key={i} index={i + 1} title={r.clientName} valueRight={formatRupiah(r.remaining)} valueColor="#fca5a5" />
+              ))}
             </div>
-            {piutangRows.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "32px 0",
-                  borderBottom: i < piutangRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
-                }}
-              >
-                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1, fontSize: 50, color: "#e6ecfb" }}>{r.clientName}</div>
-                <div style={{ display: "flex", fontSize: 50, fontWeight: 700, color: "#fca5a5" }}>{formatRupiah(r.remaining)}</div>
-              </div>
-            ))}
           </SectionCard>
         )}
 
         {/* Server Belum Dibayar */}
         {serverRows.length > 0 && (
           <SectionCard title="Server Belum Dibayar" badge={snapshot.server.expiredCount + snapshot.server.expiringCount}>
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.panelBorder}`, paddingBottom: 26, marginBottom: 6 }}>
-              <div style={{ display: "flex", width: 120, fontSize: 38, color: COLORS.textDim }}>No</div>
-              <div style={{ display: "flex", flex: 1.4, fontSize: 38, color: COLORS.textDim }}>Server / Layanan</div>
-              <div style={{ display: "flex", flex: 1.1, fontSize: 38, color: COLORS.textDim }}>Pelanggan</div>
-              <div style={{ display: "flex", flex: 1, fontSize: 38, color: COLORS.textDim }}>Jatuh Tempo</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {serverRows.map((r, i) => (
+                <RowCard key={i} index={i + 1} title={r.name}>
+                  <RowCardDetail>
+                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>{r.clientName}</span>
+                    <span style={{ display: "flex", fontSize: 34, color: COLORS.textDim }}>·</span>
+                    <span style={{ display: "flex", fontSize: 34, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
+                    <StatusPill overdue={r.overdue} />
+                  </RowCardDetail>
+                </RowCard>
+              ))}
             </div>
-            {serverRows.map((r, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "32px 0",
-                  borderBottom: i < serverRows.length - 1 ? `1px solid ${COLORS.panelBorder}` : "none",
-                }}
-              >
-                <div style={{ display: "flex", width: 120, fontSize: 48, color: COLORS.textDim }}>{i + 1}</div>
-                <div style={{ display: "flex", flex: 1.4, fontSize: 50, color: "#e6ecfb" }}>{r.name}</div>
-                <div style={{ display: "flex", flex: 1.1, fontSize: 50, color: "#e6ecfb" }}>{r.clientName}</div>
-                <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 22 }}>
-                  <span style={{ display: "flex", fontSize: 50, color: "#e6ecfb" }}>{formatTanggalSingkat(r.dueDate)}</span>
-                  <StatusPill overdue={r.overdue} />
-                </div>
-              </div>
-            ))}
           </SectionCard>
         )}
 
