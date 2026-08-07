@@ -1,19 +1,17 @@
 import { prisma } from "@/lib/prisma"
 import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
-import { computeAllAccountBalances } from "@/lib/account-balance"
 
 /** Ringkasan operasional (piutang, saldo, domain, biaya berkala) — dipakai bareng oleh laporan
  *  gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
 export async function getDashboardSnapshot() {
-  const [domains, bills, openInvoices, balances, clientCount] = await Promise.all([
+  const [domains, bills, openInvoices, clientCount] = await Promise.all([
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
       where: { status: { in: ["unpaid", "partial", "claimed_paid"] } },
       include: { client: true, payments: true },
     }),
-    computeAllAccountBalances(),
     prisma.client.count(),
   ])
 
@@ -33,7 +31,11 @@ export async function getDashboardSnapshot() {
     .sort((a, b) => b.remaining - a.remaining)
   const totalOutstanding = invoicesWithRemaining.reduce((sum, r) => sum + r.remaining, 0)
 
-  const totalSaldo = Array.from(balances.values()).reduce((sum, v) => sum + v, 0)
+  // Sengaja dinolkan dulu — akun kas/bank belum diisi transaksi riil (masih saldo awal/seed),
+  // jadi angkanya menyesatkan kalau ditampilkan. Balikin ke
+  // `Array.from((await computeAllAccountBalances()).values()).reduce((sum, v) => sum + v, 0)`
+  // (dari "@/lib/account-balance") begitu data kas/bank-nya sudah valid.
+  const totalSaldo = 0
 
   return {
     clientCount,
