@@ -10,6 +10,10 @@ import { formatJakartaDateLabel, jakartaTodayDateIso } from "@/lib/datetime"
 export interface ToolContext {
   mode: "staff" | "client"
   clientId?: string
+  /** Staf mode saja — dipakai buat DeactivationLog (lihat logDeactivation di bawah). */
+  actorId?: string
+  actorName?: string
+  command?: string
 }
 
 function formatRupiah(n: number) {
@@ -24,6 +28,27 @@ async function findOrCreateCategory(name: string, kind: string) {
   const existing = await prisma.category.findFirst({ where: { name: { equals: name, mode: "insensitive" } } })
   if (existing) return existing
   return prisma.category.create({ data: { name, kind } })
+}
+
+/** Dicatat tiap kali salah satu deactivate_* tool berhasil eksekusi — buat halaman Log Nonaktif
+ *  (Pengaturan). Gagal diam-diam kalau context actor-nya kosong (mis. dipanggil dari jalur lain
+ *  di masa depan yang belum threading context ini) — jangan sampai gagal log menggagalkan aksi
+ *  utamanya (nonaktifin domain/server/biaya sudah kejadian, itu yang penting). */
+async function logDeactivation(entityType: string, entityName: string, reason: string, context: ToolContext) {
+  try {
+    await prisma.deactivationLog.create({
+      data: {
+        entityType,
+        entityName,
+        reason,
+        actorId: context.actorId ?? "unknown",
+        actorName: context.actorName ?? context.actorId ?? "unknown",
+        command: context.command ?? "",
+      },
+    })
+  } catch (e) {
+    console.error("[agent-tools] Gagal catat DeactivationLog:", e)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -57,20 +82,146 @@ async function getOutstandingInvoices(input: { clientName?: string }) {
 async function getDomainsExpiring() {
   const domains = await prisma.domain.findMany({ where: { active: true }, include: { client: true } })
   return domains
-    .map((d) => ({ domain: d, bucket: getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)) }))
+    .map((d) => ({ domain: d, dueDate: computeDomainExpiryDate(d.lastPaidAt), bucket: getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)) }))
     .filter((r) => r.bucket !== "safe")
-    .map((r) => ({ name: r.domain.name, client: r.domain.client?.name ?? null, status: r.bucket }))
+    .map((r) => ({
+      name: r.domain.name,
+      client: r.domain.client?.name ?? null,
+      status: r.bucket,
+      dueDateLabel: r.dueDate ? formatJakartaDateLabel(r.dueDate.toISOString().slice(0, 10)) : null,
+      priceLabel: r.domain.sellPrice ? formatRupiah(r.domain.sellPrice) : null,
+    }))
+}
+
+async function findDomainByName(input: { domainName: string }) {
+  const domains = await prisma.domain.findMany({
+    where: { name: { contains: input.domainName, mode: "insensitive" } },
+    include: { client: true },
+  })
+  return domains.map((d) => ({
+    name: d.name,
+    client: d.client?.name ?? "Internal",
+    active: d.active,
+    sellPriceLabel: d.sellPrice ? formatRupiah(d.sellPrice) : null,
+  }))
+}
+
+/** Dipanggil HANYA setelah pengguna konfirmasi eksplisit (lihat aturan di STAFF_SYSTEM_PROMPT) —
+ *  langsung menghilangkan domain ini dari Dashboard (query di sana selalu filter active:true).
+ *  "reason" wajib diisi — dicatat di DeactivationLog buat audit trail. */
+async function deactivateDomain(input: { domainName: string; reason: string }, context: ToolContext) {
+  if (!input.reason?.trim()) throw new Error("Alasan nonaktif wajib diisi")
+  const domains = await prisma.domain.findMany({
+    where: { name: { contains: input.domainName, mode: "insensitive" }, active: true },
+  })
+  if (domains.length === 0) throw new Error(`Domain aktif dengan nama "${input.domainName}" tidak ditemukan`)
+  if (domains.length > 1) {
+    return {
+      ambiguous: true,
+      matches: domains.map((d) => d.name),
+      message: "Ada lebih dari satu domain aktif yang cocok dengan nama itu — sebutkan nama persisnya.",
+    }
+  }
+
+  await prisma.domain.update({ where: { id: domains[0].id }, data: { active: false } })
+  await logDeactivation("domain", domains[0].name, input.reason.trim(), context)
+  return { ok: true, name: domains[0].name, message: `Domain ${domains[0].name} sudah dinonaktifkan, tidak akan muncul lagi di Dashboard.` }
+}
+
+async function getServersExpiring() {
+  const servers = await prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } })
+  return servers
+    .map((s) => ({
+      server: s,
+      dueDate: computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount),
+      bucket: getExpiryBucket(computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)),
+    }))
+    .filter((r) => r.bucket !== "safe")
+    .map((r) => ({
+      name: r.server.name,
+      client: r.server.client?.name ?? null,
+      status: r.bucket,
+      dueDateLabel: r.dueDate ? formatJakartaDateLabel(r.dueDate.toISOString().slice(0, 10)) : null,
+      priceLabel: r.server.price ? formatRupiah(r.server.price) : null,
+    }))
+}
+
+async function findServerByName(input: { serverName: string }) {
+  const servers = await prisma.server.findMany({
+    where: { name: { contains: input.serverName, mode: "insensitive" } },
+    include: { client: true },
+  })
+  return servers.map((s) => ({
+    name: s.name,
+    client: s.client?.name ?? "Internal",
+    active: s.active,
+    priceLabel: s.price ? formatRupiah(s.price) : null,
+  }))
+}
+
+/** Padanan deactivateDomain buat Server — sama-sama langsung hilang dari Dashboard begitu
+ *  active:false (query di sana selalu filter active:true). "reason" wajib diisi. */
+async function deactivateServer(input: { serverName: string; reason: string }, context: ToolContext) {
+  if (!input.reason?.trim()) throw new Error("Alasan nonaktif wajib diisi")
+  const servers = await prisma.server.findMany({
+    where: { name: { contains: input.serverName, mode: "insensitive" }, active: true },
+  })
+  if (servers.length === 0) throw new Error(`Server aktif dengan nama "${input.serverName}" tidak ditemukan`)
+  if (servers.length > 1) {
+    return {
+      ambiguous: true,
+      matches: servers.map((s) => s.name),
+      message: "Ada lebih dari satu server aktif yang cocok dengan nama itu — sebutkan nama persisnya.",
+    }
+  }
+
+  await prisma.server.update({ where: { id: servers[0].id }, data: { active: false } })
+  await logDeactivation("server", servers[0].name, input.reason.trim(), context)
+  return { ok: true, name: servers[0].name, message: `Server ${servers[0].name} sudah dinonaktifkan, tidak akan muncul lagi di Dashboard.` }
 }
 
 async function getRecurringBillsDue() {
   const bills = await prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } })
   return bills
-    .map((b) => ({
-      bill: b,
-      bucket: getDueBucket(computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount), b.period?.reminderDaysBefore ?? 7),
-    }))
+    .map((b) => {
+      const dueDate = computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount)
+      return { bill: b, dueDate, bucket: getDueBucket(dueDate, b.period?.reminderDaysBefore ?? 7) }
+    })
     .filter((r) => r.bucket !== "ok")
-    .map((r) => ({ name: r.bill.name, priceLabel: formatRupiah(r.bill.price ?? 0), status: r.bucket }))
+    .map((r) => ({
+      name: r.bill.name,
+      priceLabel: formatRupiah(r.bill.price ?? 0),
+      status: r.bucket,
+      dueDateLabel: r.dueDate ? formatJakartaDateLabel(r.dueDate.toISOString().slice(0, 10)) : null,
+    }))
+}
+
+async function findRecurringBillByName(input: { billName: string }) {
+  const bills = await prisma.recurringBill.findMany({
+    where: { name: { contains: input.billName, mode: "insensitive" } },
+  })
+  return bills.map((b) => ({ name: b.name, category: b.category, active: b.active, priceLabel: b.price ? formatRupiah(b.price) : null }))
+}
+
+/** Padanan deactivateDomain buat Biaya Berkala — sama-sama langsung hilang dari Dashboard begitu
+ *  active:false (query di sana selalu filter active:true). "reason" wajib diisi. */
+async function deactivateRecurringBill(input: { billName: string; reason: string }, context: ToolContext) {
+  if (!input.reason?.trim()) throw new Error("Alasan nonaktif wajib diisi")
+  const bills = await prisma.recurringBill.findMany({
+    where: { name: { contains: input.billName, mode: "insensitive" }, active: true },
+  })
+  if (bills.length === 0) throw new Error(`Biaya berkala aktif dengan nama "${input.billName}" tidak ditemukan`)
+  if (bills.length > 1) {
+    return {
+      ambiguous: true,
+      matches: bills.map((b) => b.name),
+      message: "Ada lebih dari satu biaya berkala aktif yang cocok dengan nama itu — sebutkan nama persisnya.",
+    }
+  }
+
+  await prisma.recurringBill.update({ where: { id: bills[0].id }, data: { active: false } })
+  await logDeactivation("recurring_bill", bills[0].name, input.reason.trim(), context)
+  return { ok: true, name: bills[0].name, message: `Biaya berkala ${bills[0].name} sudah dinonaktifkan, tidak akan muncul lagi di Dashboard.` }
 }
 
 async function recordExpense(input: { accountName: string; amount: number; description?: string; categoryName?: string }) {
@@ -199,9 +350,80 @@ export const staffToolDefinitions: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {} },
   },
   {
-    name: "get_recurring_bills_due",
-    description: "Cek biaya berkala (kantor/pribadi) yang overdue atau segera jatuh tempo.",
+    name: "find_domain_by_name",
+    description: "Cari domain (aktif maupun nonaktif) berdasarkan nama — dipakai buat cek detail sebelum menonaktifkan domain.",
+    input_schema: {
+      type: "object",
+      properties: { domainName: { type: "string", description: "Nama domain, boleh sebagian" } },
+      required: ["domainName"],
+    },
+  },
+  {
+    name: "deactivate_domain",
+    description:
+      "Nonaktifkan domain — langsung hilang dari Dashboard. WAJIB cari dulu pakai find_domain_by_name dan minta konfirmasi eksplisit ke pengguna di pesan sebelumnya — jangan pernah panggil tool ini di pesan yang sama saat pengguna baru pertama kali minta. WAJIB juga minta & sertakan alasan nonaktifnya (reason) — jangan pernah panggil tool ini tanpa alasan yang jelas dari pengguna.",
+    input_schema: {
+      type: "object",
+      properties: {
+        domainName: { type: "string" },
+        reason: { type: "string", description: "Alasan domain dinonaktifkan, wajib diisi" },
+      },
+      required: ["domainName", "reason"],
+    },
+  },
+  {
+    name: "get_servers_expiring",
+    description: "Cek server yang sudah lewat, atau akan habis (jatuh tempo tagihan) bulan ini/bulan depan, lengkap tanggal & harga.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "find_server_by_name",
+    description: "Cari server (aktif maupun nonaktif) berdasarkan nama — dipakai buat cek detail sebelum menonaktifkan server.",
+    input_schema: {
+      type: "object",
+      properties: { serverName: { type: "string", description: "Nama server, boleh sebagian" } },
+      required: ["serverName"],
+    },
+  },
+  {
+    name: "deactivate_server",
+    description:
+      "Nonaktifkan server — langsung hilang dari Dashboard. WAJIB cari dulu pakai find_server_by_name dan minta konfirmasi eksplisit ke pengguna di pesan sebelumnya — jangan pernah panggil tool ini di pesan yang sama saat pengguna baru pertama kali minta. WAJIB juga minta & sertakan alasan nonaktifnya (reason) — jangan pernah panggil tool ini tanpa alasan yang jelas dari pengguna.",
+    input_schema: {
+      type: "object",
+      properties: {
+        serverName: { type: "string" },
+        reason: { type: "string", description: "Alasan server dinonaktifkan, wajib diisi" },
+      },
+      required: ["serverName", "reason"],
+    },
+  },
+  {
+    name: "get_recurring_bills_due",
+    description: "Cek biaya berkala (kantor/pribadi) yang overdue atau segera jatuh tempo, lengkap tanggal & harga.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "find_recurring_bill_by_name",
+    description: "Cari biaya berkala (aktif maupun nonaktif) berdasarkan nama — dipakai buat cek detail sebelum menonaktifkan.",
+    input_schema: {
+      type: "object",
+      properties: { billName: { type: "string", description: "Nama biaya berkala, boleh sebagian" } },
+      required: ["billName"],
+    },
+  },
+  {
+    name: "deactivate_recurring_bill",
+    description:
+      "Nonaktifkan biaya berkala — langsung hilang dari Dashboard. WAJIB cari dulu pakai find_recurring_bill_by_name dan minta konfirmasi eksplisit ke pengguna di pesan sebelumnya — jangan pernah panggil tool ini di pesan yang sama saat pengguna baru pertama kali minta. WAJIB juga minta & sertakan alasan nonaktifnya (reason) — jangan pernah panggil tool ini tanpa alasan yang jelas dari pengguna.",
+    input_schema: {
+      type: "object",
+      properties: {
+        billName: { type: "string" },
+        reason: { type: "string", description: "Alasan biaya berkala dinonaktifkan, wajib diisi" },
+      },
+      required: ["billName", "reason"],
+    },
   },
   {
     name: "get_cash_balance",
@@ -292,8 +514,22 @@ export async function runTool(name: string, input: Record<string, unknown>, cont
       return getOutstandingInvoices(input as { clientName?: string })
     case "get_domains_expiring":
       return getDomainsExpiring()
+    case "find_domain_by_name":
+      return findDomainByName(input as { domainName: string })
+    case "deactivate_domain":
+      return deactivateDomain(input as { domainName: string; reason: string }, context)
+    case "get_servers_expiring":
+      return getServersExpiring()
+    case "find_server_by_name":
+      return findServerByName(input as { serverName: string })
+    case "deactivate_server":
+      return deactivateServer(input as { serverName: string; reason: string }, context)
     case "get_recurring_bills_due":
       return getRecurringBillsDue()
+    case "find_recurring_bill_by_name":
+      return findRecurringBillByName(input as { billName: string })
+    case "deactivate_recurring_bill":
+      return deactivateRecurringBill(input as { billName: string; reason: string }, context)
     case "get_cash_balance":
       return getCashBalance()
     case "record_expense":

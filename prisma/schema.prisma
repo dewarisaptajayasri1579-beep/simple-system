@@ -536,3 +536,19 @@ model AgentRun {
   @@map("agent_runs")
   @@schema("simple_system")
 }
+
+/// Log khusus tiap kali AI Agent menonaktifkan domain/server/biaya berkala lewat WA — supaya
+/// gampang diaudit siapa nonaktifin apa, terpisah dari AgentRun yang isinya semua jenis aksi.
+model DeactivationLog {
+  id         String   @id @default(uuid())
+  entityType String   @map("entity_type") // "domain" | "server" | "recurring_bill"
+  entityName String   @map("entity_name")
+  actorId    String   @map("actor_id") // User.id kalau staf terdaftar, kalau tidak nomor WA mentah
+  actorName  String   @map("actor_name")
+  reason     String // alasan nonaktif, wajib diisi pengguna sebelum tool dieksekusi
+  command    String // pesan asli yang memicu aksi ini
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("deactivation_logs")
+  @@schema("simple_system")
+}

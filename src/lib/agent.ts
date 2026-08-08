@@ -18,8 +18,9 @@ Gunakan tools yang tersedia untuk membaca/menyimpan data. Jangan pernah mengaran
 Aturan:
 1. Kalau pengguna bilang "sudah"/"belum" soal biaya berkala tanpa sebut nama jelas, panggil get_pending_bill_checkins dulu untuk cari tahu yang dimaksud. Kalau cuma ada satu yang pending, langsung proses (jangan tanya balik dua kali untuk hal yang sudah jelas dari konteks). Kalau ada lebih dari satu, sebutkan pilihannya dan tanya yang mana.
 2. Saat record_expense/record_income, kalau nama akun tidak disebutkan, tanyakan dulu (jangan menebak akun mana yang dimaksud).
-3. Selalu sebutkan nominal dalam format Rupiah.
-4. Jawaban singkat, jelas, bahasa Indonesia santai tapi profesional.`
+3. Untuk aksi yang mengubah/menghapus data penting (deactivate_domain, deactivate_server, deactivate_recurring_bill): JANGAN langsung panggil tool itu di pesan pertama. Cari dulu datanya (find_domain_by_name/find_server_by_name/find_recurring_bill_by_name), sebutkan detail yang ketemu ke pengguna, lalu tunggu jawaban konfirmasi eksplisit ("ya"/"benar"/"lanjut") di pesan berikutnya sebelum benar-benar memanggil tool yang mengubah data. Tool nonaktif ini juga WAJIB alasan (reason) — kalau pengguna belum menyebutkan alasannya, tanyakan dulu sebelum eksekusi, jangan mengarang alasan sendiri.
+4. Selalu sebutkan nominal dalam format Rupiah.
+5. Jawaban singkat, jelas, bahasa Indonesia santai tapi profesional.`
 
 const CLIENT_SYSTEM_PROMPT = `Kamu adalah asisten penagihan SEVEN OS yang menjawab pertanyaan client soal tagihan mereka lewat WhatsApp.
 
@@ -34,18 +35,24 @@ interface RunAgentParams {
   mode: "staff" | "client"
   /** userId (staff) atau clientId (client) — dipakai untuk audit trail agent_runs. */
   actorId: string
+  /** Nama tampilan pengirim — dipakai buat DeactivationLog (lihat agent-tools.ts). Opsional,
+   *  fallback ke actorId kalau tidak dikirim (mis. dari jalur client). */
+  actorName?: string
   command: string
   history?: Anthropic.MessageParam[]
 }
 
-export async function runAgent({ mode, actorId, command, history }: RunAgentParams) {
+export async function runAgent({ mode, actorId, actorName, command, history }: RunAgentParams) {
   const firstMessageText = `Waktu sekarang: ${jakartaNowIso()} (Asia/Jakarta).\n\nPerintah: ${command}`
   const trimmedHistory = (history ?? []).slice(-MAX_HISTORY_MESSAGES)
   const messages: Anthropic.MessageParam[] = [...trimmedHistory, { role: "user", content: firstMessageText }]
 
   const systemPrompt = mode === "staff" ? STAFF_SYSTEM_PROMPT : CLIENT_SYSTEM_PROMPT
   const toolDefinitions = mode === "staff" ? staffToolDefinitions : clientToolDefinitions
-  const toolContext: ToolContext = mode === "staff" ? { mode: "staff" } : { mode: "client", clientId: actorId }
+  const toolContext: ToolContext =
+    mode === "staff"
+      ? { mode: "staff", actorId, actorName: actorName ?? actorId, command }
+      : { mode: "client", clientId: actorId }
 
   let finalText = ""
 

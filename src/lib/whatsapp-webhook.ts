@@ -83,7 +83,7 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
     const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
     const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
 
-    const { reply, messages } = await runAgent({ mode: "staff", actorId, command: groupCommand, history })
+    const { reply, messages } = await runAgent({ mode: "staff", actorId, actorName, command: groupCommand, history })
 
     if (thread) {
       await prisma.whatsappThread.update({ where: { id: thread.id }, data: { history: messages as unknown as object } })
@@ -103,7 +103,7 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
     const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
     const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
 
-    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, command, history })
+    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, actorName: staff.name, command, history })
 
     if (thread) {
       await prisma.whatsappThread.update({ where: { id: thread.id }, data: { history: messages as unknown as object } })

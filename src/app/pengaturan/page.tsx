@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { AppLayout } from "@/components/layout/AppLayout"
 import { PengaturanPanel } from "@/components/pengaturan/PengaturanPanel"
 import { requirePageRole } from "@/lib/current-user"
@@ -40,9 +42,17 @@ export default async function PengaturanPage() {
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-6xl mx-auto">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Pengaturan</h1>
-          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Khusus Owner.</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Pengaturan</h1>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Khusus Owner.</p>
+          </div>
+          <Link
+            href="/pengaturan/log-nonaktif"
+            className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
+          >
+            Log Nonaktif &rarr;
+          </Link>
         </div>
 
         <PengaturanPanel
