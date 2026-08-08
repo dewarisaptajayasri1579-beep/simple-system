@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto"
+import sharp from "sharp"
 import { sendWhatsappImage } from "@/lib/wahub"
 import { uploadToSupabaseStorage, deleteFromSupabaseStorage } from "@/lib/supabase-storage"
 import { getDashboardSnapshot, renderDashboardImage1, renderDashboardImage2 } from "@/lib/dashboard-report-images"
@@ -7,14 +8,17 @@ function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
 }
 
-/** Render lalu upload ke Supabase Storage (bucket public "Simple OS") supaya WAHUB fetch mediaUrl-
- *  nya cepat & reliable — bukan render on-demand (~20 detik, WAHUB keburu "Connection Closed"
- *  nunggu) dan bukan file statis di disk lokal container (beda instance/redeploy = hilang, gagal
- *  "Failed to fetch stream" di production). Lihat lib/supabase-storage.ts. */
+/** Render, kompres ke JPEG (~30% lebih kecil dari PNG asli next/og, teks tetap tajam di quality
+ *  90 — sudah dicek visual), lalu upload ke Supabase Storage (bucket public "Simple OS") supaya
+ *  WAHUB fetch mediaUrl-nya cepat & reliable — bukan render on-demand (~20 detik, WAHUB keburu
+ *  "Connection Closed" nunggu) dan bukan file statis di disk lokal container (beda instance/
+ *  redeploy = hilang, gagal "Failed to fetch stream" di production). JPEG dipilih daripada WebP
+ *  supaya WhatsApp pasti perlakukan sebagai foto biasa, bukan stiker. Lihat lib/supabase-storage.ts. */
 async function renderAndUpload(imageResponse: Response) {
-  const buffer = Buffer.from(await imageResponse.arrayBuffer())
-  const filename = `dashboard-report-${randomUUID()}.png`
-  const url = await uploadToSupabaseStorage(buffer, filename, "image/png")
+  const pngBuffer = Buffer.from(await imageResponse.arrayBuffer())
+  const jpegBuffer = await sharp(pngBuffer).jpeg({ quality: 90, mozjpeg: true }).toBuffer()
+  const filename = `dashboard-report-${randomUUID()}.jpg`
+  const url = await uploadToSupabaseStorage(jpegBuffer, filename, "image/jpeg")
   return { url, filename }
 }
 
