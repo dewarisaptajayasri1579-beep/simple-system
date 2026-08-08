@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, Button, Modal, Input, Select, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
-import { Plus, PlusCircle, Pencil } from "lucide-react";
+import { Plus, PlusCircle, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 
 export interface CoaRow {
   id: string;
@@ -98,7 +98,7 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
 
   const tree = useMemo(() => buildTree(rows), [rows]);
   const depthById = useMemo(() => new Map(tree.map((t) => [t.row.id, t.depth])), [tree]);
-  const treeRows = useMemo(() => tree.map((t) => t.row), [tree]);
+  const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   // Akun yang sudah jadi induk (punya anak) — dipakai buat badge "Parent" dan syarat boleh
   // tambah anak lagi (akun berdaun/leaf cuma boleh diubah jadi induk kalau belum ada saldonya).
   const hasChildrenById = useMemo(() => {
@@ -106,6 +106,27 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
     for (const r of rows) if (r.parentId) set.add(r.parentId);
     return set;
   }, [rows]);
+
+  // Expand/collapse per induk — default semua kebuka. Nutup satu induk otomatis nyembunyiin
+  // seluruh keturunannya (bukan cuma anak langsung), dicek lewat rantai parentId ke atas.
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const toggleCollapse = (id: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const isHiddenByCollapse = (row: CoaRow) => {
+    let currentParentId = row.parentId;
+    while (currentParentId) {
+      if (collapsedIds.has(currentParentId)) return true;
+      currentParentId = rowById.get(currentParentId)?.parentId ?? null;
+    }
+    return false;
+  };
+  const treeRows = useMemo(() => tree.filter((t) => !isHiddenByCollapse(t.row)).map((t) => t.row), [tree, collapsedIds, rowById]);
 
   // Dropdown "Induk" ikut nampilin hierarki (indentasi) biar kelihatan levelnya — akun mana
   // pun boleh dipilih jadi induk, termasuk yang sudah punya anak sendiri (nested tanpa batas).
@@ -225,10 +246,22 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
       cellClassName: "font-semibold",
       cell: (r) => {
         const depth = depthById.get(r.id) ?? 0;
+        const hasChildren = hasChildrenById.has(r.id);
         return (
           <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-2">
+            {hasChildren ? (
+              <button
+                onClick={() => toggleCollapse(r.id)}
+                title={collapsedIds.has(r.id) ? "Buka sub-akun" : "Tutup sub-akun"}
+                className="text-slate-400 hover:text-[#0544cc] cursor-pointer flex-shrink-0"
+              >
+                {collapsedIds.has(r.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            ) : (
+              depth > 0 && <span className="w-4 flex-shrink-0" />
+            )}
             {r.name}
-            {hasChildrenById.has(r.id) && (
+            {hasChildren && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
                 Parent
               </span>
@@ -237,7 +270,15 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
         );
       },
     },
-    { key: "saldo", header: "Saldo", cellClassName: "font-semibold text-right", cell: (r) => formatRupiah(r.saldoAkhir) },
+    {
+      key: "saldo",
+      header: "Saldo",
+      cellClassName: "font-semibold text-right",
+      cell: (r) => {
+        const depth = depthById.get(r.id) ?? 0;
+        return <span style={{ paddingRight: depth * 20 }}>{formatRupiah(r.saldoAkhir)}</span>;
+      },
+    },
     {
       key: "aksi",
       header: "",
