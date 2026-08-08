@@ -5,6 +5,11 @@ import { prisma } from "@/lib/prisma"
 import { normalizePhoneNumber, sendWhatsappMessage } from "@/lib/wahub"
 
 const THREAD_IDLE_MS = 30 * 60 * 1000
+/** Di grup, sekali Naya jawab seseorang, pesan BERIKUTNYA dari orang yang sama dalam jendela ini
+ *  dianggap masih nyambung ke jawaban itu — tidak perlu ulang ketik "Naya," lagi. Sengaja dibikin
+ *  pendek (bukan sama dengan THREAD_IDLE_MS) supaya obrolan biasa antar-orang di grup setelah lewat
+ *  dari 2 menit tidak keliru dianggap masih ngobrol sama bot. */
+const GROUP_CONTINUATION_MS = 2 * 60 * 1000
 
 interface WahubIncomingMessage {
   from?: string
@@ -68,11 +73,6 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
   // buat identitas/nama di log; kalau tidak, tetap diproses pakai nomornya sebagai identitas.
   const groupJid = process.env.WAHUB_GROUP_JID
   if (groupJid && message.chatId === groupJid) {
-    // Grup itu ramai diskusi lain-lain — cuma pesan yang eksplisit manggil "Naya" yang direspon,
-    // biar bot tidak ikut-ikutan nimbrung ke semua chat.
-    const groupCommand = stripNayaTrigger(command)
-    if (!groupCommand) return { skipped: "group message without Naya trigger" }
-
     if (!message.senderNumber) return { skipped: "group message without senderNumber" }
 
     const staff = await findRegisteredStaff(message.senderNumber)
@@ -81,6 +81,15 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
 
     const thread = await getThread("staff", actorId)
     const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
+    const isContinuation = thread && Date.now() - thread.updatedAt.getTime() < GROUP_CONTINUATION_MS
+
+    // Grup itu ramai diskusi lain-lain — normalnya cuma pesan yang eksplisit manggil "Naya" yang
+    // direspon, biar bot tidak ikut-ikutan nimbrung ke semua chat. Pengecualian: kalau orang yang
+    // sama baru saja (<2 menit) dijawab Naya, pesan susulannya dianggap masih nyambung ke jawaban
+    // itu tanpa perlu ulang panggil "Naya,".
+    const groupCommand = isContinuation ? command : stripNayaTrigger(command)
+    if (!groupCommand) return { skipped: "group message without Naya trigger" }
+
     const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
 
     const { reply, messages } = await runAgent({ mode: "staff", actorId, actorName, command: groupCommand, history })
