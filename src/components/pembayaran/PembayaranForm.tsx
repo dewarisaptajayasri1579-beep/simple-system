@@ -112,7 +112,7 @@ export const PembayaranForm: React.FC<{
       return;
     }
     setIsLoadingInvoices(true);
-    fetch(`/api/invoices?clientId=${clientId}`)
+    fetch(`/api/invoices?clientId=${clientId}&postStatus=posted`)
       .then((r) => r.json())
       .then((data: Array<{ id: string; invoiceNumber: string; totalAmount: number; dueDate: string | null; payments: { amount: number }[] }>) => {
         const rows: InvoiceRow[] = data

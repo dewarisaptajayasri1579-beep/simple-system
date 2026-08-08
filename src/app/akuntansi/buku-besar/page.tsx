@@ -26,7 +26,7 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
 
   const lines = account
     ? await prisma.journalLine.findMany({
-        where: { accountId },
+        where: { accountId, journalEntry: { is: { postStatus: "posted" } } },
         include: { journalEntry: true },
         orderBy: [{ journalEntry: { date: "asc" } }, { journalEntry: { createdAt: "asc" } }],
       })

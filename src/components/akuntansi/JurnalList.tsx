@@ -16,6 +16,8 @@ import {
   FilterableTable,
   type FilterableColumn,
 } from "@/components/ui";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { VoidButton } from "./VoidButton";
 import { Plus, Trash2 } from "lucide-react";
 
 export interface JurnalLineRow {
@@ -33,6 +35,7 @@ export interface JurnalEntryRow {
   date: string;
   description: string;
   sourceType: string;
+  postStatus: "draft" | "posted" | "voided";
   lines: JurnalLineRow[];
 }
 
@@ -49,6 +52,7 @@ const SOURCE_LABEL: Record<string, string> = {
   recurring_bill: "Biaya Berkala",
   server: "Server",
   manual: "Manual",
+  correction: "Koreksi",
 };
 
 const SOURCE_OPTIONS = Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }));
@@ -77,6 +81,7 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
   const router = useRouter();
   const [entries, setEntries] = useState(initialEntries);
   const [viewing, setViewing] = useState<JurnalEntryRow | null>(null);
+  const [posting, setPosting] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
@@ -137,6 +142,7 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       date: data.date,
       description: data.description,
       sourceType: data.sourceType,
+      postStatus: data.postStatus,
       lines: (data.lines as { id: string; accountId: string; debit: number; credit: number; memo: string | null }[]).map((l) => {
         const acc = coaAccounts.find((a) => a.id === l.accountId);
         return { id: l.id, accountCode: acc?.code ?? "", accountName: acc?.name ?? "", debit: l.debit, credit: l.credit, memo: l.memo };
@@ -144,6 +150,20 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
     };
     setEntries((prev) => [newEntry, ...prev]);
     close();
+    router.refresh();
+  };
+
+  const handlePost = async (id: string) => {
+    setPosting(id);
+    setError("");
+    const res = await fetch(`/api/journal-entries/${id}/post`, { method: "POST" });
+    const data = await res.json();
+    setPosting(null);
+    if (!res.ok) {
+      setError(data.error || "Gagal posting jurnal");
+      return;
+    }
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, postStatus: "posted" } : e)));
     router.refresh();
   };
 
@@ -168,13 +188,28 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       cellClassName: "font-semibold",
       cell: (e) => formatRupiah(e.lines.reduce((s, l) => s + l.debit, 0)),
     },
+    { key: "postStatus", header: "Posting", cell: (e) => <StatusBadge type={e.postStatus} size="sm" /> },
     {
       key: "aksi",
       header: "Aksi",
       cell: (e) => (
-        <Button size="sm" variant="ghost" onClick={() => setViewing(e)}>
-          Lihat
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setViewing(e)}>
+            Lihat
+          </Button>
+          {e.postStatus === "draft" && e.sourceType === "manual" && isOwner && (
+            <Button size="sm" variant="primary" onClick={() => handlePost(e.id)} isLoading={posting === e.id}>
+              Posting
+            </Button>
+          )}
+          {e.postStatus === "posted" && e.sourceType === "manual" && isOwner && (
+            <VoidButton
+              voidUrl={`/api/journal-entries/${e.id}/void`}
+              itemLabel={`jurnal ${e.entryNumber}`}
+              onVoided={() => setEntries((prev) => prev.map((row) => (row.id === e.id ? { ...row, postStatus: "voided" } : row)))}
+            />
+          )}
+        </div>
       ),
     },
   ];
@@ -197,7 +232,10 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       <Modal isOpen={viewing !== null} onClose={() => setViewing(null)} title={viewing ? `${viewing.entryNumber} — ${viewing.description}` : ""} size="lg">
         {viewing && (
           <div className="space-y-3">
-            <p className="text-xs text-slate-500">{formatDate(viewing.date)} · {SOURCE_LABEL[viewing.sourceType] ?? viewing.sourceType}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-slate-500">{formatDate(viewing.date)} · {SOURCE_LABEL[viewing.sourceType] ?? viewing.sourceType}</p>
+              <StatusBadge type={viewing.postStatus} size="sm" />
+            </div>
             <div className="rounded-xl border border-slate-200/80 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs font-bold text-slate-600 uppercase">

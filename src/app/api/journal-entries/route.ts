@@ -4,11 +4,16 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { postJournalEntry, type JournalLineInput } from "@/lib/accounting/post-journal"
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
 
+  const { searchParams } = new URL(request.url)
+  const sourceType = searchParams.get("sourceType")
+  const sourceId = searchParams.get("sourceId")
+
   const entries = await prisma.journalEntry.findMany({
+    where: sourceType && sourceId ? { sourceType, sourceId } : undefined,
     include: { lines: { include: { account: true } } },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   })

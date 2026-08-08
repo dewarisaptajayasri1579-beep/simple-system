@@ -10,8 +10,11 @@ export async function getDashboardSnapshot() {
     prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
-      where: { status: { in: ["unpaid", "partial", "claimed_paid"] } },
-      include: { client: true, payments: true },
+      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
+      include: {
+        client: true,
+        payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+      },
     }),
     prisma.client.count(),
   ])

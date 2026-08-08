@@ -76,9 +76,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invoice tidak boleh diinput dua kali" }, { status: 400 })
   }
 
-  const invoices = await prisma.invoice.findMany({ where: { id: { in: invoiceIds } }, include: { payments: true } })
+  // Cuma invoice yang sudah posted yang boleh dibayar (draft belum dianggap piutang resmi).
+  // `payments` yang dihitung juga cuma yang posted (atau baris migrasi lama tanpa Payment
+  // sama sekali) — payment draft milik invoice ini belum mengurangi sisa tagihan.
+  const invoices = await prisma.invoice.findMany({
+    where: { id: { in: invoiceIds }, postStatus: "posted" },
+    include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
+  })
   if (invoices.length !== invoiceIds.length) {
-    return NextResponse.json({ error: "Ada invoice yang tidak ditemukan" }, { status: 404 })
+    return NextResponse.json({ error: "Ada invoice yang tidak ditemukan atau belum diposting" }, { status: 404 })
   }
   if (invoices.some((inv) => inv.clientId !== clientId)) {
     return NextResponse.json({ error: "Semua invoice harus milik client yang sama" }, { status: 400 })
@@ -110,7 +116,6 @@ export async function POST(request: Request) {
 
     for (const line of lines) {
       const invoice = invoiceById.get(line.invoiceId)!
-      const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
 
       // Alokasikan HPP+PPN invoice secara proporsional ke pembayaran ini (supaya PPN & HPP tidak
       // ikut kena split walau tagihannya dicicil), lalu tambah HPP manual yang diinput staf khusus
@@ -137,6 +142,7 @@ export async function POST(request: Request) {
           direksiAmount: split.direksiAmount,
           bonusAmount: split.bonusAmount,
           description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
+          paymentId: payment.id,
         },
       })
 
@@ -152,9 +158,14 @@ export async function POST(request: Request) {
         },
       })
 
-      const newTotalPaid = alreadyPaid + line.amount
-      const newStatus = newTotalPaid >= invoice.totalAmount - 0.5 ? "paid" : "partial"
-      await tx.invoice.update({ where: { id: line.invoiceId }, data: { status: newStatus } })
+      // Invoice.status (unpaid/partial/paid) BELUM diupdate di sini — payment ini masih draft,
+      // sisa tagihan invoice baru benar-benar berkurang saat payment ini di-posting (lihat
+      // POST /api/payments/[id]/post).
+
+      // Porsi PPN dari jumlah yang baru dibayar, proporsional terhadap PPN invoice — supaya
+      // dicicil pun PPN Keluaran ikut terpisah dari Pendapatan Jasa sesuai porsinya, bukan
+      // cuma dihitung penuh di pembayaran pertama atau terakhir.
+      const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
 
       await postJournalEntry(tx, {
         date: new Date(),
@@ -162,7 +173,7 @@ export async function POST(request: Request) {
         sourceType: "invoice_payment",
         sourceId: transaction.id,
         createdBy: user.id,
-        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount }),
+        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount, ppnPortion }),
       })
 
       // Biaya yang dikaitkan ke domain/server langsung dibayar dari kas yang sama dengan
@@ -170,9 +181,9 @@ export async function POST(request: Request) {
       // benaran menandai domain/server itu lunas (update lastPaidAt + jurnal beban),
       // persis efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan.
       if (line.costLink?.type === "domain") {
-        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id })
+        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id, paymentId: payment.id })
       } else if (line.costLink?.type === "server") {
-        await markServerPaid(tx, { serverId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id })
+        await markServerPaid(tx, { serverId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id, paymentId: payment.id })
       }
     }
 

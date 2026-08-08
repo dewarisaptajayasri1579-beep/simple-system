@@ -20,7 +20,7 @@ export async function runWeeklyReport() {
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
   const [transactions, balances] = await Promise.all([
-    prisma.transaction.findMany({ where: { occurredAt: { gte: weekAgo, lte: now } } }),
+    prisma.transaction.findMany({ where: { occurredAt: { gte: weekAgo, lte: now }, postStatus: "posted" } }),
     computeAllAccountBalances(),
   ])
 

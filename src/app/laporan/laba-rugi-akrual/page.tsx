@@ -18,7 +18,7 @@ export default async function LabaRugiAkrualPage({ searchParams }: { searchParam
   const lines = await prisma.journalLine.findMany({
     where: {
       account: { type: { in: ["revenue", "cogs", "expense"] } },
-      journalEntry: { date: { gte: period.from, lte: period.to } },
+      journalEntry: { date: { gte: period.from, lte: period.to }, postStatus: "posted" },
     },
     include: { account: true },
   })

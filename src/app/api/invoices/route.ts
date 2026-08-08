@@ -4,7 +4,7 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { invoiceCreatedLines } from "@/lib/accounting/journal-rules"
+import { invoiceCostLines } from "@/lib/accounting/journal-rules"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -13,13 +13,21 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get("status")
   const clientId = searchParams.get("clientId")
+  const postStatus = searchParams.get("postStatus")
 
+  // postStatus tidak difilter default — endpoint ini dipakai juga oleh menu manajemen Penjualan
+  // yang perlu menampilkan draft. Consumer yang butuh "hanya invoice riil" (mis. picker piutang
+  // di form Pembayaran) kirim eksplisit ?postStatus=posted.
   const invoices = await prisma.invoice.findMany({
     where: {
       ...(status ? { status } : {}),
       ...(clientId ? { clientId } : {}),
+      ...(postStatus ? { postStatus } : {}),
     },
-    include: { client: true, payments: true },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
     orderBy: { issuedAt: "asc" },
   })
 
@@ -98,14 +106,18 @@ export async function POST(request: Request) {
       include: { lines: true, client: true },
     })
 
-    await postJournalEntry(tx, {
-      date: created.issuedAt,
-      description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
-      sourceType: "invoice",
-      sourceId: created.id,
-      createdBy: user.id,
-      lines: invoiceCreatedLines({ totalAmount, afterDiscount, ppnAmount, totalCost }),
-    })
+    // Cash-basis: pendapatan/piutang belum diakui saat invoice terbit, baru saat pembayaran
+    // masuk (lihat /api/payments). Cuma HPP yang tetap diakui sekarang kalau ada.
+    if (totalCost > 0) {
+      await postJournalEntry(tx, {
+        date: created.issuedAt,
+        description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
+        sourceType: "invoice",
+        sourceId: created.id,
+        createdBy: user.id,
+        lines: invoiceCostLines({ totalCost }),
+      })
+    }
 
     return created
   })

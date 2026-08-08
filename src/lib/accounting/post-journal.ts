@@ -15,7 +15,11 @@ export interface JournalLineInput {
 export interface PostJournalInput {
   date: Date
   description: string
-  sourceType: "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual"
+  sourceType: "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual" | "correction"
+  /** Default "draft" — jurnal baru berlaku (masuk laporan/saldo) setelah di-posting lewat
+   *  postJournalEntryFinal(). Cuma dipakai untuk kasus khusus (mis. koreksi migrasi) yang
+   *  memang harus langsung final tanpa alur draft. */
+  postStatus?: "draft" | "posted"
   sourceId?: string
   createdBy?: string
   lines: JournalLineInput[]
@@ -62,6 +66,8 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
   })
   const entryNumber = `JE-${year}-${String(countThisYear + 1).padStart(6, "0")}`
 
+  const postStatus = input.postStatus ?? "draft"
+
   return tx.journalEntry.create({
     data: {
       entryNumber,
@@ -70,6 +76,9 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
       sourceType: input.sourceType,
       sourceId: input.sourceId ?? null,
       createdBy: input.createdBy ?? null,
+      postStatus,
+      postedAt: postStatus === "posted" ? new Date() : null,
+      postedById: postStatus === "posted" ? (input.createdBy ?? null) : null,
       lines: {
         create: input.lines
           .filter((l) => (l.debit ?? 0) !== 0 || (l.credit ?? 0) !== 0)
@@ -82,5 +91,67 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
       },
     },
     include: { lines: true },
+  })
+}
+
+/** Finalisasi 1 jurnal draft (dari sourceType+sourceId) jadi posted — dipanggil oleh endpoint
+ *  "Posting" masing-masing modul, di dalam prisma.$transaction yang sama dengan efek lain
+ *  (update Invoice.status, lastPaidAt, dst). Validasi ulang balance jaga-jaga baris jurnalnya
+ *  sempat diedit lewat PATCH selagi masih draft. No-op (aman dipanggil berkali-kali) kalau
+ *  tidak ketemu jurnal draft untuk source itu (mis. invoice tanpa HPP yang memang tidak
+ *  pernah punya jurnal). */
+export async function postJournalEntryFinal(
+  tx: TxClient,
+  input: { sourceType: PostJournalInput["sourceType"]; sourceId: string; postedById: string }
+) {
+  const entry = await tx.journalEntry.findFirst({
+    where: { sourceType: input.sourceType, sourceId: input.sourceId, postStatus: "draft" },
+  })
+  if (!entry) return null
+  return finalizeJournalEntryById(tx, entry.id, input.postedById)
+}
+
+/** Finalisasi 1 jurnal draft langsung dari id-nya sendiri — dipakai kalau caller sudah punya
+ *  JournalEntry.id pasti (mis. jurnal manual, di-posting dari halaman Akuntansi > Jurnal),
+ *  beda dari postJournalEntryFinal yang mencari lewat sourceType+sourceId (ambigu untuk
+ *  jurnal manual karena sourceId-nya null). */
+export async function finalizeJournalEntryById(tx: TxClient, journalEntryId: string, postedById: string) {
+  const entry = await tx.journalEntry.findUnique({ where: { id: journalEntryId }, include: { lines: true } })
+  if (!entry) return null
+  if (entry.postStatus === "posted") return entry
+
+  const totalDebit = entry.lines.reduce((s, l) => s + l.debit, 0)
+  const totalCredit = entry.lines.reduce((s, l) => s + l.credit, 0)
+  if (Math.abs(totalDebit - totalCredit) > EPSILON) {
+    throw new Error(`Jurnal tidak balance, tidak bisa diposting: debit ${totalDebit} != kredit ${totalCredit} (${entry.description})`)
+  }
+  if (entry.lines.length === 0) {
+    throw new Error(`Jurnal "${entry.description}" belum punya baris debit/kredit, tidak bisa diposting`)
+  }
+
+  return tx.journalEntry.update({
+    where: { id: entry.id },
+    data: { postStatus: "posted", postedAt: new Date(), postedById },
+    include: { lines: true },
+  })
+}
+
+/** Batalkan (void) 1 jurnal yang sudah posted, dari sourceType+sourceId — dipanggil oleh
+ *  endpoint "Batalkan" masing-masing modul. TIDAK menghapus atau membuat jurnal pembalik
+ *  terpisah — cukup tandai "voided" supaya otomatis lolos dari semua filter
+ *  `postStatus: "posted"` (saldo, laporan, buku besar), tapi tetap tampil di Jurnal Umum
+ *  dengan badge "Dibatalkan" untuk jejak audit. No-op kalau tidak ada jurnal posted untuk
+ *  source itu (mis. invoice tanpa HPP, memang tidak pernah punya jurnal). */
+export async function voidJournalEntryBySource(
+  tx: TxClient,
+  input: { sourceType: PostJournalInput["sourceType"]; sourceId: string; voidedById: string; voidReason?: string }
+) {
+  const entry = await tx.journalEntry.findFirst({
+    where: { sourceType: input.sourceType, sourceId: input.sourceId, postStatus: "posted" },
+  })
+  if (!entry) return null
+  return tx.journalEntry.update({
+    where: { id: entry.id },
+    data: { postStatus: "voided", voidedAt: new Date(), voidedById: input.voidedById, voidReason: input.voidReason ?? null },
   })
 }

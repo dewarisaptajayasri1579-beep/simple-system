@@ -16,8 +16,11 @@ export default async function LaporanPenjualanPage({ searchParams }: { searchPar
   const period = resolveReportPeriod(params)
 
   const invoices = await prisma.invoice.findMany({
-    where: { issuedAt: { gte: period.from, lte: period.to } },
-    include: { client: true, payments: true },
+    where: { issuedAt: { gte: period.from, lte: period.to }, postStatus: "posted" },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
     orderBy: { issuedAt: "desc" },
   })
 

@@ -15,10 +15,12 @@ export async function GET(request: Request) {
   const type = searchParams.get("type")
   const from = searchParams.get("from")
   const to = searchParams.get("to")
+  const paymentId = searchParams.get("paymentId")
 
   const transactions = await prisma.transaction.findMany({
     where: {
       type: type || undefined,
+      paymentId: paymentId || undefined,
       occurredAt: from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined,
     },
     include: { account: true, category: true },

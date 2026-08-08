@@ -15,7 +15,7 @@ export default async function LabaRugiPage({ searchParams }: { searchParams: Pro
   const period = resolveReportPeriod(params)
 
   const transactions = await prisma.transaction.findMany({
-    where: { occurredAt: { gte: period.from, lte: period.to } },
+    where: { occurredAt: { gte: period.from, lte: period.to }, postStatus: "posted" },
   })
 
   const income = transactions.filter((t) => t.type === "income")

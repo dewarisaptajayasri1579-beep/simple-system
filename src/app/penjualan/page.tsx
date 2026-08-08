@@ -10,7 +10,10 @@ export default async function PenjualanPage() {
   const user = await getCurrentUser()
 
   const invoices = await prisma.invoice.findMany({
-    include: { client: true, payments: true },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
     orderBy: { issuedAt: "desc" },
   })
 
@@ -38,6 +41,8 @@ export default async function PenjualanPage() {
             totalAmount: inv.totalAmount,
             remaining: inv.totalAmount - inv.payments.reduce((sum, p) => sum + p.amount, 0),
             status: inv.status,
+            postStatus: inv.postStatus as "draft" | "posted" | "voided",
+            hasCost: inv.totalCost > 0,
           }))}
         />
       </div>

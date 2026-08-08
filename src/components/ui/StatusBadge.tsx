@@ -9,7 +9,10 @@ export type StatusBadgeType =
   | "partial"
   | "paid"
   | "claimed_paid"
-  | "inactive";
+  | "inactive"
+  | "draft"
+  | "posted"
+  | "voided";
 
 export interface StatusBadgeProps {
   type: StatusBadgeType;
@@ -98,6 +101,30 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       borderColor: "border-slate-500/30",
       dotColor: "bg-slate-500",
       badgeColor: "bg-slate-600 text-white",
+    },
+    draft: {
+      defaultLabel: "Draft",
+      bgColor: "bg-slate-500/15",
+      textColor: "text-slate-600",
+      borderColor: "border-slate-500/30",
+      dotColor: "bg-slate-400",
+      badgeColor: "bg-slate-500 text-white",
+    },
+    posted: {
+      defaultLabel: "Posted",
+      bgColor: "bg-emerald-500/15",
+      textColor: "text-emerald-700",
+      borderColor: "border-emerald-500/30",
+      dotColor: "bg-emerald-500",
+      badgeColor: "bg-emerald-600 text-white",
+    },
+    voided: {
+      defaultLabel: "Dibatalkan",
+      bgColor: "bg-rose-500/10",
+      textColor: "text-rose-600",
+      borderColor: "border-rose-500/30",
+      dotColor: "bg-rose-400",
+      badgeColor: "bg-rose-500 text-white",
     },
   };
 

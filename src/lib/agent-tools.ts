@@ -60,8 +60,12 @@ async function getOutstandingInvoices(input: { clientName?: string }) {
     where: {
       status: { in: ["unpaid", "partial", "claimed_paid"] },
       client: input.clientName ? { name: { contains: input.clientName, mode: "insensitive" } } : undefined,
+      postStatus: "posted",
     },
-    include: { client: true, payments: true },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
     orderBy: { dueDate: "asc" },
   })
 
@@ -302,8 +306,8 @@ async function markRecurringBillPaid(input: { billName: string }) {
 
 async function getMyInvoices(clientId: string) {
   const invoices = await prisma.invoice.findMany({
-    where: { clientId, status: { in: ["unpaid", "partial", "claimed_paid"] } },
-    include: { payments: true },
+    where: { clientId, status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
+    include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
     orderBy: { dueDate: "asc" },
   })
   return invoices.map((inv) => {

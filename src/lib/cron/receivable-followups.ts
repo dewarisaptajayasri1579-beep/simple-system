@@ -22,8 +22,12 @@ export async function runReceivableFollowups() {
       status: { in: ["unpaid", "partial"] },
       dueDate: { lt: now },
       client: { phoneNumber: { not: null } },
+      postStatus: "posted",
     },
-    include: { client: true, payments: true },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
   })
 
   const due = invoices.filter((inv) => !inv.lastFollowUpAt || inv.lastFollowUpAt < cooldownThreshold)

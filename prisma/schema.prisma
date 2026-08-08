@@ -294,6 +294,17 @@ model Invoice {
   lastFollowUpAt DateTime? @map("last_follow_up_at") // kapan terakhir AI Agent follow-up ke Client
   createdAt     DateTime @default(now()) @map("created_at")
 
+  // Draft -> Posted -> (Voided): efek invoice (masuk Piutang, jurnal HPP kalau ada) baru
+  // berlaku setelah posted. Terpisah dari `status` di atas (itu status pelunasan, bukan ini).
+  // Voided = salah input setelah posting — dibatalkan (bukan dihapus), efeknya hilang dari
+  // Piutang/laporan tapi tetap kelihatan di riwayat dengan badge "Dibatalkan".
+  postStatus  String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
+  postedAt    DateTime? @map("posted_at")
+  postedById  String?   @map("posted_by_id")
+  voidedAt    DateTime? @map("voided_at")
+  voidedById  String?   @map("voided_by_id")
+  voidReason  String?   @map("void_reason")
+
   client   Client           @relation(fields: [clientId], references: [id])
   lines    InvoiceLine[]
   payments InvoicePayment[]
@@ -352,6 +363,15 @@ model Payment {
   notes         String?
   paidAt        DateTime @default(now()) @map("paid_at")
   createdAt     DateTime @default(now()) @map("created_at")
+
+  // Draft -> Posted -> (Voided): piutang belum berkurang & saldo kas belum bergerak sampai
+  // posted. Voided = dibatalkan setelah posting karena salah input, lihat catatan di Invoice.
+  postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
+  postedAt   DateTime? @map("posted_at")
+  postedById String?   @map("posted_by_id")
+  voidedAt   DateTime? @map("voided_at")
+  voidedById String?   @map("voided_by_id")
+  voidReason String?   @map("void_reason")
 
   client          Client           @relation(fields: [clientId], references: [id])
   account         Account          @relation(fields: [accountId], references: [id])
@@ -429,10 +449,21 @@ model JournalEntry {
   entryNumber String   @unique @map("entry_number") // "JE-2026-000001"
   date        DateTime
   description String
-  sourceType  String   @map("source_type") // "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "manual"
+  sourceType  String   @map("source_type") // "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual" | "correction"
   sourceId    String?  @map("source_id")
   createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
+
+  // Draft -> Posted -> (Voided): baris jurnal bisa ditinjau/diedit selama draft, tidak masuk
+  // hitungan laporan/saldo/buku besar sampai posted, dan terkunci begitu posted. Voided =
+  // dibatalkan setelah posting karena salah input (tetap tampil di Jurnal Umum dgn badge,
+  // tapi tidak dihitung di saldo/laporan manapun) — lihat catatan di model Invoice.
+  postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
+  postedAt   DateTime? @map("posted_at")
+  postedById String?   @map("posted_by_id")
+  voidedAt   DateTime? @map("voided_at")
+  voidedById String?   @map("voided_by_id")
+  voidReason String?   @map("void_reason")
 
   lines JournalLine[]
 
@@ -472,6 +503,26 @@ model Transaction {
   description         String?
   occurredAt          DateTime @default(now()) @map("occurred_at")
   createdAt           DateTime @default(now()) @map("created_at")
+
+  // Draft -> Posted -> (Voided): saldo akun belum bergerak sampai posted (lihat
+  // computeAccountBalance). Voided = dibatalkan setelah posting, lihat catatan di Invoice.
+  postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
+  postedAt   DateTime? @map("posted_at")
+  postedById String?   @map("posted_by_id")
+  voidedAt   DateTime? @map("voided_at")
+  voidedById String?   @map("voided_by_id")
+  voidReason String?   @map("void_reason")
+
+  // Referensi balik opsional ke Server/Domain/RecurringBill kalau Transaction ini hasil
+  // "Bayar Server/Domain"/"Tandai Lunas" — dipakai endpoint posting utk tahu lastPaidAt
+  // milik record mana yang perlu diupdate saat Transaction ini di-posting.
+  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill"
+  refId   String? @map("ref_id")
+
+  // Kalau Transaction ini dibuat sebagai bagian dari 1 Payment (baris pelunasan invoice ATAU
+  // costLink Bayar Domain/Server yang dikaitkan ke pembayaran itu) — dipakai
+  // POST /api/payments/[id]/post utk tahu Transaction mana saja yang perlu ikut diposting.
+  paymentId String? @map("payment_id")
 
   account        Account         @relation(fields: [accountId], references: [id])
   category       Category?       @relation(fields: [categoryId], references: [id])

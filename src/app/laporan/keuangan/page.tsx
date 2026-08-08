@@ -18,7 +18,7 @@ export default async function LaporanKeuanganPage({ searchParams }: { searchPara
   const canSeeSplit = user.role === "owner" || user.role === "direktur"
 
   const transactions = await prisma.transaction.findMany({
-    where: { occurredAt: { gte: period.from, lte: period.to } },
+    where: { occurredAt: { gte: period.from, lte: period.to }, postStatus: "posted" },
     include: { category: true },
   })
 

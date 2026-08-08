@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui"
 import { PrintButton } from "@/components/penjualan/PrintButton"
+import { PaymentPostingBar } from "@/components/pembayaran/PaymentPostingBar"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -26,6 +27,20 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
 
   if (!payment) notFound()
 
+  // Sumber jurnal payment ini: 1 per baris invoice yang dilunasi (sourceType "invoice_payment",
+  // sourceId = id Transaction-nya), plus costLink Bayar Domain/Server kalau ada (sourceType
+  // "domain"/"server", sourceId = id domain/server-nya, dibawa lewat refType/refId).
+  const paymentTransactions = await prisma.transaction.findMany({ where: { paymentId: id } })
+  const journalSources = paymentTransactions.map((t) =>
+    t.refType && t.refId ? { sourceType: t.refType, sourceId: t.refId } : { sourceType: "invoice_payment", sourceId: t.id }
+  )
+
+  // Biaya domain/server yang dikaitkan ke pembayaran ini (baris "Biaya" di form Pelunasan) —
+  // dicatat sebagai Transaction expense terpisah (lihat markDomainPaid/markServerPaid), sama
+  // paymentId tapi refType/refId nunjuk ke domain/server yang dibayar sekalian dari kas yang sama.
+  const costTransactions = paymentTransactions.filter((t) => t.refType === "domain" || t.refType === "server")
+  const totalCost = costTransactions.reduce((sum, t) => sum + t.grossAmount, 0)
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -35,6 +50,8 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
           </Link>
           <PrintButton />
         </div>
+
+        <PaymentPostingBar paymentId={payment.id} postStatus={payment.postStatus as "draft" | "posted" | "voided"} sources={journalSources} />
 
         <Card variant="panel" padding="lg" className="print:shadow-none print:border-none print:bg-white">
           <div className="flex items-start justify-between flex-wrap gap-4">
@@ -87,11 +104,45 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
             </TableContainer>
           </div>
 
+          {costTransactions.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs font-bold text-slate-500 uppercase mb-2">Biaya (dipotong dari kas yang sama)</p>
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Keterangan</TableHead>
+                      <TableHead>Jumlah</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {costTransactions.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell>{t.description}</TableCell>
+                        <TableCell className="font-semibold">{formatRupiah(t.grossAmount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </div>
+          )}
+
           <div className="flex justify-end mt-6">
             <div className="w-full sm:w-72 space-y-1.5 text-sm">
-              <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t border-slate-200/60">
+              <div className="flex justify-between text-slate-600">
                 <span>Total Diterima</span>
-                <span>{formatRupiah(payment.totalAmount)}</span>
+                <span className="font-semibold text-slate-900">{formatRupiah(payment.totalAmount)}</span>
+              </div>
+              {totalCost > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Total Biaya</span>
+                  <span className="font-semibold text-rose-700">-{formatRupiah(totalCost)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t border-slate-200/60">
+                <span>Bersih ke Kas</span>
+                <span>{formatRupiah(payment.totalAmount - totalCost)}</span>
               </div>
             </div>
           </div>

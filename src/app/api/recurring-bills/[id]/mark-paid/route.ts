@@ -25,6 +25,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const paidAt = body?.paidAt ? new Date(body.paidAt) : new Date()
 
+  // Draft -> Posted: cuma bikin Transaction + jurnal draft di sini, `lastPaidAt` BELUM
+  // diupdate — baru berlaku saat draft ini di-posting (POST /api/transactions/[id]/post).
   const result = await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.create({
       data: {
@@ -35,6 +37,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         netAmount: bill.price!,
         description: `Pembayaran biaya berkala - ${bill.name}`,
         occurredAt: paidAt,
+        refType: "recurring_bill",
+        refId: bill.id,
       },
     })
 
@@ -48,12 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: bebanCodeForCategory(bill.category), amount: bill.price! }),
     })
 
-    const updated = await tx.recurringBill.update({
-      where: { id },
-      data: { lastPaidAt: paidAt, lastCheckinAt: null },
-    })
-
-    return { transaction, bill: updated }
+    return { transaction, bill }
   })
 
   return NextResponse.json(result)

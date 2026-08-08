@@ -14,7 +14,10 @@ export default async function NeracaPage() {
 
   const [balances, invoices, bills, servers] = await Promise.all([
     computeAllAccountBalances(),
-    prisma.invoice.findMany({ where: { status: { in: ["unpaid", "partial", "claimed_paid"] } }, include: { payments: true } }),
+    prisma.invoice.findMany({
+      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
+      include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
+    }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.server.findMany({ where: { active: true }, include: { period: true } }),
   ])
@@ -34,7 +37,10 @@ export default async function NeracaPage() {
 
   // PPN yang sudah masuk lewat pembayaran tapi belum tentu disetor ke kantor pajak — dihitung
   // proporsional dari porsi invoice yang sudah dibayar (informatif, bukan pembukuan pajak resmi).
-  const allInvoicesWithPpn = await prisma.invoice.findMany({ where: { ppnAmount: { gt: 0 } }, include: { payments: true } })
+  const allInvoicesWithPpn = await prisma.invoice.findMany({
+    where: { ppnAmount: { gt: 0 }, postStatus: "posted" },
+    include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
+  })
   const ppnCollected = allInvoicesWithPpn.reduce((sum, inv) => {
     const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
     const portion = inv.totalAmount > 0 ? (paid / inv.totalAmount) * inv.ppnAmount : 0

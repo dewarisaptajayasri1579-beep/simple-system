@@ -240,6 +240,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
         return;
       }
       setTxModalType(null);
+      window.dispatchEvent(new Event("transactions-changed"));
       router.refresh();
     } catch {
       setError("Gagal menghubungi server");
@@ -290,6 +291,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
         return;
       }
       setBillModalType(null);
+      window.dispatchEvent(new Event("transactions-changed"));
       router.refresh();
     } catch {
       setError("Gagal menghubungi server");

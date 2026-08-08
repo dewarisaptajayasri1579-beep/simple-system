@@ -31,6 +31,7 @@ export default async function JurnalPage() {
             date: e.date.toISOString(),
             description: e.description,
             sourceType: e.sourceType,
+            postStatus: e.postStatus as "draft" | "posted" | "voided",
             lines: e.lines.map((l) => ({
               id: l.id,
               accountCode: l.account.code,

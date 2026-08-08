@@ -4,14 +4,17 @@ import { prisma } from "@/lib/prisma"
  *  akibat bug — selalu direkonstruksi dari openingBalance + transaksi. */
 export async function computeAccountBalance(accountId: string): Promise<number> {
   const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } })
-  const transactions = await prisma.transaction.findMany({ where: { accountId } })
+  const transactions = await prisma.transaction.findMany({ where: { accountId, postStatus: "posted" } })
 
   const delta = transactions.reduce((sum, t) => (t.type === "income" ? sum + t.netAmount : sum - t.grossAmount), 0)
   return account.openingBalance + delta
 }
 
 export async function computeAllAccountBalances(): Promise<Map<string, number>> {
-  const [accounts, transactions] = await Promise.all([prisma.account.findMany(), prisma.transaction.findMany()])
+  const [accounts, transactions] = await Promise.all([
+    prisma.account.findMany(),
+    prisma.transaction.findMany({ where: { postStatus: "posted" } }),
+  ])
 
   const balances = new Map<string, number>()
   for (const account of accounts) balances.set(account.id, account.openingBalance)

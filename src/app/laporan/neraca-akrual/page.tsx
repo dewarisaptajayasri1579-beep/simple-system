@@ -14,7 +14,7 @@ export default async function NeracaAkrualPage() {
   const user = await requirePageRole(["owner", "direktur"])
 
   const accounts = await prisma.chartOfAccount.findMany({
-    include: { journalLines: true },
+    include: { journalLines: { where: { journalEntry: { is: { postStatus: "posted" } } } } },
     orderBy: { code: "asc" },
   })
 

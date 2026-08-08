@@ -23,12 +23,16 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: { client: true, lines: true, payments: { include: { account: true }, orderBy: { paidAt: "asc" } } },
+    include: { client: true, lines: true, payments: { include: { account: true, payment: true }, orderBy: { paidAt: "asc" } } },
   })
 
   if (!invoice) notFound()
 
-  const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
+  // Terbayar/Sisa hanya menghitung pembayaran yang efektif: legacy (tanpa Payment
+  // induk) atau Payment induknya sudah posted. Riwayat pembayaran di bawah tetap
+  // menampilkan SEMUA baris (termasuk draft) agar bisa direview.
+  const effectivePayments = invoice.payments.filter((p) => p.paymentId === null || p.payment?.postStatus === "posted")
+  const paid = effectivePayments.reduce((sum, p) => sum + p.amount, 0)
   const remaining = Math.max(0, invoice.totalAmount - paid)
 
   return (
@@ -154,6 +158,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Akun</TableHead>
                     <TableHead>Jumlah</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -163,6 +168,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                       <TableCell>{formatDate(p.paidAt)}</TableCell>
                       <TableCell>{p.account.name}</TableCell>
                       <TableCell className="font-semibold">{formatRupiah(p.amount)}</TableCell>
+                      <TableCell>
+                        {p.paymentId === null || p.payment?.postStatus === "posted" ? (
+                          <span className="text-emerald-700 font-semibold text-xs">Posted</span>
+                        ) : (
+                          <span className="text-amber-600 font-semibold text-xs">Draft</span>
+                        )}
+                      </TableCell>
                       <TableCell>{p.notes ?? "-"}</TableCell>
                     </TableRow>
                   ))}
