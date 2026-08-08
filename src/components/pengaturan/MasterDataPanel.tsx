@@ -22,6 +22,7 @@ import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status";
 import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status";
+import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { CategorySection } from "./CategorySection";
 
@@ -1133,7 +1134,20 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
       : []),
     ...(isVisible("price") ? [{ key: "price", header: "Harga Jual", cell: (d: DomainRow) => formatRupiah(d.sellPrice) }] : []),
     ...(isVisible("lastPaid")
-      ? [{ key: "lastPaid", header: "Terakhir Bayar", cell: (d: DomainRow) => formatDateObj(d.lastPaidAt ? new Date(d.lastPaidAt) : null) }]
+      ? [
+          {
+            key: "lastPaid",
+            header: "Terakhir Bayar",
+            cell: (d: DomainRow) => (
+              <DomainLastPaidCell
+                domainId={d.id}
+                lastPaidAt={d.lastPaidAt}
+                formatDate={formatDateObj}
+                onUpdated={(lastPaidAt) => setRows((prev) => prev.map((r) => (r.id === d.id ? { ...r, lastPaidAt } : r)))}
+              />
+            ),
+          },
+        ]
       : []),
     ...(isVisible("expiry")
       ? [{ key: "expiry", header: "Estimasi Habis", cell: (d: DomainRow) => formatDateObj(computeDomainExpiryDate(d.lastPaidAt ? new Date(d.lastPaidAt) : null)) }]

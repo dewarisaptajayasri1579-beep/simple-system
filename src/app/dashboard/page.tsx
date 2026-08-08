@@ -111,6 +111,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         clientId: d.clientId,
         clientPhone: d.client ? d.client.picPhone || d.client.phoneNumber : null,
         price: d.sellPrice,
+        lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,
         dueDate: expiry ? expiry.toISOString() : null,
         bucket: getExpiryBucket(expiry),
       }

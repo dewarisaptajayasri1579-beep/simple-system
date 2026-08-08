@@ -8,9 +8,10 @@ import { FollowUpButtons } from "./FollowUpButtons";
 import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { DomainOwnerCell } from "@/components/domain/DomainOwnerCell";
+import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
-import type { ExpiryBucket } from "@/lib/domain-status";
+import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
 
 function formatRupiah(n: number | null) {
   if (!n) return "-";
@@ -204,7 +205,7 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
 
       {groups.map((g) => (
         <Card key={g.clientId} variant="panel" padding="none">
-          <div className="p-5 sm:p-6 flex items-center justify-between gap-4">
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle>{g.clientName}</CardTitle>
               <CardDescription>{g.rows.length} invoice belum lunas</CardDescription>
@@ -222,7 +223,7 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex flex-col items-start sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-shrink-0">
               <p className="text-lg font-black text-rose-700">{formatRupiah(g.rows.reduce((sum, r) => sum + r.remaining, 0))}</p>
               <Link href={`/pembayaran?clientId=${g.clientId}`}>
                 <Button size="sm" variant="primary">
@@ -346,6 +347,7 @@ export interface DomainExpiringRow {
   clientId: string | null;
   clientPhone: string | null;
   price: number | null;
+  lastPaidAt: string | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
 }
@@ -353,6 +355,7 @@ export interface DomainExpiringRow {
 const DOMAIN_COLUMNS = [
   { key: "owner", label: "Pemilik" },
   { key: "ownerType", label: "Internal/Client" },
+  { key: "lastPaidAt", label: "Terakhir Bayar" },
   { key: "dueDate", label: "Estimasi Habis" },
   { key: "price", label: "Harga Jual" },
   { key: "status", label: "Status" },
@@ -392,6 +395,30 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[]; client
                     prev.map((row) =>
                       row.id === r.id ? { ...row, clientId: patch.clientId, owner: patch.clientName ?? "Internal" } : row
                     )
+                  )
+                }
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(isVisible("lastPaidAt")
+      ? [
+          {
+            key: "lastPaidAt",
+            header: "Terakhir Bayar",
+            cell: (r: DomainExpiringRow) => (
+              <DomainLastPaidCell
+                domainId={r.id}
+                lastPaidAt={r.lastPaidAt}
+                formatDate={(d) => formatDate(d ? d.toISOString() : null)}
+                onUpdated={(lastPaidAt) =>
+                  setRows((prev) =>
+                    prev.map((row) => {
+                      if (row.id !== r.id) return row;
+                      const expiry = computeDomainExpiryDate(lastPaidAt ? new Date(lastPaidAt) : null);
+                      return { ...row, lastPaidAt, dueDate: expiry ? expiry.toISOString() : null, bucket: getExpiryBucket(expiry) };
+                    })
                   )
                 }
               />
