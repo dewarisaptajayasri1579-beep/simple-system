@@ -27,12 +27,18 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
 
   if (!payment) notFound()
 
-  // Sumber jurnal payment ini: 1 per baris invoice yang dilunasi (sourceType "invoice_payment",
-  // sourceId = id Transaction-nya), plus costLink Bayar Domain/Server kalau ada (sourceType
-  // "domain"/"server", sourceId = id domain/server-nya, dibawa lewat refType/refId).
+  // Sumber jurnal payment ini — pakai journalEntryId (link presisi ke jurnal yang dibuat
+  // BARENGAN transaksi ini) kalau ada. Fallback ke sourceType+sourceId cuma buat baris lama
+  // (sebelum kolom journalEntryId ada) — TAPI itu dipakai bareng-bareng oleh SELURUH histori
+  // pembayaran domain/server yang sama, jadi bisa kebawa jurnal transaksi lain/lama yang sudah
+  // dibatalkan (ini penyebab bug "kok jurnal yang dibatalkan masih ikut nongol").
   const paymentTransactions = await prisma.transaction.findMany({ where: { paymentId: id } })
   const journalSources = paymentTransactions.map((t) =>
-    t.refType && t.refId ? { sourceType: t.refType, sourceId: t.refId } : { sourceType: "invoice_payment", sourceId: t.id }
+    t.journalEntryId
+      ? { entryId: t.journalEntryId }
+      : t.refType && t.refId
+        ? { sourceType: t.refType, sourceId: t.refId }
+        : { sourceType: "invoice_payment", sourceId: t.id }
   )
 
   // Biaya domain/server yang dikaitkan ke pembayaran ini (baris "Biaya" di form Pelunasan) —

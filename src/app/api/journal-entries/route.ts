@@ -9,11 +9,16 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
+  const id = searchParams.get("id")
   const sourceType = searchParams.get("sourceType")
   const sourceId = searchParams.get("sourceId")
 
+  // "id" dipakai kalau caller sudah tahu persis 1 JournalEntry yang dia mau (lihat
+  // Transaction.journalEntryId) — beda dari sourceType+sourceId yang sengaja dipakai bareng-bareng
+  // oleh SELURUH histori pembayaran domain/server/biaya berkala yang sama (bisa kebawa jurnal
+  // punya transaksi lain/lama kalau dipakai buat nampilin jurnal 1 transaksi tertentu saja).
   const entries = await prisma.journalEntry.findMany({
-    where: sourceType && sourceId ? { sourceType, sourceId } : undefined,
+    where: id ? { id } : sourceType && sourceId ? { sourceType, sourceId } : undefined,
     include: { lines: { include: { account: true } } },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   })

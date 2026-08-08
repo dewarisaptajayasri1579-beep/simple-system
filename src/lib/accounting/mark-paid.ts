@@ -34,7 +34,7 @@ export async function markServerPaid(
   })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
-  await postJournalEntry(tx, {
+  const journalEntry = await postJournalEntry(tx, {
     date: input.paidAt,
     description: `Pembayaran server - ${server.name}`,
     sourceType: "server",
@@ -42,6 +42,10 @@ export async function markServerPaid(
     createdBy: input.createdBy,
     lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanServerHosting, amount: server.price }),
   })
+  // Simpan link presisi ke jurnal BARU ini (bukan cuma sourceType+sourceId, yang dipakai bareng
+  // sama semua histori pembayaran server yang sama) — supaya "Lihat Jurnal" utk transaksi INI
+  // saja, tidak ikut kebawa jurnal pembayaran lama/dibatalkan buat server yang sama.
+  await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
   return { transaction, server }
 }
@@ -72,7 +76,7 @@ export async function markDomainPaid(
   })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
-  await postJournalEntry(tx, {
+  const journalEntry = await postJournalEntry(tx, {
     date: input.paidAt,
     description: `Pembayaran domain - ${domain.name}`,
     sourceType: "domain",
@@ -80,6 +84,9 @@ export async function markDomainPaid(
     createdBy: input.createdBy,
     lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanDomain, amount: domain.sellPrice }),
   })
+  // Sama seperti markServerPaid — link presisi supaya "Lihat Jurnal" tidak kebawa histori
+  // pembayaran domain yang sama dari payment lain/lama.
+  await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
   return { transaction, domain }
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
+import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal";
 import { VoidButton } from "@/components/akuntansi/VoidButton";
 
 interface TransactionRow {
@@ -16,7 +17,9 @@ interface TransactionRow {
   postStatus: "draft" | "posted" | "voided";
   refType: string | null;
   refId: string | null;
+  journalEntryId: string | null;
   paymentId: string | null;
+  invoicePayment: { id: string } | null;
   account: { name: string };
 }
 
@@ -28,6 +31,15 @@ function formatDate(iso: string) {
 }
 
 const REF_LABEL: Record<string, string> = { server: "Bayar Server", domain: "Bayar Domain", recurring_bill: "Biaya Berkala" };
+
+// journalEntryId = link presisi ke jurnal transaksi INI. Fallback sourceType+sourceId cuma buat
+// baris lama (sebelum kolom ini ada) — itu dipakai bareng-bareng oleh SELURUH histori
+// server/domain/biaya berkala yang sama, jadi bisa kebawa jurnal transaksi lain/lama yang sudah
+// dibatalkan kalau dipakai buat nampilin jurnal 1 transaksi tertentu saja.
+function journalSourceFor(r: TransactionRow): JournalSource {
+  if (r.journalEntryId) return { entryId: r.journalEntryId };
+  return { sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id };
+}
 
 /** Daftar Transaction (Input Pemasukan/Pengeluaran manual, Bayar Server/Domain, Tandai Lunas
  *  Biaya Berkala) — bagian Draft belum masuk saldo akun/laporan sampai di-posting di sini,
@@ -43,7 +55,7 @@ export const DraftTransactionsPanel: React.FC = () => {
   const load = () => {
     fetch("/api/transactions")
       .then((r) => r.json())
-      .then((all: TransactionRow[]) => setAllRows(all.filter((t) => !t.paymentId)))
+      .then((all: TransactionRow[]) => setAllRows(all.filter((t) => !t.paymentId && !t.invoicePayment)))
       .catch(() => setError("Gagal memuat transaksi"));
   };
 
@@ -97,7 +109,7 @@ export const DraftTransactionsPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <JournalButton
             title="Jurnal Transaksi"
-            sources={[{ sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id }]}
+            sources={[journalSourceFor(r)]}
             postUrl={`/api/transactions/${r.id}/post`}
           />
           <Button size="sm" variant="primary" onClick={() => handlePost(r.id)} isLoading={busy === r.id}>
@@ -118,7 +130,7 @@ export const DraftTransactionsPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <JournalButton
             title="Jurnal Transaksi"
-            sources={[{ sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id }]}
+            sources={[journalSourceFor(r)]}
           />
           <VoidButton
             voidUrl={`/api/transactions/${r.id}/void`}

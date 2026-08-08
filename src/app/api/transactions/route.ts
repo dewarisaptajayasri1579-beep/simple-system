@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       paymentId: paymentId || undefined,
       occurredAt: from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined,
     },
-    include: { account: true, category: true },
+    include: { account: true, category: true, invoicePayment: { select: { id: true } } },
     orderBy: { occurredAt: "desc" },
   })
 

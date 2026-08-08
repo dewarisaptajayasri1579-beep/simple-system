@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     const [kasBankCoaCode] = await Promise.all([getAccountCoaCode(tx, accountId)])
-    await postJournalEntry(tx, {
+    const journalEntry = await postJournalEntry(tx, {
       date: paidAt,
       description: `Pembayaran biaya berkala - ${bill.name}`,
       sourceType: "recurring_bill",
@@ -51,6 +51,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       createdBy: user.id,
       lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: bebanCodeForCategory(bill.category), amount: bill.price! }),
     })
+    // Link presisi ke jurnal transaksi INI (bukan cuma sourceType+sourceId, yang dipakai bareng
+    // sama semua histori "Tandai Lunas" biaya berkala yang sama) — lihat mark-paid.ts.
+    await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
     return { transaction, bill }
   })

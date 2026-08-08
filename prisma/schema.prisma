@@ -465,7 +465,8 @@ model JournalEntry {
   voidedById String?   @map("voided_by_id")
   voidReason String?   @map("void_reason")
 
-  lines JournalLine[]
+  lines       JournalLine[]
+  transaction Transaction?
 
   @@map("journal_entries")
   @@schema("simple_system")
@@ -524,9 +525,17 @@ model Transaction {
   // POST /api/payments/[id]/post utk tahu Transaction mana saja yang perlu ikut diposting.
   paymentId String? @map("payment_id")
 
+  // Link presisi ke JournalEntry yang dibuat BARENGAN transaksi ini (bukan lookup by
+  // sourceType+sourceId — itu sengaja dipakai bareng-bareng oleh SEMUA histori pembayaran
+  // domain/server yang sama, jadi kalau dipakai buat "Lihat Jurnal" 1 transaksi tertentu bisa
+  // kebawa jurnal punya transaksi lain/lama yang sudah dibatalkan). Nullable karena baris lama
+  // (sebelum kolom ini ada) belum kesetel.
+  journalEntryId String? @unique @map("journal_entry_id")
+
   account        Account         @relation(fields: [accountId], references: [id])
   category       Category?       @relation(fields: [categoryId], references: [id])
   invoicePayment InvoicePayment?
+  journalEntry   JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
   @@map("transactions")
   @@schema("simple_system")

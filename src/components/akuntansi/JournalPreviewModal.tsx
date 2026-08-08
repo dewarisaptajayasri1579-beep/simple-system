@@ -23,8 +23,11 @@ interface JournalEntryRow {
 }
 
 export interface JournalSource {
-  sourceType: string;
-  sourceId: string;
+  /** Kalau diisi, prioritas — fetch 1 JournalEntry ini persis (lihat Transaction.journalEntryId).
+   *  sourceType/sourceId jadi fallback untuk baris lama yang belum kesetel journalEntryId-nya. */
+  entryId?: string;
+  sourceType?: string;
+  sourceId?: string;
 }
 
 export interface JournalPreviewModalProps {
@@ -60,9 +63,12 @@ export const JournalPreviewModal: React.FC<JournalPreviewModalProps> = ({ open, 
     setLoading(true);
     setError("");
     Promise.all(
-      sources.map((s) =>
-        fetch(`/api/journal-entries?sourceType=${encodeURIComponent(s.sourceType)}&sourceId=${encodeURIComponent(s.sourceId)}`).then((r) => r.json())
-      )
+      sources.map((s) => {
+        const qs = s.entryId
+          ? `id=${encodeURIComponent(s.entryId)}`
+          : `sourceType=${encodeURIComponent(s.sourceType!)}&sourceId=${encodeURIComponent(s.sourceId!)}`
+        return fetch(`/api/journal-entries?${qs}`).then((r) => r.json())
+      })
     )
       .then((results) => setEntries(results.flat()))
       .catch(() => setError("Gagal memuat jurnal"))

@@ -167,7 +167,7 @@ export async function POST(request: Request) {
       // cuma dihitung penuh di pembayaran pertama atau terakhir.
       const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
 
-      await postJournalEntry(tx, {
+      const journalEntry = await postJournalEntry(tx, {
         date: new Date(),
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
         sourceType: "invoice_payment",
@@ -175,6 +175,7 @@ export async function POST(request: Request) {
         createdBy: user.id,
         lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount, ppnPortion }),
       })
+      await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
       // Biaya yang dikaitkan ke domain/server langsung dibayar dari kas yang sama dengan
       // yang baru saja menerima pelunasan ini — bukan cuma angka pengurang split, tapi
