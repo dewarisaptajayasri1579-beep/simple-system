@@ -22,6 +22,20 @@ async function renderAndUpload(imageResponse: Response) {
   return { url, filename }
 }
 
+const DELETE_DELAY_MS = 5 * 60 * 1000
+
+/** Hapus baru 5 menit setelah dikirim (bukan langsung) — jaga-jaga kalau WAHUB masih retry/proses
+ *  fetch media-nya di belakang layar setelah respons awal ke kita, supaya file-nya belum keburu
+ *  hilang. Nggak di-await si pemanggil, jalan di background (proses server ini persisten, bukan
+ *  serverless, jadi setTimeout tetap sempat jalan). */
+function scheduleDelete(filenames: string[]) {
+  setTimeout(() => {
+    Promise.all(filenames.map((f) => deleteFromSupabaseStorage(f))).catch((e) =>
+      console.warn("[cron] Gagal hapus file laporan setelah delay:", e)
+    )
+  }, DELETE_DELAY_MS)
+}
+
 /** Laporan ringkasan Dashboard ke grup WA internal — dipanggil pagi (07:00 WIB) dan sore (16:00
  *  WIB), lihat instrumentation.ts. Dikirim sebagai 2 gambar berurutan. */
 export async function runDashboardReport(waktu: "Pagi" | "Sore" | "Manual") {
@@ -56,6 +70,6 @@ export async function runDashboardReport(waktu: "Pagi" | "Sore" | "Manual") {
     await sendWhatsappImage(groupJid, file1.url, caption)
     await sendWhatsappImage(groupJid, file2.url, "🌐🖥️ Detail Domain & Biaya Berkala")
   } finally {
-    await Promise.all([deleteFromSupabaseStorage(file1.filename), deleteFromSupabaseStorage(file2.filename)])
+    scheduleDelete([file1.filename, file2.filename])
   }
 }
