@@ -9,6 +9,7 @@ const THREAD_IDLE_MS = 30 * 60 * 1000
 interface WahubIncomingMessage {
   from?: string
   senderNumber?: string
+  senderName?: string
   /** JID chat asal pesan ini (beda dari "from" kalau pesannya dari GRUP — "from" sudah
    *  di-resolve ke JID pengirimnya, bukan chat/grupnya). Grup selalu berakhiran "@g.us". */
   chatId?: string
@@ -61,9 +62,10 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
 
   // Pesan dari WA Grup ops internal — dideteksi lewat "chatId" (JID grup, "...@g.us"), BUKAN
   // "from" (itu sudah di-resolve ke JID pengirimnya sendiri, bukan grupnya — lihat backend-wahub).
-  // Balasannya WAJIB ke grup itu sendiri, bukan DM pribadi ke pengirimnya, dan cuma diproses
-  // kalau pengirimnya staf terdaftar (biar aman kalau suatu saat ada orang luar masuk grup) —
-  // silent kalau tidak dikenal, sama seperti kebijakan nomor tak terdaftar di bawah.
+  // Balasannya WAJIB ke grup itu sendiri, bukan DM pribadi ke pengirimnya. Otorisasinya cukup
+  // "ada di grup ini" (grup internal, tertutup) + manggil "Naya" — TIDAK perlu nomornya juga
+  // terdaftar sebagai User.phoneNumber. Kalau pengirimnya kebetulan match User terdaftar, dipakai
+  // buat identitas/nama di log; kalau tidak, tetap diproses pakai nomornya sebagai identitas.
   const groupJid = process.env.WAHUB_GROUP_JID
   if (groupJid && message.chatId === groupJid) {
     // Grup itu ramai diskusi lain-lain — cuma pesan yang eksplisit manggil "Naya" yang direspon,
@@ -74,22 +76,23 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
     if (!message.senderNumber) return { skipped: "group message without senderNumber" }
 
     const staff = await findRegisteredStaff(message.senderNumber)
-    if (!staff) return { skipped: "unregistered group sender" }
+    const actorId = staff?.id ?? normalizePhoneNumber(message.senderNumber)
+    const actorName = staff?.name ?? message.senderName ?? message.senderNumber
 
-    const thread = await getThread("staff", staff.id)
+    const thread = await getThread("staff", actorId)
     const isFresh = thread && Date.now() - thread.updatedAt.getTime() < THREAD_IDLE_MS
     const history = isFresh ? (thread!.history as unknown as Anthropic.MessageParam[]) : undefined
 
-    const { reply, messages } = await runAgent({ mode: "staff", actorId: staff.id, command: groupCommand, history })
+    const { reply, messages } = await runAgent({ mode: "staff", actorId, command: groupCommand, history })
 
     if (thread) {
       await prisma.whatsappThread.update({ where: { id: thread.id }, data: { history: messages as unknown as object } })
     } else {
-      await prisma.whatsappThread.create({ data: { senderType: "staff", userId: staff.id, history: messages as unknown as object } })
+      await prisma.whatsappThread.create({ data: { senderType: "staff", userId: actorId, history: messages as unknown as object } })
     }
 
     await sendWhatsappMessage(groupJid, reply)
-    return { handled: true, actorType: "staff", name: staff.name, channel: "group" }
+    return { handled: true, actorType: "staff", name: actorName, channel: "group", registered: !!staff }
   }
 
   const digits = message.senderNumber || message.from.replace(/@.*$/, "")
