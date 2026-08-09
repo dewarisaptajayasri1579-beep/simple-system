@@ -108,7 +108,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const totalOutstanding = piutangRows.reduce((sum, r) => sum + r.remaining, 0)
 
-  // Pembayaran Rutin: biaya berkala yang jatuh tempo bulan ini (kalender), plus yang sudah lewat tempo.
+  // Biaya Rutin: biaya berkala yang jatuh tempo bulan ini (kalender), plus yang sudah lewat tempo.
   const recurringDueRows: RecurringDueRow[] = bills
     .map((b) => {
       const nextDue = computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount)
@@ -241,25 +241,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.remaining > 0)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
 
-  // Follow Up: catatan yang jatuh tempo hari ini atau sudah lewat.
   const followUpRows = followUps.map((f) => ({
     id: f.id,
     subject: f.subject,
     note: f.note,
     followUpDate: f.followUpDate.toISOString(),
   }))
-  const todayJakarta = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())
-  const followUpDueCount = followUpRows.filter((r) => r.followUpDate.slice(0, 10) <= todayJakarta).length
 
   const navBadges: DashboardNavBadge[] = [
     { label: "SLA Lewat", href: "/laporan/tindak-lanjut-tagihan", count: slaOverdueCount, color: "rose" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
-    { label: "Pembayaran Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
+    { label: "Biaya Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
     { label: "Server", href: "#server", count: serverDueRows.length, color: "violet" },
     { label: "Maintenance", href: "#maintenance", count: maintenanceDueRows.length, color: "fuchsia" },
     { label: "Tagihan Project", href: "#tagihan-project", count: projectTagihanRows.length, color: "indigo" },
-    { label: "Follow Up", href: "#follow-up", count: followUpDueCount, color: "emerald" },
   ]
 
   return (

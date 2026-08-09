@@ -188,7 +188,11 @@ export async function POST(request: Request) {
       // yang baru dibayar ini (sama pola dengan alokasi HPP proporsional di atas). Akun
       // Pendapatannya di-resolve per invoice (Domain/Server/Maintenance/Project kalau
       // dikaitkan, fallback Pendapatan Jasa untuk invoice manual biasa).
+      // HPP invoice (unitCost baris invoice, BUKAN line.costAmount manual — itu sudah
+      // dijurnal terpisah lewat markDomainPaid/markServerPaid/markMaintenancePaid kalau
+      // dikaitkan) juga baru diakui SEKARANG, proporsional — konsisten dengan Pendapatan/PPN.
       const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
+      const hppPortion = invoice.totalAmount > 0 ? Math.round((invoice.totalCost * line.amount) / invoice.totalAmount) : 0
       const revenuePortion = line.amount - ppnPortion
       const journalEntry = await postJournalEntry(tx, {
         date: paidAt,
@@ -202,6 +206,7 @@ export async function POST(request: Request) {
           revenueCoaCode: revenueCoaCodeForInvoice(invoice),
           revenueAmount: revenuePortion,
           ppnAmount: ppnPortion,
+          hppAmount: hppPortion,
         }),
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })

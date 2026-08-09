@@ -3,8 +3,6 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
-import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { invoiceCostLines } from "@/lib/accounting/journal-rules"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -131,23 +129,10 @@ export async function POST(request: Request) {
         })
       }
 
-      // HPP diakui sekarang (saat invoice terbit) — biaya modal baris invoice, tidak terhubung
-      // ke proses pelunasan vendor manapun (lihat catatan di invoiceCostLines). Draft dulu, baru
-      // berlaku begitu invoice ini diposting (lihat /api/invoices/[id]/post).
-      //
-      // Piutang & Pendapatan SENGAJA TIDAK dijurnal di sini (aturan.txt: "Piutang hanya catatan,
-      // Pendapatan diakui setelah ada uang masuk") — baru diakui saat Payment-nya diposting,
-      // lihat invoicePaymentLines di /api/payments.
-      if (totalCost > 0) {
-        await postJournalEntry(tx, {
-          date: created.issuedAt,
-          description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
-          sourceType: "invoice",
-          sourceId: created.id,
-          createdBy: user.id,
-          lines: invoiceCostLines({ totalCost }),
-        })
-      }
+      // Invoice ini SENGAJA TIDAK bikin jurnal apa pun (Piutang, Pendapatan, MAUPUN HPP) —
+      // Invoice cuma pencatatan Piutang (field biasa di tabel Invoice/InvoicePayment, bukan
+      // akun GL). Semuanya (Pendapatan, PPN, HPP) baru diakui SEKALIGUS saat Payment-nya
+      // diposting — lihat invoicePaymentLines di /api/payments. Lihat pedoman_akunting.md.
 
       return created
     })

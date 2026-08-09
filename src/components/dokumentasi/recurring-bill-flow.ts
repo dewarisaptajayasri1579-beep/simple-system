@@ -21,7 +21,7 @@ export const recurringBillSteps: FlowStep[] = [
   {
     no: "2",
     title: "Muncul otomatis di Dashboard",
-    description: "Kalau sudah lewat jatuh tempo, atau jatuh tempo bulan ini, otomatis muncul di Dashboard bagian \"Pembayaran Rutin\".",
+    description: "Kalau sudah lewat jatuh tempo, atau jatuh tempo bulan ini, otomatis muncul di Dashboard bagian \"Biaya Rutin\".",
     detail: ["\"Nomor ID/Keterangan\"-nya bisa langsung diklik dan diedit di situ juga, tidak perlu buka Master Data."],
   },
   {

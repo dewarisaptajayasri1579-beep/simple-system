@@ -192,6 +192,18 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
   if (!transaction) throw new Error("Transaksi tidak ditemukan")
   if (transaction.postStatus === "posted") return transaction
 
+  // Proteksi: kalau transaksi ini pakai Kategori (Kas Masuk/Keluar manual) yang belum
+  // di-mapping ke akun COA, tolak posting-nya — daripada diam-diam jatuh ke "Lain-lain" dan
+  // staf tidak sadar salah akun. Draft-nya tetap boleh disimpan (supaya staf tidak kehilangan
+  // input), tapi baru bisa diposting setelah kategorinya dihubungkan ke COA dulu (Pengaturan >
+  // Master Data > Kategori, atau langsung dari modal "Tambah Kategori" di form Kas Keluar).
+  if (transaction.categoryId) {
+    const category = await tx.category.findUnique({ where: { id: transaction.categoryId } })
+    if (category && !category.coaAccountId) {
+      throw new Error(`Kategori "${category.name}" belum terhubung ke akun COA — hubungkan dulu (Pengaturan > Master Data > Kategori) sebelum transaksi ini bisa diposting`)
+    }
+  }
+
   // journalEntryId = link presisi ke jurnal transaksi INI (selalu diisi sejak dibuat — lihat
   // markServerPaid/markDomainPaid/payments/route.ts/recurring-bills mark-paid). Fallback
   // sourceType+sourceId cuma untuk baris lama sebelum kolom ini ada — sengaja dibedakan

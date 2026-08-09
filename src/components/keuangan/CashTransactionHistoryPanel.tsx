@@ -152,9 +152,13 @@ export const CashTransactionHistoryPanel: React.FC<{
         setSaving(false);
         return;
       }
-      setIsOpen(false);
-      load();
       window.dispatchEvent(new Event("transactions-changed"));
+      setIsOpen(false);
+      if (data.id) {
+        router.push(`/keuangan/transaksi/${data.id}`);
+        return;
+      }
+      load();
       router.refresh();
     } catch {
       setError("Gagal menghubungi server");

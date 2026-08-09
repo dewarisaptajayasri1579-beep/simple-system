@@ -128,7 +128,7 @@ export async function POST(request: Request) {
       return results
     })
 
-    return NextResponse.json({ ok: true, count: created.length }, { status: 201 })
+    return NextResponse.json({ ok: true, count: created.length, transactionIds: created.map((r) => r.transaction.id) }, { status: 201 })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal menyimpan Kas Keluar" }, { status: 400 })
   }

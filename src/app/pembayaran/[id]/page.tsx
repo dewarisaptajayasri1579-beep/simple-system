@@ -7,6 +7,7 @@ import { PaymentPostingBar } from "@/components/pembayaran/PaymentPostingBar"
 import { EditablePaymentAccount } from "@/components/pembayaran/EditablePaymentAccount"
 import { EditableInvoicePaymentAmount } from "@/components/pembayaran/EditableInvoicePaymentAmount"
 import { PaymentCostSection } from "@/components/pembayaran/PaymentCostSection"
+import { KwitansiPrintable } from "@/components/pembayaran/KwitansiPrintable"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -66,12 +67,14 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
           <Link href="/pembayaran" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
             <ArrowLeft className="w-4 h-4" /> Kembali
           </Link>
-          <PrintButton />
+          <PrintButton label="Cetak Kwitansi" />
         </div>
 
         <PaymentPostingBar paymentId={payment.id} postStatus={payment.postStatus as "draft" | "posted" | "voided"} sources={journalSources} />
 
-        <Card variant="panel" padding="lg" className="print:shadow-none print:border-none print:bg-white">
+        {/* Tampilan layar — dilihat staf sehari-hari, tidak ikut tercetak (lihat KwitansiPrintable
+           di bawah buat format yang benar-benar keluar di kertas). */}
+        <Card variant="panel" padding="lg" className="no-print">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-900">SEVEN OS</h1>
@@ -167,6 +170,10 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
             </p>
           )}
         </Card>
+
+        {/* Cuma tampil saat print (lihat .print-only di globals.css) — format kwitansi sesuai
+           referensi "Kwitansi Keren" (nota/Kwitansi Keren.png), tidak pernah dilihat staf di layar. */}
+        <KwitansiPrintable payment={payment} receiverName={user.name} date={formatDate(payment.paidAt)} />
       </div>
     </AppLayout>
   )

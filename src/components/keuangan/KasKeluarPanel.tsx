@@ -278,9 +278,17 @@ export const KasKeluarPanel: React.FC<{
         setSaving(false);
         return;
       }
+      window.dispatchEvent(new Event("transactions-changed"));
+      // Kalau cuma 1 baris yang disimpan, langsung ke detail transaksinya — kalau lebih dari
+      // 1 (input borongan beberapa biaya sekaligus), tetap di halaman ini karena tidak ada 1
+      // detail tunggal yang mewakili semuanya.
+      const transactionIds: string[] = Array.isArray(data.transactionIds) ? data.transactionIds : [];
+      if (transactionIds.length === 1) {
+        router.push(`/keuangan/transaksi/${transactionIds[0]}`);
+        return;
+      }
       resetForm();
       load();
-      window.dispatchEvent(new Event("transactions-changed"));
       router.refresh();
     } catch {
       setError("Gagal menghubungi server");

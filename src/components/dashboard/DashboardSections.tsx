@@ -317,7 +317,7 @@ function bucketCounts(rows: { bucket: ExpiryBucket }[]) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Pembayaran Rutin bulan ini
+// 2. Biaya Rutin bulan ini
 // ---------------------------------------------------------------------------
 export interface RecurringDueRow {
   id: string;
@@ -383,13 +383,13 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: 
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Pembayaran Rutin Bulan Ini</CardTitle>
+          <CardTitle>Biaya Rutin Bulan Ini</CardTitle>
           <CardDescription>{rows.length} biaya berkala jatuh tempo bulan ini / lewat tempo</CardDescription>
         </div>
         <ColumnVisibilityMenu columns={RECURRING_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS.slice(0, 2)} counts={bucketCounts(rows)} total={rows.length} />
-      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada pembayaran rutin." mobileCardMode />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada biaya rutin." mobileCardMode />
     </Card>
   );
 };

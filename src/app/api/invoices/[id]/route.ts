@@ -30,14 +30,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Invoice yang sudah diposting/dibatalkan tidak bisa dihapus" }, { status: 400 })
   }
 
-  await prisma.$transaction([
-    // Invoice draft bikin 2 jurnal draft sekaligus saat dibuat (lihat POST /api/invoices) — HPP
-    // (sourceType "invoice") DAN Piutang/Pendapatan/PPN (sourceType "invoice_revenue"). Dua-duanya
-    // wajib ikut dibersihkan di sini, kalau tidak jurnal "invoice_revenue"-nya nyangkut terus
-    // nunjuk ke invoice yang sudah dihapus (bug lama — cuma "invoice" yang dibersihkan).
-    prisma.journalEntry.deleteMany({ where: { sourceType: { in: ["invoice", "invoice_revenue"] }, sourceId: id, postStatus: "draft" } }),
-    prisma.invoice.delete({ where: { id } }),
-  ])
+  // Invoice tidak pernah bikin jurnal apa pun (lihat pedoman_akunting.md), jadi tidak ada
+  // jurnal draft yang perlu ikut dibersihkan di sini — cukup hapus invoice-nya (InvoiceLine
+  // ikut terhapus lewat onDelete: Cascade).
+  await prisma.invoice.delete({ where: { id } })
 
   return NextResponse.json({ ok: true })
 }

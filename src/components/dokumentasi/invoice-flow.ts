@@ -20,8 +20,8 @@ export const invoiceManualSteps: FlowStep[] = [
     title: "Setujui invoicenya (Posting)",
     description: "Buka invoice yang baru dibuat, cek datanya sudah benar, lalu klik \"Posting Invoice\".",
     detail: [
-      "Selama masih Draft, invoice ini belum bisa dipakai buat terima pembayaran, dan belum kehitung di Piutang/laporan keuangan.",
-      "Begitu di-posting, Piutang Usaha dan Pendapatan langsung diakui di pembukuan SAAT ITU JUGA — bukan nunggu client bayar. Ini beda dengan uang kas yang baru masuk pas benar-benar dibayar (lihat menu Pembayaran).",
+      "Selama masih Draft, invoice ini belum bisa dipakai buat terima pembayaran.",
+      "Posting cuma bikin invoice ini resmi \"ada\" sebagai piutang (catatan biasa) dan bisa dipilih di menu Pembayaran — BELUM ada pendapatan yang diakui di pembukuan. Pendapatan baru diakui nanti pas benar-benar dibayar (lihat langkah 3).",
     ],
   },
   {
@@ -30,13 +30,14 @@ export const invoiceManualSteps: FlowStep[] = [
     description: "Setelah client transfer, staf catat pelunasannya di menu Pembayaran — bisa sekaligus lunas, atau dicicil beberapa kali.",
     detail: [
       "Status invoice (Belum Dibayar/Dicicil/Lunas) otomatis update begitu pembayarannya di-posting.",
+      "Pendapatan, PPN, dan HPP semuanya BARU diakui di pembukuan di titik ini (proporsional kalau dicicil) — bukan saat invoice dibuat/diposting. Sesuai prinsip perusahaan: \"Piutang hanya catatan, Pendapatan diakui setelah ada uang masuk.\"",
       "Kalau client bilang sudah transfer lewat WhatsApp tapi staf belum sempat verifikasi/input, invoice bisa ditandai \"Diklaim Lunas\" oleh AI Agent — ini CUMA tanda peringatan buat staf cek mutasi rekening, BUKAN pencatatan resmi. Begitu staf input pembayaran beneran, statusnya otomatis dikoreksi sesuai pembayaran yang tercatat.",
     ],
   },
 ];
 
 export const invoiceCaveats: string[] = [
-  "Pendapatan & PPN diakui di pembukuan SAAT INVOICE DIPOSTING, bukan saat dibayar — beda dengan kas yang baru tercatat masuk pas Pembayaran-nya di-posting. Jadi laporan Laba Rugi bisa menunjukkan pendapatan dari invoice yang belum tentu sudah dibayar client (piutang).",
+  "Pendapatan, PPN, & HPP diakui di pembukuan SAAT PEMBAYARAN DIPOSTING (proporsional kalau dicicil) — invoice sendiri, sekalipun sudah diposting, tidak pernah bikin catatan pendapatan apa pun. Piutang cuma catatan biasa (bukan akun pembukuan) sampai benar-benar dibayar.",
   "Invoice yang masih Draft TIDAK bisa diedit langsung — kalau salah input, cara paling gampang adalah Hapus draft-nya lalu input ulang dari awal (tombol Hapus cuma muncul selama masih draft).",
   "Invoice yang sudah Posted cuma bisa dibatalkan (\"Void\") oleh Owner, dan CUMA BISA kalau belum ada pembayaran yang tercatat untuk invoice itu — kalau sudah ada pembayaran (walau baru sebagian), batalkan dulu pembayarannya sebelum bisa membatalkan invoice-nya.",
   "Status \"Diklaim Lunas\" bukan status resmi lunas — itu cuma flag dari AI Agent kalau client bilang sudah bayar via chat. Piutang invoice itu tetap dianggap belum lunas di semua laporan sampai staf beneran input & posting pembayarannya.",

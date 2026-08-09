@@ -2,13 +2,12 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
-import { voidJournalEntryBySource } from "@/lib/accounting/post-journal"
 
-/** Batalkan invoice yang sudah posted (salah input) — Owner-only. Invoice hilang dari Piutang/
- *  laporan (persis efeknya seperti belum pernah posting), jurnal HPP-nya (kalau ada) ikut
- *  ditandai voided, tapi record & jurnalnya tetap ada di riwayat dengan badge "Dibatalkan".
- *  Invoice yang sudah ada pembayaran (posted) tidak boleh dibatalkan langsung — batalkan dulu
- *  payment-nya. */
+/** Batalkan invoice yang sudah posted (salah input) — Owner-only. Invoice hilang dari Piutang
+ *  (field biasa, bukan jurnal — lihat pedoman_akunting.md). Tidak ada jurnal yang perlu
+ *  dibatalkan di sini karena Invoice tidak pernah bikin jurnal apa pun; Invoice yang sudah ada
+ *  pembayaran (posted) tidak boleh dibatalkan langsung — batalkan dulu payment-nya (itu yang
+ *  bawa jurnal Pendapatan/PPN/HPP-nya). */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
@@ -30,8 +29,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const voidReason = typeof body?.reason === "string" ? body.reason.trim() || null : null
 
   const voided = await prisma.$transaction(async (tx) => {
-    await voidJournalEntryBySource(tx, { sourceType: "invoice", sourceId: id, voidedById: user.id, voidReason: voidReason ?? undefined })
-    await voidJournalEntryBySource(tx, { sourceType: "invoice_revenue", sourceId: id, voidedById: user.id, voidReason: voidReason ?? undefined })
     return tx.invoice.update({
       where: { id },
       data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },

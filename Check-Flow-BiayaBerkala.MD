@@ -15,7 +15,7 @@ langganan, dsb), tidak pernah lewat Invoice/Piutang/"Tagih Sekarang".
 
 ```mermaid
 flowchart TD
-  A["1. Data sudah ada (impor legacy)\nTIDAK ADA prisma.recurringBill.create di manapun\nPengaturan > Master Data > Biaya Berkala\nPATCH /api/recurring-bills/:id (edit saja)"] --> B["2. Muncul di Dashboard\n'Pembayaran Rutin' — Lewat / Bulan Ini SAJA\n(getExpiryBucket, filter expired+expiring_this_month,\nTIDAK termasuk bulan depan)"]
+  A["1. Data sudah ada (impor legacy)\nTIDAK ADA prisma.recurringBill.create di manapun\nPengaturan > Master Data > Biaya Berkala\nPATCH /api/recurring-bills/:id (edit saja)"] --> B["2. Muncul di Dashboard\n'Biaya Rutin' — Lewat / Bulan Ini SAJA\n(getExpiryBucket, filter expired+expiring_this_month,\nTIDAK termasuk bulan depan)"]
 
   B --> C["3a. Cron pengingat WA\nrunRecurringBillReminders (cron)\npakai DueBucket (overdue/due_soon) beda dari\nbucket Dashboard, threshold dari reminderDaysBefore\n-> WA semua staf ke SEMUA nomor terdaftar"]
   C --> C2{"Staf balas WA?"}
