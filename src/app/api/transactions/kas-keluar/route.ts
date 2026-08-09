@@ -6,6 +6,7 @@ import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
 import { markDomainPaid, markServerPaid, markMaintenancePaid, markRecurringBillPaid } from "@/lib/accounting/mark-paid"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 interface LineInput {
   kind: "manual" | "domain" | "server" | "maintenance" | "recurring_bill"
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
 
         const transaction = await tx.transaction.create({
           data: {
+            transactionNumber: await generateTransactionNumber(tx, "expense"),
             accountId,
             type: "expense",
             categoryId: line.categoryId,

@@ -9,7 +9,7 @@ export default async function KeuanganKasMasukPage() {
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
-      <CashTransactionHistoryPanel type="income" title="Kas Masuk" accounts={accounts} isOwner={user.role === "owner"} />
+      <CashTransactionHistoryPanel type="income" title="Kas Masuk" accounts={accounts} />
     </AppLayout>
   )
 }

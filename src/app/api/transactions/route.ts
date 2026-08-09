@@ -6,6 +6,7 @@ import { computeSplit } from "@/lib/split"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualIncomeLines, manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
       occurredAt: from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined,
     },
     include: { account: true, category: true, invoicePayment: { select: { id: true } } },
-    orderBy: { occurredAt: "desc" },
+    orderBy: { createdAt: "desc" },
   })
 
   return NextResponse.json(transactions)
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     const transaction = await prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
         data: {
+          transactionNumber: await generateTransactionNumber(tx, "expense"),
           accountId,
           type: "expense",
           categoryId,
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
   const transaction = await prisma.$transaction(async (tx) => {
     const created = await tx.transaction.create({
       data: {
+        transactionNumber: await generateTransactionNumber(tx, "income"),
         accountId,
         type: "income",
         categoryId,

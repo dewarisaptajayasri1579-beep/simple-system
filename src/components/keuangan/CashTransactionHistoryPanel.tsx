@@ -17,8 +17,6 @@ import {
   type FilterableColumn,
 } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { JournalButton } from "@/components/akuntansi/JournalButton";
-import { VoidButton } from "@/components/akuntansi/VoidButton";
 import { AccountPicker, type AccountOption } from "./AccountPicker";
 import { ChevronLeft } from "lucide-react";
 import { guessCategoryId } from "@/lib/category-guess";
@@ -26,6 +24,7 @@ import { jakartaTodayDateIso } from "@/lib/datetime";
 
 interface TransactionRow {
   id: string;
+  transactionNumber: string | null;
   grossAmount: number;
   description: string | null;
   occurredAt: string;
@@ -49,12 +48,10 @@ export const CashTransactionHistoryPanel: React.FC<{
   type: "income" | "expense";
   title: string;
   accounts: AccountOption[];
-  isOwner: boolean;
-}> = ({ type, title, accounts: initialAccounts, isOwner }) => {
+}> = ({ type, title, accounts: initialAccounts }) => {
   const router = useRouter();
   const [accounts, setAccounts] = useState(initialAccounts);
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const [isOpen, setIsOpen] = useState(false);
@@ -166,48 +163,24 @@ export const CashTransactionHistoryPanel: React.FC<{
     }
   };
 
-  const handlePost = async (id: string) => {
-    setBusy(id);
-    setError("");
-    const res = await fetch(`/api/transactions/${id}/post`, { method: "POST" });
-    const data = await res.json().catch(() => null);
-    setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting transaksi");
-      return;
-    }
-    load();
-    router.refresh();
-  };
-
   const columns: FilterableColumn<TransactionRow>[] = [
+    {
+      key: "transactionNumber",
+      header: "No. Bukti",
+      filterValue: (r) => r.transactionNumber ?? "",
+      cellClassName: "font-semibold",
+      cell: (r) => (
+        <Link href={`/keuangan/transaksi/${r.id}`} className="hover:underline">
+          {r.transactionNumber ?? "-"}
+        </Link>
+      ),
+    },
     { key: "occurredAt", header: "Tanggal", cell: (r) => formatDate(r.occurredAt) },
     { key: "description", header: "Keterangan", cellClassName: "font-semibold", cell: (r) => r.description ?? "-" },
     { key: "category", header: type === "income" ? "Pendapatan" : "Biaya", cell: (r) => r.category?.name ?? "-" },
     { key: "account", header: "Akun", cell: (r) => r.account.name },
     { key: "amount", header: "Jumlah", cellClassName: "font-semibold", cell: (r) => formatRupiah(r.grossAmount) },
     { key: "status", header: "Status", cell: (r) => <StatusBadge type={r.postStatus} size="sm" /> },
-    {
-      key: "aksi",
-      header: "Aksi",
-      cell: (r) => (
-        <div className="flex items-center gap-2">
-          <JournalButton
-            title="Jurnal Transaksi"
-            sources={[r.journalEntryId ? { entryId: r.journalEntryId } : { sourceType: "transaction", sourceId: r.id }]}
-            postUrl={r.postStatus === "draft" ? `/api/transactions/${r.id}/post` : undefined}
-          />
-          {r.postStatus === "draft" && (
-            <Button size="sm" variant="primary" onClick={() => handlePost(r.id)} isLoading={busy === r.id}>
-              Posting
-            </Button>
-          )}
-          {r.postStatus === "posted" && isOwner && (
-            <VoidButton voidUrl={`/api/transactions/${r.id}/void`} itemLabel={r.description ?? "transaksi ini"} onVoided={load} />
-          )}
-        </div>
-      ),
-    },
   ];
 
   return (

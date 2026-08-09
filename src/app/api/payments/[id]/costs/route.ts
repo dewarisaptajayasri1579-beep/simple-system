@@ -6,6 +6,7 @@ import { markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accou
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 /** Tambah 1 baris Biaya baru ke Payment yang masih DRAFT — Bayar Domain/Server/Maintenance
  *  (lewat markDomainPaid/dst, sama jalurnya dengan Kas Keluar & form Pelunasan), ATAU Biaya
@@ -55,6 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // paymentId, sama seperti baris pendapatan invoice-nya.
       const transaction = await tx.transaction.create({
         data: {
+          transactionNumber: await generateTransactionNumber(tx, "expense"),
           accountId: payment.accountId,
           type: "expense",
           categoryId,

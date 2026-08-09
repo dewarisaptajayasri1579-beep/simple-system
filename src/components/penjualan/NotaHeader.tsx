@@ -15,8 +15,8 @@ export const NotaHeader: React.FC<{ invoiceNumber: string; date: string }> = ({ 
       </div>
     </div>
 
-    <div className="flex justify-end mt-3">
-      <div className="flex items-stretch rounded-xl border border-slate-200 overflow-hidden">
+    <div className="flex justify-end mt-2">
+      <div className="flex items-stretch">
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="w-7 h-7 rounded-md border border-[#0544cc] flex items-center justify-center flex-shrink-0">
             <Hash className="w-3.5 h-3.5 text-[#0544cc]" />

@@ -171,8 +171,8 @@ body {
 @media print {
   /* Nota/Invoice dicetak di kertas A5 (bukan A4) — lihat nota/Nota Keren.png. */
   @page {
-    size: A5;
-    margin: 8mm;
+    size: A5 landscape;
+    margin: 5mm;
   }
   .no-print {
     display: none !important;
@@ -190,6 +190,23 @@ body {
   .print-nota-a5 {
     width: 100%;
     font-size: 11px;
+  }
+  /* Sisa layout aplikasi (padding buat sidebar/header, max-width konten, min-height layar
+     penuh) tetap kepakai walau sidebar/header-nya sendiri sudah disembunyikan .no-print —
+     class-class ini bukan bagian dari elemen yang disembunyikan, jadi harus dinolkan manual
+     di sini. Tanpa ini, nota kepencet ke kanan-bawah + kepotong 2 halaman waktu print. */
+  .app-shell {
+    display: block !important;
+    min-height: 0 !important;
+  }
+  .app-shell-content {
+    padding-left: 0 !important;
+    display: block !important;
+  }
+  .app-shell-main {
+    padding: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
   }
   .bg-app-mesh {
     background: white !important;

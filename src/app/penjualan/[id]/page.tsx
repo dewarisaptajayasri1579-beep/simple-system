@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardHeader, CardTitle, CardDescription, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Alert } from "@/components/ui"
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge"
 import { PrintButton } from "@/components/penjualan/PrintButton"
+import { InvoiceWhatsAppButton } from "@/components/penjualan/InvoiceWhatsAppButton"
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { InvoiceDeleteButton } from "@/components/penjualan/InvoiceDeleteButton"
@@ -57,6 +58,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Link>
           <div className="flex gap-3">
             <PrintButton />
+            {invoice.client.phoneNumber && (
+              <InvoiceWhatsAppButton
+                invoiceId={invoice.id}
+                invoiceNumber={invoice.invoiceNumber}
+                totalAmount={invoice.totalAmount}
+                clientName={invoice.client.name}
+                clientPhone={invoice.client.phoneNumber}
+              />
+            )}
             {invoice.totalCost > 0 && (
               <JournalButton
                 title={`Jurnal — ${invoice.invoiceNumber}`}

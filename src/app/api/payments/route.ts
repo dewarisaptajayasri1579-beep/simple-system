@@ -8,6 +8,7 @@ import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { invoicePaymentLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 export async function GET() {
   const user = await getApiUser()
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
 
       const transaction = await tx.transaction.create({
         data: {
+          transactionNumber: await generateTransactionNumber(tx, "income"),
           accountId,
           type: "income",
           grossAmount: line.amount,

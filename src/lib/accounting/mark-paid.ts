@@ -4,6 +4,7 @@ import { billPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
 import { COA_CODE, bebanCodeForCategory } from "./coa-seed"
 import { computeDomainExpiryDate } from "@/lib/domain-status"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 /** Dipakai bareng oleh kartu "Bayar Server" (Keuangan) DAN dari baris Biaya di Pelunasan
  *  saat staf mengaitkan biaya ke server tertentu — supaya satu-satunya jalur pencatatan
@@ -21,6 +22,7 @@ export async function markServerPaid(
 
   const transaction = await tx.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(tx, "expense"),
       accountId: input.accountId,
       type: "expense",
       grossAmount: input.amount,
@@ -63,6 +65,7 @@ export async function markDomainPaid(
 
   const transaction = await tx.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(tx, "expense"),
       accountId: input.accountId,
       type: "expense",
       grossAmount: input.amount,
@@ -105,6 +108,7 @@ export async function markMaintenancePaid(
 
   const transaction = await tx.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(tx, "expense"),
       accountId: input.accountId,
       type: "expense",
       grossAmount: input.amount,
@@ -147,6 +151,7 @@ export async function markRecurringBillPaid(
 
   const transaction = await tx.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(tx, "expense"),
       accountId: input.accountId,
       type: "expense",
       categoryId: input.categoryId ?? null,

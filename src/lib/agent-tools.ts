@@ -6,6 +6,7 @@ import { computeAllAccountBalances } from "@/lib/account-balance"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
 import { formatJakartaDateLabel, jakartaTodayDateIso } from "@/lib/datetime"
+import { generateTransactionNumber } from "@/lib/transaction-number"
 
 export interface ToolContext {
   mode: "staff" | "client"
@@ -236,6 +237,7 @@ async function recordExpense(input: { accountName: string; amount: number; descr
 
   const transaction = await prisma.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(prisma, "expense"),
       accountId: account.id,
       type: "expense",
       categoryId: category?.id,
@@ -263,6 +265,7 @@ async function recordIncome(input: { accountName: string; amount: number; cost?:
 
   const transaction = await prisma.transaction.create({
     data: {
+      transactionNumber: await generateTransactionNumber(prisma, "income"),
       accountId: account.id,
       type: "income",
       categoryId: category?.id,

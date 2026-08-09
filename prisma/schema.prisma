@@ -575,6 +575,11 @@ model JournalLine {
 
 model Transaction {
   id                  String   @id @default(uuid())
+  // Nomor bukti kas keluar/masuk — BKK/{tahun}/{5 digit urut} (expense) atau
+  // BKM/{tahun}/{5 digit urut} (income), sama pola dengan Payment.paymentNumber (PMT) &
+  // Invoice.invoiceNumber (INV). Nullable karena baris lama (sebelum kolom ini ada) tidak
+  // di-backfill.
+  transactionNumber   String?  @unique @map("transaction_number")
   accountId           String   @map("account_id")
   type                String   // "income" | "expense"
   categoryId          String?  @map("category_id")
