@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { Globe, Server as ServerIcon, ArrowUpRight, ArrowDownLeft, Wallet, Plus } from "lucide-react";
 import { guessCategoryId } from "@/lib/category-guess";
+import { jakartaTodayDateIso } from "@/lib/datetime";
 
 export interface AccountOption {
   id: string;
@@ -67,6 +68,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
   const [txAccountId, setTxAccountId] = useState(accounts[0]?.id ?? "");
   const [txAmount, setTxAmount] = useState(0);
   const [txCost, setTxCost] = useState(0);
+  const [txOccurredAt, setTxOccurredAt] = useState(jakartaTodayDateIso());
   const [txDescription, setTxDescription] = useState("");
   const [txCategoryId, setTxCategoryId] = useState("");
   const [categoryAuto, setCategoryAuto] = useState(false);
@@ -79,6 +81,8 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
   const [servers, setServers] = useState<ServerOption[]>([]);
   const [billItemId, setBillItemId] = useState("");
   const [billAccountId, setBillAccountId] = useState(accounts[0]?.id ?? "");
+  const [billAmount, setBillAmount] = useState(0);
+  const [billPaidAt, setBillPaidAt] = useState(jakartaTodayDateIso());
   const [isSavingBill, setIsSavingBill] = useState(false);
 
   const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: a.name })), [accounts]);
@@ -206,6 +210,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
     setTxAccountId(accounts[0]?.id ?? "");
     setTxAmount(0);
     setTxCost(0);
+    setTxOccurredAt(jakartaTodayDateIso());
     setTxDescription("");
     setTxCategoryId("");
     setCategoryAuto(false);
@@ -231,6 +236,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
           cost: txCost,
           categoryId: txCategoryId || null,
           description: txDescription,
+          occurredAt: txOccurredAt,
         }),
       });
       const data = await res.json();
@@ -254,6 +260,8 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
     setBillModalType(type);
     setBillItemId("");
     setBillAccountId(accounts[0]?.id ?? "");
+    setBillAmount(0);
+    setBillPaidAt(jakartaTodayDateIso());
     setError("");
   };
 
@@ -267,6 +275,17 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
     return [];
   }, [billModalType, domains, servers]);
 
+  // Pilih domain/server -> prefill nominal dari harga jual/harga-nya sendiri (masih boleh
+  // diedit manual sebelum disimpan, mis. kalau ada perubahan harga terakhir).
+  const handleBillItemChange = (id: string) => {
+    setBillItemId(id);
+    if (billModalType === "domain") {
+      setBillAmount(domains.find((d) => d.id === id)?.sellPrice ?? 0);
+    } else if (billModalType === "server") {
+      setBillAmount(servers.find((s) => s.id === id)?.price ?? 0);
+    }
+  };
+
   const handleSaveBill = async () => {
     if (!billItemId) {
       setError(billModalType === "domain" ? "Pilih domain dulu" : "Pilih server dulu");
@@ -276,13 +295,17 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
       setError("Pilih akun kas/bank dulu");
       return;
     }
+    if (!billAmount || billAmount <= 0) {
+      setError("Nominal wajib diisi");
+      return;
+    }
     setIsSavingBill(true);
     setError("");
     try {
       const res = await fetch(`/api/${billModalType === "domain" ? "domains" : "servers"}/${billItemId}/mark-paid`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: billAccountId }),
+        body: JSON.stringify({ accountId: billAccountId, amount: billAmount, paidAt: billPaidAt }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -419,6 +442,7 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
           {txModalType === "income" && (
             <CurrencyInput label="Biaya (dipotong sebelum split, opsional)" value={txCost} onChange={setTxCost} />
           )}
+          <Input label="Tanggal" type="date" value={txOccurredAt} onChange={(e) => setTxOccurredAt(e.target.value)} />
           <Input label="Keterangan (opsional)" value={txDescription} onChange={(e) => setTxDescription(e.target.value)} placeholder="mis. bayar listrik kantor" />
           <div>
             <Select

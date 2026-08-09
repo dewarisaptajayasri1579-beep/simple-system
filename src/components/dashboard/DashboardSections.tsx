@@ -7,7 +7,7 @@ import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { FollowUpButtons } from "./FollowUpButtons";
 import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
-import { DomainOwnerCell } from "@/components/domain/DomainOwnerCell";
+import { OwnerCell } from "@/components/shared/OwnerCell";
 import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
 import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
@@ -401,9 +401,9 @@ export const DomainExpiringSection: React.FC<{
               { value: "client", label: "Client" },
             ],
             cell: (r: DomainExpiringRow) => (
-              <DomainOwnerCell
-                domainId={r.id}
-                domainName={r.name}
+              <OwnerCell
+                apiPath={`/api/domains/${r.id}`}
+                itemName={r.name}
                 clientId={r.clientId}
                 clients={clients}
                 onUpdated={(patch) =>
@@ -468,7 +468,7 @@ export const DomainExpiringSection: React.FC<{
             />
           </div>
         ) : isOwner ? (
-          <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />
+          <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
         ),
@@ -505,17 +505,19 @@ export interface ServerDueRow {
 }
 
 const SERVER_COLUMNS = [
-  { key: "client", label: "Client" },
+  { key: "client", label: "Internal/Client" },
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "price", label: "Harga" },
   { key: "status", label: "Status" },
 ];
 
-export const ServerDueSection: React.FC<{ rows: ServerDueRow[]; accounts: AccountOption[]; isOwner: boolean }> = ({
-  rows,
-  accounts,
-  isOwner,
-}) => {
+export const ServerDueSection: React.FC<{
+  rows: ServerDueRow[];
+  clients: { id: string; name: string }[];
+  accounts: AccountOption[];
+  isOwner: boolean;
+}> = ({ rows: initialRows, clients, accounts, isOwner }) => {
+  const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-server", SERVER_COLUMNS);
 
@@ -524,7 +526,32 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[]; accounts: Accoun
   const columns: FilterableColumn<ServerDueRow>[] = [
     { key: "name", header: "Server", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
     ...(isVisible("client")
-      ? [{ key: "client", header: "Client", filterValue: (r: ServerDueRow) => r.clientName ?? "", cell: (r: ServerDueRow) => r.clientName ?? "Internal" }]
+      ? [
+          {
+            key: "client",
+            header: "Internal/Client",
+            filterValue: (r: ServerDueRow) => (r.clientId ? "client" : "internal"),
+            filterOptions: [
+              { value: "internal", label: "Internal (7Smarts)" },
+              { value: "client", label: "Client" },
+            ],
+            cell: (r: ServerDueRow) => (
+              <OwnerCell
+                apiPath={`/api/servers/${r.id}`}
+                itemName={r.name}
+                clientId={r.clientId}
+                clients={clients}
+                onUpdated={(patch) =>
+                  setRows((prev) =>
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, clientId: patch.clientId, clientName: patch.clientName } : row
+                    )
+                  )
+                }
+              />
+            ),
+          },
+        ]
       : []),
     ...(isVisible("dueDate") ? [{ key: "dueDate", header: "Estimasi Jatuh Tempo", cell: (r: ServerDueRow) => formatDate(r.dueDate) }] : []),
     ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (r: ServerDueRow) => formatRupiah(r.price) }] : []),
@@ -552,7 +579,7 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[]; accounts: Accoun
             />
           </div>
         ) : isOwner ? (
-          <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />
+          <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
         ),

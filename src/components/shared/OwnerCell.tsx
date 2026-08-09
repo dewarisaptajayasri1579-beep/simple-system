@@ -40,15 +40,16 @@ const OwnerToggle: React.FC<{ isExternal: boolean; onToggle: () => void; disable
   </div>
 );
 
-export interface DomainOwnerCellProps {
-  domainId: string;
-  domainName: string;
+export interface OwnerCellProps {
+  /** API endpoint yang menerima PATCH { clientId } dan membalas objek berisi clientId & client.name */
+  apiPath: string;
+  itemName: string;
   clientId: string | null;
   clients: ClientOption[];
   onUpdated: (patch: { clientId: string | null; clientName: string | null }) => void;
 }
 
-export const DomainOwnerCell: React.FC<DomainOwnerCellProps> = ({ domainId, domainName, clientId, clients, onUpdated }) => {
+export const OwnerCell: React.FC<OwnerCellProps> = ({ apiPath, itemName, clientId, clients, onUpdated }) => {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -85,7 +86,7 @@ export const DomainOwnerCell: React.FC<DomainOwnerCellProps> = ({ domainId, doma
 
   const patchClient = async (targetClientId: string) => {
     setSaving(true);
-    const res = await fetch(`/api/domains/${domainId}`, {
+    const res = await fetch(apiPath, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clientId: targetClientId }),
@@ -171,7 +172,7 @@ export const DomainOwnerCell: React.FC<DomainOwnerCellProps> = ({ domainId, doma
         onClose={() => setOpen(false)}
         title={showNewClient ? "Tambah Client Baru" : "Pilih Client"}
         subtitle={
-          showNewClient ? `Client baru untuk domain "${domainName}"` : `Tandai domain "${domainName}" sebagai milik client mana?`
+          showNewClient ? `Client baru untuk "${itemName}"` : `Tandai "${itemName}" sebagai milik client mana?`
         }
         footer={
           showNewClient ? (

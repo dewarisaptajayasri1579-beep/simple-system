@@ -12,19 +12,19 @@ import { COA_CODE } from "./coa-seed"
  *  diupdate — baru diupdate saat draft ini di-posting (lihat finalizeTransactionPosting). */
 export async function markServerPaid(
   tx: TxClient,
-  input: { serverId: string; accountId: string; paidAt: Date; createdBy: string; paymentId?: string }
+  input: { serverId: string; accountId: string; amount: number; paidAt: Date; createdBy: string; paymentId?: string }
 ) {
   const server = await tx.server.findUnique({ where: { id: input.serverId } })
   if (!server) throw new Error("Server tidak ditemukan")
-  if (!server.price || server.price <= 0) throw new Error("Server ini belum punya nominal")
+  if (!input.amount || input.amount <= 0) throw new Error("Biaya (HPP) server ini wajib diisi")
 
   const transaction = await tx.transaction.create({
     data: {
       accountId: input.accountId,
       type: "expense",
-      grossAmount: server.price,
+      grossAmount: input.amount,
       cost: 0,
-      netAmount: server.price,
+      netAmount: input.amount,
       description: `Pembayaran server - ${server.name}`,
       occurredAt: input.paidAt,
       refType: "server",
@@ -40,7 +40,7 @@ export async function markServerPaid(
     sourceType: "server",
     sourceId: server.id,
     createdBy: input.createdBy,
-    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanServerHosting, amount: server.price }),
+    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanServerHosting, amount: input.amount }),
   })
   // Simpan link presisi ke jurnal BARU ini (bukan cuma sourceType+sourceId, yang dipakai bareng
   // sama semua histori pembayaran server yang sama) — supaya "Lihat Jurnal" utk transaksi INI
@@ -54,19 +54,19 @@ export async function markServerPaid(
  *  Biaya di Pelunasan saat dikaitkan ke domain tertentu. Draft -> Posted sama seperti di atas. */
 export async function markDomainPaid(
   tx: TxClient,
-  input: { domainId: string; accountId: string; paidAt: Date; createdBy: string; paymentId?: string }
+  input: { domainId: string; accountId: string; amount: number; paidAt: Date; createdBy: string; paymentId?: string }
 ) {
   const domain = await tx.domain.findUnique({ where: { id: input.domainId } })
   if (!domain) throw new Error("Domain tidak ditemukan")
-  if (!domain.sellPrice || domain.sellPrice <= 0) throw new Error("Domain ini belum punya nominal")
+  if (!input.amount || input.amount <= 0) throw new Error("Biaya (HPP) domain ini wajib diisi")
 
   const transaction = await tx.transaction.create({
     data: {
       accountId: input.accountId,
       type: "expense",
-      grossAmount: domain.sellPrice,
+      grossAmount: input.amount,
       cost: 0,
-      netAmount: domain.sellPrice,
+      netAmount: input.amount,
       description: `Pembayaran domain - ${domain.name}`,
       occurredAt: input.paidAt,
       refType: "domain",
@@ -82,7 +82,7 @@ export async function markDomainPaid(
     sourceType: "domain",
     sourceId: domain.id,
     createdBy: input.createdBy,
-    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanDomain, amount: domain.sellPrice }),
+    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanDomain, amount: input.amount }),
   })
   // Sama seperti markServerPaid — link presisi supaya "Lihat Jurnal" tidak kebawa histori
   // pembayaran domain yang sama dari payment lain/lama.

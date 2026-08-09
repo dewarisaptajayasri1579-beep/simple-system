@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Modal, Select, Alert } from "@/components/ui";
+import { Button, Modal, Select, CurrencyInput, Alert } from "@/components/ui";
 
 export interface AccountOption {
   id: string;
@@ -12,11 +12,21 @@ export interface AccountOption {
 /** Tombol "Bayar" siap-pakai untuk item internal (biaya berkala/domain/server yang bukan milik
  *  client) — pilih akun Kas/Bank, lalu POST ke endpoint mark-paid terkait. Hasilnya jadi
  *  Transaction Kas/Bank Keluar berstatus Draft (perlu di-posting dari menu Keuangan sebelum
- *  benar-benar mengurangi saldo), bukan langsung final. */
-export const MarkPaidButton: React.FC<{ url: string; itemLabel: string; accounts: AccountOption[] }> = ({ url, itemLabel, accounts }) => {
+ *  benar-benar mengurangi saldo), bukan langsung final.
+ *
+ *  `requireAmount` dipakai untuk Domain/Server — harga jual (ke client) beda dari HPP/biaya
+ *  modal asli, jadi HPP-nya wajib diketik manual di sini, TIDAK diambil otomatis dari harga
+ *  jual. Biaya Berkala tidak perlu ini (Price di situ memang sudah biaya asli). */
+export const MarkPaidButton: React.FC<{ url: string; itemLabel: string; accounts: AccountOption[]; requireAmount?: boolean }> = ({
+  url,
+  itemLabel,
+  accounts,
+  requireAmount,
+}) => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [amount, setAmount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,12 +35,16 @@ export const MarkPaidButton: React.FC<{ url: string; itemLabel: string; accounts
       setError("Pilih akun kas/bank dulu");
       return;
     }
+    if (requireAmount && amount <= 0) {
+      setError("Isi dulu Biaya (HPP)-nya");
+      return;
+    }
     setSaving(true);
     setError("");
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId }),
+      body: JSON.stringify(requireAmount ? { accountId, amount } : { accountId }),
     });
     const data = await res.json().catch(() => null);
     setSaving(false);
@@ -72,6 +86,9 @@ export const MarkPaidButton: React.FC<{ url: string; itemLabel: string; accounts
             onChange={setAccountId}
             placeholder="Pilih Kas/Bank"
           />
+          {requireAmount && (
+            <CurrencyInput label="Biaya (HPP) — bukan harga jual" value={amount} onChange={setAmount} placeholder="mis. 300.000" />
+          )}
         </div>
       </Modal>
     </>

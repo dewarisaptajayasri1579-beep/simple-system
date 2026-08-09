@@ -15,6 +15,7 @@ import {
   CurrencyInput,
   type FilterableColumn,
 } from "@/components/ui";
+import { jakartaTodayDateIso } from "@/lib/datetime";
 
 export interface ClientOption {
   id: string;
@@ -76,6 +77,7 @@ export const PembayaranForm: React.FC<{
   const [clientId, setClientId] = useState(prefillClientId ?? "");
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [accountId, setAccountId] = useState("");
+  const [paidAt, setPaidAt] = useState(jakartaTodayDateIso());
   const [notes, setNotes] = useState("");
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [lines, setLines] = useState<Record<string, LineState>>({});
@@ -234,25 +236,43 @@ export const PembayaranForm: React.FC<{
               <CurrencyInput sizeVariant="sm" value={line.costAmount} disabled={disabled} onChange={(v) => updateLine(inv.id, { costAmount: v })} />
             )}
             {line?.costMode === "domain" && (
-              <Select
-                sizeVariant="sm"
-                options={domainOptions}
-                value={line.costLinkId}
-                disabled={disabled}
-                onChange={(v) => updateLine(inv.id, { costLinkId: v })}
-                placeholder="Pilih domain"
-                emptyText="Client ini belum punya domain berharga"
-              />
+              <>
+                <Select
+                  sizeVariant="sm"
+                  options={domainOptions}
+                  value={line.costLinkId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costLinkId: v })}
+                  placeholder="Pilih domain"
+                  emptyText="Client ini belum punya domain berharga"
+                />
+                <CurrencyInput
+                  sizeVariant="sm"
+                  value={line.costAmount}
+                  disabled={disabled}
+                  placeholder="Biaya (HPP), bukan harga jual"
+                  onChange={(v) => updateLine(inv.id, { costAmount: v })}
+                />
+              </>
             )}
             {line?.costMode === "server" && (
-              <Select
-                sizeVariant="sm"
-                options={serverOptions}
-                value={line.costLinkId}
-                disabled={disabled}
-                onChange={(v) => updateLine(inv.id, { costLinkId: v })}
-                placeholder="Pilih server"
-              />
+              <>
+                <Select
+                  sizeVariant="sm"
+                  options={serverOptions}
+                  value={line.costLinkId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costLinkId: v })}
+                  placeholder="Pilih server"
+                />
+                <CurrencyInput
+                  sizeVariant="sm"
+                  value={line.costAmount}
+                  disabled={disabled}
+                  placeholder="Biaya (HPP), bukan harga jual"
+                  onChange={(v) => updateLine(inv.id, { costAmount: v })}
+                />
+              </>
             )}
           </div>
         );
@@ -285,6 +305,11 @@ export const PembayaranForm: React.FC<{
       setError("Ada baris biaya yang belum pilih domain/server-nya");
       return;
     }
+    const missingCost = selected.find(([, l]) => l.costMode !== "none" && (!l.costAmount || l.costAmount <= 0));
+    if (missingCost) {
+      setError("Ada baris biaya yang belum diisi nominal HPP-nya");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -294,11 +319,12 @@ export const PembayaranForm: React.FC<{
         body: JSON.stringify({
           clientId,
           accountId,
+          paidAt,
           notes,
           lines: selected.map(([invoiceId, l]) => ({
             invoiceId,
             amount: l.amount,
-            costAmount: l.costMode === "manual" ? l.costAmount : 0,
+            costAmount: l.costMode === "none" ? 0 : l.costAmount,
             costLink: l.costMode === "domain" || l.costMode === "server" ? { type: l.costMode, id: l.costLinkId } : undefined,
           })),
         }),
@@ -325,9 +351,10 @@ export const PembayaranForm: React.FC<{
       )}
 
       <Card variant="panel" padding="lg">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Select label="Client" options={clientOptions} value={clientId} onChange={handleClientChange} placeholder="Pilih client" />
           <Select label="Masuk ke Akun" options={accountOptions} value={accountId} onChange={setAccountId} placeholder="Pilih Kas/Bank" />
+          <Input label="Tanggal Pembayaran" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
         </div>
       </Card>
 

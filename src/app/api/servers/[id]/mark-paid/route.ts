@@ -14,13 +14,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const body = await request.json().catch(() => null)
   const accountId = typeof body?.accountId === "string" ? body.accountId : ""
+  const amount = Number(body?.amount) || 0
   if (!accountId) return NextResponse.json({ error: "Akun kas/bank wajib dipilih" }, { status: 400 })
+  if (!amount || amount <= 0) return NextResponse.json({ error: "Biaya (HPP) wajib diisi" }, { status: 400 })
 
   const paidAt = body?.paidAt ? new Date(body.paidAt) : new Date()
 
   try {
     const result = await prisma.$transaction((tx) =>
-      markServerPaid(tx, { serverId: id, accountId, paidAt, createdBy: user.id })
+      markServerPaid(tx, { serverId: id, accountId, amount, paidAt, createdBy: user.id })
     )
     return NextResponse.json(result)
   } catch (err) {

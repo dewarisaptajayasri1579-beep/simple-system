@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardHeader, CardTitle, CardDescription, Input, Select, Modal, Alert, CurrencyInput } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
+import { jakartaTodayDateIso } from "@/lib/datetime";
 
 interface ClientOption {
   id: string;
@@ -45,6 +46,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [clientId, setClientId] = useState(prefill?.clientId ?? "");
+  const [issuedAt, setIssuedAt] = useState(jakartaTodayDateIso());
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [ppnEnabled, setPpnEnabled] = useState(false);
@@ -135,7 +137,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, dueDate: dueDate || null, notes, ppnEnabled, ppnRate, discountAmount, lines }),
+        body: JSON.stringify({ clientId, issuedAt, dueDate: dueDate || null, notes, ppnEnabled, ppnRate, discountAmount, lines }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -172,6 +174,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+          <Input label="Tanggal Invoice" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
           <Input label="Jatuh Tempo" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </div>
         <div className="mt-4">

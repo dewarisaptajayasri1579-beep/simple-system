@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const clientId = typeof body?.clientId === "string" ? body.clientId : ""
   const accountId = typeof body?.accountId === "string" ? body.accountId : ""
+  const paidAt = typeof body?.paidAt === "string" && body.paidAt ? new Date(body.paidAt) : new Date()
   const notes = typeof body?.notes === "string" ? body.notes : null
   const rawLines: LineInput[] = Array.isArray(body?.lines) ? body.lines : []
 
@@ -63,6 +64,13 @@ export async function POST(request: Request) {
     .filter((l) => l.invoiceId && l.amount > 0)
 
   if (lines.length === 0) return NextResponse.json({ error: "Pilih minimal 1 invoice untuk dibayar" }, { status: 400 })
+
+  // Biaya (HPP) domain/server yang dikaitkan wajib diisi manual — BUKAN diambil dari harga
+  // jual domain/server (itu harga ke client, beda dengan HPP/biaya modalnya).
+  const missingCostAmount = lines.find((l) => l.costLink && l.costAmount <= 0)
+  if (missingCostAmount) {
+    return NextResponse.json({ error: "Isi dulu Biaya (HPP) untuk baris yang dikaitkan ke Bayar Domain/Server" }, { status: 400 })
+  }
 
   // Mengaitkan biaya ke "Bayar Domain"/"Bayar Server" langsung menandai record itu lunas +
   // posting jurnal beban — efeknya sama seperti kartu "Tandai Lunas" di Master Data, yang
@@ -109,7 +117,7 @@ export async function POST(request: Request) {
 
   const result = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.create({
-      data: { paymentNumber, clientId, accountId, totalAmount, notes },
+      data: { paymentNumber, clientId, accountId, totalAmount, notes, paidAt },
     })
 
     const kasBankCoaCode = await getAccountCoaCode(tx, accountId)
@@ -143,6 +151,7 @@ export async function POST(request: Request) {
           bonusAmount: split.bonusAmount,
           description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
           paymentId: payment.id,
+          occurredAt: paidAt,
         },
       })
 
@@ -155,6 +164,7 @@ export async function POST(request: Request) {
           costAmount: line.costAmount,
           notes,
           transactionId: transaction.id,
+          paidAt,
         },
       })
 
@@ -168,7 +178,7 @@ export async function POST(request: Request) {
       const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
 
       const journalEntry = await postJournalEntry(tx, {
-        date: new Date(),
+        date: paidAt,
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
         sourceType: "invoice_payment",
         sourceId: transaction.id,
@@ -182,9 +192,9 @@ export async function POST(request: Request) {
       // benaran menandai domain/server itu lunas (update lastPaidAt + jurnal beban),
       // persis efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan.
       if (line.costLink?.type === "domain") {
-        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id, paymentId: payment.id })
+        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, amount: line.costAmount, paidAt, createdBy: user.id, paymentId: payment.id })
       } else if (line.costLink?.type === "server") {
-        await markServerPaid(tx, { serverId: line.costLink.id, accountId, paidAt: new Date(), createdBy: user.id, paymentId: payment.id })
+        await markServerPaid(tx, { serverId: line.costLink.id, accountId, amount: line.costAmount, paidAt, createdBy: user.id, paymentId: payment.id })
       }
     }
 

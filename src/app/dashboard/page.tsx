@@ -201,7 +201,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
         </div>
         <div id="server" className="scroll-mt-[150px]">
-          <ServerDueSection rows={serverDueRows} accounts={accounts} isOwner={user.role === "owner"} />
+          <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
         </div>
         <div id="follow-up" className="scroll-mt-[150px]">
           <FollowUpPanel rows={followUpRows} />

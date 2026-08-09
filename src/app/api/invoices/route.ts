@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       data: {
         invoiceNumber,
         clientId,
+        issuedAt: body?.issuedAt ? new Date(body.issuedAt) : undefined,
         dueDate: body?.dueDate ? new Date(body.dueDate) : null,
         subtotal,
         discountAmount,
