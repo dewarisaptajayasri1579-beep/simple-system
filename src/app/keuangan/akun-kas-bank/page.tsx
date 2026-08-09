@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { AccountList } from "@/components/keuangan/AccountList"
+import { AddAccountButton } from "@/components/keuangan/AddAccountButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
@@ -10,9 +11,12 @@ export default async function AkunKasBankPage() {
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Akun Kas dan Bank</h1>
-          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Kelola akun yang dipakai untuk kas masuk, kas keluar, dan penerimaan pembayaran.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Akun Kas dan Bank</h1>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Kelola akun yang dipakai untuk kas masuk, kas keluar, dan penerimaan pembayaran.</p>
+          </div>
+          {user.role === "owner" && <AddAccountButton />}
         </div>
         <AccountList
           rows={accounts.map((a) => ({
