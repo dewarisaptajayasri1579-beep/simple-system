@@ -47,10 +47,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Ditagih" di bawah, bareng Domain/Server/Maintenance yang statusnya masih "belum_ditagih".
   const projectUninvoicedThreshold = jakartaRangeFromToday(3).end
 
-  const [projectUninvoicedCount, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] =
+  const [projectUninvoicedSchedules, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] =
     await Promise.all([
-    prisma.projectPaymentSchedule.count({
+    prisma.projectPaymentSchedule.findMany({
       where: { invoiceId: null, dueDate: { lte: projectUninvoicedThreshold }, project: { status: "berjalan" } },
+      select: { amount: true },
     }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -209,12 +210,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const maintenanceDueRows: MaintenanceDueRow[] = maintenanceDueRowsBase.map((r) => ({ ...r, ...slaFor("maintenance", r.id) }))
   const slaOverdueCount = [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.overdue).length
 
-  // Kartu "Tagihan Belum Ditagih": Domain/Server/Maintenance yang SLA-nya masih tahap
-  // belum_ditagih, ditambah termin Project yang sudah lewat ambang H-3 tapi belum di-generate
-  // invoice-nya (projectUninvoicedCount, lihat query di atas).
-  const belumDitagihCount =
-    [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.stage === "belum_ditagih").length +
-    projectUninvoicedCount
+  // Kartu "Tagihan Belum Ditagih": total NOMINAL Domain/Server/Maintenance yang SLA-nya masih
+  // tahap belum_ditagih, ditambah termin Project yang sudah lewat ambang H-3 tapi belum
+  // di-generate invoice-nya (projectUninvoicedSchedules, lihat query di atas).
+  const belumDitagihNominal =
+    [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows]
+      .filter((r) => r.sla?.stage === "belum_ditagih")
+      .reduce((sum, r) => sum + (r.price ?? 0), 0) +
+    projectUninvoicedSchedules.reduce((sum, s) => sum + s.amount, 0)
 
   // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.
   const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
@@ -279,7 +282,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </Card>
           <Card variant="feature" padding="md">
             <CardDescription>Tagihan yang Belum Ditagih</CardDescription>
-            <p className="text-2xl font-black text-slate-900 mt-1">{belumDitagihCount}</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{formatRupiah(belumDitagihNominal)}</p>
           </Card>
           <Card variant="feature" padding="md">
             <CardDescription>Domain Habis Bulan Ini/Depan</CardDescription>
