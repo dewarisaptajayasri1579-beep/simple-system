@@ -174,6 +174,14 @@ export async function POST(request: Request) {
       // sisa tagihan invoice baru benar-benar berkurang saat payment ini di-posting (lihat
       // POST /api/payments/[id]/post).
 
+      // Tahap 3 SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — "sampai
+      // diinput Pembayaran" berarti begitu baris pembayaran ini diinput (bukan menunggu
+      // posted), bukan menunggu invoice-nya lunas total (bisa dicicil).
+      await tx.billingFollowUp.updateMany({
+        where: { invoiceId: line.invoiceId, paidRecordedAt: null },
+        data: { paidRecordedAt: paidAt },
+      })
+
       // Pendapatan & PPN sudah diakui di ledger akrual saat invoice terbit (invoiceRevenueLines) —
       // di sini murni melunasi Piutang Usaha, tidak menyentuh revenue/PPN lagi.
       const journalEntry = await postJournalEntry(tx, {

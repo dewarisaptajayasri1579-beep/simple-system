@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { Card, CardTitle, CardDescription, Alert } from "@/components/ui";
 import { FlowTimeline } from "./FlowTimeline";
 import { domainClientSteps, domainInternalSteps, domainCaveats } from "./domain-flow";
+import { serverClientSteps, serverInternalSteps, serverCaveats } from "./server-flow";
 
 const DOC_TABS = [
   { value: "domain", label: "Domain" },
   { value: "server", label: "Server" },
   { value: "maintenance", label: "Maintenance" },
   { value: "biaya-berkala", label: "Biaya Berkala" },
-  { value: "penjualan", label: "Penjualan & Tagihan" },
+  { value: "penjualan", label: "Invoice" },
   { value: "pembayaran", label: "Pembayaran" },
   { value: "coa", label: "Akuntansi & Laporan" },
 ] as const;
@@ -56,6 +57,37 @@ const DomainDoc: React.FC = () => (
   </div>
 );
 
+const ServerDoc: React.FC = () => (
+  <div className="space-y-6">
+    <Card variant="panel" padding="lg">
+      <CardTitle>Server yang Ditagih ke Client</CardTitle>
+      <CardDescription>Daftar server → muncul di Dashboard → dibuatkan tagihan → dibayar client → tercatat di pembukuan</CardDescription>
+      <div className="mt-6">
+        <FlowTimeline steps={serverClientSteps} />
+      </div>
+    </Card>
+
+    <Card variant="panel" padding="lg">
+      <CardTitle>Server untuk Keperluan Sendiri (Internal)</CardTitle>
+      <CardDescription>Server yang bukan buat client — tidak lewat tagihan, langsung dicatat sebagai pengeluaran.</CardDescription>
+      <div className="mt-6">
+        <FlowTimeline steps={serverInternalSteps} accent="slate" />
+      </div>
+    </Card>
+
+    <Alert variant="warning">
+      <p className="font-bold mb-2">Hal yang perlu diperhatikan</p>
+      <ul className="space-y-2 list-disc list-inside">
+        {serverCaveats.map((c, i) => (
+          <li key={i} className="text-sm">
+            {c}
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  </div>
+);
+
 /** Menu Dokumentasi — alur tiap modul (Domain, Server, dst) ditulis di sini biar staf baru
  *  bisa lihat langsung di aplikasi tanpa buka kode. Konten diverifikasi ke kode nyata dulu
  *  (lihat Check-Flow.MD di root repo buat draft sebelum dipindah ke sini). */
@@ -89,7 +121,7 @@ export const DokumentasiPanel: React.FC = () => {
       </div>
 
       {tab === "domain" && <DomainDoc />}
-      {tab === "server" && <ComingSoon label="Server" />}
+      {tab === "server" && <ServerDoc />}
       {tab === "maintenance" && <ComingSoon label="Maintenance" />}
       {tab === "biaya-berkala" && <ComingSoon label="Biaya Berkala" />}
       {tab === "penjualan" && <ComingSoon label="Penjualan & Invoice" />}

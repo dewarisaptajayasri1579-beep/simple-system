@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { computeSplit } from "@/lib/split"
 import { computeAllAccountBalances } from "@/lib/account-balance"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 import { formatJakartaDateLabel, jakartaTodayDateIso } from "@/lib/datetime"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 
@@ -138,8 +138,8 @@ async function getServersExpiring() {
   return servers
     .map((s) => ({
       server: s,
-      dueDate: computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount),
-      bucket: getExpiryBucket(computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)),
+      dueDate: resolveServerExpiry(s),
+      bucket: getExpiryBucket(resolveServerExpiry(s)),
     }))
     .filter((r) => r.bucket !== "safe")
     .map((r) => ({

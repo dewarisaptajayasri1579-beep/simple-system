@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui"
 import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { computeAllAccountBalances } from "@/lib/account-balance"
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
@@ -32,7 +32,7 @@ export default async function NeracaPage() {
     .filter((b) => getDueBucket(computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount), b.period?.reminderDaysBefore ?? 7) === "overdue")
     .reduce((sum, b) => sum + (b.price ?? 0), 0)
   const overdueServersTotal = servers
-    .filter((s) => getDueBucket(computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount), s.period?.reminderDaysBefore ?? 7) === "overdue")
+    .filter((s) => getDueBucket(resolveServerExpiry(s), s.period?.reminderDaysBefore ?? 7) === "overdue")
     .reduce((sum, s) => sum + (s.price ?? 0), 0)
 
   // PPN yang sudah masuk lewat pembayaran tapi belum tentu disetor ke kantor pajak — dihitung

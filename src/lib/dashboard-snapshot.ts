@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 
 /** Ringkasan operasional (piutang, saldo, domain, server, biaya berkala) — dipakai bareng oleh
  *  laporan gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
@@ -33,7 +33,7 @@ export async function getDashboardSnapshot() {
 
   // Server: sama seperti Domain — sudah lewat tempo, atau jatuh tempo bulan ini/depan.
   const serverRows = servers.map((s) => {
-    const dueDate = computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)
+    const dueDate = resolveServerExpiry(s)
     return { server: s, dueDate, bucket: getExpiryBucket(dueDate) }
   })
   const serverExpiring = serverRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")

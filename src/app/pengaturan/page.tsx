@@ -84,7 +84,11 @@ export default async function PengaturanPage() {
           vendors={vendors}
           cloudTypes={cloudTypes}
           hostingPackages={hostingPackages}
-          servers={servers.map((s) => ({ ...s, lastPaidAt: s.lastPaidAt ? s.lastPaidAt.toISOString() : null }))}
+          servers={servers.map((s) => ({
+            ...s,
+            lastPaidAt: s.lastPaidAt ? s.lastPaidAt.toISOString() : null,
+            expiryDate: s.expiryDate ? s.expiryDate.toISOString() : null,
+          }))}
           maintenances={maintenances.map((m) => ({ ...m, lastPaidAt: m.lastPaidAt ? m.lastPaidAt.toISOString() : null }))}
           cpanelAccounts={cpanelAccounts}
         />

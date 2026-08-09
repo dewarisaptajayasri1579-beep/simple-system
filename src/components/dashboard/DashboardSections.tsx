@@ -733,7 +733,7 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
       header: "Aksi",
       cell: (r) => (
         <Link
-          href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+          href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
         >
           <Button size="sm" variant="outline">
             Tagih Sekarang

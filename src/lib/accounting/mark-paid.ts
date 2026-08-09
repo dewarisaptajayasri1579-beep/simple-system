@@ -4,6 +4,7 @@ import { billPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
 import { COA_CODE, bebanCodeForCategory } from "./coa-seed"
 import { computeDomainExpiryDate } from "@/lib/domain-status"
+import { computeNextDueDate } from "@/lib/recurring-bill-status"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 
 /** Dipakai bareng oleh kartu "Bayar Server" (Keuangan) DAN dari baris Biaya di Pelunasan
@@ -209,7 +210,16 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
   }
 
   if (transaction.refType === "server" && transaction.refId) {
-    await tx.server.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
+    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi, sama pola dengan Domain di bawah —
+    // begitu dibayar, INI yang dimajukan sesuai siklus periode (bukan lastPaidAt/tanggal bayar),
+    // supaya telat bayar tidak menggeser siklus jatuh tempo berikutnya.
+    const server = await tx.server.findUnique({ where: { id: transaction.refId }, include: { period: true } })
+    const previousAnchor = server?.expiryDate ?? server?.lastPaidAt ?? null
+    const nextExpiry = computeNextDueDate(previousAnchor, server?.period?.name, server?.periodCount) ?? transaction.occurredAt
+    await tx.server.update({
+      where: { id: transaction.refId },
+      data: { lastPaidAt: transaction.occurredAt, expiryDate: nextExpiry, lastCheckinAt: null },
+    })
   } else if (transaction.refType === "domain" && transaction.refId) {
     // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi — begitu dibayar, INI yang
     // ditambah 1 tahun (bukan lastPaidAt/tanggal bayar), supaya telat bayar tidak menggeser

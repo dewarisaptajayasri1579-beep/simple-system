@@ -20,6 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.price === "number") data.price = body.price
   if (typeof body.active === "boolean") data.active = body.active
   if (typeof body.lastPaidAt === "string") data.lastPaidAt = body.lastPaidAt ? new Date(body.lastPaidAt) : null
+  if (typeof body.expiryDate === "string") data.expiryDate = body.expiryDate ? new Date(body.expiryDate) : null
 
   const server = await prisma.server.update({ where: { id }, data })
   return NextResponse.json(server)

@@ -20,9 +20,9 @@ import {
 } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status";
+import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status";
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status";
-import { DomainDateCell } from "@/components/domain/DomainDateCell";
+import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { CategorySection } from "./CategorySection";
 
@@ -49,6 +49,7 @@ export interface ServerRow {
   periodCount: number | null;
   price: number | null;
   lastPaidAt: string | null;
+  expiryDate: string | null;
   active: boolean;
   vendor: { name: string } | null;
   cloudType: { name: string } | null;
@@ -336,6 +337,7 @@ const SERVER_COLUMNS = [
   { key: "spec", label: "Spek" },
   { key: "price", label: "Harga" },
   { key: "lastPaid", label: "Terakhir Bayar" },
+  { key: "expiryDate", label: "Tgl Berakhir" },
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "status", label: "Status" },
   { key: "aktif", label: "Aktif" },
@@ -464,7 +466,15 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
   };
 
   const bucketOf = (s: ServerRow) =>
-    getDueBucket(computeNextDueDate(s.lastPaidAt ? new Date(s.lastPaidAt) : null, s.period?.name, s.periodCount), s.period?.reminderDaysBefore ?? 7);
+    getDueBucket(
+      resolveServerExpiry({
+        expiryDate: s.expiryDate ? new Date(s.expiryDate) : null,
+        lastPaidAt: s.lastPaidAt ? new Date(s.lastPaidAt) : null,
+        period: s.period,
+        periodCount: s.periodCount,
+      }),
+      s.period?.reminderDaysBefore ?? 7
+    );
 
   const columns: FilterableColumn<ServerRow>[] = [
     { key: "no", header: "No", headClassName: "w-12", cell: (_r, i) => <span className="text-slate-500">{i + 1}</span> },
@@ -488,7 +498,40 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
       : []),
     ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (s: ServerRow) => formatRupiah(s.price) }] : []),
     ...(isVisible("lastPaid")
-      ? [{ key: "lastPaid", header: "Terakhir Bayar", cell: (s: ServerRow) => formatDateObj(s.lastPaidAt ? new Date(s.lastPaidAt) : null) }]
+      ? [
+          {
+            key: "lastPaid",
+            header: "Terakhir Bayar",
+            cell: (s: ServerRow) => (
+              <EditableDateCell
+                apiPath={`/api/servers/${s.id}`}
+                field="lastPaidAt"
+                value={s.lastPaidAt}
+                formatDate={formatDateObj}
+                title="Klik untuk ubah tanggal terakhir bayar"
+                onUpdated={(lastPaidAt) => setRows((prev) => prev.map((r) => (r.id === s.id ? { ...r, lastPaidAt } : r)))}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(isVisible("expiryDate")
+      ? [
+          {
+            key: "expiryDate",
+            header: "Tgl Berakhir",
+            cell: (s: ServerRow) => (
+              <EditableDateCell
+                apiPath={`/api/servers/${s.id}`}
+                field="expiryDate"
+                value={s.expiryDate}
+                formatDate={formatDateObj}
+                title="Klik untuk ubah tanggal berakhir — acuan renewal (kalau dibayar, maju sesuai siklus dari sini)"
+                onUpdated={(expiryDate) => setRows((prev) => prev.map((r) => (r.id === s.id ? { ...r, expiryDate } : r)))}
+              />
+            ),
+          },
+        ]
       : []),
     ...(isVisible("dueDate")
       ? [
@@ -496,7 +539,14 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
             key: "dueDate",
             header: "Estimasi Jatuh Tempo",
             cell: (s: ServerRow) =>
-              formatDateObj(computeNextDueDate(s.lastPaidAt ? new Date(s.lastPaidAt) : null, s.period?.name, s.periodCount)),
+              formatDateObj(
+                resolveServerExpiry({
+                  expiryDate: s.expiryDate ? new Date(s.expiryDate) : null,
+                  lastPaidAt: s.lastPaidAt ? new Date(s.lastPaidAt) : null,
+                  period: s.period,
+                  periodCount: s.periodCount,
+                })
+              ),
           },
         ]
       : []),
@@ -1445,8 +1495,8 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
             key: "lastPaid",
             header: "Terakhir Bayar",
             cell: (d: DomainRow) => (
-              <DomainDateCell
-                domainId={d.id}
+              <EditableDateCell
+                apiPath={`/api/domains/${d.id}`}
                 field="lastPaidAt"
                 value={d.lastPaidAt}
                 formatDate={formatDateObj}
@@ -1463,8 +1513,8 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
             key: "expiryDate",
             header: "Tgl Berakhir",
             cell: (d: DomainRow) => (
-              <DomainDateCell
-                domainId={d.id}
+              <EditableDateCell
+                apiPath={`/api/domains/${d.id}`}
                 field="expiryDate"
                 value={d.expiryDate}
                 formatDate={formatDateObj}

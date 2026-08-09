@@ -39,11 +39,13 @@ export interface InvoiceFormPrefill {
   clientId?: string;
   description?: string;
   amount?: number;
-  /** Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server) — dikirim balik
-   *  saat submit supaya form Pembayaran nanti bisa otomatis pilih "Bayar Domain/Server" tanpa
-   *  staf harus pilih manual lagi. */
+  /** Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server/Maintenance) —
+   *  dikirim balik saat submit supaya form Pembayaran nanti bisa otomatis pilih "Bayar
+   *  Domain/Server" (Maintenance belum, lihat PembayaranForm.tsx) tanpa staf pilih manual, dan
+   *  supaya BillingFollowUp (SLA tindak-lanjut tagihan) bisa dikaitkan balik ke item asalnya. */
   domainId?: string;
   serverId?: string;
+  maintenanceId?: string;
 }
 
 export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefill }) => {
@@ -161,6 +163,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           lines,
           domainId: prefill?.domainId,
           serverId: prefill?.serverId,
+          maintenanceId: prefill?.maintenanceId,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -170,7 +173,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
         return;
       }
       if (!data?.id) {
-        setError("Invoice tersimpan tapi respons server tidak lengkap — cek menu Penjualan.");
+        setError("Invoice tersimpan tapi respons server tidak lengkap — cek menu Invoice.");
         setIsSubmitting(false);
         return;
       }

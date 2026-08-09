@@ -13,7 +13,7 @@ export interface BottomNavItem {
 
 export const bottomNavItems: BottomNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Penjualan", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
+  { label: "Invoice", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Bayar", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },

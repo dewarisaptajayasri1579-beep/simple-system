@@ -54,12 +54,15 @@ export async function POST(request: Request) {
   if (!clientId) return NextResponse.json({ error: "Client wajib dipilih" }, { status: 400 })
   if (lines.length === 0) return NextResponse.json({ error: "Minimal 1 baris item" }, { status: 400 })
 
-  // Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server) — simpan link-nya
-  // supaya form Pembayaran nanti bisa otomatis pilih Bayar Domain/Server tanpa staf pilih manual.
+  // Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server/Maintenance) — simpan
+  // link-nya supaya form Pembayaran nanti bisa otomatis pilih Bayar Domain/Server/Maintenance
+  // tanpa staf pilih manual, dan supaya BillingFollowUp (SLA tindak-lanjut tagihan, lihat
+  // sop.txt) bisa dikaitkan balik ke item asalnya.
   const domainId = typeof body?.domainId === "string" && body.domainId ? body.domainId : null
   const serverId = typeof body?.serverId === "string" && body.serverId ? body.serverId : null
-  const costLinkType = domainId ? "domain" : serverId ? "server" : null
-  const costLinkId = domainId ?? serverId
+  const maintenanceId = typeof body?.maintenanceId === "string" && body.maintenanceId ? body.maintenanceId : null
+  const costLinkType = domainId ? "domain" : serverId ? "server" : maintenanceId ? "maintenance" : null
+  const costLinkId = domainId ?? serverId ?? maintenanceId
 
   const settings = await prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } })
 
@@ -116,6 +119,17 @@ export async function POST(request: Request) {
         },
         include: { lines: true, client: true },
       })
+
+      // Tahap 1 SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — invoice ini
+      // dibuat dari "Tagih Sekarang", jadi tandai siklus BillingFollowUp aktif punya item itu
+      // sebagai "sudah ditagih". updateMany dipakai (bukan update) supaya tidak error kalau
+      // record-nya belum sempat dibuat (mis. invoice dibuat manual tanpa lewat Dashboard).
+      if (costLinkType && costLinkId) {
+        await tx.billingFollowUp.updateMany({
+          where: { refType: costLinkType, refId: costLinkId, paidRecordedAt: null, invoicedAt: null },
+          data: { invoicedAt: created.issuedAt, invoiceId: created.id },
+        })
+      }
 
       // Ledger akrual (JournalEntry/JournalLine): pendapatan, piutang, PPN, dan HPP semua diakui
       // sekarang (saat invoice terbit) — beda dari Transaction cash-basis yang baru mengakui

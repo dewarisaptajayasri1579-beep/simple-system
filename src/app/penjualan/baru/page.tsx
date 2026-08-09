@@ -5,7 +5,14 @@ import { getCurrentUser } from "@/lib/current-user"
 export default async function NewInvoicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; description?: string; amount?: string; domainId?: string; serverId?: string }>
+  searchParams: Promise<{
+    clientId?: string
+    description?: string
+    amount?: string
+    domainId?: string
+    serverId?: string
+    maintenanceId?: string
+  }>
 }) {
   const user = await getCurrentUser()
   const params = await searchParams
@@ -24,6 +31,7 @@ export default async function NewInvoicePage({
             amount: params.amount ? Number(params.amount) : undefined,
             domainId: params.domainId,
             serverId: params.serverId,
+            maintenanceId: params.maintenanceId,
           }}
         />
       </div>

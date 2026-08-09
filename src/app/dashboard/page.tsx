@@ -5,7 +5,7 @@ import { Card, CardDescription, Button } from "@/components/ui"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 import {
   PiutangSummarySection,
   RecurringDueSection,
@@ -139,7 +139,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Server: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
   const serverDueRows: ServerDueRow[] = servers
     .map((s) => {
-      const nextDue = computeNextDueDate(s.lastPaidAt, s.period?.name, s.periodCount)
+      const nextDue = resolveServerExpiry(s)
       return {
         id: s.id,
         name: s.name,

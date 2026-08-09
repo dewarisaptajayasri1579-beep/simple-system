@@ -148,7 +148,12 @@ export const PembayaranForm: React.FC<{
                 // langsung pilihkan Bayar Domain/Server-nya, staf tidak perlu pilih manual lagi
                 // (nominal HPP tetap wajib diisi manual, itu bukan harga jual).
                 const source = data.find((d) => d.id === r.id);
-                const autoLink = isOwner && source?.costLinkType && source.costLinkId;
+                // costLinkType bisa juga "maintenance" (lihat BillingFollowUp/sop.txt) — form ini
+                // belum punya UI "Bayar Maintenance", jadi auto-select cuma buat domain/server;
+                // selain itu jatuh ke "none" (staf isi manual) supaya tidak macet costMode
+                // ke-set ke nilai yang tidak ada input UI-nya.
+                const autoLink =
+                  isOwner && source?.costLinkId && (source.costLinkType === "domain" || source.costLinkType === "server");
                 return [
                   r.id,
                   {

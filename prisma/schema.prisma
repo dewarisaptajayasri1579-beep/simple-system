@@ -165,6 +165,11 @@ model Server {
   periodCount       Int?      @map("period_count")
   price             Float?
   lastPaidAt        DateTime? @map("last_paid_at")
+  // "Tgl Berakhir" — acuan renewal resmi, sama peran dengan Domain.expiryDate: begitu dibayar,
+  // INI yang dimajukan sesuai siklus periode (bukan lastPaidAt/tanggal bayar), supaya telat
+  // bayar tidak menggeser siklus jatuh tempo berikutnya. Nullable — fallback ke
+  // lastPaidAt+periode buat baris yang belum pernah kesetel (lihat resolveServerExpiry).
+  expiryDate        DateTime? @map("expiry_date")
   lastCheckinAt     DateTime? @map("last_checkin_at")
   active            Boolean   @default(true)
   legacyActiveFlag  String?   @map("legacy_active_flag")
@@ -196,6 +201,28 @@ model Maintenance {
   period BillingPeriod? @relation(fields: [periodId], references: [id])
 
   @@map("maintenances")
+  @@schema("simple_system")
+}
+
+/// SLA tindak-lanjut tagihan (lihat sop.txt) — satu record = satu siklus tagihan buat Domain/
+/// Server/Maintenance yang punya Client. refType/refId ikut pola polymorphic yang sama dengan
+/// Transaction.refType/refId. Begitu paidRecordedAt terisi, siklus itu selesai; jatuh tempo
+/// berikutnya bikin record baru (bukan reuse) — "record aktif" per (refType,refId) = yang
+/// paidRecordedAt-nya masih null.
+model BillingFollowUp {
+  id                String    @id @default(uuid())
+  refType           String    @map("ref_type") // "domain" | "server" | "maintenance"
+  refId             String    @map("ref_id")
+  dueAppearedAt     DateTime  @map("due_appeared_at")
+  invoicedAt        DateTime? @map("invoiced_at")
+  invoiceId         String?   @map("invoice_id")
+  clientRespondedAt DateTime? @map("client_responded_at")
+  promisedPayAt     DateTime? @map("promised_pay_at")
+  paidRecordedAt    DateTime? @map("paid_recorded_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([refType, refId])
+  @@map("billing_follow_ups")
   @@schema("simple_system")
 }
 

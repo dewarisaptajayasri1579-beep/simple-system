@@ -23,6 +23,18 @@ export function computeNextDueDate(
   return next
 }
 
+/** Server.expiryDate ("Tgl Berakhir") adalah acuan renewal resmi — fallback ke
+ *  lastPaidAt+periode cuma buat baris yang belum pernah kesetel expiryDate-nya (padanan
+ *  resolveDomainExpiry di domain-status.ts). */
+export function resolveServerExpiry(server: {
+  expiryDate: Date | null
+  lastPaidAt: Date | null
+  period?: { name: string } | null
+  periodCount?: number | null
+}): Date | null {
+  return server.expiryDate ?? computeNextDueDate(server.lastPaidAt, server.period?.name, server.periodCount)
+}
+
 export type DueBucket = "overdue" | "due_soon" | "ok"
 
 export function getDueBucket(nextDueDate: Date | null, reminderDaysBefore: number, reference: Date = new Date()): DueBucket {
