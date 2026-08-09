@@ -5,6 +5,7 @@ import { Card, CardDescription, Button } from "@/components/ui"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
+import { jakartaRangeFromToday } from "@/lib/datetime"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import {
@@ -41,8 +42,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
 
-  const [clientCount, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] = await Promise.all([
-    prisma.client.count(),
+  // Termin project yang sudah waktunya ditagih (H-3 dari dueDate, sama ambang batas dengan cron
+  // auto-invoice) tapi entah kenapa belum ada invoice-nya — dipakai buat kartu "Tagihan Belum
+  // Ditagih" di bawah, bareng Domain/Server/Maintenance yang statusnya masih "belum_ditagih".
+  const projectUninvoicedThreshold = jakartaRangeFromToday(3).end
+
+  const [projectUninvoicedCount, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] =
+    await Promise.all([
+    prisma.projectPaymentSchedule.count({
+      where: { invoiceId: null, dueDate: { lte: projectUninvoicedThreshold }, project: { status: "berjalan" } },
+    }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
@@ -200,6 +209,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const maintenanceDueRows: MaintenanceDueRow[] = maintenanceDueRowsBase.map((r) => ({ ...r, ...slaFor("maintenance", r.id) }))
   const slaOverdueCount = [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.overdue).length
 
+  // Kartu "Tagihan Belum Ditagih": Domain/Server/Maintenance yang SLA-nya masih tahap
+  // belum_ditagih, ditambah termin Project yang sudah lewat ambang H-3 tapi belum di-generate
+  // invoice-nya (projectUninvoicedCount, lihat query di atas).
+  const belumDitagihCount =
+    [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.stage === "belum_ditagih").length +
+    projectUninvoicedCount
+
   // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.
   const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
     .filter((s) => s.invoice)
@@ -262,8 +278,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p className="text-2xl font-black text-rose-700 mt-1">{formatRupiah(totalOutstanding)}</p>
           </Card>
           <Card variant="feature" padding="md">
-            <CardDescription>Total Client</CardDescription>
-            <p className="text-2xl font-black text-slate-900 mt-1">{clientCount}</p>
+            <CardDescription>Tagihan yang Belum Ditagih</CardDescription>
+            <p className="text-2xl font-black text-slate-900 mt-1">{belumDitagihCount}</p>
           </Card>
           <Card variant="feature" padding="md">
             <CardDescription>Domain Habis Bulan Ini/Depan</CardDescription>
