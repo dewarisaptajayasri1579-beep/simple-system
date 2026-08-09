@@ -92,6 +92,46 @@ export async function markDomainPaid(
   return { transaction, domain }
 }
 
+/** Padanan markServerPaid buat Maintenance — dipakai kartu "Bayar Maintenance" (Keuangan) dan
+ *  baris Biaya di Pelunasan saat dikaitkan ke maintenance tertentu. Draft -> Posted sama
+ *  seperti markServerPaid/markDomainPaid. */
+export async function markMaintenancePaid(
+  tx: TxClient,
+  input: { maintenanceId: string; accountId: string; amount: number; paidAt: Date; createdBy: string; paymentId?: string }
+) {
+  const maintenance = await tx.maintenance.findUnique({ where: { id: input.maintenanceId } })
+  if (!maintenance) throw new Error("Maintenance tidak ditemukan")
+  if (!input.amount || input.amount <= 0) throw new Error("Biaya (HPP) maintenance ini wajib diisi")
+
+  const transaction = await tx.transaction.create({
+    data: {
+      accountId: input.accountId,
+      type: "expense",
+      grossAmount: input.amount,
+      cost: 0,
+      netAmount: input.amount,
+      description: `Pembayaran maintenance - ${maintenance.name}`,
+      occurredAt: input.paidAt,
+      refType: "maintenance",
+      refId: maintenance.id,
+      paymentId: input.paymentId ?? null,
+    },
+  })
+
+  const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
+  const journalEntry = await postJournalEntry(tx, {
+    date: input.paidAt,
+    description: `Pembayaran maintenance - ${maintenance.name}`,
+    sourceType: "maintenance",
+    sourceId: maintenance.id,
+    createdBy: input.createdBy,
+    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: COA_CODE.bebanMaintenance, amount: input.amount }),
+  })
+  await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
+
+  return { transaction, maintenance }
+}
+
 /** Posting 1 Transaction draft (manual Keuangan, atau hasil markServerPaid/markDomainPaid/
  *  recurring-bill mark-paid) — flip Transaction + jurnal terkait jadi posted, baru di titik
  *  ini efeknya berlaku: saldo akun ikut terhitung (lewat filter postStatus di
@@ -131,6 +171,8 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: previousDueDate ?? transaction.occurredAt } })
   } else if (transaction.refType === "recurring_bill" && transaction.refId) {
     await tx.recurringBill.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
+  } else if (transaction.refType === "maintenance" && transaction.refId) {
+    await tx.maintenance.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt } })
   }
 
   return tx.transaction.update({

@@ -55,6 +55,18 @@ export interface ServerRow {
   client: { name: string } | null;
   period: { name: string; reminderDaysBefore: number } | null;
 }
+export interface MaintenanceRow {
+  id: string;
+  name: string;
+  clientId: string;
+  periodId: string | null;
+  periodCount: number | null;
+  price: number | null;
+  lastPaidAt: string | null;
+  active: boolean;
+  client: { name: string };
+  period: { name: string; reminderDaysBefore: number } | null;
+}
 export interface CpanelAccountRow {
   id: string;
   name: string;
@@ -604,6 +616,292 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
             <CurrencyInput label="Harga" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
             <Input
               label="Terakhir Bayar"
+              type="date"
+              value={form.lastPaidAt ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <input type="checkbox" checked={form.active ?? true} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="w-5 h-5" />
+            <span className="text-sm font-semibold text-slate-700">Aktif</span>
+          </label>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={close}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </Card>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Maintenance
+// ---------------------------------------------------------------------------
+const MAINTENANCE_COLUMNS = [
+  { key: "client", label: "Client" },
+  { key: "price", label: "Harga" },
+  { key: "lastPaid", label: "Tgl Tagihan" },
+  { key: "dueDate", label: "Estimasi Jatuh Tempo" },
+  { key: "status", label: "Status" },
+  { key: "aktif", label: "Aktif" },
+];
+
+const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients }) => {
+  const router = useRouter();
+  const [rows, setRows] = useState(initialRows);
+  const [editing, setEditing] = useState<MaintenanceRow | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState<Partial<MaintenanceRow>>({});
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const { isVisible, toggle } = useColumnVisibility("maintenance", MAINTENANCE_COLUMNS);
+
+  const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
+
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [paying, setPaying] = useState<MaintenanceRow | null>(null);
+  const [payAccountId, setPayAccountId] = useState("");
+  const [payDate, setPayDate] = useState("");
+  const [payError, setPayError] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/accounts").then((r) => r.json()).then(setAccounts);
+  }, []);
+  const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: a.name })), [accounts]);
+
+  const openPay = (maintenance: MaintenanceRow) => {
+    setPaying(maintenance);
+    setPayAccountId(accounts[0]?.id ?? "");
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayError("");
+  };
+  const closePay = () => setPaying(null);
+
+  const handleConfirmPay = async () => {
+    if (!paying) return;
+    if (!payAccountId) {
+      setPayError("Pilih akun kas/bank dulu");
+      return;
+    }
+    setIsPaying(true);
+    setPayError("");
+    const res = await fetch(`/api/maintenances/${paying.id}/mark-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId: payAccountId, paidAt: payDate }),
+    });
+    const data = await res.json();
+    setIsPaying(false);
+    if (!res.ok) {
+      setPayError(data.error || "Gagal mencatat pembayaran");
+      return;
+    }
+    setRows((prev) => prev.map((r) => (r.id === paying.id ? { ...r, ...data.maintenance } : r)));
+    closePay();
+    router.refresh();
+  };
+
+  const openEdit = (row: MaintenanceRow) => {
+    setEditing(row);
+    setForm({ ...row, lastPaidAt: row.lastPaidAt ? row.lastPaidAt.slice(0, 10) : undefined });
+    setError("");
+  };
+  const openCreate = () => {
+    setIsCreating(true);
+    setForm({ active: true });
+    setError("");
+  };
+  const close = () => {
+    setEditing(null);
+    setIsCreating(false);
+  };
+
+  const handleSave = async () => {
+    if (!form.name?.trim()) {
+      setError("Nama maintenance wajib diisi");
+      return;
+    }
+    if (!form.clientId) {
+      setError("Client wajib dipilih");
+      return;
+    }
+    setIsSaving(true);
+    setError("");
+    const url = editing ? `/api/maintenances/${editing.id}` : "/api/maintenances";
+    const method = editing ? "PATCH" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const data = await res.json();
+    setIsSaving(false);
+    if (!res.ok) {
+      setError(data.error || "Gagal menyimpan");
+      return;
+    }
+    if (editing) {
+      setRows((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...data } : r)));
+    } else {
+      setRows((prev) => [...prev, data]);
+    }
+    close();
+    router.refresh();
+  };
+
+  const handleToggleActive = async (maintenance: MaintenanceRow) => {
+    setTogglingId(maintenance.id);
+    const res = await fetch(`/api/maintenances/${maintenance.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !maintenance.active }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setRows((prev) => prev.map((r) => (r.id === maintenance.id ? { ...r, ...data } : r)));
+      router.refresh();
+    }
+    setTogglingId(null);
+  };
+
+  const bucketOf = (m: MaintenanceRow) =>
+    getDueBucket(computeNextDueDate(m.lastPaidAt ? new Date(m.lastPaidAt) : null, m.period?.name, m.periodCount), m.period?.reminderDaysBefore ?? 7);
+
+  const columns: FilterableColumn<MaintenanceRow>[] = [
+    { key: "no", header: "No", headClassName: "w-12", cell: (_r, i) => <span className="text-slate-500">{i + 1}</span> },
+    { key: "name", header: "Nama", filterValue: (m) => m.name, cellClassName: "font-semibold", cell: (m) => m.name },
+    ...(isVisible("client")
+      ? [{ key: "client", header: "Client", filterValue: (m: MaintenanceRow) => m.client.name, cell: (m: MaintenanceRow) => m.client.name }]
+      : []),
+    ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (m: MaintenanceRow) => formatRupiah(m.price) }] : []),
+    ...(isVisible("lastPaid")
+      ? [{ key: "lastPaid", header: "Tgl Tagihan", cell: (m: MaintenanceRow) => formatDateObj(m.lastPaidAt ? new Date(m.lastPaidAt) : null) }]
+      : []),
+    ...(isVisible("dueDate")
+      ? [
+          {
+            key: "dueDate",
+            header: "Estimasi Jatuh Tempo",
+            cell: (m: MaintenanceRow) =>
+              formatDateObj(computeNextDueDate(m.lastPaidAt ? new Date(m.lastPaidAt) : null, m.period?.name, m.periodCount)),
+          },
+        ]
+      : []),
+    ...(isVisible("status")
+      ? [
+          {
+            key: "status",
+            header: "Status",
+            filterValue: (m: MaintenanceRow) => bucketOf(m),
+            filterOptions: [
+              { value: "overdue", label: bucketLabel.overdue },
+              { value: "due_soon", label: bucketLabel.due_soon },
+              { value: "ok", label: bucketLabel.ok },
+            ],
+            cell: (m: MaintenanceRow) => {
+              if (!m.active) return <StatusBadge type="inactive" size="sm" />;
+              const bucket = bucketOf(m);
+              return <StatusBadge type={bucketToStatus[bucket] as StatusBadgeType} label={bucketLabel[bucket]} size="sm" />;
+            },
+          },
+        ]
+      : []),
+    ...(isVisible("aktif")
+      ? [
+          {
+            key: "aktif",
+            header: "Aktif",
+            filterValue: (m: MaintenanceRow) => (m.active ? "active" : "inactive"),
+            filterOptions: ACTIVE_FILTER_OPTIONS,
+            cell: (m: MaintenanceRow) => (
+              <ActiveToggle active={m.active} disabled={togglingId === m.id} onToggle={() => handleToggleActive(m)} />
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "aksi",
+      header: "Aksi",
+      cell: (m) => (
+        <div className="flex items-center gap-1.5">
+          {m.active && m.price ? (
+            <Button size="sm" variant="outline" onClick={() => openPay(m)}>
+              Tandai Lunas
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onClick={() => openEdit(m)}>
+            <Pencil className="w-4 h-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  const activeCount = rows.filter((m) => m.active).length;
+
+  return (
+    <Card variant="panel" padding="none">
+      <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
+        <div>
+          <CardTitle>Maintenance</CardTitle>
+          <CardDescription>
+            {activeCount} aktif{rows.length > activeCount ? `, ${rows.length - activeCount} nonaktif` : ""}
+          </CardDescription>
+        </div>
+        <ColumnVisibilityMenu columns={MAINTENANCE_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+      </div>
+      <div className="px-5 sm:px-6 pb-2 flex flex-col sm:flex-row gap-3">
+        <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
+          Tambah Maintenance
+        </Button>
+      </div>
+      <FilterableTable columns={columns} rows={rows} rowKey={(m) => m.id} emptyMessage="Tidak ada maintenance yang cocok." />
+
+      <Modal isOpen={paying !== null} onClose={closePay} title={paying ? `Tandai Lunas — ${paying.name}` : ""}>
+        <div className="space-y-4">
+          {payError && (
+            <Alert variant="error" onClose={() => setPayError("")}>
+              {payError}
+            </Alert>
+          )}
+          <p className="text-sm text-slate-600">
+            Nominal: <span className="font-bold text-slate-900">{formatRupiah(paying?.price ?? 0)}</span>
+          </p>
+          <Select label="Dibayar dari Akun" options={accountOptions} value={payAccountId} onChange={setPayAccountId} placeholder="Pilih Kas/Bank" />
+          <Input label="Tanggal Bayar" type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={closePay}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleConfirmPay} isLoading={isPaying}>
+              Konfirmasi Lunas
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={editing !== null || isCreating} onClose={close} title={editing ? `Edit ${editing.name}` : "Maintenance Baru"} size="lg">
+        <div className="space-y-4">
+          {error && (
+            <Alert variant="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <Select
+              label="Client"
+              options={clientOptions}
+              value={form.clientId ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, clientId: v }))}
+              placeholder="Pilih client"
+            />
+            <CurrencyInput label="Harga" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
+            <Input
+              label="Tgl Tagihan"
               type="date"
               value={form.lastPaidAt ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
@@ -1982,6 +2280,7 @@ const MASTER_TABS = [
   { value: "item", label: "Jasa" },
   { value: "kategori", label: "Kategori" },
   { value: "server", label: "Server" },
+  { value: "maintenance", label: "Maintenance" },
   { value: "cpanel", label: "Akun cPanel" },
   { value: "vendor", label: "Vendor" },
   { value: "cloud-type", label: "Jenis Cloud" },
@@ -1998,8 +2297,9 @@ export const MasterDataPanel: React.FC<{
   cloudTypes: LookupRow[];
   hostingPackages: LookupRow[];
   servers: ServerRow[];
+  maintenances: MaintenanceRow[];
   cpanelAccounts: CpanelAccountRow[];
-}> = ({ domains, recurringBills, clients, legacySalesClients, items, vendors, cloudTypes, hostingPackages, servers, cpanelAccounts }) => {
+}> = ({ domains, recurringBills, clients, legacySalesClients, items, vendors, cloudTypes, hostingPackages, servers, maintenances, cpanelAccounts }) => {
   const [tab, setTabState] = useState<(typeof MASTER_TABS)[number]["value"]>("domain");
 
   useEffect(() => {
@@ -2037,6 +2337,7 @@ export const MasterDataPanel: React.FC<{
       {tab === "item" && <ItemSection rows={items} />}
       {tab === "kategori" && <CategorySection />}
       {tab === "server" && <ServerSection rows={servers} vendors={vendors} cloudTypes={cloudTypes} clients={clients} />}
+      {tab === "maintenance" && <MaintenanceSection rows={maintenances} clients={clients} />}
       {tab === "cpanel" && <CpanelAccountSection rows={cpanelAccounts} cloudTypes={cloudTypes} packages={hostingPackages} />}
       {tab === "vendor" && <VendorSection rows={vendors} />}
       {tab === "cloud-type" && <LookupSection title="Jenis Cloud" endpoint="/api/cloud-types" rows={cloudTypes} />}

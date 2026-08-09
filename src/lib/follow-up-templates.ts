@@ -46,3 +46,12 @@ export function serverFollowUpMessage(input: { clientName: string; serverName: s
     `Mohon konfirmasi untuk perpanjangannya ya. Terima kasih 🙏`
   )
 }
+
+/** Follow-up tagihan maintenance berkala — padanan domainFollowUpMessage/serverFollowUpMessage. */
+export function maintenanceFollowUpMessage(input: { clientName: string; maintenanceName: string; dueDate: string | null }) {
+  return (
+    `Halo, mau info kalau layanan maintenance ${input.maintenanceName} atas nama ${input.clientName} ` +
+    `${input.dueDate ? `akan/sudah jatuh tempo pada ${formatDate(input.dueDate)}` : "sudah waktunya ditagih"}. ` +
+    `Mohon konfirmasi untuk pembayarannya ya. Terima kasih 🙏`
+  )
+}

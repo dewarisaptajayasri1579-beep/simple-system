@@ -30,7 +30,7 @@ export interface BillItemOption {
   clientName: string | null;
 }
 
-type LineKind = "manual" | "domain" | "server";
+type LineKind = "manual" | "domain" | "server" | "maintenance";
 
 interface LineDraft {
   kind: LineKind;
@@ -38,10 +38,19 @@ interface LineDraft {
   description: string;
   domainId: string;
   serverId: string;
+  maintenanceId: string;
   amount: number;
 }
 
-const emptyLine = (): LineDraft => ({ kind: "manual", categoryId: "", description: "", domainId: "", serverId: "", amount: 0 });
+const emptyLine = (): LineDraft => ({
+  kind: "manual",
+  categoryId: "",
+  description: "",
+  domainId: "",
+  serverId: "",
+  maintenanceId: "",
+  amount: 0,
+});
 
 interface TransactionRow {
   id: string;
@@ -67,6 +76,7 @@ const KIND_OPTIONS = [
   { value: "manual", label: "Biaya Manual" },
   { value: "domain", label: "Bayar Domain" },
   { value: "server", label: "Bayar Server" },
+  { value: "maintenance", label: "Bayar Maintenance" },
 ];
 
 /** Kas Keluar — satu pintu buat semua pengeluaran kas/bank, termasuk yang dulu dua menu
@@ -77,8 +87,9 @@ export const KasKeluarPanel: React.FC<{
   accounts: AccountOption[];
   domains: BillItemOption[];
   servers: BillItemOption[];
+  maintenances: BillItemOption[];
   isOwner: boolean;
-}> = ({ accounts: initialAccounts, domains, servers, isOwner }) => {
+}> = ({ accounts: initialAccounts, domains, servers, maintenances, isOwner }) => {
   const router = useRouter();
   const [accounts, setAccounts] = useState(initialAccounts);
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
@@ -117,12 +128,17 @@ export const KasKeluarPanel: React.FC<{
     [domains]
   );
   const serverOptions = useMemo(() => servers.map((s) => ({ value: s.id, label: `${s.name} · ${formatRupiah(s.price ?? 0)}` })), [servers]);
+  const maintenanceOptions = useMemo(
+    () => maintenances.map((m) => ({ value: m.id, label: `${m.name}${m.clientName ? ` — ${m.clientName}` : ""} · ${formatRupiah(m.price ?? 0)}` })),
+    [maintenances]
+  );
   const nameByRefId = useMemo(() => {
     const map = new Map<string, string>();
     for (const d of domains) map.set(d.id, d.name);
     for (const s of servers) map.set(s.id, s.name);
+    for (const m of maintenances) map.set(m.id, m.name);
     return map;
-  }, [domains, servers]);
+  }, [domains, servers, maintenances]);
 
   const kindOptions = isOwner ? KIND_OPTIONS : KIND_OPTIONS.filter((o) => o.value === "manual");
 
@@ -165,9 +181,11 @@ export const KasKeluarPanel: React.FC<{
       setError("Semua baris wajib diisi nominalnya");
       return;
     }
-    const missingLink = lines.find((l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId));
+    const missingLink = lines.find(
+      (l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId) || (l.kind === "maintenance" && !l.maintenanceId)
+    );
     if (missingLink) {
-      setError("Ada baris Bayar Domain/Server yang belum pilih itemnya");
+      setError("Ada baris Bayar Domain/Server/Maintenance yang belum pilih itemnya");
       return;
     }
 
@@ -186,6 +204,7 @@ export const KasKeluarPanel: React.FC<{
             description: l.kind === "manual" ? l.description : undefined,
             domainId: l.kind === "domain" ? l.domainId : undefined,
             serverId: l.kind === "server" ? l.serverId : undefined,
+            maintenanceId: l.kind === "maintenance" ? l.maintenanceId : undefined,
             amount: l.amount,
           })),
         }),
@@ -221,8 +240,10 @@ export const KasKeluarPanel: React.FC<{
     router.refresh();
   };
 
+  const REF_LABEL: Record<string, string> = { domain: "Bayar Domain", server: "Bayar Server", maintenance: "Bayar Maintenance" };
+
   const rowLabel = (r: TransactionRow) => {
-    if (r.refType && r.refId) return `${r.refType === "domain" ? "Bayar Domain" : "Bayar Server"} — ${nameByRefId.get(r.refId) ?? "-"}`;
+    if (r.refType && r.refId) return `${REF_LABEL[r.refType] ?? r.refType} — ${nameByRefId.get(r.refId) ?? "-"}`;
     return r.description || r.category?.name || "-";
   };
 
@@ -293,7 +314,9 @@ export const KasKeluarPanel: React.FC<{
                     sizeVariant="sm"
                     options={kindOptions}
                     value={line.kind}
-                    onChange={(v) => updateLine(i, { kind: v as LineKind, categoryId: "", description: "", domainId: "", serverId: "" })}
+                    onChange={(v) =>
+                      updateLine(i, { kind: v as LineKind, categoryId: "", description: "", domainId: "", serverId: "", maintenanceId: "" })
+                    }
                     searchable={false}
                   />
                 </div>
@@ -356,6 +379,17 @@ export const KasKeluarPanel: React.FC<{
                   value={line.serverId}
                   onChange={(v) => updateLine(i, { serverId: v })}
                   placeholder="Pilih server"
+                  emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
+                />
+              )}
+              {line.kind === "maintenance" && (
+                <Select
+                  label="Maintenance"
+                  sizeVariant="sm"
+                  options={maintenanceOptions}
+                  value={line.maintenanceId}
+                  onChange={(v) => updateLine(i, { maintenanceId: v })}
+                  placeholder="Pilih maintenance"
                   emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
                 />
               )}

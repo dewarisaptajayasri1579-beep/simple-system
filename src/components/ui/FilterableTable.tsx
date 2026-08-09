@@ -59,7 +59,10 @@ export function FilterableTable<T>({
   const searchableColumns = useMemo(() => columns.filter((c) => c.filterValue), [columns]);
 
   const filteredRows = useMemo(() => {
-    let result = rows;
+    // Baris null/undefined bisa nyelip kalau state di komponen pemanggil sempat di-update
+    // dengan respons API yang tidak lengkap — dibuang di sini supaya seluruh tabel tidak ikut
+    // crash gara-gara 1 baris rusak.
+    let result = rows.filter((row): row is T => row != null);
 
     const activeFilters = columns.filter((c) => c.filterValue && filters[c.key]?.trim());
     if (activeFilters.length > 0) {

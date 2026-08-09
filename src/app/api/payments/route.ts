@@ -183,7 +183,7 @@ export async function POST(request: Request) {
         sourceType: "invoice_payment",
         sourceId: transaction.id,
         createdBy: user.id,
-        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount, ppnPortion }),
+        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount, ppnPortion, revenueCoaCode: invoice.revenueCoaCode ?? undefined }),
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 

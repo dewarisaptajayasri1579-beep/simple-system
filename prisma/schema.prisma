@@ -64,6 +64,8 @@ model Client {
   invoices           Invoice[]
   payments           Payment[]
   servers            Server[]
+  maintenances       Maintenance[]
+  projects           Project[]
   legacySalesClient  LegacySalesClient? @relation(fields: [legacySalesClientId], references: [id])
 
   @@map("clients")
@@ -115,6 +117,7 @@ model BillingPeriod {
 
   servers        Server[]
   recurringBills RecurringBill[]
+  maintenances   Maintenance[]
 
   @@map("billing_periods")
   @@schema("simple_system")
@@ -172,6 +175,27 @@ model Server {
   client    Client?        @relation(fields: [clientId], references: [id])
 
   @@map("servers")
+  @@schema("simple_system")
+}
+
+/// Jasa maintenance berkala ke client (mis. maintenance website bulanan) — sisi pendapatan
+/// (price, ditagihkan ke client) sama seperti Domain/Server, punya biaya modal (HPP) sendiri
+/// yang ditandai lunas terpisah lewat "Bayar Maintenance" (lihat markMaintenancePaid).
+model Maintenance {
+  id          String    @id @default(uuid())
+  name        String
+  clientId    String    @map("client_id") // wajib — beda dari Domain/Server, maintenance selalu untuk client tertentu
+  periodId    String?   @map("period_id")
+  periodCount Int?      @map("period_count")
+  price       Float?
+  lastPaidAt  DateTime? @map("last_paid_at")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  client Client         @relation(fields: [clientId], references: [id])
+  period BillingPeriod? @relation(fields: [periodId], references: [id])
+
+  @@map("maintenances")
   @@schema("simple_system")
 }
 
@@ -294,6 +318,11 @@ model Invoice {
   lastFollowUpAt DateTime? @map("last_follow_up_at") // kapan terakhir AI Agent follow-up ke Client
   createdAt     DateTime @default(now()) @map("created_at")
 
+  // Null = perilaku default (posting ke COA_CODE.pendapatanJasa saat dibayar, lihat
+  // invoicePaymentLines). Diisi eksplisit oleh sumber invoice tertentu (mis. auto-generate
+  // termin Project) yang pendapatannya harus masuk ke akun revenue lain dari Pendapatan Jasa.
+  revenueCoaCode String? @map("revenue_coa_code")
+
   // Draft -> Posted -> (Voided): efek invoice (masuk Piutang, jurnal HPP kalau ada) baru
   // berlaku setelah posted. Terpisah dari `status` di atas (itu status pelunasan, bukan ini).
   // Voided = salah input setelah posting — dibatalkan (bukan dihapus), efeknya hilang dari
@@ -308,6 +337,7 @@ model Invoice {
   client   Client           @relation(fields: [clientId], references: [id])
   lines    InvoiceLine[]
   payments InvoicePayment[]
+  projectPaymentSchedule ProjectPaymentSchedule?
 
   @@map("invoices")
   @@schema("simple_system")
@@ -378,6 +408,51 @@ model Payment {
   invoicePayments InvoicePayment[]
 
   @@map("payments")
+  @@schema("simple_system")
+}
+
+/// Project development dengan pembayaran termin (DP/Termin 1/dst) — lihat ProjectPaymentSchedule.
+/// "Nilai Total" & "Sisa Tagih" sengaja tidak disimpan di sini, dihitung dari schedules/invoice
+/// supaya tidak ada dua sumber kebenaran yang bisa desinkron.
+model Project {
+  id        String    @id @default(uuid())
+  name      String
+  clientId  String    @map("client_id")
+  picName   String?   @map("pic_name")
+  picPhone  String?   @map("pic_phone")
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date")
+  status    String    @default("berjalan") // "berjalan" | "selesai" | "batal"
+  notes     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  client    Client                   @relation(fields: [clientId], references: [id])
+  schedules ProjectPaymentSchedule[]
+
+  @@map("projects")
+  @@schema("simple_system")
+}
+
+/// 1 baris = 1 termin pembayaran project (DP, Termin 1, dst). Invoice-nya auto-generate H-3
+/// sebelum dueDate (lihat src/lib/cron/project-termin-invoicing.ts) atau manual lewat tombol
+/// "Generate Invoice Sekarang" — begitu invoiceId terisi, nominal harus diubah lewat Invoice-nya
+/// langsung, bukan di sini. "Nominal Dibayar"/"Sisa Tagih" dihitung dari invoice.payments, tidak
+/// disimpan (piutang termin = catatan/computed saja, bukan akun GL — lihat journal-rules.ts).
+model ProjectPaymentSchedule {
+  id                 String    @id @default(uuid())
+  projectId          String    @map("project_id")
+  label              String    // "DP", "Termin 1", "Termin 2", dst — bebas diketik
+  sortOrder          Int       @default(0) @map("sort_order")
+  dueDate            DateTime  @map("due_date") // Tgl Penagihan
+  amount             Float     @map("amount")    // Nominal Tagih
+  invoiceId          String?   @unique @map("invoice_id")
+  invoiceGeneratedAt DateTime? @map("invoice_generated_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@map("project_payment_schedules")
   @@schema("simple_system")
 }
 
@@ -517,7 +592,7 @@ model Transaction {
   // Referensi balik opsional ke Server/Domain/RecurringBill kalau Transaction ini hasil
   // "Bayar Server/Domain"/"Tandai Lunas" — dipakai endpoint posting utk tahu lastPaidAt
   // milik record mana yang perlu diupdate saat Transaction ini di-posting.
-  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill"
+  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill" | "maintenance"
   refId   String? @map("ref_id")
 
   // Kalau Transaction ini dibuat sebagai bagian dari 1 Payment (baris pelunasan invoice ATAU
@@ -548,6 +623,16 @@ model Settings {
   bonusPct          Float    @default(10) @map("bonus_pct")
   defaultPpnRate    Float    @default(11) @map("default_ppn_rate")
   aiFollowUpEnabled Boolean  @default(false) @map("ai_follow_up_enabled")
+
+  // Rekening tujuan transfer yang dicetak di Nota Invoice — beda rekening tergantung invoice-nya
+  // pakai PPN atau tidak (lihat "Payment To" di format nota lama).
+  paymentBankNamePpn       String? @map("payment_bank_name_ppn")
+  paymentAccountNamePpn    String? @map("payment_account_name_ppn")
+  paymentAccountNumberPpn  String? @map("payment_account_number_ppn")
+  paymentBankNameNonPpn      String? @map("payment_bank_name_non_ppn")
+  paymentAccountNameNonPpn   String? @map("payment_account_name_non_ppn")
+  paymentAccountNumberNonPpn String? @map("payment_account_number_non_ppn")
+
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("settings")

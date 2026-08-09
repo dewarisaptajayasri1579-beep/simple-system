@@ -10,6 +10,7 @@ export async function register() {
   const { runWeeklyReport } = await import("@/lib/cron/weekly-report")
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
+  const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { registerWahubWebhook } = await import("@/lib/wahub")
 
   // Daftarkan ulang webhook WAHUB (sesi WA khusus simple-system) tiap kali server start.
@@ -60,7 +61,16 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
+  // Auto-generate invoice termin Project yang jatuh tempo H-3, jam 06:00 WIB (sebelum laporan pagi).
+  cron.schedule(
+    "0 6 * * *",
+    () => {
+      runProjectTerminInvoicing().catch((e) => console.error("[cron] project-termin-invoicing gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
   console.log(
-    "[cron] Terdaftar: laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00) WIB"
   )
 }

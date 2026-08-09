@@ -20,6 +20,7 @@ export default async function PengaturanPage() {
     cloudTypes,
     hostingPackages,
     servers,
+    maintenances,
     cpanelAccounts,
   ] = await Promise.all([
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
@@ -36,6 +37,7 @@ export default async function PengaturanPage() {
     prisma.cloudType.findMany({ orderBy: { name: "asc" } }),
     prisma.hostingPackage.findMany({ orderBy: { name: "asc" } }),
     prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true, client: true }, orderBy: { name: "asc" } }),
+    prisma.maintenance.findMany({ include: { client: true, period: true }, orderBy: { name: "asc" } }),
     prisma.cpanelAccount.findMany({ include: { cloudType: true, package: true }, orderBy: { name: "asc" } }),
   ])
 
@@ -62,6 +64,12 @@ export default async function PengaturanPage() {
             bonusPct: settings.bonusPct,
             defaultPpnRate: settings.defaultPpnRate,
             aiFollowUpEnabled: settings.aiFollowUpEnabled,
+            paymentBankNamePpn: settings.paymentBankNamePpn,
+            paymentAccountNamePpn: settings.paymentAccountNamePpn,
+            paymentAccountNumberPpn: settings.paymentAccountNumberPpn,
+            paymentBankNameNonPpn: settings.paymentBankNameNonPpn,
+            paymentAccountNameNonPpn: settings.paymentAccountNameNonPpn,
+            paymentAccountNumberNonPpn: settings.paymentAccountNumberNonPpn,
           }}
           users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber }))}
           domains={domains.map((d) => ({ ...d, lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null }))}
@@ -73,6 +81,7 @@ export default async function PengaturanPage() {
           cloudTypes={cloudTypes}
           hostingPackages={hostingPackages}
           servers={servers.map((s) => ({ ...s, lastPaidAt: s.lastPaidAt ? s.lastPaidAt.toISOString() : null }))}
+          maintenances={maintenances.map((m) => ({ ...m, lastPaidAt: m.lastPaidAt ? m.lastPaidAt.toISOString() : null }))}
           cpanelAccounts={cpanelAccounts}
         />
       </div>

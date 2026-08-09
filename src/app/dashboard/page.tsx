@@ -11,11 +11,14 @@ import {
   RecurringDueSection,
   DomainExpiringSection,
   ServerDueSection,
+  MaintenanceDueSection,
   type PiutangSummaryRow,
   type RecurringDueRow,
   type DomainExpiringRow,
   type ServerDueRow,
+  type MaintenanceDueRow,
 } from "@/components/dashboard/DashboardSections"
+import { ProjectTagihanSection, type ProjectTagihanRow } from "@/components/dashboard/ProjectTagihanSection"
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
 import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
 import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappReportButton"
@@ -37,12 +40,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
 
-  const [clientCount, clientOptions, accounts, domains, servers, bills, openInvoices, followUps] = await Promise.all([
+  const [clientCount, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] = await Promise.all([
     prisma.client.count(),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
     prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
+    prisma.maintenance.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
     prisma.invoice.findMany({
       where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
@@ -53,6 +57,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       orderBy: { dueDate: "asc" },
     }),
     prisma.followUp.findMany({ orderBy: { followUpDate: "desc" } }),
+    prisma.projectPaymentSchedule.findMany({
+      where: { invoiceId: { not: null }, invoice: { status: { in: ["unpaid", "partial"] } } },
+      include: {
+        project: { include: { client: true } },
+        invoice: { include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } } },
+      },
+    }),
   ])
 
   const domainBuckets = domains.map((d) => getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)))
@@ -143,6 +154,47 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
+  // Maintenance: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
+  const maintenanceDueRows: MaintenanceDueRow[] = maintenances
+    .map((m) => {
+      const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
+      return {
+        id: m.id,
+        name: m.name,
+        clientId: m.clientId,
+        clientName: m.client.name,
+        picName: m.client.picName,
+        clientPhone: m.client.picPhone || m.client.phoneNumber,
+        price: m.price,
+        dueDate: nextDue ? nextDue.toISOString() : null,
+        bucket: getExpiryBucket(nextDue),
+      }
+    })
+    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+    .sort(byDueDateAsc)
+
+  // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.
+  const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
+    .filter((s) => s.invoice)
+    .map((s) => {
+      const paid = s.invoice!.payments.reduce((sum, p) => sum + p.amount, 0)
+      return {
+        scheduleId: s.id,
+        invoiceId: s.invoice!.id,
+        invoiceNumber: s.invoice!.invoiceNumber,
+        projectId: s.project.id,
+        projectName: s.project.name,
+        clientId: s.project.clientId,
+        clientName: s.project.client.name,
+        picPhone: s.project.picPhone,
+        label: s.label,
+        dueDate: s.dueDate.toISOString(),
+        remaining: Math.max(0, s.invoice!.totalAmount - paid),
+      }
+    })
+    .filter((r) => r.remaining > 0)
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+
   // Follow Up: catatan yang jatuh tempo hari ini atau sudah lewat.
   const followUpRows = followUps.map((f) => ({
     id: f.id,
@@ -158,6 +210,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { label: "Pembayaran Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
     { label: "Server", href: "#server", count: serverDueRows.length, color: "violet" },
+    { label: "Maintenance", href: "#maintenance", count: maintenanceDueRows.length, color: "fuchsia" },
+    { label: "Tagihan Project", href: "#tagihan-project", count: projectTagihanRows.length, color: "indigo" },
     { label: "Follow Up", href: "#follow-up", count: followUpDueCount, color: "emerald" },
   ]
 
@@ -204,6 +258,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         <div id="server" className="scroll-mt-[150px]">
           <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
+        </div>
+        <div id="maintenance" className="scroll-mt-[150px]">
+          <MaintenanceDueSection rows={maintenanceDueRows} />
+        </div>
+        <div id="tagihan-project" className="scroll-mt-[150px]">
+          <ProjectTagihanSection rows={projectTagihanRows} />
         </div>
         <div id="follow-up" className="scroll-mt-[150px]">
           <FollowUpPanel rows={followUpRows} />

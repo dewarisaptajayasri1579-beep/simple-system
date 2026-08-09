@@ -11,7 +11,7 @@ import { OwnerCell } from "@/components/shared/OwnerCell";
 import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
 import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
-import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
+import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
 
@@ -642,6 +642,98 @@ export const ServerDueSection: React.FC<{
       </div>
       <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada server yang perlu perhatian." mobileCardMode />
+    </Card>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// 3c. Maintenance — lewat, habis bulan ini, habis bulan depan
+// ---------------------------------------------------------------------------
+export interface MaintenanceDueRow {
+  id: string;
+  name: string;
+  clientId: string;
+  clientName: string;
+  picName: string | null;
+  clientPhone: string | null;
+  price: number | null;
+  dueDate: string | null;
+  bucket: ExpiryBucket;
+}
+
+const MAINTENANCE_COLUMNS = [
+  { key: "client", label: "Client" },
+  { key: "dueDate", label: "Estimasi Jatuh Tempo" },
+  { key: "price", label: "Harga" },
+  { key: "status", label: "Status" },
+];
+
+export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({ rows }) => {
+  const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
+  const { isVisible, toggle } = useColumnVisibility("dashboard-maintenance", MAINTENANCE_COLUMNS);
+
+  const filteredRows = statusFilter === "all" ? rows : rows.filter((r) => r.bucket === statusFilter);
+
+  const columns: FilterableColumn<MaintenanceDueRow>[] = [
+    { key: "name", header: "Maintenance", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
+    ...(isVisible("client")
+      ? [
+          {
+            key: "client",
+            header: "Client",
+            filterValue: (r: MaintenanceDueRow) => r.clientName,
+            cell: (r: MaintenanceDueRow) => (
+              <div className="space-y-1">
+                <div>{r.clientName}</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="text-xs text-slate-500">
+                    {r.picName && <span>{r.picName}</span>}
+                    {r.picName && r.clientPhone && <span> · </span>}
+                    {r.clientPhone && <span>{r.clientPhone}</span>}
+                  </div>
+                  <FollowUpButtons
+                    phone={r.clientPhone}
+                    clientId={r.clientId}
+                    clientName={r.clientName}
+                    message={maintenanceFollowUpMessage({ clientName: r.clientName, maintenanceName: r.name, dueDate: r.dueDate })}
+                  />
+                </div>
+              </div>
+            ),
+          },
+        ]
+      : []),
+    ...(isVisible("dueDate") ? [{ key: "dueDate", header: "Estimasi Jatuh Tempo", cell: (r: MaintenanceDueRow) => formatDate(r.dueDate) }] : []),
+    ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (r: MaintenanceDueRow) => formatRupiah(r.price) }] : []),
+    ...(isVisible("status")
+      ? [{ key: "status", header: "Status", cell: (r: MaintenanceDueRow) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> }]
+      : []),
+    {
+      key: "aksi",
+      header: "Aksi",
+      cell: (r) => (
+        <Link
+          href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+        >
+          <Button size="sm" variant="outline">
+            Tagih Sekarang
+          </Button>
+        </Link>
+      ),
+    },
+  ];
+
+  return (
+    <Card {...CARD_PROPS}>
+      <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
+        <div>
+          <CardTitle>Maintenance — Lewat / Bulan Ini / Bulan Depan</CardTitle>
+          <CardDescription>{rows.length} maintenance sudah lewat tempo atau akan jatuh tempo bulan ini/depan</CardDescription>
+        </div>
+        <ColumnVisibilityMenu columns={MAINTENANCE_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+      </div>
+      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
+      <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada maintenance yang perlu perhatian." mobileCardMode />
     </Card>
   );
 };

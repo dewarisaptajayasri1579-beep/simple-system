@@ -18,6 +18,7 @@ import {
   type VendorRow,
   type LookupRow,
   type ServerRow,
+  type MaintenanceRow,
   type CpanelAccountRow,
   type ClientRow,
   type DomainRow,
@@ -32,6 +33,12 @@ export interface SettingsData {
   bonusPct: number;
   defaultPpnRate: number;
   aiFollowUpEnabled: boolean;
+  paymentBankNamePpn: string | null;
+  paymentAccountNamePpn: string | null;
+  paymentAccountNumberPpn: string | null;
+  paymentBankNameNonPpn: string | null;
+  paymentAccountNameNonPpn: string | null;
+  paymentAccountNumberNonPpn: string | null;
 }
 
 export interface UserRow {
@@ -66,6 +73,7 @@ export const PengaturanPanel: React.FC<{
   cloudTypes: LookupRow[];
   hostingPackages: LookupRow[];
   servers: ServerRow[];
+  maintenances: MaintenanceRow[];
   cpanelAccounts: CpanelAccountRow[];
 }> = ({
   settings,
@@ -79,6 +87,7 @@ export const PengaturanPanel: React.FC<{
   cloudTypes,
   hostingPackages,
   servers,
+  maintenances,
   cpanelAccounts,
 }) => {
   const router = useRouter();
@@ -100,6 +109,12 @@ export const PengaturanPanel: React.FC<{
   const [bonusPct, setBonusPct] = useState(settings.bonusPct);
   const [defaultPpnRate, setDefaultPpnRate] = useState(settings.defaultPpnRate);
   const [aiFollowUpEnabled, setAiFollowUpEnabled] = useState(settings.aiFollowUpEnabled);
+  const [paymentBankNamePpn, setPaymentBankNamePpn] = useState(settings.paymentBankNamePpn ?? "");
+  const [paymentAccountNamePpn, setPaymentAccountNamePpn] = useState(settings.paymentAccountNamePpn ?? "");
+  const [paymentAccountNumberPpn, setPaymentAccountNumberPpn] = useState(settings.paymentAccountNumberPpn ?? "");
+  const [paymentBankNameNonPpn, setPaymentBankNameNonPpn] = useState(settings.paymentBankNameNonPpn ?? "");
+  const [paymentAccountNameNonPpn, setPaymentAccountNameNonPpn] = useState(settings.paymentAccountNameNonPpn ?? "");
+  const [paymentAccountNumberNonPpn, setPaymentAccountNumberNonPpn] = useState(settings.paymentAccountNumberNonPpn ?? "");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -124,7 +139,19 @@ export const PengaturanPanel: React.FC<{
     const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ operasionalPct, direksiPct, bonusPct, defaultPpnRate, aiFollowUpEnabled }),
+      body: JSON.stringify({
+        operasionalPct,
+        direksiPct,
+        bonusPct,
+        defaultPpnRate,
+        aiFollowUpEnabled,
+        paymentBankNamePpn,
+        paymentAccountNamePpn,
+        paymentAccountNumberPpn,
+        paymentBankNameNonPpn,
+        paymentAccountNameNonPpn,
+        paymentAccountNumberNonPpn,
+      }),
     });
     const data = await res.json();
     setIsSavingSettings(false);
@@ -212,6 +239,7 @@ export const PengaturanPanel: React.FC<{
           cloudTypes={cloudTypes}
           hostingPackages={hostingPackages}
           servers={servers}
+          maintenances={maintenances}
           cpanelAccounts={cpanelAccounts}
         />
       )}
@@ -244,6 +272,45 @@ export const PengaturanPanel: React.FC<{
             <span className="text-xs text-slate-500">Kalau ON, invoice yang lewat jatuh tempo diingatkan otomatis lewat WA ke nomor Client.</span>
           </span>
         </label>
+
+        <div className="mt-5 pt-5 border-t border-slate-200/60">
+          <p className="font-bold text-sm text-slate-800">Rekening Pembayaran (dicetak di Nota Invoice)</p>
+          <p className="text-xs text-slate-500 mt-0.5">Rekening tujuan transfer beda tergantung invoice-nya pakai PPN atau tidak.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-500 uppercase">Invoice dengan PPN</p>
+              <Input label="Nama Bank" value={paymentBankNamePpn} onChange={(e) => setPaymentBankNamePpn(e.target.value)} placeholder="mis. BCA" />
+              <Input
+                label="Atas Nama"
+                value={paymentAccountNamePpn}
+                onChange={(e) => setPaymentAccountNamePpn(e.target.value)}
+                placeholder="mis. Seven Smarts Indonesia"
+              />
+              <Input
+                label="No. Rekening"
+                value={paymentAccountNumberPpn}
+                onChange={(e) => setPaymentAccountNumberPpn(e.target.value)}
+                placeholder="mis. 015 485 3711"
+              />
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-500 uppercase">Invoice tanpa PPN</p>
+              <Input label="Nama Bank" value={paymentBankNameNonPpn} onChange={(e) => setPaymentBankNameNonPpn(e.target.value)} placeholder="mis. BCA" />
+              <Input
+                label="Atas Nama"
+                value={paymentAccountNameNonPpn}
+                onChange={(e) => setPaymentAccountNameNonPpn(e.target.value)}
+                placeholder="mis. Seven Smarts Indonesia"
+              />
+              <Input
+                label="No. Rekening"
+                value={paymentAccountNumberNonPpn}
+                onChange={(e) => setPaymentAccountNumberNonPpn(e.target.value)}
+                placeholder="mis. 015 485 3711"
+              />
+            </div>
+          </div>
+        </div>
 
         <div className="flex justify-end mt-4">
           <Button variant="primary" onClick={handleSaveSettings} isLoading={isSavingSettings}>

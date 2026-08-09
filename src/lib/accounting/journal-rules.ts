@@ -19,11 +19,19 @@ export function invoiceCostLines(input: { totalCost: number }): JournalLineInput
  *  masuk sebesar yang dibayar, lawannya Pendapatan Jasa. PPN Keluaran dipisah proporsional dari
  *  jumlah yang masuk (bukan dihitung sebagai pendapatan usaha) meski faktur pajak fisiknya
  *  dibuat manual di luar sistem. */
-export function invoicePaymentLines(input: { kasBankCoaCode: string; amount: number; ppnPortion: number }): JournalLineInput[] {
+export function invoicePaymentLines(input: {
+  kasBankCoaCode: string
+  amount: number
+  ppnPortion: number
+  /** Default COA_CODE.pendapatanJasa kalau tidak diisi — invoice yang sumbernya spesifik
+   *  (mis. termin Project) kirim kode akun revenue-nya sendiri lewat Invoice.revenueCoaCode. */
+  revenueCoaCode?: string
+}): JournalLineInput[] {
   const ppnPortion = Math.min(input.ppnPortion, input.amount)
+  const revenueCoaCode = input.revenueCoaCode ?? COA_CODE.pendapatanJasa
   const lines: JournalLineInput[] = [
     { accountCode: input.kasBankCoaCode, debit: input.amount, memo: "Pelunasan invoice" },
-    { accountCode: COA_CODE.pendapatanJasa, credit: input.amount - ppnPortion, memo: "Pendapatan jasa" },
+    { accountCode: revenueCoaCode, credit: input.amount - ppnPortion, memo: "Pendapatan" },
   ]
   if (ppnPortion > 0) {
     lines.push({ accountCode: COA_CODE.ppnKeluaran, credit: ppnPortion, memo: "PPN Keluaran" })

@@ -5,14 +5,15 @@ import { prisma } from "@/lib/prisma"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
-import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
+import { markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
 
 interface LineInput {
-  kind: "manual" | "domain" | "server"
+  kind: "manual" | "domain" | "server" | "maintenance"
   categoryId?: string
   description?: string
   domainId?: string
   serverId?: string
+  maintenanceId?: string
   amount: number
 }
 
@@ -34,24 +35,27 @@ export async function POST(request: Request) {
 
   const lines = rawLines
     .map((l) => ({
-      kind: l.kind === "domain" || l.kind === "server" ? l.kind : ("manual" as const),
+      kind: l.kind === "domain" || l.kind === "server" || l.kind === "maintenance" ? l.kind : ("manual" as const),
       categoryId: typeof l.categoryId === "string" && l.categoryId ? l.categoryId : null,
       description: typeof l.description === "string" ? l.description : "",
       domainId: typeof l.domainId === "string" ? l.domainId : "",
       serverId: typeof l.serverId === "string" ? l.serverId : "",
+      maintenanceId: typeof l.maintenanceId === "string" ? l.maintenanceId : "",
       amount: Number(l.amount) || 0,
     }))
     .filter((l) => l.amount > 0)
 
   if (lines.length === 0) return NextResponse.json({ error: "Isi minimal 1 baris biaya" }, { status: 400 })
 
-  const missingLink = lines.find((l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId))
-  if (missingLink) return NextResponse.json({ error: "Ada baris Bayar Domain/Server yang belum pilih itemnya" }, { status: 400 })
+  const missingLink = lines.find(
+    (l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId) || (l.kind === "maintenance" && !l.maintenanceId)
+  )
+  if (missingLink) return NextResponse.json({ error: "Ada baris Bayar Domain/Server/Maintenance yang belum pilih itemnya" }, { status: 400 })
 
   // Sama seperti dulu waktu masih menu "Bayar Domain"/"Bayar Server" terpisah — cuma Owner yang
   // boleh, karena ini langsung menandai domain/server lunas (update lastPaidAt).
   if (lines.some((l) => l.kind !== "manual") && user.role !== "owner") {
-    return NextResponse.json({ error: "Cuma Owner yang bisa input baris Bayar Domain/Server" }, { status: 403 })
+    return NextResponse.json({ error: "Cuma Owner yang bisa input baris Bayar Domain/Server/Maintenance" }, { status: 403 })
   }
 
   try {
@@ -64,6 +68,12 @@ export async function POST(request: Request) {
         }
         if (line.kind === "server") {
           results.push(await markServerPaid(tx, { serverId: line.serverId, accountId, amount: line.amount, paidAt: occurredAt, createdBy: user.id }))
+          continue
+        }
+        if (line.kind === "maintenance") {
+          results.push(
+            await markMaintenancePaid(tx, { maintenanceId: line.maintenanceId, accountId, amount: line.amount, paidAt: occurredAt, createdBy: user.id })
+          )
           continue
         }
 
