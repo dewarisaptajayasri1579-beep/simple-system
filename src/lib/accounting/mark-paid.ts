@@ -2,7 +2,7 @@ import type { TxClient } from "./post-journal"
 import { postJournalEntry, postJournalEntryFinal, finalizeJournalEntryById } from "./post-journal"
 import { billPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
-import { COA_CODE } from "./coa-seed"
+import { COA_CODE, bebanCodeForCategory } from "./coa-seed"
 import { computeDomainExpiryDate } from "@/lib/domain-status"
 
 /** Dipakai bareng oleh kartu "Bayar Server" (Keuangan) DAN dari baris Biaya di Pelunasan
@@ -130,6 +130,49 @@ export async function markMaintenancePaid(
   await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
   return { transaction, maintenance }
+}
+
+/** Padanan markServerPaid buat Biaya Berkala (RecurringBill) — dipakai tombol "Bayar Sekarang"
+ *  di Dashboard maupun baris "Bayar Biaya Berkala" di Kas Keluar, supaya satu-satunya jalur
+ *  pencatatan "biaya berkala sudah dibayar" cuma di sini. `categoryId` di sini cuma label
+ *  tampilan di riwayat Kas Keluar — akun Beban jurnalnya tetap ikut `bill.category`
+ *  ("kantor"/"pribadi"/"lainnya"), bukan Category yang dipilih. */
+export async function markRecurringBillPaid(
+  tx: TxClient,
+  input: { billId: string; accountId: string; amount: number; paidAt: Date; createdBy: string; categoryId?: string | null; paymentId?: string }
+) {
+  const bill = await tx.recurringBill.findUnique({ where: { id: input.billId } })
+  if (!bill) throw new Error("Biaya berkala tidak ditemukan")
+  if (!input.amount || input.amount <= 0) throw new Error("Nominal biaya berkala ini wajib diisi")
+
+  const transaction = await tx.transaction.create({
+    data: {
+      accountId: input.accountId,
+      type: "expense",
+      categoryId: input.categoryId ?? null,
+      grossAmount: input.amount,
+      cost: 0,
+      netAmount: input.amount,
+      description: `Pembayaran biaya berkala - ${bill.name}`,
+      occurredAt: input.paidAt,
+      refType: "recurring_bill",
+      refId: bill.id,
+      paymentId: input.paymentId ?? null,
+    },
+  })
+
+  const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
+  const journalEntry = await postJournalEntry(tx, {
+    date: input.paidAt,
+    description: `Pembayaran biaya berkala - ${bill.name}`,
+    sourceType: "recurring_bill",
+    sourceId: bill.id,
+    createdBy: input.createdBy,
+    lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: bebanCodeForCategory(bill.category), amount: input.amount }),
+  })
+  await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
+
+  return { transaction, bill }
 }
 
 /** Posting 1 Transaction draft (manual Keuangan, atau hasil markServerPaid/markDomainPaid/

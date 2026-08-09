@@ -4,6 +4,9 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui"
 import { PrintButton } from "@/components/penjualan/PrintButton"
 import { PaymentPostingBar } from "@/components/pembayaran/PaymentPostingBar"
+import { EditablePaymentAccount } from "@/components/pembayaran/EditablePaymentAccount"
+import { EditableInvoicePaymentAmount } from "@/components/pembayaran/EditableInvoicePaymentAmount"
+import { PaymentCostSection } from "@/components/pembayaran/PaymentCostSection"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -20,10 +23,15 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   const user = await getCurrentUser()
   const { id } = await params
 
-  const payment = await prisma.payment.findUnique({
-    where: { id },
-    include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
-  })
+  const [payment, domains, servers, maintenances] = await Promise.all([
+    prisma.payment.findUnique({
+      where: { id },
+      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
+    }),
+    prisma.domain.findMany({ where: { sellPrice: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.server.findMany({ where: { price: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.maintenance.findMany({ where: { price: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
+  ])
 
   if (!payment) notFound()
 
@@ -32,7 +40,7 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   // (sebelum kolom journalEntryId ada) — TAPI itu dipakai bareng-bareng oleh SELURUH histori
   // pembayaran domain/server yang sama, jadi bisa kebawa jurnal transaksi lain/lama yang sudah
   // dibatalkan (ini penyebab bug "kok jurnal yang dibatalkan masih ikut nongol").
-  const paymentTransactions = await prisma.transaction.findMany({ where: { paymentId: id } })
+  const paymentTransactions = await prisma.transaction.findMany({ where: { paymentId: id }, include: { account: true } })
   const journalSources = paymentTransactions.map((t) =>
     t.journalEntryId
       ? { entryId: t.journalEntryId }
@@ -44,8 +52,9 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   // Biaya domain/server yang dikaitkan ke pembayaran ini (baris "Biaya" di form Pelunasan) —
   // dicatat sebagai Transaction expense terpisah (lihat markDomainPaid/markServerPaid), sama
   // paymentId tapi refType/refId nunjuk ke domain/server yang dibayar sekalian dari kas yang sama.
-  const costTransactions = paymentTransactions.filter((t) => t.refType === "domain" || t.refType === "server")
+  const costTransactions = paymentTransactions.filter((t) => t.refType === "domain" || t.refType === "server" || t.refType === "maintenance")
   const totalCost = costTransactions.reduce((sum, t) => sum + t.grossAmount, 0)
+  const canEditCosts = payment.postStatus === "draft" && user.role === "owner"
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -79,7 +88,11 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
             </div>
             <div className="sm:text-right">
               <p className="text-xs font-bold text-slate-500 uppercase">Masuk ke Akun</p>
-              <p className="font-semibold text-slate-800">{payment.account.name}</p>
+              {payment.postStatus === "draft" ? (
+                <EditablePaymentAccount paymentId={payment.id} accountId={payment.accountId} accountName={payment.account.name} />
+              ) : (
+                <p className="font-semibold text-slate-800">{payment.account.name}</p>
+              )}
             </div>
           </div>
 
@@ -102,7 +115,13 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
                         </Link>
                       </TableCell>
                       <TableCell>{formatRupiah(ip.invoice.totalAmount)}</TableCell>
-                      <TableCell className="font-semibold">{formatRupiah(ip.amount)}</TableCell>
+                      <TableCell className="font-semibold">
+                        {payment.postStatus === "draft" ? (
+                          <EditableInvoicePaymentAmount paymentId={payment.id} invoicePaymentId={ip.id} amount={ip.amount} />
+                        ) : (
+                          formatRupiah(ip.amount)
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -110,29 +129,14 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
             </TableContainer>
           </div>
 
-          {costTransactions.length > 0 && (
-            <div className="mt-6">
-              <p className="text-xs font-bold text-slate-500 uppercase mb-2">Biaya (dipotong dari kas yang sama)</p>
-              <TableContainer>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Keterangan</TableHead>
-                      <TableHead>Jumlah</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {costTransactions.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell>{t.description}</TableCell>
-                        <TableCell className="font-semibold">{formatRupiah(t.grossAmount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </div>
-          )}
+          <PaymentCostSection
+            paymentId={payment.id}
+            costTransactions={costTransactions}
+            canEdit={canEditCosts}
+            domains={domains.map((d) => ({ id: d.id, name: d.name, price: d.sellPrice, clientName: d.client?.name ?? null }))}
+            servers={servers.map((s) => ({ id: s.id, name: s.name, price: s.price, clientName: s.client?.name ?? null }))}
+            maintenances={maintenances.map((m) => ({ id: m.id, name: m.name, price: m.price, clientName: m.client?.name ?? null }))}
+          />
 
           <div className="flex justify-end mt-6">
             <div className="w-full sm:w-72 space-y-1.5 text-sm">

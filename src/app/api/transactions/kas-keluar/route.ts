@@ -5,15 +5,16 @@ import { prisma } from "@/lib/prisma"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
-import { markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
+import { markDomainPaid, markServerPaid, markMaintenancePaid, markRecurringBillPaid } from "@/lib/accounting/mark-paid"
 
 interface LineInput {
-  kind: "manual" | "domain" | "server" | "maintenance"
+  kind: "manual" | "domain" | "server" | "maintenance" | "recurring_bill"
   categoryId?: string
   description?: string
   domainId?: string
   serverId?: string
   maintenanceId?: string
+  recurringBillId?: string
   amount: number
 }
 
@@ -35,12 +36,13 @@ export async function POST(request: Request) {
 
   const lines = rawLines
     .map((l) => ({
-      kind: l.kind === "domain" || l.kind === "server" || l.kind === "maintenance" ? l.kind : ("manual" as const),
+      kind: l.kind === "domain" || l.kind === "server" || l.kind === "maintenance" || l.kind === "recurring_bill" ? l.kind : ("manual" as const),
       categoryId: typeof l.categoryId === "string" && l.categoryId ? l.categoryId : null,
       description: typeof l.description === "string" ? l.description : "",
       domainId: typeof l.domainId === "string" ? l.domainId : "",
       serverId: typeof l.serverId === "string" ? l.serverId : "",
       maintenanceId: typeof l.maintenanceId === "string" ? l.maintenanceId : "",
+      recurringBillId: typeof l.recurringBillId === "string" ? l.recurringBillId : "",
       amount: Number(l.amount) || 0,
     }))
     .filter((l) => l.amount > 0)
@@ -48,9 +50,13 @@ export async function POST(request: Request) {
   if (lines.length === 0) return NextResponse.json({ error: "Isi minimal 1 baris biaya" }, { status: 400 })
 
   const missingLink = lines.find(
-    (l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId) || (l.kind === "maintenance" && !l.maintenanceId)
+    (l) =>
+      (l.kind === "domain" && !l.domainId) ||
+      (l.kind === "server" && !l.serverId) ||
+      (l.kind === "maintenance" && !l.maintenanceId) ||
+      (l.kind === "recurring_bill" && !l.recurringBillId)
   )
-  if (missingLink) return NextResponse.json({ error: "Ada baris Bayar Domain/Server/Maintenance yang belum pilih itemnya" }, { status: 400 })
+  if (missingLink) return NextResponse.json({ error: "Ada baris Bayar Domain/Server/Maintenance/Biaya Berkala yang belum pilih itemnya" }, { status: 400 })
 
   // Sama seperti dulu waktu masih menu "Bayar Domain"/"Bayar Server" terpisah — cuma Owner yang
   // boleh, karena ini langsung menandai domain/server lunas (update lastPaidAt).
@@ -73,6 +79,19 @@ export async function POST(request: Request) {
         if (line.kind === "maintenance") {
           results.push(
             await markMaintenancePaid(tx, { maintenanceId: line.maintenanceId, accountId, amount: line.amount, paidAt: occurredAt, createdBy: user.id })
+          )
+          continue
+        }
+        if (line.kind === "recurring_bill") {
+          results.push(
+            await markRecurringBillPaid(tx, {
+              billId: line.recurringBillId,
+              accountId,
+              amount: line.amount,
+              paidAt: occurredAt,
+              createdBy: user.id,
+              categoryId: line.categoryId,
+            })
           )
           continue
         }

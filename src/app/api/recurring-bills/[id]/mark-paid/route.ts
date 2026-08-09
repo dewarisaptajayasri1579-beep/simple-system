@@ -2,10 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
-import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { billPaidLines } from "@/lib/accounting/journal-rules"
-import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
-import { bebanCodeForCategory } from "@/lib/accounting/coa-seed"
+import { markRecurringBillPaid } from "@/lib/accounting/mark-paid"
 
 /** "Tandai Lunas" — beda dari PATCH generik: ini merekam pembayaran sungguhan (bikin
  *  Transaction cash-basis + jurnal akrual), bukan cuma koreksi tanggal. */
@@ -26,39 +23,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const paidAt = body?.paidAt ? new Date(body.paidAt) : new Date()
 
-  // Draft -> Posted: cuma bikin Transaction + jurnal draft di sini, `lastPaidAt` BELUM
-  // diupdate — baru berlaku saat draft ini di-posting (POST /api/transactions/[id]/post).
-  const result = await prisma.$transaction(async (tx) => {
-    const transaction = await tx.transaction.create({
-      data: {
-        accountId,
-        type: "expense",
-        categoryId,
-        grossAmount: bill.price!,
-        cost: 0,
-        netAmount: bill.price!,
-        description: `Pembayaran biaya berkala - ${bill.name}`,
-        occurredAt: paidAt,
-        refType: "recurring_bill",
-        refId: bill.id,
-      },
-    })
-
-    const [kasBankCoaCode] = await Promise.all([getAccountCoaCode(tx, accountId)])
-    const journalEntry = await postJournalEntry(tx, {
-      date: paidAt,
-      description: `Pembayaran biaya berkala - ${bill.name}`,
-      sourceType: "recurring_bill",
-      sourceId: bill.id,
-      createdBy: user.id,
-      lines: billPaidLines({ kasBankCoaCode, expenseCoaCode: bebanCodeForCategory(bill.category), amount: bill.price! }),
-    })
-    // Link presisi ke jurnal transaksi INI (bukan cuma sourceType+sourceId, yang dipakai bareng
-    // sama semua histori "Tandai Lunas" biaya berkala yang sama) — lihat mark-paid.ts.
-    await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
-
-    return { transaction, bill }
-  })
-
-  return NextResponse.json(result)
+  try {
+    // Draft -> Posted: cuma bikin Transaction + jurnal draft di sini, `lastPaidAt` BELUM
+    // diupdate — baru berlaku saat draft ini di-posting (POST /api/transactions/[id]/post).
+    const result = await prisma.$transaction((tx) =>
+      markRecurringBillPaid(tx, { billId: id, accountId, amount: bill.price!, paidAt, createdBy: user.id, categoryId })
+    )
+    return NextResponse.json(result)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal menyimpan pembayaran" }, { status: 400 })
+  }
 }

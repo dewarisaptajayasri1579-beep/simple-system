@@ -13,7 +13,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.payment.findMany({
       include: { client: true, invoicePayments: { include: { invoice: { select: { invoiceNumber: true } } } } },
-      orderBy: { paidAt: "desc" },
+      orderBy: { createdAt: "desc" },
     }),
   ])
 

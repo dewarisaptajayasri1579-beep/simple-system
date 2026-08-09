@@ -331,7 +331,7 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: 
           {
             key: "aksi",
             header: "Aksi",
-            cell: (r: RecurringDueRow) => <RecurringBillPaymentCell billId={r.id} billName={r.name} accounts={accounts} />,
+            cell: (r: RecurringDueRow) => <RecurringBillPaymentCell billId={r.id} billName={r.name} />,
           },
         ]
       : []),

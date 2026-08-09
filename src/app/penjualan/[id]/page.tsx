@@ -7,6 +7,8 @@ import { PrintButton } from "@/components/penjualan/PrintButton"
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { InvoiceDeleteButton } from "@/components/penjualan/InvoiceDeleteButton"
+import { VoidButton } from "@/components/akuntansi/VoidButton"
+import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -55,8 +57,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Link>
           <div className="flex gap-3">
             <PrintButton />
+            {invoice.totalCost > 0 && (
+              <JournalButton
+                title={`Jurnal — ${invoice.invoiceNumber}`}
+                sources={[{ sourceType: "invoice", sourceId: invoice.id }]}
+                postUrl={invoice.postStatus === "draft" ? `/api/invoices/${invoice.id}/post` : undefined}
+              />
+            )}
             {invoice.postStatus === "draft" && <InvoiceDeleteButton invoiceId={invoice.id} />}
             {invoice.postStatus === "draft" && <InvoicePostButton invoiceId={invoice.id} />}
+            {invoice.postStatus === "posted" && (
+              <VoidButton voidUrl={`/api/invoices/${invoice.id}/void`} itemLabel={`invoice ${invoice.invoiceNumber}`} />
+            )}
             {invoice.postStatus === "posted" && remaining > 0 && (
               <Link href={`/pembayaran?clientId=${invoice.clientId}&invoiceId=${invoice.id}`}>
                 <Button variant="primary">Input Pembayaran</Button>

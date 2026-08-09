@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, ColumnVisibilityMenu, type FilterableColumn } from "@/components/ui";
+import { Card, CardTitle, CardDescription, FilterableTable, ColumnVisibilityMenu, type FilterableColumn } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
-import { JournalButton } from "@/components/akuntansi/JournalButton";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 
 export interface InvoiceListRow {
@@ -17,7 +14,6 @@ export interface InvoiceListRow {
   remaining: number;
   status: string;
   postStatus: "draft" | "posted" | "voided";
-  hasCost: boolean;
 }
 
 function formatDate(iso: string | null) {
@@ -45,28 +41,17 @@ const INVOICE_COLUMNS = [
   { key: "postStatus", label: "Posting" },
 ];
 
-export const InvoiceListTable: React.FC<{ rows: InvoiceListRow[] }> = ({ rows: initialRows }) => {
-  const router = useRouter();
-  const [rows, setRows] = useState(initialRows);
-  const [posting, setPosting] = useState<string | null>(null);
-  const [error, setError] = useState("");
+export const InvoiceListTable: React.FC<{ rows: InvoiceListRow[] }> = ({ rows }) => {
   const { isVisible, toggle } = useColumnVisibility("invoice-list", INVOICE_COLUMNS);
 
-  const handlePost = async (id: string) => {
-    setPosting(id);
-    setError("");
-    const res = await fetch(`/api/invoices/${id}/post`, { method: "POST" });
-    const data = await res.json().catch(() => null);
-    setPosting(null);
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting invoice");
-      return;
-    }
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, postStatus: "posted" } : r)));
-    router.refresh();
-  };
-
   const columns: FilterableColumn<InvoiceListRow>[] = [
+    {
+      key: "no",
+      header: "No.",
+      headClassName: "w-12 text-center",
+      cellClassName: "w-12 text-center text-slate-500 tabular-nums",
+      cell: (_r, i) => i + 1,
+    },
     {
       key: "invoiceNumber",
       header: "No. Invoice",
@@ -96,33 +81,6 @@ export const InvoiceListTable: React.FC<{ rows: InvoiceListRow[] }> = ({ rows: i
     ...(isVisible("postStatus")
       ? [{ key: "postStatus", header: "Posting", cell: (r: InvoiceListRow) => <StatusBadge type={r.postStatus} size="sm" /> }]
       : []),
-    {
-      key: "aksi",
-      header: "Aksi",
-      cell: (r) => (
-        <div className="flex items-center gap-2">
-          {r.hasCost && (
-            <JournalButton
-              title={`Jurnal — ${r.invoiceNumber}`}
-              sources={[{ sourceType: "invoice", sourceId: r.id }]}
-              postUrl={r.postStatus === "draft" ? `/api/invoices/${r.id}/post` : undefined}
-            />
-          )}
-          {r.postStatus === "draft" && (
-            <Button size="sm" variant="primary" onClick={() => handlePost(r.id)} isLoading={posting === r.id}>
-              Posting
-            </Button>
-          )}
-          {r.postStatus === "posted" && (
-            <VoidButton
-              voidUrl={`/api/invoices/${r.id}/void`}
-              itemLabel={`invoice ${r.invoiceNumber}`}
-              onVoided={() => setRows((prev) => prev.map((row) => (row.id === r.id ? { ...row, postStatus: "voided" } : row)))}
-            />
-          )}
-        </div>
-      ),
-    },
   ];
 
   return (
@@ -134,13 +92,6 @@ export const InvoiceListTable: React.FC<{ rows: InvoiceListRow[] }> = ({ rows: i
         </div>
         <ColumnVisibilityMenu columns={INVOICE_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      {error && (
-        <div className="px-5 sm:px-6 pb-4">
-          <Alert variant="error" onClose={() => setError("")}>
-            {error}
-          </Alert>
-        </div>
-      )}
       <FilterableTable columns={columns} rows={rows} rowKey={(r) => r.id} emptyMessage='Belum ada invoice. Klik "Buat Invoice" untuk mulai.' />
     </Card>
   );

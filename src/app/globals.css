@@ -169,6 +169,11 @@ body {
   display: none;
 }
 @media print {
+  /* Nota/Invoice dicetak di kertas A5 (bukan A4) — lihat nota/Nota Keren.png. */
+  @page {
+    size: A5;
+    margin: 8mm;
+  }
   .no-print {
     display: none !important;
   }
@@ -181,5 +186,9 @@ body {
   }
   .print-only {
     display: block !important;
+  }
+  .print-nota-a5 {
+    width: 100%;
+    font-size: 11px;
   }
 }

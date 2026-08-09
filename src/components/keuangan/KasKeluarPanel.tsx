@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Card,
@@ -31,7 +31,7 @@ export interface BillItemOption {
   clientName: string | null;
 }
 
-type LineKind = "manual" | "domain" | "server" | "maintenance";
+type LineKind = "manual" | "domain" | "server" | "maintenance" | "recurring_bill";
 
 interface LineDraft {
   kind: LineKind;
@@ -40,6 +40,7 @@ interface LineDraft {
   domainId: string;
   serverId: string;
   maintenanceId: string;
+  recurringBillId: string;
   amount: number;
 }
 
@@ -50,6 +51,7 @@ const emptyLine = (): LineDraft => ({
   domainId: "",
   serverId: "",
   maintenanceId: "",
+  recurringBillId: "",
   amount: 0,
 });
 
@@ -78,6 +80,7 @@ const KIND_OPTIONS = [
   { value: "domain", label: "Bayar Domain" },
   { value: "server", label: "Bayar Server" },
   { value: "maintenance", label: "Bayar Maintenance" },
+  { value: "recurring_bill", label: "Bayar Biaya Berkala" },
 ];
 
 /** Kas Keluar — satu pintu buat semua pengeluaran kas/bank, termasuk yang dulu dua menu
@@ -89,9 +92,11 @@ export const KasKeluarPanel: React.FC<{
   domains: BillItemOption[];
   servers: BillItemOption[];
   maintenances: BillItemOption[];
+  recurringBills: BillItemOption[];
   isOwner: boolean;
-}> = ({ accounts: initialAccounts, domains, servers, maintenances, isOwner }) => {
+}> = ({ accounts: initialAccounts, domains, servers, maintenances, recurringBills, isOwner }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState(initialAccounts);
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -153,15 +158,31 @@ export const KasKeluarPanel: React.FC<{
     () => maintenances.map((m) => ({ value: m.id, label: `${m.name}${m.clientName ? ` — ${m.clientName}` : ""} · ${formatRupiah(m.price ?? 0)}` })),
     [maintenances]
   );
+  const recurringBillOptions = useMemo(
+    () => recurringBills.map((b) => ({ value: b.id, label: `${b.name} · ${formatRupiah(b.price ?? 0)}` })),
+    [recurringBills]
+  );
   const nameByRefId = useMemo(() => {
     const map = new Map<string, string>();
     for (const d of domains) map.set(d.id, d.name);
     for (const s of servers) map.set(s.id, s.name);
     for (const m of maintenances) map.set(m.id, m.name);
+    for (const b of recurringBills) map.set(b.id, b.name);
     return map;
-  }, [domains, servers, maintenances]);
+  }, [domains, servers, maintenances, recurringBills]);
 
   const kindOptions = isOwner ? KIND_OPTIONS : KIND_OPTIONS.filter((o) => o.value === "manual");
+
+  // Datang dari "Bayar Sekarang" biaya berkala di Dashboard (?recurringBillId=...) — langsung
+  // isi baris pertama supaya user tinggal pilih akun kas/bank & simpan, bukan input ulang.
+  useEffect(() => {
+    const billId = searchParams.get("recurringBillId");
+    if (!billId) return;
+    const bill = recurringBills.find((b) => b.id === billId);
+    if (!bill) return;
+    setLines([{ ...emptyLine(), kind: "recurring_bill", recurringBillId: bill.id, amount: bill.price ?? 0 }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const updateLine = (index: number, patch: Partial<LineDraft>) => {
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -221,10 +242,14 @@ export const KasKeluarPanel: React.FC<{
       return;
     }
     const missingLink = lines.find(
-      (l) => (l.kind === "domain" && !l.domainId) || (l.kind === "server" && !l.serverId) || (l.kind === "maintenance" && !l.maintenanceId)
+      (l) =>
+        (l.kind === "domain" && !l.domainId) ||
+        (l.kind === "server" && !l.serverId) ||
+        (l.kind === "maintenance" && !l.maintenanceId) ||
+        (l.kind === "recurring_bill" && !l.recurringBillId)
     );
     if (missingLink) {
-      setError("Ada baris Bayar Domain/Server/Maintenance yang belum pilih itemnya");
+      setError("Ada baris Bayar Domain/Server/Maintenance/Biaya Berkala yang belum pilih itemnya");
       return;
     }
 
@@ -244,6 +269,7 @@ export const KasKeluarPanel: React.FC<{
             domainId: l.kind === "domain" ? l.domainId : undefined,
             serverId: l.kind === "server" ? l.serverId : undefined,
             maintenanceId: l.kind === "maintenance" ? l.maintenanceId : undefined,
+            recurringBillId: l.kind === "recurring_bill" ? l.recurringBillId : undefined,
             amount: l.amount,
           })),
         }),
@@ -279,7 +305,12 @@ export const KasKeluarPanel: React.FC<{
     router.refresh();
   };
 
-  const REF_LABEL: Record<string, string> = { domain: "Bayar Domain", server: "Bayar Server", maintenance: "Bayar Maintenance" };
+  const REF_LABEL: Record<string, string> = {
+    domain: "Bayar Domain",
+    server: "Bayar Server",
+    maintenance: "Bayar Maintenance",
+    recurring_bill: "Bayar Biaya Berkala",
+  };
 
   const rowLabel = (r: TransactionRow) => {
     if (r.refType && r.refId) return `${REF_LABEL[r.refType] ?? r.refType} — ${nameByRefId.get(r.refId) ?? "-"}`;
@@ -325,7 +356,7 @@ export const KasKeluarPanel: React.FC<{
         <div className="mt-1">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Kas Keluar</h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-            Catat pengeluaran kas/bank — biaya manual maupun Bayar Domain/Server, boleh lebih dari 1 baris sekaligus.
+            Catat pengeluaran kas/bank — biaya manual maupun Bayar Domain/Server/Biaya Berkala, boleh lebih dari 1 baris sekaligus.
           </p>
         </div>
       </div>
@@ -354,7 +385,15 @@ export const KasKeluarPanel: React.FC<{
                     options={kindOptions}
                     value={line.kind}
                     onChange={(v) =>
-                      updateLine(i, { kind: v as LineKind, categoryId: "", description: "", domainId: "", serverId: "", maintenanceId: "" })
+                      updateLine(i, {
+                        kind: v as LineKind,
+                        categoryId: "",
+                        description: "",
+                        domainId: "",
+                        serverId: "",
+                        maintenanceId: "",
+                        recurringBillId: "",
+                      })
                     }
                     searchable={false}
                   />
@@ -431,6 +470,17 @@ export const KasKeluarPanel: React.FC<{
                   onChange={(v) => updateLine(i, { maintenanceId: v })}
                   placeholder="Pilih maintenance"
                   emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
+                />
+              )}
+              {line.kind === "recurring_bill" && (
+                <Select
+                  label="Biaya Berkala"
+                  sizeVariant="sm"
+                  options={recurringBillOptions}
+                  value={line.recurringBillId}
+                  onChange={(v) => updateLine(i, { recurringBillId: v })}
+                  placeholder="Pilih biaya berkala"
+                  emptyText="Tidak ada — pastikan sudah aktif & punya nominal di Master Data"
                 />
               )}
               <CurrencyInput

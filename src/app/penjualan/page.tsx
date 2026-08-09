@@ -42,7 +42,6 @@ export default async function PenjualanPage() {
             remaining: inv.totalAmount - inv.payments.reduce((sum, p) => sum + p.amount, 0),
             status: inv.status,
             postStatus: inv.postStatus as "draft" | "posted" | "voided",
-            hasCost: inv.totalCost > 0,
           }))}
         />
       </div>
