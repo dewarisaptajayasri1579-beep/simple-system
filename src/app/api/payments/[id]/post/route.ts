@@ -35,6 +35,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       await finalizeTransactionPosting(tx, { transactionId: t.id, postedById: user.id })
     }
 
+    // Tandai payment lebih dulu agar query total pembayaran di bawah ikut menghitung
+    // payment ini. Sebelumnya update ini dilakukan setelah perhitungan sehingga payment
+    // yang baru diposting masih berstatus draft dan invoice keliru tetap "unpaid".
+    const result = await tx.payment.update({
+      where: { id },
+      data: { postStatus: "posted", postedAt: new Date(), postedById: user.id },
+      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
+    })
+
     // Recompute status tiap invoice yang dibayar payment ini, berdasarkan SEMUA payment yang
     // sudah posted (termasuk payment ini, yang baris Transaction-nya baru saja diposting di
     // atas) — payment lain yang masih draft tetap tidak ikut terhitung.
@@ -47,11 +56,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
     }
 
-    return tx.payment.update({
-      where: { id },
-      data: { postStatus: "posted", postedAt: new Date(), postedById: user.id },
-      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
-    })
+    return result
   })
 
   return NextResponse.json(posted)

@@ -163,15 +163,20 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           serverId: prefill?.serverId,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(data.error || "Gagal membuat invoice");
+        setError(data?.error || `Gagal membuat invoice (status ${res.status})`);
+        setIsSubmitting(false);
+        return;
+      }
+      if (!data?.id) {
+        setError("Invoice tersimpan tapi respons server tidak lengkap — cek menu Penjualan.");
         setIsSubmitting(false);
         return;
       }
       router.push(`/penjualan/${data.id}`);
     } catch {
-      setError("Gagal menghubungi server");
+      setError("Gagal menghubungi server — cek koneksi internet lalu coba lagi.");
       setIsSubmitting(false);
     }
   };

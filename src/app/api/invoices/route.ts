@@ -92,57 +92,62 @@ export async function POST(request: Request) {
   const ppnAmount = ppnEnabled ? Math.round(afterDiscount * (ppnRate / 100)) : 0
   const totalAmount = afterDiscount + ppnAmount
 
-  const invoiceNumber = await generateInvoiceNumber()
+  try {
+    const invoiceNumber = await generateInvoiceNumber()
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const created = await tx.invoice.create({
-      data: {
-        invoiceNumber,
-        clientId,
-        issuedAt: body?.issuedAt ? new Date(body.issuedAt) : undefined,
-        dueDate: body?.dueDate ? new Date(body.dueDate) : null,
-        subtotal,
-        discountAmount,
-        ppnEnabled,
-        ppnRate,
-        ppnAmount,
-        totalAmount,
-        totalCost,
-        notes: body?.notes || null,
-        costLinkType,
-        costLinkId,
-        lines: { create: preparedLines },
-      },
-      include: { lines: true, client: true },
+    const invoice = await prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          invoiceNumber,
+          clientId,
+          issuedAt: body?.issuedAt ? new Date(body.issuedAt) : undefined,
+          dueDate: body?.dueDate ? new Date(body.dueDate) : null,
+          subtotal,
+          discountAmount,
+          ppnEnabled,
+          ppnRate,
+          ppnAmount,
+          totalAmount,
+          totalCost,
+          notes: body?.notes || null,
+          costLinkType,
+          costLinkId,
+          lines: { create: preparedLines },
+        },
+        include: { lines: true, client: true },
+      })
+
+      // Ledger akrual (JournalEntry/JournalLine): pendapatan, piutang, PPN, dan HPP semua diakui
+      // sekarang (saat invoice terbit) — beda dari Transaction cash-basis yang baru mengakui
+      // pendapatan saat pembayaran masuk (lihat /api/payments). Draft dulu, baru berlaku begitu
+      // invoice ini diposting (lihat /api/invoices/[id]/post).
+      if (totalCost > 0) {
+        await postJournalEntry(tx, {
+          date: created.issuedAt,
+          description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
+          sourceType: "invoice",
+          sourceId: created.id,
+          createdBy: user.id,
+          lines: invoiceCostLines({ totalCost }),
+        })
+      }
+      if (totalAmount > 0) {
+        await postJournalEntry(tx, {
+          date: created.issuedAt,
+          description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
+          sourceType: "invoice_revenue",
+          sourceId: created.id,
+          createdBy: user.id,
+          lines: invoiceRevenueLines({ totalAmount, ppnAmount, revenueCoaCode: created.revenueCoaCode ?? undefined }),
+        })
+      }
+
+      return created
     })
 
-    // Ledger akrual (JournalEntry/JournalLine): pendapatan, piutang, PPN, dan HPP semua diakui
-    // sekarang (saat invoice terbit) — beda dari Transaction cash-basis yang baru mengakui
-    // pendapatan saat pembayaran masuk (lihat /api/payments). Draft dulu, baru berlaku begitu
-    // invoice ini diposting (lihat /api/invoices/[id]/post).
-    if (totalCost > 0) {
-      await postJournalEntry(tx, {
-        date: created.issuedAt,
-        description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
-        sourceType: "invoice",
-        sourceId: created.id,
-        createdBy: user.id,
-        lines: invoiceCostLines({ totalCost }),
-      })
-    }
-    if (totalAmount > 0) {
-      await postJournalEntry(tx, {
-        date: created.issuedAt,
-        description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
-        sourceType: "invoice_revenue",
-        sourceId: created.id,
-        createdBy: user.id,
-        lines: invoiceRevenueLines({ totalAmount, ppnAmount, revenueCoaCode: created.revenueCoaCode ?? undefined }),
-      })
-    }
-
-    return created
-  })
-
-  return NextResponse.json(invoice, { status: 201 })
+    return NextResponse.json(invoice, { status: 201 })
+  } catch (err) {
+    console.error("[POST /api/invoices]", err)
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal membuat invoice" }, { status: 500 })
+  }
 }

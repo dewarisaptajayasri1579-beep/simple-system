@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, Modal, Input, Select, Alert, CurrencyInput } from "@/components/ui";
-import { ArrowUpRight, ArrowDownLeft, Wallet, Plus } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Landmark, Plus } from "lucide-react";
 
 const BANK_KEYWORDS = ["mandiri", "bca", "bri", "bni", "bsi"];
 
@@ -79,12 +79,12 @@ export const KeuanganPanel: React.FC<{ userRole: string }> = ({ userRole }) => {
       accent: "text-emerald-600 bg-emerald-50",
     },
     {
-      key: "pelunasan",
-      icon: <Wallet className="w-6 h-6" />,
-      title: "Pelunasan",
-      description: "Bayar piutang invoice client",
-      href: "/pembayaran",
-      accent: "text-amber-600 bg-amber-50",
+      key: "akun-kas-bank",
+      icon: <Landmark className="w-6 h-6" />,
+      title: "Akun Kas dan Bank",
+      description: "Lihat dan edit akun kas/bank beserta COA terkait",
+      href: "/keuangan/akun-kas-bank",
+      accent: "text-indigo-600 bg-indigo-50",
     },
   ].filter(Boolean) as Array<{
     key: string;
