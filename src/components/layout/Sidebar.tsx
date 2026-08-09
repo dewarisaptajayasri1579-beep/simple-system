@@ -32,8 +32,8 @@ export interface SidebarProps {
 
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Penjualan", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
+  { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Proyek", href: "/proyek", icon: <FolderKanban className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },

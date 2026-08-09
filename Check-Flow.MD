@@ -8,7 +8,7 @@ dijelaskan di bawah.
 
 ```mermaid
 flowchart TD
-  A["1. Input Master Data\nPengaturan > Master Data > Domain\nPOST /api/domains"] --> B{clientId diisi?}
+  A["1. Kelola di Master Data\nPengaturan > Master Data > Domain\nPATCH /api/domains/:id (edit saja, TIDAK ada create lewat UI)"] --> B{clientId diisi?}
 
   B -- "Ya, milik Client" --> C["2. Muncul di Dashboard\nDomain — Lewat / Bulan Ini / Bulan Depan\nsyarat: active=true DAN\nbucket = expired/bulan ini/bulan depan\n(dari expiryDate / \"Tgl Berakhir\")"]
   C --> D["3. Tagih Sekarang\nlink ke /penjualan/baru\nprefill clientId + amount + domainId"]
@@ -31,10 +31,10 @@ flowchart TD
 
 ## Penjelasan tiap langkah
 
-### 1. Input Master Data
+### 1. Kelola di Master Data
 - **Di mana:** Pengaturan → Master Data → tab Domain (`MasterDataPanel.tsx`).
-- **API:** `POST /api/domains`.
-- **Field kunci:** `name`, `clientId` (kosong = Internal/7Smarts), `sellPrice` (harga jual ke client), `lastPaidAt` (kapan terakhir dibayar), `expiryDate`/"Tgl Berakhir" (kapan servicenya berakhir — acuan renewal), `active`.
+- **API:** `src/app/api/domains/route.ts` cuma punya `GET` (list) — **tidak ada `POST`, jadi domain baru TIDAK BISA ditambah lewat UI ini.** Baris Domain hanya berasal dari migrasi data lama (`legacyId`); yang bisa dilakukan staf di Master Data cuma **edit** baris yang sudah ada, lewat `PATCH /api/domains/[id]` (`src/app/api/domains/[id]/route.ts`).
+- **Field kunci yang bisa diedit:** `name`, `clientId` (kosong = Internal/7Smarts), `sellPrice` (harga jual ke client), `lastPaidAt` (kapan terakhir dibayar), `expiryDate`/"Tgl Berakhir" (kapan servicenya berakhir — acuan renewal), `active` (plus `cpanelAccountId`, tidak relevan ke alur ini).
 - `lastPaidAt` dan `expiryDate` **dua field terpisah dengan arti beda** — dulu digabung (expiry selalu dihitung dari `lastPaidAt + 1 tahun` lewat `computeDomainExpiryDate`), sekarang `expiryDate` eksplisit disimpan sendiri di kolomnya. Domain lama di-backfill `expiryDate = lastPaidAt` lamanya, lalu bisa dikoreksi manual per domain lewat kolom "Tgl Berakhir" (klik untuk edit, `DomainDateCell.tsx`).
 - `resolveDomainExpiry(domain)` (`src/lib/domain-status.ts`) = `expiryDate` kalau ada, fallback `lastPaidAt + 1 tahun` cuma buat baris yang belum pernah kesetel.
 

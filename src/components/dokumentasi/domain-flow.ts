@@ -6,10 +6,11 @@ import type { FlowStep } from "./FlowTimeline";
 export const domainClientSteps: FlowStep[] = [
   {
     no: "1",
-    title: "Domain didaftarkan ke sistem",
+    title: "Lengkapi datanya di Master Data",
     description:
-      "Masuk ke Pengaturan → Master Data → Domain, lalu isi data domainnya: nama domain, ini milik Client mana (atau punya sendiri/Internal kalau bukan buat client), berapa harga jualnya, dan kapan terakhir dibayar.",
+      "Buka Pengaturan → Master Data → Domain. Daftar domainnya sendiri sudah ada (dari data lama), staf tinggal EDIT baris yang sudah ada: pilih ini milik Client mana (atau kosongkan kalau punya sendiri/Internal), isi berapa harga jualnya, dan kapan terakhir dibayar.",
     detail: [
+      "Menu ini cuma untuk EDIT domain yang sudah ada di daftar — belum ada tombol untuk menambah domain baru dari nol. Kalau ada domain baru yang belum masuk daftar, hubungi yang pegang akses database.",
       "Ada 2 tanggal yang beda artinya: \"Tgl Terakhir Bayar\" (kapan terakhir kali dibayar) dan \"Tgl Berakhir\" (kapan domain ini harus diperpanjang lagi). Isi juga \"Tgl Berakhir\"-nya kalau sudah tahu, supaya sistem bisa mengingatkan pas mau habis.",
     ],
   },
