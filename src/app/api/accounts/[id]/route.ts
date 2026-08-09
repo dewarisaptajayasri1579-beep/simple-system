@@ -19,11 +19,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const duplicate = await prisma.account.findFirst({ where: { name: { equals: name, mode: "insensitive" }, id: { not: id } } })
   if (duplicate) return NextResponse.json({ error: `Akun Kas/Bank "${duplicate.name}" sudah ada` }, { status: 400 })
 
+  // coaAccountId dikirim eksplisit kalau staf pilih dari dropdown COA — kalau tidak dikirim sama
+  // sekali, jangan ubah link COA-nya (biar endpoint ini tetap kompatibel dipanggil dari tempat
+  // lain yang cuma update nama/saldo).
+  const coaAccountIdProvided = typeof body?.coaAccountId === "string"
+  const nextCoaAccountId = coaAccountIdProvided ? body.coaAccountId || null : account.coaAccountId
+
+  if (nextCoaAccountId) {
+    const targetCoa = await prisma.chartOfAccount.findUnique({ where: { id: nextCoaAccountId } })
+    if (!targetCoa) return NextResponse.json({ error: "Akun COA yang dipilih tidak ditemukan" }, { status: 400 })
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
-    // COA dibuat otomatis bersama akun ini. Saat nama akun diubah, ikut perbarui namanya
-    // agar nama di dropdown dan Buku Besar tetap konsisten. Kode COA tidak berubah.
-    if (account.coaAccountId && account.coaAccount?.name !== name) {
-      await tx.chartOfAccount.update({ where: { id: account.coaAccountId }, data: { name } })
+    // Kalau COA-nya tidak diganti (masih yang lama, biasanya auto-dibuat bareng akun ini), ikut
+    // perbarui namanya saat nama akun diubah, supaya nama di dropdown & Buku Besar tetap
+    // konsisten. Kalau staf sengaja ganti ke COA lain lewat dropdown, jangan rename COA itu —
+    // itu bisa akun COA yang dipakai bareng/sudah punya nama sendiri.
+    if (nextCoaAccountId && nextCoaAccountId === account.coaAccountId && account.coaAccount?.name !== name) {
+      await tx.chartOfAccount.update({ where: { id: nextCoaAccountId }, data: { name } })
     }
 
     return tx.account.update({
@@ -34,6 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         bankName: body?.type === "bank" && typeof body?.bankName === "string" ? body.bankName.trim() || null : null,
         accountNumber: typeof body?.accountNumber === "string" ? body.accountNumber.trim() || null : null,
         openingBalance: Number(body?.openingBalance) || 0,
+        coaAccountId: nextCoaAccountId,
       },
       include: { coaAccount: true },
     })

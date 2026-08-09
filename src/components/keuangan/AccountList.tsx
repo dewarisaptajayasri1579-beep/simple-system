@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Pencil } from "lucide-react"
 import { Alert, Button, Card, CardDescription, CardHeader, CardTitle, CurrencyInput, FilterableTable, Input, Modal, Select, type FilterableColumn } from "@/components/ui"
 
@@ -12,6 +12,15 @@ export interface AccountRow {
   accountNumber: string | null
   openingBalance: number
   coa: { code: string; name: string } | null
+  coaAccountId: string | null
+}
+
+interface CoaOption {
+  id: string
+  code: string
+  name: string
+  type: string
+  isParent: boolean
 }
 
 function formatRupiah(amount: number) {
@@ -31,8 +40,21 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
   const [bankName, setBankName] = useState("")
   const [accountNumber, setAccountNumber] = useState("")
   const [openingBalance, setOpeningBalance] = useState(0)
+  const [coaAccountId, setCoaAccountId] = useState("")
+  const [coaOptions, setCoaOptions] = useState<CoaOption[]>([])
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/coa")
+      .then((r) => r.json())
+      .then((data: CoaOption[]) => {
+        if (Array.isArray(data)) setCoaOptions(data.filter((a) => a.type === "asset" && !a.isParent))
+      })
+      .catch(() => {})
+  }, [])
+
+  const coaSelectOptions = useMemo(() => coaOptions.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })), [coaOptions])
 
   const openEdit = (account: AccountRow) => {
     setEditing(account)
@@ -41,6 +63,7 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
     setBankName(account.bankName ?? "")
     setAccountNumber(account.accountNumber ?? "")
     setOpeningBalance(account.openingBalance)
+    setCoaAccountId(account.coaAccountId ?? "")
     setError("")
   }
 
@@ -56,7 +79,7 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
     const res = await fetch(`/api/accounts/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type, bankName, accountNumber, openingBalance }),
+      body: JSON.stringify({ name, type, bankName, accountNumber, openingBalance, coaAccountId }),
     })
     const data = await res.json().catch(() => null)
     setSaving(false)
@@ -64,7 +87,22 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
       setError(data?.error || "Gagal memperbarui akun")
       return
     }
-    setRows((prev) => prev.map((row) => (row.id === editing.id ? { ...row, name: data.name, type: data.type, bankName: data.bankName, accountNumber: data.accountNumber, openingBalance: data.openingBalance, coa: data.coaAccount ? { code: data.coaAccount.code, name: data.coaAccount.name } : null } : row)))
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === editing.id
+          ? {
+              ...row,
+              name: data.name,
+              type: data.type,
+              bankName: data.bankName,
+              accountNumber: data.accountNumber,
+              openingBalance: data.openingBalance,
+              coa: data.coaAccount ? { code: data.coaAccount.code, name: data.coaAccount.name } : null,
+              coaAccountId: data.coaAccountId ?? null,
+            }
+          : row
+      )
+    )
     close()
   }
 
@@ -108,8 +146,18 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
           {type === "bank" && <Input label="Nama Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="mis. BCA" />}
           <Input label="No. Rekening (opsional)" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
           <CurrencyInput label="Saldo Awal" value={openingBalance} onChange={setOpeningBalance} />
-          <Input label="COA Terkait" value={editing?.coa ? `${editing.coa.code} — ${editing.coa.name}` : "Belum terhubung"} readOnly />
-          <p className="text-xs text-slate-500">Nama COA akan ikut diperbarui jika nama akun diubah. Kode dan hubungan COA tetap dijaga.</p>
+          <Select
+            label="COA Terkait"
+            options={coaSelectOptions}
+            value={coaAccountId}
+            onChange={setCoaAccountId}
+            placeholder="Pilih akun COA"
+            searchPlaceholder="Cari kode atau nama akun..."
+            emptyText="Belum ada akun COA jenis Aset"
+          />
+          <p className="text-xs text-slate-500">
+            Nama COA akan ikut diperbarui otomatis kalau nama akun ini diubah — kecuali kamu pindah ke COA lain lewat dropdown, itu tidak ikut di-rename.
+          </p>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={close}>Batal</Button>
             <Button type="button" variant="primary" onClick={save} isLoading={saving}>Simpan</Button>
