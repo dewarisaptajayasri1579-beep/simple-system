@@ -186,10 +186,17 @@ body {
   }
   .print-only {
     display: block !important;
+    /* space-y-6 di kontainer induk masih narget elemen ini (selector-nya cuma cek atribut
+       [hidden], bukan display:none dari elemen no-print di sebelumnya) — tanpa dinolkan,
+       margin-top 1.5rem "siluman" ini bisa bikin konten kelebihan tinggi 1 halaman A5 dan
+       nyisain 1 halaman terakhir kosong waktu print. */
+    margin: 0 !important;
   }
   .print-nota-a5 {
     width: 100%;
     font-size: 11px;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   /* Sisa layout aplikasi (padding buat sidebar/header, max-width konten, min-height layar
      penuh) tetap kepakai walau sidebar/header-nya sendiri sudah disembunyikan .no-print —
