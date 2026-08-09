@@ -21,8 +21,8 @@ import {
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status";
-import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status";
-import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
+import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status";
+import { DomainDateCell } from "@/components/domain/DomainDateCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { CategorySection } from "./CategorySection";
 
@@ -95,6 +95,7 @@ export interface DomainRow {
   clientId: string | null;
   sellPrice: number | null;
   lastPaidAt: string | null;
+  expiryDate: string | null;
   active: boolean;
   client: { name: string } | null;
 }
@@ -1248,6 +1249,7 @@ const DOMAIN_COLUMNS = [
   { key: "hasClient", label: "Internal/External" },
   { key: "price", label: "Harga Jual" },
   { key: "lastPaid", label: "Terakhir Bayar" },
+  { key: "expiryDate", label: "Tgl Berakhir" },
   { key: "expiry", label: "Estimasi Habis" },
   { key: "status", label: "Status" },
   { key: "aktif", label: "Aktif" },
@@ -1304,7 +1306,13 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
     [localClients, stagingOptions]
   );
 
-  const bucketOf = (domain: DomainRow) => getExpiryBucket(computeDomainExpiryDate(domain.lastPaidAt ? new Date(domain.lastPaidAt) : null));
+  const bucketOf = (domain: DomainRow) =>
+    getExpiryBucket(
+      resolveDomainExpiry({
+        expiryDate: domain.expiryDate ? new Date(domain.expiryDate) : null,
+        lastPaidAt: domain.lastPaidAt ? new Date(domain.lastPaidAt) : null,
+      })
+    );
 
   const activeRows = rows.filter((r) => r.active);
   const counts = {
@@ -1437,18 +1445,50 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
             key: "lastPaid",
             header: "Terakhir Bayar",
             cell: (d: DomainRow) => (
-              <DomainLastPaidCell
+              <DomainDateCell
                 domainId={d.id}
-                lastPaidAt={d.lastPaidAt}
+                field="lastPaidAt"
+                value={d.lastPaidAt}
                 formatDate={formatDateObj}
+                title="Klik untuk ubah tanggal terakhir bayar"
                 onUpdated={(lastPaidAt) => setRows((prev) => prev.map((r) => (r.id === d.id ? { ...r, lastPaidAt } : r)))}
               />
             ),
           },
         ]
       : []),
+    ...(isVisible("expiryDate")
+      ? [
+          {
+            key: "expiryDate",
+            header: "Tgl Berakhir",
+            cell: (d: DomainRow) => (
+              <DomainDateCell
+                domainId={d.id}
+                field="expiryDate"
+                value={d.expiryDate}
+                formatDate={formatDateObj}
+                title="Klik untuk ubah tanggal berakhir — acuan renewal (kalau dibayar, +1 tahun dari sini)"
+                onUpdated={(expiryDate) => setRows((prev) => prev.map((r) => (r.id === d.id ? { ...r, expiryDate } : r)))}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(isVisible("expiry")
-      ? [{ key: "expiry", header: "Estimasi Habis", cell: (d: DomainRow) => formatDateObj(computeDomainExpiryDate(d.lastPaidAt ? new Date(d.lastPaidAt) : null)) }]
+      ? [
+          {
+            key: "expiry",
+            header: "Estimasi Habis",
+            cell: (d: DomainRow) =>
+              formatDateObj(
+                resolveDomainExpiry({
+                  expiryDate: d.expiryDate ? new Date(d.expiryDate) : null,
+                  lastPaidAt: d.lastPaidAt ? new Date(d.lastPaidAt) : null,
+                })
+              ),
+          },
+        ]
       : []),
     ...(isVisible("status")
       ? [

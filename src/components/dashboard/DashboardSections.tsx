@@ -8,12 +8,12 @@ import { FollowUpButtons } from "./FollowUpButtons";
 import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
-import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
+import { DomainDateCell } from "@/components/domain/DomainDateCell";
 import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
-import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
+import { getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
 
 function formatRupiah(n: number | null) {
   if (!n) return "-";
@@ -364,6 +364,7 @@ export interface DomainExpiringRow {
   clientPhone: string | null;
   price: number | null;
   lastPaidAt: string | null;
+  expiryDate: string | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
 }
@@ -372,6 +373,7 @@ const DOMAIN_COLUMNS = [
   { key: "owner", label: "Pemilik" },
   { key: "ownerType", label: "Internal/Client" },
   { key: "lastPaidAt", label: "Terakhir Bayar" },
+  { key: "expiryDate", label: "Tgl Berakhir" },
   { key: "dueDate", label: "Estimasi Habis" },
   { key: "price", label: "Harga Jual" },
   { key: "status", label: "Status" },
@@ -454,17 +456,35 @@ export const DomainExpiringSection: React.FC<{
             key: "lastPaidAt",
             header: "Terakhir Bayar",
             cell: (r: DomainExpiringRow) => (
-              <DomainLastPaidCell
+              <DomainDateCell
                 domainId={r.id}
-                lastPaidAt={r.lastPaidAt}
+                field="lastPaidAt"
+                value={r.lastPaidAt}
                 formatDate={(d) => formatDate(d ? d.toISOString() : null)}
-                onUpdated={(lastPaidAt) =>
+                title="Klik untuk ubah tanggal terakhir bayar"
+                onUpdated={(lastPaidAt) => setRows((prev) => prev.map((row) => (row.id === r.id ? { ...row, lastPaidAt } : row)))}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(isVisible("expiryDate")
+      ? [
+          {
+            key: "expiryDate",
+            header: "Tgl Berakhir",
+            cell: (r: DomainExpiringRow) => (
+              <DomainDateCell
+                domainId={r.id}
+                field="expiryDate"
+                value={r.expiryDate}
+                formatDate={(d) => formatDate(d ? d.toISOString() : null)}
+                title="Klik untuk ubah tanggal berakhir — acuan renewal (kalau dibayar, +1 tahun dari sini)"
+                onUpdated={(expiryDate) =>
                   setRows((prev) =>
-                    prev.map((row) => {
-                      if (row.id !== r.id) return row;
-                      const expiry = computeDomainExpiryDate(lastPaidAt ? new Date(lastPaidAt) : null);
-                      return { ...row, lastPaidAt, dueDate: expiry ? expiry.toISOString() : null, bucket: getExpiryBucket(expiry) };
-                    })
+                    prev.map((row) =>
+                      row.id === r.id ? { ...row, expiryDate, dueDate: expiryDate, bucket: getExpiryBucket(expiryDate ? new Date(expiryDate) : null) } : row
+                    )
                   )
                 }
               />

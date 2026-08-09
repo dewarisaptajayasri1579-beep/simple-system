@@ -11,6 +11,12 @@ export function computeDomainExpiryDate(lastPaidAt: Date | null): Date | null {
   return expiry
 }
 
+/** Domain.expiryDate adalah acuan resmi (lihat catatan di schema.prisma) — fallback ke
+ *  lastPaidAt+1 tahun cuma buat baris lama yang belum kesetel expiryDate-nya. */
+export function resolveDomainExpiry(domain: { expiryDate: Date | null; lastPaidAt: Date | null }): Date | null {
+  return domain.expiryDate ?? computeDomainExpiryDate(domain.lastPaidAt)
+}
+
 export function getExpiryBucket(expiryDate: Date | null, reference: Date = new Date()): ExpiryBucket {
   if (!expiryDate) return "safe"
 

@@ -226,6 +226,11 @@ model Domain {
   sellPrice        Float?    @map("sell_price")
   activatedAt      DateTime? @map("activated_at")
   lastPaidAt       DateTime? @map("last_paid_at")
+  // Tanggal acuan renewal — kalau dibayar, INI yang ditambah 1 tahun (bukan lastPaidAt),
+  // supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan (lihat
+  // finalizeTransactionPosting di mark-paid.ts). lastPaidAt murni catatan "kapan terakhir
+  // dibayar"; expiryDate murni "kapan servicenya berakhir" — dua hal beda yang dulu digabung.
+  expiryDate       DateTime? @map("expiry_date")
   active           Boolean   @default(true)
   legacyActiveFlag String?   @map("legacy_active_flag")
   createdAt        DateTime  @default(now()) @map("created_at")

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status"
+import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
 
 /** Ringkasan operasional (piutang, saldo, domain, server, biaya berkala) — dipakai bareng oleh
@@ -20,7 +20,7 @@ export async function getDashboardSnapshot() {
   ])
 
   const domainRows = domains.map((d) => {
-    const dueDate = computeDomainExpiryDate(d.lastPaidAt)
+    const dueDate = resolveDomainExpiry(d)
     return { domain: d, dueDate, bucket: getExpiryBucket(dueDate) }
   })
   const domainExpiring = domainRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")

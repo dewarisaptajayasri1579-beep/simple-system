@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { prisma } from "@/lib/prisma"
 import { computeSplit } from "@/lib/split"
 import { computeAllAccountBalances } from "@/lib/account-balance"
-import { computeDomainExpiryDate, getExpiryBucket } from "@/lib/domain-status"
+import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
 import { formatJakartaDateLabel, jakartaTodayDateIso } from "@/lib/datetime"
 
@@ -86,7 +86,7 @@ async function getOutstandingInvoices(input: { clientName?: string }) {
 async function getDomainsExpiring() {
   const domains = await prisma.domain.findMany({ where: { active: true }, include: { client: true } })
   return domains
-    .map((d) => ({ domain: d, dueDate: computeDomainExpiryDate(d.lastPaidAt), bucket: getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)) }))
+    .map((d) => ({ domain: d, dueDate: resolveDomainExpiry(d), bucket: getExpiryBucket(resolveDomainExpiry(d)) }))
     .filter((r) => r.bucket !== "safe")
     .map((r) => ({
       name: r.domain.name,

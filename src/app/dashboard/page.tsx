@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardDescription, Button } from "@/components/ui"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
+import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
 import {
   PiutangSummarySection,
@@ -66,7 +66,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
   ])
 
-  const domainBuckets = domains.map((d) => getExpiryBucket(computeDomainExpiryDate(d.lastPaidAt)))
+  const domainBuckets = domains.map((d) => getExpiryBucket(resolveDomainExpiry(d)))
   const domainExpiringThisMonth = domainBuckets.filter((b) => b === "expiring_this_month").length
   const domainExpiringNextMonth = domainBuckets.filter((b) => b === "expiring_next_month").length
   const domainExpired = domainBuckets.filter((b) => b === "expired").length
@@ -118,7 +118,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Domain: sudah lewat tempo, habis bulan ini, atau habis bulan depan.
   const domainExpiringRows: DomainExpiringRow[] = domains
     .map((d) => {
-      const expiry = computeDomainExpiryDate(d.lastPaidAt)
+      const expiry = resolveDomainExpiry(d)
       return {
         id: d.id,
         name: d.name,
@@ -128,6 +128,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         clientPhone: d.client ? d.client.picPhone || d.client.phoneNumber : null,
         price: d.sellPrice,
         lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,
+        expiryDate: d.expiryDate ? d.expiryDate.toISOString() : null,
         dueDate: expiry ? expiry.toISOString() : null,
         bucket: getExpiryBucket(expiry),
       }

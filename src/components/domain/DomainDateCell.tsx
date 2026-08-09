@@ -4,17 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 
-export interface DomainLastPaidCellProps {
+export interface DomainDateCellProps {
   domainId: string;
-  lastPaidAt: string | null;
+  /** Field yang di-PATCH — "lastPaidAt" (kapan terakhir dibayar) atau "expiryDate" (kapan
+   *  servicenya berakhir, acuan renewal). Dua hal beda, lihat catatan di schema.prisma. */
+  field: "lastPaidAt" | "expiryDate";
+  value: string | null;
   formatDate: (d: Date | null) => string;
-  onUpdated: (lastPaidAt: string | null) => void;
+  onUpdated: (value: string | null) => void;
+  title?: string;
 }
 
-export const DomainLastPaidCell: React.FC<DomainLastPaidCellProps> = ({ domainId, lastPaidAt, formatDate, onUpdated }) => {
+export const DomainDateCell: React.FC<DomainDateCellProps> = ({ domainId, field, value: initialValue, formatDate, onUpdated, title }) => {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(lastPaidAt ? lastPaidAt.slice(0, 10) : "");
+  const [value, setValue] = useState(initialValue ? initialValue.slice(0, 10) : "");
   const [saving, setSaving] = useState(false);
 
   const commit = async () => {
@@ -22,11 +26,11 @@ export const DomainLastPaidCell: React.FC<DomainLastPaidCellProps> = ({ domainId
     const res = await fetch(`/api/domains/${domainId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lastPaidAt: value || null }),
+      body: JSON.stringify({ [field]: value || null }),
     });
     if (res.ok) {
       const data = await res.json();
-      onUpdated(data.lastPaidAt ?? null);
+      onUpdated(data[field] ?? null);
       router.refresh();
     }
     setSaving(false);
@@ -55,13 +59,13 @@ export const DomainLastPaidCell: React.FC<DomainLastPaidCellProps> = ({ domainId
     <button
       type="button"
       onClick={() => {
-        setValue(lastPaidAt ? lastPaidAt.slice(0, 10) : "");
+        setValue(initialValue ? initialValue.slice(0, 10) : "");
         setEditing(true);
       }}
       className="inline-flex items-center gap-1.5 text-left hover:text-[#0544cc] cursor-pointer group"
-      title="Klik untuk ubah tanggal terakhir bayar"
+      title={title ?? "Klik untuk ubah tanggal"}
     >
-      <span>{formatDate(lastPaidAt ? new Date(lastPaidAt) : null)}</span>
+      <span>{formatDate(initialValue ? new Date(initialValue) : null)}</span>
       <Pencil size={12} className="opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
     </button>
   );

@@ -10,7 +10,7 @@ dijelaskan di bawah.
 flowchart TD
   A["1. Input Master Data\nPengaturan > Master Data > Domain\nPOST /api/domains"] --> B{clientId diisi?}
 
-  B -- "Ya, milik Client" --> C["2. Muncul di Dashboard\nDomain — Lewat / Bulan Ini / Bulan Depan\nsyarat: active=true DAN\nbucket = expired/bulan ini/bulan depan\n(dihitung dari lastPaidAt + 1 tahun)"]
+  B -- "Ya, milik Client" --> C["2. Muncul di Dashboard\nDomain — Lewat / Bulan Ini / Bulan Depan\nsyarat: active=true DAN\nbucket = expired/bulan ini/bulan depan\n(dari expiryDate / \"Tgl Berakhir\")"]
   C --> D["3. Tagih Sekarang\nlink ke /penjualan/baru\nprefill clientId + amount"]
   D --> E["4. Invoice dibuat (Draft)\nPOST /api/invoices\nstatus piutang: unpaid\npostStatus: draft"]
   E --> F["5. Posting Invoice\nPOST /api/invoices/:id/post\npostStatus -> posted\n(HPP invoice, kalau ada, ikut posted)"]
@@ -19,14 +19,14 @@ flowchart TD
   G2 -- "Ya (costLink)" --> G3["markDomainPaid()\nTransaction expense terpisah\n+ jurnal Beban Domain (Draft)"]
   G2 -- "Tidak" --> H
   G3 --> H["7. Posting Payment\nPOST /api/payments/:id/post\nsemua Transaction terkait\ndi-posting bareng"]
-  H --> I["8. Efek setelah posted:\n- Invoice.status: unpaid/partial/paid\n- Domain.lastPaidAt terupdate\n  (CUMA kalau ada costLink di langkah 6)"]
+  H --> I["8. Efek setelah posted:\n- Invoice.status: unpaid/partial/paid\n- Domain.lastPaidAt terupdate + expiryDate +1 tahun\n  dari expiryDate sebelumnya\n  (CUMA kalau ada costLink di langkah 6)"]
   I --> J["9. COA / Buku Besar / Laporan\nJurnal postStatus=posted dihitung:\nKas & Bank, Pendapatan Jasa, PPN Keluaran,\nBeban Domain (kalau ada costLink),\nHPP + Hutang Usaha Vendor (kalau invoice ada HPP)"]
 
   B -- "Tidak, Internal (7Smarts sendiri)" --> K["2b. Muncul di Dashboard\nkolom Aksi: tombol 'Tandai Lunas'\n(bukan Tagih Sekarang)"]
   K --> L["3b. Tandai Lunas\nPOST /api/domains/:id/mark-paid\nATAU lewat Keuangan > Kas Keluar\n(Tipe baris: Bayar Domain)"]
   L --> M["4b. markDomainPaid()\nTransaction expense (Draft)\n+ jurnal Beban Domain (Draft)\nTIDAK lewat Invoice/Payment sama sekali"]
   M --> N["5b. Posting\nPOST /api/transactions/:id/post"]
-  N --> O["6b. Efek setelah posted:\nDomain.lastPaidAt terupdate\nBeban Domain masuk COA"]
+  N --> O["6b. Efek setelah posted:\nDomain.lastPaidAt terupdate + expiryDate +1 tahun\nBeban Domain masuk COA"]
 ```
 
 ## Penjelasan tiap langkah
@@ -34,9 +34,9 @@ flowchart TD
 ### 1. Input Master Data
 - **Di mana:** Pengaturan → Master Data → tab Domain (`MasterDataPanel.tsx`).
 - **API:** `POST /api/domains`.
-- **Field kunci:** `name`, `clientId` (kosong = Internal/7Smarts), `sellPrice` (harga jual ke client), `lastPaidAt`, `active`.
-- Domain **tidak punya field expiry eksplisit** — tanggal habis selalu dihitung ulang:
-  `computeDomainExpiryDate(lastPaidAt) = lastPaidAt + 1 tahun` (`src/lib/domain-status.ts`).
+- **Field kunci:** `name`, `clientId` (kosong = Internal/7Smarts), `sellPrice` (harga jual ke client), `lastPaidAt` (kapan terakhir dibayar), `expiryDate`/"Tgl Berakhir" (kapan servicenya berakhir — acuan renewal), `active`.
+- `lastPaidAt` dan `expiryDate` **dua field terpisah dengan arti beda** — dulu digabung (expiry selalu dihitung dari `lastPaidAt + 1 tahun` lewat `computeDomainExpiryDate`), sekarang `expiryDate` eksplisit disimpan sendiri di kolomnya. Domain lama di-backfill `expiryDate = lastPaidAt` lamanya, lalu bisa dikoreksi manual per domain lewat kolom "Tgl Berakhir" (klik untuk edit, `DomainDateCell.tsx`).
+- `resolveDomainExpiry(domain)` (`src/lib/domain-status.ts`) = `expiryDate` kalau ada, fallback `lastPaidAt + 1 tahun` cuma buat baris yang belum pernah kesetel.
 
 ### 2. Muncul di Dashboard
 - **Di mana:** `DomainExpiringSection` (`src/components/dashboard/DashboardSections.tsx`), data dari `src/app/dashboard/page.tsx`.
@@ -67,7 +67,7 @@ flowchart TD
 - **API:** `POST /api/payments/:id/post` → semua `Transaction` dengan `paymentId` yang sama (baris pendapatan invoice + baris Beban Domain kalau ada) di-posting **sekaligus, atomik**.
 - Efek setelah posted:
   - `Invoice.status` dihitung ulang: `unpaid` → `partial`/`paid`.
-  - Kalau ada cost-link Domain: `Domain.lastPaidAt` di-update ke `occurredAt` transaksi itu (`finalizeTransactionPosting` di `src/lib/accounting/mark-paid.ts`).
+  - Kalau ada cost-link Domain: `Domain.lastPaidAt` di-update ke `occurredAt` transaksi itu, DAN `Domain.expiryDate` ditambah 1 tahun dari `expiryDate` **sebelumnya** (bukan dari tanggal bayar) — supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan (`finalizeTransactionPosting` di `src/lib/accounting/mark-paid.ts`).
 
 ### 7. COA / Buku Besar / Laporan
 - Semua laporan (`/akuntansi/coa`, `/akuntansi/buku-besar`, Neraca, Laba Rugi) cuma menghitung `JournalLine` yang jurnalnya `postStatus = "posted"` — draft dan voided dikecualikan.
@@ -83,9 +83,10 @@ Domain internal (7Smarts sendiri) **tidak pernah masuk Invoice/Piutang/Payment s
 langsung dicatat sebagai pengeluaran:
 - **Tombol cepat:** "Tandai Lunas" di Dashboard → `POST /api/domains/:id/mark-paid` (wajib isi HPP + akun kas/bank).
 - **Atau:** Keuangan → Kas Keluar → tambah baris dengan Tipe "Bayar Domain" → `POST /api/transactions/kas-keluar`.
-- Keduanya sama-sama manggil `markDomainPaid()` (satu fungsi, dua pintu) → `Transaction` expense (draft) + jurnal Beban Domain (draft) → diposting via `POST /api/transactions/:id/post` → `lastPaidAt` domain ke-update + Beban Domain masuk COA.
+- Keduanya sama-sama manggil `markDomainPaid()` (satu fungsi, dua pintu) → `Transaction` expense (draft) + jurnal Beban Domain (draft) → diposting via `POST /api/transactions/:id/post` → `lastPaidAt` ke-update ke tanggal bayar, `expiryDate` maju 1 tahun dari `expiryDate` sebelumnya, + Beban Domain masuk COA.
 
 ## Yang perlu diwaspadai (bukan bug, tapi gampang salah paham)
-1. **"Tagih Sekarang" tidak otomatis mengaitkan Domain ke invoice-nya** — hubungan itu cuma kejadian kalau staf secara sadar pakai fitur cost-link pas isi form Pembayaran. Tanpa itu, `lastPaidAt` domain tetap tanggal lama walau invoice-nya sudah lunas.
+1. **"Tagih Sekarang" tidak otomatis mengaitkan Domain ke invoice-nya** — hubungan itu cuma kejadian kalau staf secara sadar pakai fitur cost-link pas isi form Pembayaran. Tanpa itu, `expiryDate` domain tetap tanggal lama walau invoice-nya sudah lunas.
 2. Invoice & Payment **draft tidak kehitung di mana pun** (Dashboard, COA, Buku Besar, saldo Kas) sampai eksplisit diposting — dua langkah posting terpisah (Invoice, lalu Payment) wajib dilakukan berurutan.
 3. HPP domain bisa "diakui" di 2 titik yang beda maknanya: HPP di baris Invoice (diakui saat invoice dibuat, lawan akun Hutang Usaha Vendor) vs Beban Domain lewat cost-link/Tandai Lunas (diakui saat benar-benar dibayar, lawan akun Kas/Bank) — biasanya cuma salah satu yang dipakai, bukan dua-duanya sekaligus untuk 1 domain yang sama.
+4. **`lastPaidAt` dan `expiryDate` sengaja dipisah**: `lastPaidAt` = kapan terakhir dibayar (catatan historis), `expiryDate` = kapan servicenya benar-benar berakhir (acuan renewal). Status Lewat/Bulan Ini/Bulan Depan di Dashboard SELALU pakai `expiryDate`, bukan `lastPaidAt`.

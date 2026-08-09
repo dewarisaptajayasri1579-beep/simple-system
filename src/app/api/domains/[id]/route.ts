@@ -19,6 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.sellPrice === "number") data.sellPrice = body.sellPrice
   if (typeof body.active === "boolean") data.active = body.active
   if (typeof body.lastPaidAt === "string") data.lastPaidAt = body.lastPaidAt ? new Date(body.lastPaidAt) : null
+  if (typeof body.expiryDate === "string") data.expiryDate = body.expiryDate ? new Date(body.expiryDate) : null
 
   const domain = await prisma.domain.update({
     where: { id },

@@ -72,7 +72,11 @@ export default async function PengaturanPage() {
             paymentAccountNumberNonPpn: settings.paymentAccountNumberNonPpn,
           }}
           users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber }))}
-          domains={domains.map((d) => ({ ...d, lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null }))}
+          domains={domains.map((d) => ({
+            ...d,
+            lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,
+            expiryDate: d.expiryDate ? d.expiryDate.toISOString() : null,
+          }))}
           recurringBills={recurringBills.map((b) => ({ ...b, lastPaidAt: b.lastPaidAt ? b.lastPaidAt.toISOString() : null }))}
           clients={clients}
           legacySalesClients={legacySalesClients}

@@ -6,11 +6,13 @@ export const domainClientSteps: FlowStep[] = [
   {
     no: "1",
     title: "Input Master Data",
-    description: "Pengaturan → Master Data → tab Domain. Field kunci: name, clientId (kosong = Internal), sellPrice, lastPaidAt, active.",
+    description:
+      "Pengaturan → Master Data → tab Domain. Field kunci: name, clientId (kosong = Internal), sellPrice, lastPaidAt (kapan terakhir dibayar), expiryDate / \"Tgl Berakhir\" (kapan servicenya berakhir — acuan renewal), active.",
     detail: [
-      "Domain tidak punya field expiry eksplisit — tanggal habis selalu dihitung ulang dari lastPaidAt + 1 tahun.",
+      "lastPaidAt dan expiryDate dua field terpisah dengan arti beda — dulu digabung (expiry selalu dihitung dari lastPaidAt+1 tahun), sekarang expiryDate eksplisit disimpan sendiri.",
+      "Domain lama (sebelum expiryDate ada) di-backfill: expiryDate = lastPaidAt lamanya, lalu bisa dikoreksi manual per domain lewat kolom \"Tgl Berakhir\" yang klik-untuk-edit.",
     ],
-    refs: ["POST /api/domains", "MasterDataPanel.tsx"],
+    refs: ["POST /api/domains", "MasterDataPanel.tsx", "DomainDateCell.tsx"],
   },
   {
     no: "2",
@@ -56,7 +58,7 @@ export const domainClientSteps: FlowStep[] = [
     description: "Semua Transaction dengan paymentId yang sama (baris pendapatan + baris Beban Domain kalau ada) diposting sekaligus, atomik.",
     detail: [
       "Invoice.status dihitung ulang: unpaid → partial/paid.",
-      "Kalau ada cost-link Domain: Domain.lastPaidAt di-update ke tanggal transaksi itu.",
+      "Kalau ada cost-link Domain: Domain.lastPaidAt di-update ke tanggal transaksi itu, DAN Domain.expiryDate (\"Tgl Berakhir\") ditambah 1 tahun dari expiryDate SEBELUMNYA — bukan dari tanggal bayar, supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan.",
     ],
     refs: ["POST /api/payments/:id/post", "finalizeTransactionPosting()"],
   },
@@ -98,13 +100,14 @@ export const domainInternalSteps: FlowStep[] = [
   {
     no: "4",
     title: "Posting",
-    description: "Setelah diposting: Domain.lastPaidAt ter-update + Beban Domain masuk COA.",
+    description: "Setelah diposting: Domain.lastPaidAt ter-update ke tanggal bayar, DAN Domain.expiryDate (\"Tgl Berakhir\") maju 1 tahun dari expiryDate sebelumnya + Beban Domain masuk COA.",
     refs: ["POST /api/transactions/:id/post"],
   },
 ];
 
 export const domainCaveats: string[] = [
-  "\"Tagih Sekarang\" tidak otomatis mengaitkan Domain ke invoice-nya — hubungan itu cuma kejadian kalau staf secara sadar pakai fitur cost-link pas isi form Pembayaran. Tanpa itu, lastPaidAt domain tetap tanggal lama walau invoice-nya sudah lunas.",
+  "\"Tagih Sekarang\" tidak otomatis mengaitkan Domain ke invoice-nya — hubungan itu cuma kejadian kalau staf secara sadar pakai fitur cost-link pas isi form Pembayaran. Tanpa itu, expiryDate domain tetap tanggal lama walau invoice-nya sudah lunas.",
   "Invoice & Payment draft tidak kehitung di mana pun (Dashboard, COA, Buku Besar, saldo Kas) sampai eksplisit diposting — dua langkah posting terpisah (Invoice, lalu Payment) wajib dilakukan berurutan.",
   "HPP domain bisa \"diakui\" di 2 titik yang beda maknanya: HPP di baris Invoice (diakui saat invoice dibuat, lawan akun Hutang Usaha Vendor) vs Beban Domain lewat cost-link/Tandai Lunas (diakui saat benar-benar dibayar, lawan akun Kas/Bank) — biasanya cuma salah satu yang dipakai untuk 1 domain yang sama.",
+  "lastPaidAt dan expiryDate sengaja dipisah: lastPaidAt = kapan terakhir dibayar (catatan historis), expiryDate = kapan servicenya benar-benar berakhir (acuan renewal). Yang dipakai buat status Lewat/Bulan Ini/Bulan Depan di Dashboard SELALU expiryDate, bukan lastPaidAt.",
 ]

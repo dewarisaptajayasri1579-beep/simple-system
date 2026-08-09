@@ -1,8 +1,10 @@
+import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui"
+import { Card, CardHeader, CardTitle, CardDescription, Alert } from "@/components/ui"
 import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { accountMovement } from "@/lib/accounting/coa-balance"
+import { COA_CODE } from "@/lib/accounting/coa-seed"
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
@@ -40,6 +42,8 @@ export default async function NeracaAkrualPage() {
   const ekuitasTotal = ekuitasFormalTotal + labaBerjalan
 
   const hasAnyJournal = accounts.some((a) => a.journalLines.length > 0)
+  const hutangVendorAccount = accounts.find((a) => a.code === COA_CODE.hutangUsahaVendor)
+  const hutangVendorResidual = hutangVendorAccount ? balanceOf(hutangVendorAccount) : 0
 
   // Aset = Liabilitas + Ekuitas selalu balance secara struktural, KARENA postJournalEntry
   // menolak posting jurnal manapun yang debit != kredit — jadi selisih di sini seharusnya
@@ -58,6 +62,17 @@ export default async function NeracaAkrualPage() {
             <a href="/laporan/neraca" className="underline">Neraca cash-basis</a>, bukan pengganti.
           </p>
         </div>
+
+        {hutangVendorResidual > 0.5 && (
+          <Alert variant="warning">
+            Akun &quot;Hutang Usaha (Vendor)&quot; masih bersaldo {formatRupiah(hutangVendorResidual)} dari jurnal lama (sebelum HPP
+            dibebankan langsung ke Kas &amp; Bank). Jalankan{" "}
+            <Link href="/akuntansi" className="underline font-semibold">
+              Rekalkulasi Jurnal Akrual
+            </Link>{" "}
+            di halaman Akuntansi untuk memperbaikinya.
+          </Alert>
+        )}
 
         {!hasAnyJournal && (
           <Card variant="feature" padding="lg" className="border-amber-300/60">

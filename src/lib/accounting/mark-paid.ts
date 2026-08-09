@@ -163,12 +163,15 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
   if (transaction.refType === "server" && transaction.refId) {
     await tx.server.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
   } else if (transaction.refType === "domain" && transaction.refId) {
-    // Perpanjangan domain menyambung dari jatuh tempo SEBELUMNYA + 1 tahun, bukan dari tanggal
-    // bayar — supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan. Kalau ini
-    // pembayaran pertama (belum pernah ada lastPaidAt), baru dari tanggal bayar/aktivasi.
-    const domain = await tx.domain.findUnique({ where: { id: transaction.refId }, select: { lastPaidAt: true } })
-    const previousDueDate = computeDomainExpiryDate(domain?.lastPaidAt ?? null)
-    await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: previousDueDate ?? transaction.occurredAt } })
+    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi — begitu dibayar, INI yang
+    // ditambah 1 tahun (bukan lastPaidAt/tanggal bayar), supaya telat bayar tidak menggeser
+    // siklus jatuh tempo tahun depan. Kalau belum pernah kesetel (domain baru), jatuh ke
+    // lastPaidAt lama, atau tanggal bayar/aktivasi ini kalau benar-benar baru pertama kali.
+    // lastPaidAt sendiri tetap murni "kapan terakhir dibayar" — dua field, dua arti beda.
+    const domain = await tx.domain.findUnique({ where: { id: transaction.refId }, select: { expiryDate: true, lastPaidAt: true } })
+    const previousAnchor = domain?.expiryDate ?? domain?.lastPaidAt ?? null
+    const nextExpiry = computeDomainExpiryDate(previousAnchor) ?? transaction.occurredAt
+    await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, expiryDate: nextExpiry } })
   } else if (transaction.refType === "recurring_bill" && transaction.refId) {
     await tx.recurringBill.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
   } else if (transaction.refType === "maintenance" && transaction.refId) {
