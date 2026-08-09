@@ -1719,6 +1719,7 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [editing, setEditing] = useState<RecurringBillRow | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<Partial<RecurringBillRow>>({});
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -1782,28 +1783,37 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
     setForm({ ...row, lastPaidAt: row.lastPaidAt ? row.lastPaidAt.slice(0, 10) : undefined });
     setError("");
   };
-  const close = () => setEditing(null);
+  const openCreate = () => {
+    setIsCreating(true);
+    setForm({ active: true, category: "kantor" });
+    setError("");
+  };
+  const close = () => {
+    setEditing(null);
+    setIsCreating(false);
+  };
 
   const handleSave = async () => {
-    if (!editing) return;
     if (!form.name?.trim()) {
       setError("Nama biaya berkala wajib diisi");
       return;
     }
     setIsSaving(true);
     setError("");
-    const res = await fetch(`/api/recurring-bills/${editing.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const url = editing ? `/api/recurring-bills/${editing.id}` : "/api/recurring-bills";
+    const method = editing ? "PATCH" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     const data = await res.json();
     setIsSaving(false);
     if (!res.ok) {
       setError(data.error || "Gagal menyimpan");
       return;
     }
-    setRows((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...data } : r)));
+    if (editing) {
+      setRows((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...data } : r)));
+    } else {
+      setRows((prev) => [...prev, data]);
+    }
     close();
     router.refresh();
   };
@@ -1926,7 +1936,12 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
               {activeRows.length} aktif{rows.length > activeRows.length ? `, ${rows.length - activeRows.length} nonaktif` : ""}. Yang nonaktif tidak masuk Laporan & Dashboard.
             </CardDescription>
           </div>
-          <ColumnVisibilityMenu columns={BILL_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
+              Tambah Biaya Berkala
+            </Button>
+            <ColumnVisibilityMenu columns={BILL_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+          </div>
         </div>
         <FilterableTable columns={columns} rows={rows} rowKey={(b) => b.id} emptyMessage="Tidak ada biaya berkala yang cocok." />
       </Card>
@@ -1954,7 +1969,7 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
         </div>
       </Modal>
 
-      <Modal isOpen={editing !== null} onClose={close} title={editing ? `Edit ${editing.name}` : ""} size="lg">
+      <Modal isOpen={editing !== null || isCreating} onClose={close} title={editing ? `Edit ${editing.name}` : "Biaya Berkala Baru"} size="lg">
         <div className="space-y-4">
           {error && (
             <Alert variant="error" onClose={() => setError("")}>

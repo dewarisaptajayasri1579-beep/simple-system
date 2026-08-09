@@ -27,6 +27,9 @@ export const COA_SEED: CoaSeedRow[] = [
   { code: "4-1000", name: "Pendapatan Jasa", type: "revenue", parentCode: "4-0000" },
   { code: "4-2000", name: "Pendapatan Lain-lain", type: "revenue", parentCode: "4-0000" },
   { code: "4-3000", name: "Pendapatan Project", type: "revenue", parentCode: "4-0000" },
+  { code: "4-4000", name: "Pendapatan Domain", type: "revenue", parentCode: "4-0000" },
+  { code: "4-5000", name: "Pendapatan Server", type: "revenue", parentCode: "4-0000" },
+  { code: "4-6000", name: "Pendapatan Maintenance", type: "revenue", parentCode: "4-0000" },
 
   { code: "5-0000", name: "Harga Pokok Penjualan", type: "cogs", parentCode: null },
   { code: "5-1000", name: "HPP", type: "cogs", parentCode: "5-0000" },
@@ -52,6 +55,9 @@ export const COA_CODE = {
   pendapatanJasa: "4-1000",
   pendapatanLain: "4-2000",
   pendapatanProject: "4-3000",
+  pendapatanDomain: "4-4000",
+  pendapatanServer: "4-5000",
+  pendapatanMaintenance: "4-6000",
   hpp: "5-1000",
   bebanKantor: "6-1000",
   bebanPribadi: "6-2000",
@@ -66,4 +72,17 @@ export function bebanCodeForCategory(category: string): string {
   if (category === "kantor") return COA_CODE.bebanKantor
   if (category === "pribadi") return COA_CODE.bebanPribadi
   return COA_CODE.bebanLain
+}
+
+/** Akun Pendapatan yang tepat untuk 1 invoice — dipakai saat Payment-nya diposting (bukan
+ *  saat invoice terbit, lihat catatan cash-basis di invoicePaymentLines). Prioritas:
+ *  `revenueCoaCode` eksplisit (mis. Termin Project pakai Pendapatan Project) > `costLinkType`
+ *  (invoice hasil "Tagih Sekarang" Domain/Server/Maintenance) > fallback Pendapatan Jasa
+ *  (invoice manual yang tidak dikaitkan ke item spesifik apa pun). */
+export function revenueCoaCodeForInvoice(invoice: { revenueCoaCode: string | null; costLinkType: string | null }): string {
+  if (invoice.revenueCoaCode) return invoice.revenueCoaCode
+  if (invoice.costLinkType === "domain") return COA_CODE.pendapatanDomain
+  if (invoice.costLinkType === "server") return COA_CODE.pendapatanServer
+  if (invoice.costLinkType === "maintenance") return COA_CODE.pendapatanMaintenance
+  return COA_CODE.pendapatanJasa
 }

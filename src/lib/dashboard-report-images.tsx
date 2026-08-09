@@ -62,6 +62,16 @@ export function renderDashboardImage1(snapshot: DashboardSnapshot, now: Date) {
               chevron
             />
           </div>
+          <div style={{ display: "flex", gap: 34 }}>
+            <StatCard
+              icon="shieldCheck"
+              iconBg={COLORS.rose}
+              label="Tagihan Lewat SLA"
+              value={`${snapshot.billingSla.overdueCount}`}
+              valueColor="#e11d48"
+              chevron
+            />
+          </div>
         </div>
 
         {piutangRows.length > 0 && (
@@ -102,11 +112,28 @@ export function renderDashboardImage2(snapshot: DashboardSnapshot, now: Date) {
   const appBaseUrl = process.env.APP_BASE_URL || "https://app.onyseven.com"
   const domainRows = snapshot.domain.due.slice(0, 6)
   const billRows = snapshot.biayaBerkala.due.slice(0, 6)
+  const slaRows = snapshot.billingSla.overdue
 
   return new ImageResponse(
     (
       <PageShell>
         <ReportHeader title="SEVEN OS" subtitle="Domain & Biaya Berkala" now={now} />
+
+        {slaRows.length > 0 && (
+          <SectionCard title="Tagihan Lewat SLA" badge={snapshot.billingSla.overdueCount}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {slaRows.map((r, i) => (
+                <RowCard key={i} index={i + 1} title={r.name} valueRight={`lewat ${r.daysOverdue} hari`} valueColor="#e11d48">
+                  <RowCardDetail>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>{r.clientName}</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.textDim }}>·</span>
+                    <span style={{ display: "flex", fontSize: 46, color: COLORS.heading }}>{r.stage}</span>
+                  </RowCardDetail>
+                </RowCard>
+              ))}
+            </div>
+          </SectionCard>
+        )}
 
         {domainRows.length > 0 && (
           <SectionCard title="Domain Perlu Perhatian" badge={snapshot.domain.expiredCount + snapshot.domain.expiringCount}>

@@ -57,6 +57,7 @@ export async function runDashboardReport(waktu: "Pagi" | "Sore" | "Manual") {
     `🌐 Domain perlu perhatian: ${snapshot.domain.expiredCount + snapshot.domain.expiringCount}`,
     `🖥️ Server perlu perhatian: ${snapshot.server.expiredCount + snapshot.server.expiringCount}`,
     `💸 Biaya berkala jatuh tempo: ${snapshot.biayaBerkala.dueCount}`,
+    `⚠️ Tagihan lewat deadline SLA: ${snapshot.billingSla.overdueCount}`,
     "",
     `🔗 ${appBaseUrl}/dashboard?quick=1`,
   ].join("\n")

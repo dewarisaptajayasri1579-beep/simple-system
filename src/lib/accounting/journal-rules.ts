@@ -14,36 +14,27 @@ export function invoiceCostLines(input: { totalCost: number }): JournalLineInput
   ]
 }
 
-/** Invoice terbit: titik pengakuan pendapatan + piutang untuk ledger AKRUAL (beda dari
- *  Transaction cash-basis yang baru mengakui pendapatan saat dibayar — lihat invoicePaymentLines
- *  di bawah, yang sekarang cuma melunasi piutang ini, bukan lagi mengakui pendapatan). */
-export function invoiceRevenueLines(input: {
-  totalAmount: number
-  ppnAmount: number
-  /** Default COA_CODE.pendapatanJasa kalau tidak diisi — invoice yang sumbernya spesifik
-   *  (mis. termin Project) kirim kode akun revenue-nya sendiri lewat Invoice.revenueCoaCode. */
-  revenueCoaCode?: string
-}): JournalLineInput[] {
-  if (input.totalAmount <= 0) return []
-  const revenueCoaCode = input.revenueCoaCode ?? COA_CODE.pendapatanJasa
-  const lines: JournalLineInput[] = [
-    { accountCode: COA_CODE.piutangUsaha, debit: input.totalAmount, memo: "Piutang invoice" },
-    { accountCode: revenueCoaCode, credit: input.totalAmount - input.ppnAmount, memo: "Pendapatan" },
-  ]
-  if (input.ppnAmount > 0) {
-    lines.push({ accountCode: COA_CODE.ppnKeluaran, credit: input.ppnAmount, memo: "PPN Keluaran" })
-  }
-  return lines
-}
+/** Invoice terbit: TIDAK bikin jurnal Piutang/Pendapatan sama sekali (lihat aturan.txt:
+ *  "Piutang hanya catatan, Pendapatan diakui setelah ada uang masuk"). Piutang cukup dihitung
+ *  dari Invoice.totalAmount − total InvoicePayment (field biasa, bukan akun GL) — lihat
+ *  invoicePaymentLines di bawah, itu yang jadi titik pengakuan Pendapatan+PPN sebenarnya. */
 
-/** Pelunasan invoice (sebagian/penuh) di ledger akrual: pendapatan & PPN sudah diakui saat
- *  invoice terbit (invoiceRevenueLines), jadi di titik ini murni melunasi piutang — Kas/Bank
- *  masuk, Piutang Usaha berkurang sebesar yang dibayar. */
-export function invoicePaymentLines(input: { kasBankCoaCode: string; amount: number }): JournalLineInput[] {
-  return [
-    { accountCode: input.kasBankCoaCode, debit: input.amount, memo: "Pelunasan invoice" },
-    { accountCode: COA_CODE.piutangUsaha, credit: input.amount, memo: "Piutang dilunasi" },
-  ]
+/** Pelunasan invoice (sebagian/penuh), cash-basis: Kas/Bank masuk, DAN Pendapatan+PPN baru
+ *  diakui SEKARANG — proporsional terhadap porsi invoice yang baru dibayar (sama pola dengan
+ *  alokasi HPP proporsional di POST /api/payments). `revenueCoaCode` di-resolve per invoice
+ *  lewat `revenueCoaCodeForInvoice` (Domain/Server/Maintenance/Project sesuai
+ *  costLinkType/revenueCoaCode invoice-nya, fallback Pendapatan Jasa). */
+export function invoicePaymentLines(input: {
+  kasBankCoaCode: string
+  amount: number
+  revenueCoaCode: string
+  revenueAmount: number
+  ppnAmount: number
+}): JournalLineInput[] {
+  const lines: JournalLineInput[] = [{ accountCode: input.kasBankCoaCode, debit: input.amount, memo: "Pelunasan invoice" }]
+  if (input.revenueAmount > 0) lines.push({ accountCode: input.revenueCoaCode, credit: input.revenueAmount, memo: "Pendapatan" })
+  if (input.ppnAmount > 0) lines.push({ accountCode: COA_CODE.ppnKeluaran, credit: input.ppnAmount, memo: "PPN Keluaran" })
+  return lines
 }
 
 /** Pemasukan manual (di luar invoice) — diakui langsung sebagai kas masuk + pendapatan;

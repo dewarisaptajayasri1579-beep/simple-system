@@ -31,7 +31,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   await prisma.$transaction([
-    prisma.journalEntry.deleteMany({ where: { sourceType: "invoice", sourceId: id, postStatus: "draft" } }),
+    // Invoice draft bikin 2 jurnal draft sekaligus saat dibuat (lihat POST /api/invoices) — HPP
+    // (sourceType "invoice") DAN Piutang/Pendapatan/PPN (sourceType "invoice_revenue"). Dua-duanya
+    // wajib ikut dibersihkan di sini, kalau tidak jurnal "invoice_revenue"-nya nyangkut terus
+    // nunjuk ke invoice yang sudah dihapus (bug lama — cuma "invoice" yang dibersihkan).
+    prisma.journalEntry.deleteMany({ where: { sourceType: { in: ["invoice", "invoice_revenue"] }, sourceId: id, postStatus: "draft" } }),
     prisma.invoice.delete({ where: { id } }),
   ])
 

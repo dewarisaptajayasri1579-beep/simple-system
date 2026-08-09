@@ -7,6 +7,7 @@ import { computeSplit } from "@/lib/split"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { invoicePaymentLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
+import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
 import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 
@@ -182,15 +183,26 @@ export async function POST(request: Request) {
         data: { paidRecordedAt: paidAt },
       })
 
-      // Pendapatan & PPN sudah diakui di ledger akrual saat invoice terbit (invoiceRevenueLines) —
-      // di sini murni melunasi Piutang Usaha, tidak menyentuh revenue/PPN lagi.
+      // Cash-basis (aturan.txt: "Piutang hanya catatan, Pendapatan diakui setelah ada uang
+      // masuk") — Pendapatan & PPN baru diakui SEKARANG, proporsional terhadap porsi invoice
+      // yang baru dibayar ini (sama pola dengan alokasi HPP proporsional di atas). Akun
+      // Pendapatannya di-resolve per invoice (Domain/Server/Maintenance/Project kalau
+      // dikaitkan, fallback Pendapatan Jasa untuk invoice manual biasa).
+      const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
+      const revenuePortion = line.amount - ppnPortion
       const journalEntry = await postJournalEntry(tx, {
         date: paidAt,
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
         sourceType: "invoice_payment",
         sourceId: transaction.id,
         createdBy: user.id,
-        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount }),
+        lines: invoicePaymentLines({
+          kasBankCoaCode,
+          amount: line.amount,
+          revenueCoaCode: revenueCoaCodeForInvoice(invoice),
+          revenueAmount: revenuePortion,
+          ppnAmount: ppnPortion,
+        }),
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 

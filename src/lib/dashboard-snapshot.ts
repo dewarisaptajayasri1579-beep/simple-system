@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
+import { listOverdueBillingFollowUps, SLA_STAGE_LABEL, type BillingFollowUpRefType } from "@/lib/billing-follow-up"
 
 /** Ringkasan operasional (piutang, saldo, domain, server, biaya berkala) — dipakai bareng oleh
  *  laporan gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
 export async function getDashboardSnapshot() {
-  const [domains, servers, bills, openInvoices, clientCount] = await Promise.all([
+  const [domains, servers, bills, openInvoices, clientCount, overdueFollowUps] = await Promise.all([
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
     prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
@@ -17,7 +18,25 @@ export async function getDashboardSnapshot() {
       },
     }),
     prisma.client.count(),
+    listOverdueBillingFollowUps(prisma),
   ])
+
+  // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma punya refType+refId,
+  // jadi resolve nama item + client-nya di sini biar laporan WA/gambar bisa langsung tampilkan.
+  const overdueIdsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [] }
+  for (const f of overdueFollowUps) overdueIdsByType[f.refType].push(f.refId)
+  const [overdueDomains, overdueServers, overdueMaintenances] = await Promise.all([
+    prisma.domain.findMany({ where: { id: { in: overdueIdsByType.domain } }, select: { id: true, name: true, client: { select: { name: true } } } }),
+    prisma.server.findMany({ where: { id: { in: overdueIdsByType.server } }, select: { id: true, name: true, client: { select: { name: true } } } }),
+    prisma.maintenance.findMany({
+      where: { id: { in: overdueIdsByType.maintenance } },
+      select: { id: true, name: true, client: { select: { name: true } } },
+    }),
+  ])
+  const overdueNameByKey = new Map<string, { name: string; clientName: string | null }>()
+  for (const d of overdueDomains) overdueNameByKey.set(`domain:${d.id}`, { name: d.name, clientName: d.client?.name ?? null })
+  for (const s of overdueServers) overdueNameByKey.set(`server:${s.id}`, { name: s.name, clientName: s.client?.name ?? null })
+  for (const m of overdueMaintenances) overdueNameByKey.set(`maintenance:${m.id}`, { name: m.name, clientName: m.client?.name ?? null })
 
   const domainRows = domains.map((d) => {
     const dueDate = resolveDomainExpiry(d)
@@ -108,6 +127,18 @@ export async function getDashboardSnapshot() {
         dueDate: r.dueDate ? r.dueDate.toISOString() : null,
         overdue: r.bucket === "overdue",
       })),
+    },
+    billingSla: {
+      overdueCount: overdueFollowUps.length,
+      overdue: overdueFollowUps.slice(0, 6).map((f) => {
+        const item = overdueNameByKey.get(`${f.refType}:${f.refId}`)
+        return {
+          name: item?.name ?? "(sudah dihapus)",
+          clientName: item?.clientName ?? "-",
+          stage: SLA_STAGE_LABEL[f.sla.stage],
+          daysOverdue: f.sla.daysOverdue,
+        }
+      }),
     },
   }
 }

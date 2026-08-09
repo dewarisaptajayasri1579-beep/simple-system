@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
+import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import {
   PiutangSummarySection,
   RecurringDueSection,
@@ -116,7 +117,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .sort(byDueDateAsc)
 
   // Domain: sudah lewat tempo, habis bulan ini, atau habis bulan depan.
-  const domainExpiringRows: DomainExpiringRow[] = domains
+  const domainExpiringRowsBase = domains
     .map((d) => {
       const expiry = resolveDomainExpiry(d)
       return {
@@ -137,7 +138,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .sort(byDueDateAsc)
 
   // Server: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
-  const serverDueRows: ServerDueRow[] = servers
+  const serverDueRowsBase = servers
     .map((s) => {
       const nextDue = resolveServerExpiry(s)
       return {
@@ -157,7 +158,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   // Maintenance: sudah lewat tempo atau jatuh tempo bulan ini saja (beda dari Domain/Server,
   // sengaja tidak ikut nampilin "bulan depan" di sini).
-  const maintenanceDueRows: MaintenanceDueRow[] = maintenances
+  const maintenanceDueRowsBase = maintenances
     .map((m) => {
       const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
       return {
@@ -174,6 +175,30 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     })
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month")
     .sort(byDueDateAsc)
+
+  // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma buat Domain/Server yang
+  // punya Client (baris "Internal" tidak pernah ditagih ke siapa-siapa) + Maintenance (selalu
+  // punya Client). Pastikan siklus aktif ada, lalu ambil semuanya buat di-join ke row.
+  const slaRefs: BillingFollowUpRef[] = [
+    ...domainExpiringRowsBase.filter((r) => r.clientId).map((r) => ({ refType: "domain" as const, refId: r.id })),
+    ...serverDueRowsBase.filter((r) => r.clientId).map((r) => ({ refType: "server" as const, refId: r.id })),
+    ...maintenanceDueRowsBase.map((r) => ({ refType: "maintenance" as const, refId: r.id })),
+  ]
+  await ensureBillingFollowUps(prisma, slaRefs)
+  const activeFollowUps =
+    slaRefs.length > 0
+      ? await prisma.billingFollowUp.findMany({ where: { paidRecordedAt: null, OR: slaRefs.map((r) => ({ refType: r.refType, refId: r.refId })) } })
+      : []
+  const followUpByRef = new Map(activeFollowUps.map((f) => [`${f.refType}:${f.refId}`, f]))
+  const slaFor = (refType: BillingFollowUpRef["refType"], refId: string) => {
+    const record = followUpByRef.get(`${refType}:${refId}`)
+    return { billingFollowUpId: record?.id ?? null, sla: record ? computeSlaStatus(record) : null }
+  }
+
+  const domainExpiringRows: DomainExpiringRow[] = domainExpiringRowsBase.map((r) => ({ ...r, ...slaFor("domain", r.id) }))
+  const serverDueRows: ServerDueRow[] = serverDueRowsBase.map((r) => ({ ...r, ...slaFor("server", r.id) }))
+  const maintenanceDueRows: MaintenanceDueRow[] = maintenanceDueRowsBase.map((r) => ({ ...r, ...slaFor("maintenance", r.id) }))
+  const slaOverdueCount = [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.overdue).length
 
   // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.
   const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
@@ -208,6 +233,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const followUpDueCount = followUpRows.filter((r) => r.followUpDate.slice(0, 10) <= todayJakarta).length
 
   const navBadges: DashboardNavBadge[] = [
+    { label: "SLA Lewat", href: "/laporan/tindak-lanjut-tagihan", count: slaOverdueCount, color: "rose" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
     { label: "Pembayaran Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },

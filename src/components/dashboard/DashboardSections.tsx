@@ -8,12 +8,14 @@ import { FollowUpButtons } from "./FollowUpButtons";
 import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
-import { DomainDateCell } from "@/components/domain/DomainDateCell";
+import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
+import { BillingFollowUpRespondButton } from "./BillingFollowUpRespondButton";
+import { SLA_STAGE_LABEL, type BillingFollowUpSla } from "@/lib/billing-follow-up";
 
 function formatRupiah(n: number | null) {
   if (!n) return "-";
@@ -267,6 +269,15 @@ const BUCKET_OPTIONS: { value: ExpiryBucket; label: string; type: StatusBadgeTyp
   { value: "expiring_next_month", label: bucketLabel.expiring_next_month, type: bucketToStatus.expiring_next_month },
 ];
 
+/** Badge SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — dipakai bareng di
+ *  Domain/Server/Maintenance. Reuse warna StatusBadge yang sudah ada: "expired" (merah) kalau
+ *  lewat deadline tahap ini, "expiring_this_month" (kuning) kalau masih dalam batas waktu. */
+function SlaBadge({ sla }: { sla: BillingFollowUpSla | null }) {
+  if (!sla) return null;
+  const label = sla.overdue ? `${SLA_STAGE_LABEL[sla.stage]} — lewat ${sla.daysOverdue} hari` : SLA_STAGE_LABEL[sla.stage];
+  return <StatusBadge type={sla.overdue ? "expired" : "expiring_this_month"} label={label} size="sm" />;
+}
+
 function bucketCounts(rows: { bucket: ExpiryBucket }[]) {
   return rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.bucket] = (acc[r.bucket] ?? 0) + 1;
@@ -367,6 +378,8 @@ export interface DomainExpiringRow {
   expiryDate: string | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
+  billingFollowUpId: string | null;
+  sla: BillingFollowUpSla | null;
 }
 
 const DOMAIN_COLUMNS = [
@@ -456,8 +469,8 @@ export const DomainExpiringSection: React.FC<{
             key: "lastPaidAt",
             header: "Terakhir Bayar",
             cell: (r: DomainExpiringRow) => (
-              <DomainDateCell
-                domainId={r.id}
+              <EditableDateCell
+                apiPath={`/api/domains/${r.id}`}
                 field="lastPaidAt"
                 value={r.lastPaidAt}
                 formatDate={(d) => formatDate(d ? d.toISOString() : null)}
@@ -474,8 +487,8 @@ export const DomainExpiringSection: React.FC<{
             key: "expiryDate",
             header: "Tgl Berakhir",
             cell: (r: DomainExpiringRow) => (
-              <DomainDateCell
-                domainId={r.id}
+              <EditableDateCell
+                apiPath={`/api/domains/${r.id}`}
                 field="expiryDate"
                 value={r.expiryDate}
                 formatDate={(d) => formatDate(d ? d.toISOString() : null)}
@@ -500,20 +513,29 @@ export const DomainExpiringSection: React.FC<{
     {
       key: "aksi",
       header: "Aksi",
-      cell: (r) =>
-        r.clientId ? (
-          <Link
-            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
-          >
-            <Button size="sm" variant="outline">
-              Tagih Sekarang
-            </Button>
-          </Link>
-        ) : isOwner ? (
-          <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
-        ) : (
-          <span className="text-xs text-slate-400">Internal</span>
-        ),
+      cell: (r) => (
+        <div className="flex flex-col items-start gap-1.5">
+          <SlaBadge sla={r.sla} />
+          <div className="flex items-center gap-2">
+            {r.clientId ? (
+              <Link
+                href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
+              >
+                <Button size="sm" variant="outline">
+                  Tagih Sekarang
+                </Button>
+              </Link>
+            ) : isOwner ? (
+              <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
+            ) : (
+              <span className="text-xs text-slate-400">Internal</span>
+            )}
+            {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
+              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+            )}
+          </div>
+        </div>
+      ),
     },
   ];
 
@@ -545,6 +567,8 @@ export interface ServerDueRow {
   price: number | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
+  billingFollowUpId: string | null;
+  sla: BillingFollowUpSla | null;
 }
 
 const SERVER_COLUMNS = [
@@ -634,20 +658,29 @@ export const ServerDueSection: React.FC<{
     {
       key: "aksi",
       header: "Aksi",
-      cell: (r) =>
-        r.clientId ? (
-          <Link
-            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
-          >
-            <Button size="sm" variant="outline">
-              Tagih Sekarang
-            </Button>
-          </Link>
-        ) : isOwner ? (
-          <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
-        ) : (
-          <span className="text-xs text-slate-400">Internal</span>
-        ),
+      cell: (r) => (
+        <div className="flex flex-col items-start gap-1.5">
+          <SlaBadge sla={r.sla} />
+          <div className="flex items-center gap-2">
+            {r.clientId ? (
+              <Link
+                href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
+              >
+                <Button size="sm" variant="outline">
+                  Tagih Sekarang
+                </Button>
+              </Link>
+            ) : isOwner ? (
+              <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
+            ) : (
+              <span className="text-xs text-slate-400">Internal</span>
+            )}
+            {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
+              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+            )}
+          </div>
+        </div>
+      ),
     },
   ];
 
@@ -679,6 +712,8 @@ export interface MaintenanceDueRow {
   price: number | null;
   dueDate: string | null;
   bucket: ExpiryBucket;
+  billingFollowUpId: string | null;
+  sla: BillingFollowUpSla | null;
 }
 
 const MAINTENANCE_COLUMNS = [
@@ -732,13 +767,21 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
       key: "aksi",
       header: "Aksi",
       cell: (r) => (
-        <Link
-          href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
-        >
-          <Button size="sm" variant="outline">
-            Tagih Sekarang
-          </Button>
-        </Link>
+        <div className="flex flex-col items-start gap-1.5">
+          <SlaBadge sla={r.sla} />
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
+            >
+              <Button size="sm" variant="outline">
+                Tagih Sekarang
+              </Button>
+            </Link>
+            {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
+              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+            )}
+          </div>
+        </div>
       ),
     },
   ];

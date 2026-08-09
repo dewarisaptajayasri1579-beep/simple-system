@@ -11,7 +11,7 @@ export const serverClientSteps: FlowStep[] = [
       "Masuk ke Pengaturan → Master Data → Server, klik \"Tambah Server\", lalu isi datanya: nama server, IP, vendor, spesifikasi (Core/RAM/Storage), ini milik Client mana (atau kosongkan kalau punya sendiri/Internal), harganya, dan siklus tagihannya (bulanan/tahunan/dst).",
     detail: [
       "Beda dengan Domain (yang cuma bisa diedit, tidak bisa tambah baru dari halaman ini), Server BISA didaftarkan baru langsung dari Master Data.",
-      "Tanggal jatuh tempo berikutnya DIHITUNG OTOMATIS dari \"Terakhir Dibayar\" + siklus tagihan yang dipilih — bukan tanggal yang diisi manual seperti \"Tgl Berakhir\" di Domain.",
+      "Ada 2 tanggal yang beda artinya, sama seperti Domain: \"Terakhir Dibayar\" (kapan terakhir kali dibayar) dan \"Tgl Berakhir\" (kapan servernya harus diperpanjang lagi — acuan renewal resmi). Isi juga \"Tgl Berakhir\"-nya kalau sudah tahu, supaya sistem bisa mengingatkan pas mau habis.",
     ],
   },
   {
@@ -53,8 +53,8 @@ export const serverClientSteps: FlowStep[] = [
     title: "Setujui pembayarannya (Posting)",
     description: "Setelah pembayaran diklik \"Posting\", tagihan client otomatis berubah jadi Lunas.",
     detail: [
-      "Kalau tadi server-nya sudah ditandai di langkah 5, \"Terakhir Dibayar\" server ini otomatis terisi tanggal pembayaran hari ini, lalu jatuh tempo berikutnya dihitung ulang otomatis dari tanggal itu + siklus tagihannya.",
-      "PENTING, ini beda dengan Domain: kalau pembayarannya telat/mundur, jatuh tempo berikutnya Server ikut mundur dari tanggal bayar yang sebenarnya (bukan dari jatuh tempo lama). Jadi usahakan input pembayaran secepatnya, jangan ditunda-tunda.",
+      "Kalau tadi server-nya sudah ditandai di langkah 5, \"Tgl Berakhir\" server ini otomatis maju sesuai siklus tagihannya (mis. +1 bulan untuk Bulanan, +1 tahun untuk Tahunan) dari \"Tgl Berakhir\" yang LAMA — bukan dari tanggal bayar hari ini. \"Terakhir Dibayar\" tetap terisi tanggal pembayaran ini, tapi cuma sebagai catatan, bukan acuan renewal.",
+      "Sama seperti Domain: kalau pembayarannya telat, siklus jatuh tempo berikutnya TIDAK ikut mundur — tetap dihitung dari \"Tgl Berakhir\" lama, supaya telat bayar sekali tidak menggeser semua jadwal renewal berikutnya.",
     ],
   },
   {
@@ -87,13 +87,14 @@ export const serverInternalSteps: FlowStep[] = [
   {
     no: "4",
     title: "Disetujui (Posting)",
-    description: "Setelah disetujui, \"Terakhir Dibayar\" server-nya terisi tanggal ini, jatuh tempo berikutnya otomatis dihitung ulang, dan pengeluarannya resmi masuk laporan keuangan.",
+    description: "Setelah disetujui, \"Tgl Berakhir\" server-nya otomatis maju sesuai siklus tagihan dari \"Tgl Berakhir\" lama, dan pengeluarannya resmi masuk laporan keuangan.",
   },
 ];
 
 export const serverCaveats: string[] = [
-  "Tombol \"Tagih Sekarang\" sekarang otomatis mengaitkan tagihannya ke server yang dimaksud, jadi pas dibayar, opsi \"Bayar Server\" sudah otomatis kepilih. TAPI kalau tagihannya dibuat manual (bukan lewat \"Tagih Sekarang\"), staf tetap wajib pilih sendiri server-nya pas input pembayaran — kalau lupa, jatuh tempo server-nya tidak akan berubah walau tagihannya sudah lunas.",
+  "Tombol \"Tagih Sekarang\" sekarang otomatis mengaitkan tagihannya ke server yang dimaksud, jadi pas dibayar, opsi \"Bayar Server\" sudah otomatis kepilih. TAPI kalau tagihannya dibuat manual (bukan lewat \"Tagih Sekarang\"), staf tetap wajib pilih sendiri server-nya pas input pembayaran — kalau lupa, \"Tgl Berakhir\" server-nya tidak akan berubah walau tagihannya sudah lunas.",
   "Tagihan dan pembayaran yang masih berstatus \"Draft\" belum dihitung di mana pun (Dashboard, laporan keuangan, saldo kas) — wajib disetujui (\"Posting\") dulu satu-satu, tagihannya dulu baru pembayarannya.",
-  "Beda penting dari Domain: jatuh tempo Server dihitung ULANG dari tanggal bayar yang sebenarnya (\"Terakhir Dibayar\" + siklus tagihan), bukan dari jatuh tempo lama + 1 tahun seperti Domain. Jadi kalau bayar server telat, jatuh tempo berikutnya ikut mundur — bukan cuma \"nombok\" bulan yang telat itu saja.",
+  "\"Terakhir Dibayar\" dan \"Tgl Berakhir\" itu dua hal yang beda, sama seperti Domain: Terakhir Dibayar cuma catatan kapan terakhir kali transfer; Tgl Berakhir itu yang menentukan kapan server-nya harus diperpanjang dan yang dipakai buat memunculkan peringatan di Dashboard. Begitu dibayar, yang dimajukan ke siklus berikutnya adalah Tgl Berakhir (dari nilai lamanya), BUKAN dihitung ulang dari tanggal bayar — jadi telat bayar sekali tidak menggeser seluruh jadwal renewal berikutnya.",
+  "Server yang belum pernah kesetel \"Tgl Berakhir\"-nya (server lama sebelum kolom ini ada) tetap jalan normal — sistem otomatis pakai \"Terakhir Dibayar\" + siklus tagihan sebagai perkiraan sementara, sampai staf isi manual \"Tgl Berakhir\"-nya atau server itu dibayar sekali (otomatis kesetel setelah itu).",
   "Server BISA didaftarkan baru langsung dari Master Data (tombol \"Tambah Server\") — beda dengan Domain yang cuma bisa diedit, tidak bisa ditambah dari halaman itu.",
 ]

@@ -10,9 +10,9 @@ export interface BillingFollowUpRef {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const INVOICE_DEADLINE_DAYS = 3
-const RESPONSE_DEADLINE_DAYS = 3
-const PAYMENT_DEADLINE_DAYS = 2
+export const INVOICE_DEADLINE_DAYS = 3
+export const RESPONSE_DEADLINE_DAYS = 3
+export const PAYMENT_DEADLINE_DAYS = 2
 
 /** Dipanggil tiap Dashboard di-load (lihat src/app/dashboard/page.tsx) — untuk tiap item yang
  *  lagi jatuh tempo (bucket != "safe") dan punya Client, pastikan ada 1 record BillingFollowUp
@@ -85,8 +85,55 @@ export function computeSlaStatus(record: BillingFollowUpRecordLike, now: Date = 
   }
 }
 
+export interface OverdueBillingFollowUp {
+  refType: BillingFollowUpRefType
+  refId: string
+  sla: BillingFollowUpSla
+}
+
+/** Semua siklus aktif yang lagi lewat deadline tahap-nya sekarang — dipakai buat proaktifin SLA
+ *  (badge nav Dashboard & laporan WA pagi/sore), bukan cuma nunggu staf buka halaman. Caller yang
+ *  resolve nama item/client (butuh query Domain/Server/Maintenance terpisah per refType). */
+export async function listOverdueBillingFollowUps(db: Db, now: Date = new Date()): Promise<OverdueBillingFollowUp[]> {
+  const active = await db.billingFollowUp.findMany({ where: { paidRecordedAt: null } })
+  return active
+    .map((record) => ({ refType: record.refType as BillingFollowUpRefType, refId: record.refId, sla: computeSlaStatus(record, now) }))
+    .filter((r): r is OverdueBillingFollowUp => r.sla !== null && r.sla.overdue)
+    .sort((a, b) => b.sla.daysOverdue - a.sla.daysOverdue)
+}
+
 export const SLA_STAGE_LABEL: Record<BillingFollowUpStage, string> = {
   belum_ditagih: "Belum ditagih",
   menunggu_jawaban: "Menunggu jawaban Client",
   menunggu_bayar: "Menunggu pembayaran",
+}
+
+export interface BillingFollowUpStageTiming {
+  label: string
+  late: boolean
+}
+
+/** Evaluasi retrospektif buat siklus yang SUDAH selesai (paidRecordedAt terisi) — dipakai laporan
+ *  riwayat SLA (lihat /laporan/tindak-lanjut-tagihan), bukan badge Dashboard (itu pakai
+ *  computeSlaStatus di atas, cuma buat siklus aktif). Tahap yang timestamp-nya nggak lengkap
+ *  (mis. invoice dibuat manual tanpa lewat "Tagih Sekarang") dilewati, bukan dianggap telat. */
+export function evaluateClosedCycle(record: BillingFollowUpRecordLike): { late: boolean; stages: BillingFollowUpStageTiming[] } | null {
+  if (!record.paidRecordedAt) return null
+
+  const stages: BillingFollowUpStageTiming[] = []
+  if (record.invoicedAt) {
+    stages.push({ label: "Bikin Tagihan", late: record.invoicedAt.getTime() - record.dueAppearedAt.getTime() > INVOICE_DEADLINE_DAYS * DAY_MS })
+  }
+  if (record.invoicedAt && record.clientRespondedAt) {
+    stages.push({
+      label: "Jawaban Client",
+      late: record.clientRespondedAt.getTime() - record.invoicedAt.getTime() > RESPONSE_DEADLINE_DAYS * DAY_MS,
+    })
+  }
+  if (record.clientRespondedAt) {
+    const anchor = record.promisedPayAt ?? record.clientRespondedAt
+    stages.push({ label: "Pembayaran", late: record.paidRecordedAt.getTime() - anchor.getTime() > PAYMENT_DEADLINE_DAYS * DAY_MS })
+  }
+
+  return { late: stages.some((s) => s.late), stages }
 }

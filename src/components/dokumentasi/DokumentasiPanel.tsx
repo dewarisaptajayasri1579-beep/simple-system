@@ -5,6 +5,9 @@ import { Card, CardTitle, CardDescription, Alert } from "@/components/ui";
 import { FlowTimeline } from "./FlowTimeline";
 import { domainClientSteps, domainInternalSteps, domainCaveats } from "./domain-flow";
 import { serverClientSteps, serverInternalSteps, serverCaveats } from "./server-flow";
+import { maintenanceSteps, maintenanceCaveats } from "./maintenance-flow";
+import { recurringBillSteps, recurringBillCaveats } from "./recurring-bill-flow";
+import { invoiceManualSteps, invoiceCaveats } from "./invoice-flow";
 
 const DOC_TABS = [
   { value: "domain", label: "Domain" },
@@ -88,6 +91,75 @@ const ServerDoc: React.FC = () => (
   </div>
 );
 
+const MaintenanceDoc: React.FC = () => (
+  <div className="space-y-6">
+    <Card variant="panel" padding="lg">
+      <CardTitle>Maintenance — Selalu untuk Client</CardTitle>
+      <CardDescription>Daftar maintenance → muncul di Dashboard → dibuatkan tagihan → dibayar client → tercatat di pembukuan. Tidak ada jalur Internal.</CardDescription>
+      <div className="mt-6">
+        <FlowTimeline steps={maintenanceSteps} />
+      </div>
+    </Card>
+
+    <Alert variant="warning">
+      <p className="font-bold mb-2">Hal yang perlu diperhatikan</p>
+      <ul className="space-y-2 list-disc list-inside">
+        {maintenanceCaveats.map((c, i) => (
+          <li key={i} className="text-sm">
+            {c}
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  </div>
+);
+
+const RecurringBillDoc: React.FC = () => (
+  <div className="space-y-6">
+    <Card variant="panel" padding="lg">
+      <CardTitle>Biaya Berkala — Pengeluaran Rutin Perusahaan</CardTitle>
+      <CardDescription>Bukan ditagihkan ke Client — dibayar ke Vendor, tidak pernah lewat Invoice/Piutang.</CardDescription>
+      <div className="mt-6">
+        <FlowTimeline steps={recurringBillSteps} />
+      </div>
+    </Card>
+
+    <Alert variant="warning">
+      <p className="font-bold mb-2">Hal yang perlu diperhatikan</p>
+      <ul className="space-y-2 list-disc list-inside">
+        {recurringBillCaveats.map((c, i) => (
+          <li key={i} className="text-sm">
+            {c}
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  </div>
+);
+
+const InvoiceDoc: React.FC = () => (
+  <div className="space-y-6">
+    <Card variant="panel" padding="lg">
+      <CardTitle>Invoice Manual & Tagih Sekarang</CardTitle>
+      <CardDescription>Buat invoice → posting → client bayar → tercatat di pembukuan. Pendapatan diakui saat posting, bukan saat dibayar.</CardDescription>
+      <div className="mt-6">
+        <FlowTimeline steps={invoiceManualSteps} />
+      </div>
+    </Card>
+
+    <Alert variant="warning">
+      <p className="font-bold mb-2">Hal yang perlu diperhatikan</p>
+      <ul className="space-y-2 list-disc list-inside">
+        {invoiceCaveats.map((c, i) => (
+          <li key={i} className="text-sm">
+            {c}
+          </li>
+        ))}
+      </ul>
+    </Alert>
+  </div>
+);
+
 /** Menu Dokumentasi — alur tiap modul (Domain, Server, dst) ditulis di sini biar staf baru
  *  bisa lihat langsung di aplikasi tanpa buka kode. Konten diverifikasi ke kode nyata dulu
  *  (lihat Check-Flow.MD di root repo buat draft sebelum dipindah ke sini). */
@@ -122,9 +194,9 @@ export const DokumentasiPanel: React.FC = () => {
 
       {tab === "domain" && <DomainDoc />}
       {tab === "server" && <ServerDoc />}
-      {tab === "maintenance" && <ComingSoon label="Maintenance" />}
-      {tab === "biaya-berkala" && <ComingSoon label="Biaya Berkala" />}
-      {tab === "penjualan" && <ComingSoon label="Penjualan & Invoice" />}
+      {tab === "maintenance" && <MaintenanceDoc />}
+      {tab === "biaya-berkala" && <RecurringBillDoc />}
+      {tab === "penjualan" && <InvoiceDoc />}
       {tab === "pembayaran" && <ComingSoon label="Pembayaran" />}
       {tab === "coa" && <ComingSoon label="COA & Laporan" />}
     </div>

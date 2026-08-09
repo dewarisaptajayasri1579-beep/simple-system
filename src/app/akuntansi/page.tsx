@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardTitle, CardDescription } from "@/components/ui"
-import { RecalculateJournalsButton } from "@/components/akuntansi/RecalculateJournalsButton"
 import { requirePageRole } from "@/lib/current-user"
 import { ListTree, BookOpen, ScrollText } from "lucide-react"
 
@@ -20,9 +19,8 @@ export default async function AkuntansiHubPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Akuntansi</h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Pembukuan akrual — berjalan berdampingan dengan Keuangan (cash-basis).</p>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Pembukuan double-entry (jurnal debit/kredit) — Pendapatan diakui saat uang benar-benar masuk.</p>
           </div>
-          {user.role === "owner" && <RecalculateJournalsButton />}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

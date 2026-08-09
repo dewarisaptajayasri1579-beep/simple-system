@@ -4,7 +4,7 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { invoiceCostLines, invoiceRevenueLines } from "@/lib/accounting/journal-rules"
+import { invoiceCostLines } from "@/lib/accounting/journal-rules"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -131,10 +131,13 @@ export async function POST(request: Request) {
         })
       }
 
-      // Ledger akrual (JournalEntry/JournalLine): pendapatan, piutang, PPN, dan HPP semua diakui
-      // sekarang (saat invoice terbit) — beda dari Transaction cash-basis yang baru mengakui
-      // pendapatan saat pembayaran masuk (lihat /api/payments). Draft dulu, baru berlaku begitu
-      // invoice ini diposting (lihat /api/invoices/[id]/post).
+      // HPP diakui sekarang (saat invoice terbit) — biaya modal baris invoice, tidak terhubung
+      // ke proses pelunasan vendor manapun (lihat catatan di invoiceCostLines). Draft dulu, baru
+      // berlaku begitu invoice ini diposting (lihat /api/invoices/[id]/post).
+      //
+      // Piutang & Pendapatan SENGAJA TIDAK dijurnal di sini (aturan.txt: "Piutang hanya catatan,
+      // Pendapatan diakui setelah ada uang masuk") — baru diakui saat Payment-nya diposting,
+      // lihat invoicePaymentLines di /api/payments.
       if (totalCost > 0) {
         await postJournalEntry(tx, {
           date: created.issuedAt,
@@ -143,16 +146,6 @@ export async function POST(request: Request) {
           sourceId: created.id,
           createdBy: user.id,
           lines: invoiceCostLines({ totalCost }),
-        })
-      }
-      if (totalAmount > 0) {
-        await postJournalEntry(tx, {
-          date: created.issuedAt,
-          description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
-          sourceType: "invoice_revenue",
-          sourceId: created.id,
-          createdBy: user.id,
-          lines: invoiceRevenueLines({ totalAmount, ppnAmount, revenueCoaCode: created.revenueCoaCode ?? undefined }),
         })
       }
 

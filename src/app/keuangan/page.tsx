@@ -15,7 +15,7 @@ export default async function KeuanganPage() {
         </div>
 
         <DraftTransactionsPanel />
-        <KeuanganPanel userRole={user.role} />
+        <KeuanganPanel />
       </div>
     </AppLayout>
   )
