@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Avatar } from "../ui/Avatar";
-import { Calendar, ChevronDown, LogOut, Search } from "lucide-react";
+import { Calendar, ChevronDown, Info, LogOut, Search } from "lucide-react";
 
 export interface HeaderProps {
   userName: string;
@@ -73,6 +74,15 @@ export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", cl
       </div>
 
       <div className="flex items-center gap-4">
+        <Link
+          href="/dokumentasi"
+          className="flex items-center justify-center w-9 h-9 rounded-2xl bg-white/70 hover:bg-white backdrop-blur-md border border-slate-200/80 shadow-xs text-slate-500 transition-colors cursor-pointer"
+          aria-label="Dokumentasi"
+          title="Dokumentasi"
+        >
+          <Info className="w-4 h-4" />
+        </Link>
+
         <button
           onClick={() => window.dispatchEvent(new Event("toggle-command-palette"))}
           className="flex items-center gap-2.5 px-3 sm:px-4 py-2 rounded-2xl bg-white/70 hover:bg-white backdrop-blur-md border border-slate-200/80 shadow-xs text-xs sm:text-sm font-semibold text-slate-500 transition-colors cursor-pointer"
