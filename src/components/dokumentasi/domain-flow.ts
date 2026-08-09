@@ -1,113 +1,93 @@
 import type { FlowStep } from "./FlowTimeline";
 
-/** Isi diambil dari Check-Flow.MD (dicek langsung ke kode, bukan asumsi) — kalau alurnya
- *  berubah di kode, halaman ini ikut wajib diperbarui, bukan cuma file .MD-nya. */
+/** Bahasa di file ini SENGAJA untuk pengguna awam (staf), bukan programmer — hindari istilah
+ *  teknis (endpoint, nama field database, dsb). Kalau alurnya berubah di aplikasi, halaman ini
+ *  wajib ikut diperbarui (lihat juga Check-Flow.MD di root repo untuk versi teknisnya). */
 export const domainClientSteps: FlowStep[] = [
   {
     no: "1",
-    title: "Input Master Data",
+    title: "Domain didaftarkan ke sistem",
     description:
-      "Pengaturan → Master Data → tab Domain. Field kunci: name, clientId (kosong = Internal), sellPrice, lastPaidAt (kapan terakhir dibayar), expiryDate / \"Tgl Berakhir\" (kapan servicenya berakhir — acuan renewal), active.",
+      "Masuk ke Pengaturan → Master Data → Domain, lalu isi data domainnya: nama domain, ini milik Client mana (atau punya sendiri/Internal kalau bukan buat client), berapa harga jualnya, dan kapan terakhir dibayar.",
     detail: [
-      "lastPaidAt dan expiryDate dua field terpisah dengan arti beda — dulu digabung (expiry selalu dihitung dari lastPaidAt+1 tahun), sekarang expiryDate eksplisit disimpan sendiri.",
-      "Domain lama (sebelum expiryDate ada) di-backfill: expiryDate = lastPaidAt lamanya, lalu bisa dikoreksi manual per domain lewat kolom \"Tgl Berakhir\" yang klik-untuk-edit.",
+      "Ada 2 tanggal yang beda artinya: \"Tgl Terakhir Bayar\" (kapan terakhir kali dibayar) dan \"Tgl Berakhir\" (kapan domain ini harus diperpanjang lagi). Isi juga \"Tgl Berakhir\"-nya kalau sudah tahu, supaya sistem bisa mengingatkan pas mau habis.",
     ],
-    refs: ["POST /api/domains", "MasterDataPanel.tsx", "DomainDateCell.tsx"],
   },
   {
     no: "2",
-    title: "Muncul di Dashboard",
-    description: "Section \"Domain — Lewat / Bulan Ini / Bulan Depan\" — syarat tampil: active=true DAN bucket-nya expired/bulan ini/bulan depan.",
+    title: "Muncul otomatis di Dashboard",
+    description:
+      "Kalau domainnya sudah lewat, akan habis bulan ini, atau bulan depan, domain ini otomatis muncul di Dashboard supaya tidak kelupaan diperpanjang.",
     detail: [
-      "Kolom Pemilik menampilkan nama client + PIC + No. WA + tombol follow-up.",
-      "Kolom Aksi menampilkan tombol \"Tagih Sekarang\" karena domain ini punya clientId.",
+      "Nama client pemiliknya, nama PIC, dan nomor WA-nya langsung kelihatan di situ, lengkap dengan tombol \"Klik WA\" buat langsung follow-up.",
     ],
-    refs: ["DashboardSections.tsx", "domain-status.ts"],
   },
   {
     no: "3",
-    title: "Jadi Tagihan (Invoice, Draft)",
-    description: "Klik \"Tagih Sekarang\" → prefill client + nominal ke form invoice baru. Belum otomatis nyambung ke Domain-nya secara struktural.",
-    detail: [
-      "Invoice dibuat dengan postStatus \"draft\" dan status piutang \"unpaid\".",
-      "Cash-basis: piutang/pendapatan belum diakui di titik ini.",
-      "Kalau baris invoice diisi HPP, langsung dibuat 1 jurnal HPP (draft): debit HPP, kredit Hutang Usaha Vendor.",
-    ],
-    refs: ["POST /api/invoices", "penjualan/baru"],
+    title: "Klik \"Tagih Sekarang\"",
+    description:
+      "Kalau domainnya milik client, tinggal klik tombol \"Tagih Sekarang\" di Dashboard — sistem otomatis buatkan tagihan (invoice) buat client itu dengan nominal sesuai harga jual domainnya.",
+    detail: ["Tagihan yang baru dibuat statusnya masih \"Draft\" — belum resmi, masih bisa dicek/diperbaiki dulu sebelum ditagihkan beneran ke client."],
   },
   {
     no: "4",
-    title: "Posting Invoice",
-    description: "Tombol \"Posting Invoice\" di halaman detail invoice — wajib sebelum bisa dibayar.",
-    detail: ["Invoice draft TIDAK muncul di daftar pilihan form Pembayaran sampai diposting."],
-    refs: ["POST /api/invoices/:id/post", "InvoicePostButton.tsx"],
+    title: "Setujui tagihannya (Posting)",
+    description: "Buka tagihan yang baru dibuat, cek datanya sudah benar, lalu klik tombol \"Posting Invoice\" supaya tagihan itu resmi diterbitkan.",
+    detail: ["Selama belum diklik \"Posting\", tagihan ini belum bisa dipakai buat terima pembayaran dari client."],
   },
   {
     no: "5",
-    title: "Input Pembayaran",
-    description: "Titik ini pendapatan baru diakui (cash-basis): debit Kas/Bank, kredit Pendapatan Jasa, kredit PPN Keluaran kalau ada PPN.",
+    title: "Client bayar, staf input pembayarannya",
+    description: "Setelah client transfer, staf masuk ke menu Pembayaran, pilih tagihan yang mau dilunasi, lalu isi jumlah yang dibayar.",
     detail: [
-      "Opsional: kaitkan biaya ke Domain lewat costMode \"domain\" — kalau dipakai, markDomainPaid() otomatis jalan bareng (Transaction + jurnal Beban Domain terpisah, 1 paymentId yang sama).",
-      "Kalau langkah ini dilewati, pembayaran tetap sukses tapi Domain.lastPaidAt TIDAK ikut ter-update.",
+      "PENTING: kalau pembayaran ini juga buat memperpanjang domainnya, wajib pilih opsi \"Bayar Domain\" dan tandai domain yang dimaksud di form Pembayaran itu.",
+      "Kalau langkah pilih domain ini dilewati, pembayarannya tetap tercatat, tapi domainnya TIDAK dianggap sudah diperpanjang.",
     ],
-    refs: ["POST /api/payments", "PembayaranForm.tsx"],
   },
   {
     no: "6",
-    title: "Posting Payment",
-    description: "Semua Transaction dengan paymentId yang sama (baris pendapatan + baris Beban Domain kalau ada) diposting sekaligus, atomik.",
+    title: "Setujui pembayarannya (Posting)",
+    description: "Setelah pembayaran diklik \"Posting\", tagihan client otomatis berubah jadi Lunas.",
     detail: [
-      "Invoice.status dihitung ulang: unpaid → partial/paid.",
-      "Kalau ada cost-link Domain: Domain.lastPaidAt di-update ke tanggal transaksi itu, DAN Domain.expiryDate (\"Tgl Berakhir\") ditambah 1 tahun dari expiryDate SEBELUMNYA — bukan dari tanggal bayar, supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan.",
+      "Kalau tadi domainnya sudah ditandai di langkah 5, tanggal berakhir domain ini otomatis maju 1 tahun dari tanggal berakhir yang lama.",
     ],
-    refs: ["POST /api/payments/:id/post", "finalizeTransactionPosting()"],
   },
   {
     no: "7",
-    title: "COA / Buku Besar / Laporan",
-    description: "Cuma JournalLine yang jurnalnya postStatus=posted yang dihitung — draft dan voided dikecualikan.",
-    detail: [
-      "Kas & Bank — debit (pembayaran invoice), kredit (Beban Domain kalau dari akun yang sama).",
-      "Pendapatan Jasa — kredit, sebesar (jumlah dibayar − porsi PPN).",
-      "PPN Keluaran — kredit, kalau invoice pakai PPN.",
-      "Beban Domain — debit, HANYA kalau ada cost-link.",
-      "HPP + Hutang Usaha Vendor — HANYA kalau invoice diisi HPP saat dibuat.",
-    ],
-    refs: ["akuntansi/coa", "akuntansi/buku-besar"],
+    title: "Tercatat rapi di pembukuan perusahaan",
+    description:
+      "Semua uang yang masuk dari pembayaran ini, dan biaya modal domainnya (kalau ada), otomatis tercatat di laporan keuangan — tidak perlu dicatat manual lagi.",
+    detail: ["Yang kecatat: uang masuk ke kas/bank, pendapatan jasa bertambah, PPN (kalau ada), dan biaya modal domain (kalau dikaitkan)."],
   },
 ];
 
 export const domainInternalSteps: FlowStep[] = [
   {
     no: "1",
-    title: "Muncul di Dashboard sebagai Internal",
-    description: "Domain tanpa clientId — kolom Aksi menampilkan tombol \"Tandai Lunas\", bukan \"Tagih Sekarang\".",
-    refs: ["DashboardSections.tsx"],
+    title: "Muncul di Dashboard sebagai \"Internal\"",
+    description: "Domain yang bukan buat ditagihkan ke client (dipakai sendiri oleh perusahaan) tombolnya beda: tertulis \"Tandai Lunas\", bukan \"Tagih Sekarang\".",
   },
   {
     no: "2",
-    title: "Tandai Lunas",
-    description: "Dua pintu, satu fungsi yang sama: tombol cepat di Dashboard, ATAU Keuangan → Kas Keluar (Tipe baris \"Bayar Domain\").",
-    detail: ["Domain internal TIDAK PERNAH masuk Invoice/Piutang/Payment sama sekali."],
-    refs: ["POST /api/domains/:id/mark-paid", "POST /api/transactions/kas-keluar"],
+    title: "Klik \"Tandai Lunas\"",
+    description:
+      "Begitu domain ini dibayar/diperpanjang, klik \"Tandai Lunas\" langsung dari Dashboard, ATAU catat lewat menu Keuangan → Kas Keluar dengan memilih tipe \"Bayar Domain\".",
+    detail: ["Domain internal seperti ini tidak pernah lewat proses tagihan/invoice sama sekali — karena memang tidak ditagihkan ke siapa-siapa."],
   },
   {
     no: "3",
-    title: "markDomainPaid()",
-    description: "Transaction expense (draft) + jurnal Beban Domain (draft) langsung dibuat, tanpa Invoice/Payment.",
-    refs: ["mark-paid.ts"],
+    title: "Otomatis tercatat sebagai pengeluaran",
+    description: "Begitu dicatat, langsung jadi pengeluaran perusahaan (Beban Domain) di pembukuan.",
   },
   {
     no: "4",
-    title: "Posting",
-    description: "Setelah diposting: Domain.lastPaidAt ter-update ke tanggal bayar, DAN Domain.expiryDate (\"Tgl Berakhir\") maju 1 tahun dari expiryDate sebelumnya + Beban Domain masuk COA.",
-    refs: ["POST /api/transactions/:id/post"],
+    title: "Disetujui (Posting)",
+    description: "Setelah disetujui, tanggal berakhir domainnya otomatis maju 1 tahun, dan pengeluarannya resmi masuk laporan keuangan.",
   },
 ];
 
 export const domainCaveats: string[] = [
-  "\"Tagih Sekarang\" tidak otomatis mengaitkan Domain ke invoice-nya — hubungan itu cuma kejadian kalau staf secara sadar pakai fitur cost-link pas isi form Pembayaran. Tanpa itu, expiryDate domain tetap tanggal lama walau invoice-nya sudah lunas.",
-  "Invoice & Payment draft tidak kehitung di mana pun (Dashboard, COA, Buku Besar, saldo Kas) sampai eksplisit diposting — dua langkah posting terpisah (Invoice, lalu Payment) wajib dilakukan berurutan.",
-  "HPP domain bisa \"diakui\" di 2 titik yang beda maknanya: HPP di baris Invoice (diakui saat invoice dibuat, lawan akun Hutang Usaha Vendor) vs Beban Domain lewat cost-link/Tandai Lunas (diakui saat benar-benar dibayar, lawan akun Kas/Bank) — biasanya cuma salah satu yang dipakai untuk 1 domain yang sama.",
-  "lastPaidAt dan expiryDate sengaja dipisah: lastPaidAt = kapan terakhir dibayar (catatan historis), expiryDate = kapan servicenya benar-benar berakhir (acuan renewal). Yang dipakai buat status Lewat/Bulan Ini/Bulan Depan di Dashboard SELALU expiryDate, bukan lastPaidAt.",
+  "Tombol \"Tagih Sekarang\" cuma membuatkan tagihannya saja — TIDAK otomatis menghubungkan tagihan itu ke domainnya. Jadi pas input pembayaran, jangan lupa pilih & kaitkan ke domain yang dimaksud, kalau tidak, tanggal berakhir domainnya tidak akan berubah walau tagihannya sudah lunas.",
+  "Tagihan dan pembayaran yang masih berstatus \"Draft\" belum dihitung di mana pun (Dashboard, laporan keuangan, saldo kas) — wajib disetujui (\"Posting\") dulu satu-satu, tagihannya dulu baru pembayarannya.",
+  "\"Tgl Terakhir Bayar\" dan \"Tgl Berakhir\" itu dua hal yang beda: Tgl Terakhir Bayar cuma catatan kapan terakhir kali transfer; Tgl Berakhir itu yang menentukan kapan domainnya harus diperpanjang dan yang dipakai buat memunculkan peringatan di Dashboard.",
 ]

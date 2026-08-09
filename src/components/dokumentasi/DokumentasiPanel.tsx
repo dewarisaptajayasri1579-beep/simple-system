@@ -10,9 +10,9 @@ const DOC_TABS = [
   { value: "server", label: "Server" },
   { value: "maintenance", label: "Maintenance" },
   { value: "biaya-berkala", label: "Biaya Berkala" },
-  { value: "penjualan", label: "Penjualan & Invoice" },
+  { value: "penjualan", label: "Penjualan & Tagihan" },
   { value: "pembayaran", label: "Pembayaran" },
-  { value: "coa", label: "COA & Laporan" },
+  { value: "coa", label: "Akuntansi & Laporan" },
 ] as const;
 
 type DocTab = (typeof DOC_TABS)[number]["value"];
@@ -28,23 +28,23 @@ const ComingSoon: React.FC<{ label: string }> = ({ label }) => (
 const DomainDoc: React.FC = () => (
   <div className="space-y-6">
     <Card variant="panel" padding="lg">
-      <CardTitle>Jalur A — Domain milik Client</CardTitle>
-      <CardDescription>Input master data → Dashboard → Tagihan → Pembayaran → COA</CardDescription>
+      <CardTitle>Domain yang Ditagih ke Client</CardTitle>
+      <CardDescription>Daftar domain → muncul di Dashboard → dibuatkan tagihan → dibayar client → tercatat di pembukuan</CardDescription>
       <div className="mt-6">
         <FlowTimeline steps={domainClientSteps} />
       </div>
     </Card>
 
     <Card variant="panel" padding="lg">
-      <CardTitle>Jalur B — Domain Internal (tanpa Client)</CardTitle>
-      <CardDescription>Tidak pernah lewat Invoice/Piutang/Payment — langsung jadi pengeluaran.</CardDescription>
+      <CardTitle>Domain untuk Keperluan Sendiri (Internal)</CardTitle>
+      <CardDescription>Domain yang bukan buat client — tidak lewat tagihan, langsung dicatat sebagai pengeluaran.</CardDescription>
       <div className="mt-6">
         <FlowTimeline steps={domainInternalSteps} accent="slate" />
       </div>
     </Card>
 
     <Alert variant="warning">
-      <p className="font-bold mb-2">Yang perlu diwaspadai (bukan bug, tapi gampang salah paham)</p>
+      <p className="font-bold mb-2">Hal yang perlu diperhatikan</p>
       <ul className="space-y-2 list-disc list-inside">
         {domainCaveats.map((c, i) => (
           <li key={i} className="text-sm">

@@ -10,7 +10,9 @@ export default async function DokumentasiPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dokumentasi</h1>
-          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Alur tiap modul — dari input data sampai ke COA.</p>
+          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
+            Panduan cara kerja tiap menu, dari input data sampai tercatat rapi di laporan keuangan.
+          </p>
         </div>
         <DokumentasiPanel />
       </div>
