@@ -52,7 +52,10 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   // Biaya domain/server yang dikaitkan ke pembayaran ini (baris "Biaya" di form Pelunasan) —
   // dicatat sebagai Transaction expense terpisah (lihat markDomainPaid/markServerPaid), sama
   // paymentId tapi refType/refId nunjuk ke domain/server yang dibayar sekalian dari kas yang sama.
-  const costTransactions = paymentTransactions.filter((t) => t.refType === "domain" || t.refType === "server" || t.refType === "maintenance")
+  // Biaya (domain/server/maintenance yang dikaitkan, ATAU manual) — semua Transaction expense
+  // yang nempel ke payment ini. Baris pendapatan invoice-nya sendiri selalu type "income", jadi
+  // filter type "expense" ini aman buat pisahin baris Biaya tanpa perlu peduli refType-nya apa.
+  const costTransactions = paymentTransactions.filter((t) => t.type === "expense")
   const totalCost = costTransactions.reduce((sum, t) => sum + t.grossAmount, 0)
   const canEditCosts = payment.postStatus === "draft" && user.role === "owner"
 

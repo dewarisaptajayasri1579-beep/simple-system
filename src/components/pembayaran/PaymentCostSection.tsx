@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Select, CurrencyInput, Alert, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui";
+import { Button, Select, Input, CurrencyInput, Alert, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui";
 import { Plus } from "lucide-react";
 import { EditableCostAccount, EditableCostAmount } from "./EditableCostRow";
 
@@ -25,16 +25,20 @@ function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 }
 
-const KIND_OPTIONS = [
+type Kind = "manual" | "domain" | "server" | "maintenance";
+
+const KIND_OPTIONS: { value: Kind; label: string }[] = [
+  { value: "manual", label: "Biaya Manual" },
   { value: "domain", label: "Bayar Domain" },
   { value: "server", label: "Bayar Server" },
   { value: "maintenance", label: "Bayar Maintenance" },
 ];
 
 /** Tabel "Biaya" di kwitansi Pembayaran — baris domain/server/maintenance yang dikaitkan ke
- *  payment ini. Bisa diedit per baris (kalau masih draft, lihat EditableCostRow), DAN bisa
- *  ditambah baris baru langsung dari sini (misal staf lupa kaitkan biaya waktu bikin
- *  Pelunasan, atau mau bayar lebih dari 1 item sekaligus dari kas yang sama). */
+ *  payment ini, atau biaya manual (kategori bebas, tidak terkait item master data apa pun).
+ *  Bisa diedit per baris (kalau masih draft, lihat EditableCostRow), DAN bisa ditambah baris
+ *  baru langsung dari sini (misal staf lupa kaitkan biaya waktu bikin Pelunasan, atau mau
+ *  bayar lebih dari 1 item sekaligus dari kas yang sama). */
 export const PaymentCostSection: React.FC<{
   paymentId: string;
   costTransactions: CostTransactionRow[];
@@ -45,13 +49,24 @@ export const PaymentCostSection: React.FC<{
 }> = ({ paymentId, costTransactions, canEdit, domains, servers, maintenances }) => {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
-  const [kind, setKind] = useState<"domain" | "server" | "maintenance">("domain");
+  const [kind, setKind] = useState<Kind>("manual");
   const [itemId, setItemId] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
   const [amount, setAmount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const itemsByKind = { domain: domains, server: servers, maintenance: maintenances }[kind];
+  useEffect(() => {
+    if (!adding) return;
+    fetch("/api/categories?kind=expense")
+      .then((r) => r.json())
+      .then((data) => Array.isArray(data) && setCategoryOptions(data.map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))))
+      .catch(() => {});
+  }, [adding]);
+
+  const itemsByKind = { manual: [], domain: domains, server: servers, maintenance: maintenances }[kind];
   const itemOptions = itemsByKind.map((i) => ({
     value: i.id,
     label: `${i.name}${i.clientName ? ` — ${i.clientName}` : ""} · ${formatRupiah(i.price ?? 0)}`,
@@ -59,14 +74,34 @@ export const PaymentCostSection: React.FC<{
 
   const openAdd = () => {
     setAdding(true);
-    setKind("domain");
+    setKind("manual");
     setItemId("");
+    setDescription("");
+    setCategoryId("");
     setAmount(0);
     setError("");
   };
 
+  const handleCreateCategory = async (name: string) => {
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, kind: "expense" }),
+    });
+    const cat = await res.json().catch(() => null);
+    if (!res.ok || !cat?.id) return null;
+    const newOption = { value: cat.id as string, label: cat.name as string };
+    setCategoryOptions((prev) => (prev.some((o) => o.value === newOption.value) ? prev : [...prev, newOption].sort((a, b) => a.label.localeCompare(b.label))));
+    return newOption;
+  };
+
   const handleAdd = async () => {
-    if (!itemId) {
+    if (kind === "manual") {
+      if (!description.trim()) {
+        setError("Keterangan wajib diisi");
+        return;
+      }
+    } else if (!itemId) {
       setError("Pilih itemnya dulu");
       return;
     }
@@ -79,7 +114,7 @@ export const PaymentCostSection: React.FC<{
     const res = await fetch(`/api/payments/${paymentId}/costs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, itemId, amount }),
+      body: JSON.stringify(kind === "manual" ? { kind, description, categoryId: categoryId || undefined, amount } : { kind, itemId, amount }),
     });
     const data = await res.json().catch(() => null);
     setSaving(false);
@@ -142,29 +177,49 @@ export const PaymentCostSection: React.FC<{
               {error}
             </Alert>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Select
-              label="Tipe"
-              sizeVariant="sm"
-              options={KIND_OPTIONS}
-              value={kind}
-              onChange={(v) => {
-                setKind(v as typeof kind);
-                setItemId("");
-              }}
-              searchable={false}
-            />
-            <Select
-              label={kind === "domain" ? "Domain" : kind === "server" ? "Server" : "Maintenance"}
-              sizeVariant="sm"
-              options={itemOptions}
-              value={itemId}
-              onChange={setItemId}
-              placeholder="Pilih item"
-              emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
-            />
-            <CurrencyInput label="Biaya (HPP)" sizeVariant="sm" value={amount} onChange={setAmount} placeholder="mis. 300.000" />
-          </div>
+          <Select
+            label="Tipe"
+            sizeVariant="sm"
+            options={KIND_OPTIONS}
+            value={kind}
+            onChange={(v) => {
+              setKind(v as Kind);
+              setItemId("");
+            }}
+            searchable={false}
+          />
+          {kind === "manual" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input label="Keterangan" sizeVariant="sm" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="mis. Biaya admin" />
+              <Select
+                label="Akun Biaya"
+                sizeVariant="sm"
+                options={categoryOptions}
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Pilih atau tambah akun biaya"
+                searchPlaceholder="Cari atau ketik untuk tambah..."
+                emptyText="Belum ada, ketik untuk menambah"
+                creatable
+                onCreateOption={handleCreateCategory}
+                createOptionLabel={(q) => `Tambah "${q}"`}
+              />
+              <CurrencyInput label="Nominal" sizeVariant="sm" value={amount} onChange={setAmount} placeholder="mis. 50.000" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select
+                label={kind === "domain" ? "Domain" : kind === "server" ? "Server" : "Maintenance"}
+                sizeVariant="sm"
+                options={itemOptions}
+                value={itemId}
+                onChange={setItemId}
+                placeholder="Pilih item"
+                emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
+              />
+              <CurrencyInput label="Biaya (HPP)" sizeVariant="sm" value={amount} onChange={setAmount} placeholder="mis. 300.000" />
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
               Batal

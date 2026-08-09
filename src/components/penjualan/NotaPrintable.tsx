@@ -108,48 +108,53 @@ export const NotaPrintable: React.FC<{
           </table>
         </div>
 
+        {/* Kolom kiri (Payment To + Terbilang ditumpuk, bukan sebelahan) supaya tetap kebaca di
+           kertas A5 yang sempit — versi sebelahan bikin teks "BCA"/nominal terbilang kepotong
+           per-kata karena kolomnya kesempitan. */}
         <div className="flex flex-col sm:flex-row justify-between gap-3 mt-4">
-          <div className="flex-1 grid grid-cols-2 gap-3">
+          <div className="flex-1 space-y-2">
             {bank.name && (
-              <div className="rounded-xl border border-slate-200 p-3 text-xs">
+              <div className="rounded-xl border border-slate-200 px-3 py-2 text-[10px]">
                 <div className="flex items-center gap-1.5">
-                  <Landmark className="w-3.5 h-3.5 text-[#0544cc]" />
-                  <p className="font-bold text-[#0544cc] text-[10px] uppercase tracking-wide">Payment To</p>
+                  <Landmark className="w-3 h-3 text-[#0544cc] flex-shrink-0" />
+                  <p className="font-bold text-[#0544cc] uppercase tracking-wide">Payment To</p>
                 </div>
-                <p className="font-black text-slate-900 mt-1.5">{bank.name}</p>
-                {bank.account && <p className="font-semibold text-slate-700">{bank.account}</p>}
-                {bank.number && <p className="font-semibold text-slate-700">{bank.number}</p>}
+                <p className="font-black text-slate-900 mt-1 text-xs">
+                  {bank.name}
+                  {bank.account && <span className="font-semibold text-slate-700"> — {bank.account}</span>}
+                  {bank.number && <span className="font-semibold text-slate-700"> · {bank.number}</span>}
+                </p>
               </div>
             )}
-            <div className="rounded-xl border border-slate-200 p-3 text-xs">
+            <div className="rounded-xl border border-slate-200 px-3 py-2 text-[10px]">
               <div className="flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-[#0544cc]" />
-                <p className="font-bold text-[#0544cc] text-[10px] uppercase tracking-wide">Terbilang</p>
+                <FileText className="w-3 h-3 text-[#0544cc] flex-shrink-0" />
+                <p className="font-bold text-[#0544cc] uppercase tracking-wide">Terbilang</p>
               </div>
-              <p className="font-semibold text-slate-700 mt-1.5 leading-snug">{terbilangRupiah(invoice.totalAmount)}</p>
+              <p className="font-semibold text-slate-700 mt-1 text-xs leading-snug">{terbilangRupiah(invoice.totalAmount)}</p>
             </div>
           </div>
 
-          <div className="w-full sm:w-56 flex-shrink-0 space-y-1.5">
-            <div className="rounded-lg bg-slate-50 px-3 py-2 flex justify-between text-xs font-semibold text-slate-700">
+          <div className="w-full sm:w-40 flex-shrink-0 space-y-1.5">
+            <div className="rounded-lg bg-slate-50 px-2.5 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700">
               <span>Subtotal</span>
               <span>{formatRupiah(invoice.subtotal)}</span>
             </div>
             {invoice.discountAmount > 0 && (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 flex justify-between text-xs font-semibold text-slate-700">
+              <div className="rounded-lg bg-slate-50 px-2.5 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700">
                 <span>Potongan</span>
                 <span>- {formatRupiah(invoice.discountAmount)}</span>
               </div>
             )}
             {invoice.ppnEnabled && (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 flex justify-between text-xs font-semibold text-slate-700">
+              <div className="rounded-lg bg-slate-50 px-2.5 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700">
                 <span>PPN {invoice.ppnRate}%</span>
                 <span>{formatRupiah(invoice.ppnAmount)}</span>
               </div>
             )}
-            <div className="rounded-lg bg-[#0544cc] px-3 py-2.5 flex justify-between items-center text-white">
-              <span className="text-[10px] font-bold uppercase tracking-wide">Grand Total</span>
-              <span className="text-sm font-black">{formatRupiah(invoice.totalAmount)}</span>
+            <div className="rounded-lg bg-[#0544cc] px-2.5 py-2 text-white">
+              <p className="text-[9px] font-bold uppercase tracking-wide">Grand Total</p>
+              <p className="text-xs font-black">{formatRupiah(invoice.totalAmount)}</p>
             </div>
           </div>
         </div>

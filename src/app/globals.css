@@ -191,4 +191,7 @@ body {
     width: 100%;
     font-size: 11px;
   }
+  .bg-app-mesh {
+    background: white !important;
+  }
 }

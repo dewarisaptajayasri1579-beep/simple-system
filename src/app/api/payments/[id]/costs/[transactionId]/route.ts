@@ -4,10 +4,9 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 
-/** Ganti Akun/Jumlah 1 baris Biaya (domain/server yang dikaitkan) di Payment yang masih
- *  DRAFT. Sama seperti pengaitan biaya saat Pelunasan dibuat, cuma Owner yang boleh —
- *  baris ini efeknya sama dengan "Bayar Domain/Server", jangan longgarkan cuma karena
- *  diedit lewat sini. Sinkronkan 2 baris jurnal draft (beban & kas/bank). */
+/** Ganti Akun/Jumlah 1 baris Biaya (domain/server/maintenance yang dikaitkan, atau manual) di
+ *  Payment yang masih DRAFT. Sama seperti pengaitan biaya saat Pelunasan dibuat, cuma Owner
+ *  yang boleh. Sinkronkan 2 baris jurnal draft (beban & kas/bank). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; transactionId: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
@@ -32,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } })
-  if (!transaction || transaction.paymentId !== paymentId || !["domain", "server", "maintenance"].includes(transaction.refType ?? "")) {
+  if (!transaction || transaction.paymentId !== paymentId || transaction.type !== "expense") {
     return NextResponse.json({ error: "Baris biaya tidak ditemukan" }, { status: 404 })
   }
 

@@ -18,8 +18,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, userName, userRo
 
   return (
     <div className="min-h-screen bg-app-mesh text-slate-800 font-sans flex relative overflow-x-clip">
-      <div className="fixed -top-40 -left-40 w-[500px] h-[500px] bg-blue-400/20 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
-      <div className="fixed -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+      <div className="no-print fixed -top-40 -left-40 w-[500px] h-[500px] bg-blue-400/20 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+      <div className="no-print fixed -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
 
       <div className="no-print contents">
         <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed((p) => !p)} />
