@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { Pencil } from "lucide-react"
 import { Alert, Button, Card, CardDescription, CardHeader, CardTitle, CurrencyInput, FilterableTable, Input, Modal, Select, type FilterableColumn } from "@/components/ui"
+import { COA_CODE } from "@/lib/accounting/coa-seed"
 
 export interface AccountRow {
   id: string
@@ -21,6 +22,7 @@ interface CoaOption {
   name: string
   type: string
   isParent: boolean
+  parent: { code: string } | null
 }
 
 function formatRupiah(amount: number) {
@@ -49,7 +51,9 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
     fetch("/api/coa")
       .then((r) => r.json())
       .then((data: CoaOption[]) => {
-        if (Array.isArray(data)) setCoaOptions(data.filter((a) => a.type === "asset" && !a.isParent))
+        // Cuma akun di bawah "Kas & Bank" (1-1000) — ini yang benar-benar dipakai sebagai
+        // pasangan Akun Kas/Bank, bukan akun aset lain (mis. Piutang Usaha).
+        if (Array.isArray(data)) setCoaOptions(data.filter((a) => !a.isParent && a.parent?.code === COA_CODE.kasBankParent))
       })
       .catch(() => {})
   }, [])
@@ -153,7 +157,7 @@ export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = (
             onChange={setCoaAccountId}
             placeholder="Pilih akun COA"
             searchPlaceholder="Cari kode atau nama akun..."
-            emptyText="Belum ada akun COA jenis Aset"
+            emptyText="Belum ada akun COA di bawah Kas & Bank"
           />
           <p className="text-xs text-slate-500">
             Nama COA akan ikut diperbarui otomatis kalau nama akun ini diubah — kecuali kamu pindah ke COA lain lewat dropdown, itu tidak ikut di-rename.

@@ -6,6 +6,7 @@ import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge"
 import { PrintButton } from "@/components/penjualan/PrintButton"
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
+import { InvoiceDeleteButton } from "@/components/penjualan/InvoiceDeleteButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -54,6 +55,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Link>
           <div className="flex gap-3">
             <PrintButton />
+            {invoice.postStatus === "draft" && <InvoiceDeleteButton invoiceId={invoice.id} />}
             {invoice.postStatus === "draft" && <InvoicePostButton invoiceId={invoice.id} />}
             {invoice.postStatus === "posted" && remaining > 0 && (
               <Link href={`/pembayaran?clientId=${invoice.clientId}&invoiceId=${invoice.id}`}>

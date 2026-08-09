@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { FilterableTable, type FilterableColumn } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
-import { PaymentDeleteButton } from "./PaymentDeleteButton"
 
 export interface PaymentHistoryRow {
   id: string
@@ -31,7 +30,7 @@ const POSTING_FILTER_OPTIONS = [
 
 export const PaymentHistoryTable: React.FC<{ rows: PaymentHistoryRow[] }> = ({ rows }) => {
   const columns: FilterableColumn<PaymentHistoryRow>[] = [
-    { key: "no", header: "No", headClassName: "w-12", cell: (_p, index) => <span className="text-slate-500">{index + 1}</span> },
+    { key: "no", header: "No", headClassName: "w-12 pl-6", cellClassName: "pl-6", cell: (_p, index) => <span className="text-slate-500">{index + 1}</span> },
     {
       key: "paymentNumber",
       header: "No. Kwitansi",
@@ -59,7 +58,6 @@ export const PaymentHistoryTable: React.FC<{ rows: PaymentHistoryRow[] }> = ({ r
       filterOptions: POSTING_FILTER_OPTIONS,
       cell: (p) => <StatusBadge type={p.postStatus} size="sm" />,
     },
-    { key: "aksi", header: "Aksi", cell: (p) => p.postStatus === "draft" && <PaymentDeleteButton paymentId={p.id} /> },
   ]
 
   return <FilterableTable columns={columns} rows={rows} rowKey={(p) => p.id} pageSize={10} emptyMessage="Tidak ada pembayaran yang cocok." searchPlaceholder="Cari kwitansi, client, atau invoice..." />

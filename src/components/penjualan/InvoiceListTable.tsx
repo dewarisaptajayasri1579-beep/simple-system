@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, ColumnVisibilityMenu, type FilterableColumn } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
-import { VoidButton } from "@/components/akuntansi/VoidButton";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
-import { Eye } from "lucide-react";
 
 export interface InvoiceListRow {
   id: string;
@@ -103,11 +101,6 @@ export const InvoiceListTable: React.FC<{ rows: InvoiceListRow[] }> = ({ rows: i
       header: "Aksi",
       cell: (r) => (
         <div className="flex items-center gap-2">
-          <Link href={`/penjualan/${r.id}`}>
-            <Button size="sm" variant="ghost" leftIcon={<Eye className="w-4 h-4" />}>
-              Detail
-            </Button>
-          </Link>
           {r.hasCost && (
             <JournalButton
               title={`Jurnal — ${r.invoiceNumber}`}
