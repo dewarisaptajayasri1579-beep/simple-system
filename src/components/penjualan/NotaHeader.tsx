@@ -1,36 +1,24 @@
 import Image from "next/image";
-import { Hash, Calendar, Receipt } from "lucide-react";
+import { Hash, Calendar } from "lucide-react";
 
 /** Header nota/invoice cetak — logo 7Smarts + judul INVOICE + badge No/Tanggal, meniru persis
  *  referensi "Nota Keren" (lihat nota/Nota Keren.png). Dipakai di halaman cetak invoice. QR code
- *  (opsional) ditaruh di bawah logo (bukan bikin baris baru) link ke /verify/invoice/[no] — supaya
- *  invoice yang dicetak/di-PDF bisa dicek keasliannya lewat data yang benar-benar ada di sistem,
- *  bukan cuma dipercaya visual. Kertas A5 pas-pasan buat 1 halaman, jadi header ini TETAP 1 baris
- *  (2 kolom: logo+QR kiri, judul+badge kanan) — jangan tambah baris baru di sini. */
+ *  (opsional) link ke /verify/invoice/[no] ditaruh di samping kanan judul INVOICE (gantiin ikon
+ *  Receipt dekoratif yang lama) — supaya invoice yang dicetak/di-PDF bisa dicek keasliannya lewat
+ *  data yang benar-benar ada di sistem, bukan cuma dipercaya visual. Kertas A5 pas-pasan buat 1
+ *  halaman, jadi header ini TETAP 1 baris — jangan tambah baris baru di sini. */
 export const NotaHeader: React.FC<{ invoiceNumber: string; date: string; qrDataUrl?: string }> = ({ invoiceNumber, date, qrDataUrl }) => (
   <div className="print-exact-color">
     <div className="flex items-start justify-between flex-wrap gap-4">
-      <div className="flex flex-col gap-1">
-        <Image src="/nota/logo-7smarts.png" alt="7Smarts" width={160} height={53} className="h-9 w-auto" priority />
-        {qrDataUrl && (
-          <div className="flex items-center gap-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrDataUrl} alt="QR verifikasi" className="w-8 h-8" />
-            <p className="text-[6px] text-slate-400 font-semibold leading-tight">
-              Scan utk
-              <br />
-              verifikasi
-            </p>
-          </div>
-        )}
-      </div>
+      <Image src="/nota/logo-7smarts.png" alt="7Smarts" width={160} height={53} className="h-9 w-auto" priority />
 
       <div className="flex flex-col items-end gap-2">
         <div className="flex items-center gap-2">
           <p className="text-3xl font-black text-slate-900 tracking-tight">INVOICE</p>
-          <div className="w-9 h-9 rounded-lg border-2 border-[#0544cc] flex items-center justify-center flex-shrink-0">
-            <Receipt className="w-5 h-5 text-[#0544cc]" />
-          </div>
+          {qrDataUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={qrDataUrl} alt="QR verifikasi" className="w-9 h-9 rounded-lg border-2 border-[#0544cc] flex-shrink-0" />
+          )}
         </div>
 
         <div className="flex items-stretch">

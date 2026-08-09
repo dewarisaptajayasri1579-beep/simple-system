@@ -3,30 +3,23 @@ import { Hash, Calendar } from "lucide-react";
 
 /** Header kwitansi cetak — logo 7Smarts + judul KWITANSI + badge No/Tanggal, meniru persis
  *  referensi "Kwitansi Keren" (lihat nota/Kwitansi Keren.png). Dipakai di halaman cetak Pembayaran.
- *  QR code (opsional) ditaruh di bawah logo (bukan bikin baris baru) link ke /verify/kwitansi/[no]
- *  — supaya kwitansi yang dicetak/di-PDF bisa dicek keasliannya lewat data yang benar-benar ada di
- *  sistem, bukan cuma dipercaya visual. Kertas A5 pas-pasan buat 1 halaman, jadi header ini TETAP
- *  1 baris (2 kolom: logo+QR kiri, judul+badge kanan) — jangan tambah baris baru di sini. */
+ *  QR code (opsional) link ke /verify/kwitansi/[no] ditaruh di samping kanan judul KWITANSI
+ *  (tinggi disamakan dengan tinggi font judulnya) — supaya kwitansi yang dicetak/di-PDF bisa
+ *  dicek keasliannya lewat data yang benar-benar ada di sistem, bukan cuma dipercaya visual.
+ *  Kertas A5 pas-pasan buat 1 halaman, jadi header ini TETAP 1 baris — jangan tambah baris baru. */
 export const KwitansiHeader: React.FC<{ paymentNumber: string; date: string; qrDataUrl?: string }> = ({ paymentNumber, date, qrDataUrl }) => (
   <div className="print-exact-color">
     <div className="flex items-start justify-between flex-wrap gap-4">
-      <div className="flex flex-col gap-1">
-        <Image src="/nota/logo-7smarts.png" alt="7Smarts" width={160} height={53} className="h-9 w-auto" priority />
-        {qrDataUrl && (
-          <div className="flex items-center gap-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrDataUrl} alt="QR verifikasi" className="w-8 h-8" />
-            <p className="text-[6px] text-slate-400 font-semibold leading-tight">
-              Scan utk
-              <br />
-              verifikasi
-            </p>
-          </div>
-        )}
-      </div>
+      <Image src="/nota/logo-7smarts.png" alt="7Smarts" width={160} height={53} className="h-9 w-auto" priority />
 
       <div className="flex flex-col items-end gap-2">
-        <p className="text-3xl font-black text-slate-900 tracking-tight">KWITANSI</p>
+        <div className="flex items-center gap-2">
+          <p className="text-3xl font-black text-slate-900 tracking-tight">KWITANSI</p>
+          {qrDataUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={qrDataUrl} alt="QR verifikasi" className="w-9 h-9 rounded-lg border-2 border-[#0544cc] flex-shrink-0" />
+          )}
+        </div>
 
         <div className="flex items-stretch">
           <div className="flex items-center gap-2 px-3 py-2">
