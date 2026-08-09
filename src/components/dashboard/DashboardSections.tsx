@@ -505,6 +505,7 @@ export interface ServerDueRow {
 }
 
 const SERVER_COLUMNS = [
+  { key: "owner", label: "Pemilik" },
   { key: "client", label: "Internal/Client" },
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "price", label: "Harga" },
@@ -525,6 +526,16 @@ export const ServerDueSection: React.FC<{
 
   const columns: FilterableColumn<ServerDueRow>[] = [
     { key: "name", header: "Server", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
+    ...(isVisible("owner")
+      ? [
+          {
+            key: "owner",
+            header: "Pemilik",
+            filterValue: (r: ServerDueRow) => r.clientName ?? "Internal",
+            cell: (r: ServerDueRow) => r.clientName ?? "Internal",
+          },
+        ]
+      : []),
     ...(isVisible("client")
       ? [
           {

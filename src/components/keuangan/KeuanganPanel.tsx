@@ -275,15 +275,11 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
     return [];
   }, [billModalType, domains, servers]);
 
-  // Pilih domain/server -> prefill nominal dari harga jual/harga-nya sendiri (masih boleh
-  // diedit manual sebelum disimpan, mis. kalau ada perubahan harga terakhir).
+  // Nominal (HPP/biaya modal) WAJIB diisi manual — TIDAK di-prefill dari harga jual (itu harga
+  // ke client, beda dengan biaya modal aslinya, lihat label "Biaya (HPP)" di bawah).
   const handleBillItemChange = (id: string) => {
     setBillItemId(id);
-    if (billModalType === "domain") {
-      setBillAmount(domains.find((d) => d.id === id)?.sellPrice ?? 0);
-    } else if (billModalType === "server") {
-      setBillAmount(servers.find((s) => s.id === id)?.price ?? 0);
-    }
+    setBillAmount(0);
   };
 
   const handleSaveBill = async () => {
@@ -493,6 +489,8 @@ export const KeuanganPanel: React.FC<{ accounts: AccountOption[]; userRole: stri
             emptyText="Tidak ada — pastikan sudah punya harga di Master Data"
           />
           <Select label="Bayar dari Akun" options={accountOptions} value={billAccountId} onChange={setBillAccountId} placeholder="Pilih Kas/Bank" />
+          <CurrencyInput label="Biaya (HPP) — bukan harga jual" value={billAmount} onChange={setBillAmount} placeholder="mis. 300.000" />
+          <Input label="Tanggal" type="date" value={billPaidAt} onChange={(e) => setBillPaidAt(e.target.value)} />
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setBillModalType(null)}>
               Batal
