@@ -1,5 +1,5 @@
 import type { TxClient } from "./post-journal"
-import { postJournalEntry, postJournalEntryFinal } from "./post-journal"
+import { postJournalEntry, postJournalEntryFinal, finalizeJournalEntryById } from "./post-journal"
 import { billPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
 import { COA_CODE } from "./coa-seed"
@@ -98,14 +98,26 @@ export async function markDomainPaid(
  *  RecurringBill terkait baru diupdate sekarang. Dipanggil dari POST /api/transactions/[id]/post
  *  dan dari posting Payment yang membawa costLink Domain/Server. */
 export async function finalizeTransactionPosting(tx: TxClient, input: { transactionId: string; postedById: string }) {
-  const transaction = await tx.transaction.findUnique({ where: { id: input.transactionId } })
+  const transaction = await tx.transaction.findUnique({ where: { id: input.transactionId }, include: { invoicePayment: true } })
   if (!transaction) throw new Error("Transaksi tidak ditemukan")
   if (transaction.postStatus === "posted") return transaction
 
-  const sourceType = (transaction.refType ?? "transaction") as "transaction" | "server" | "domain" | "recurring_bill"
-  const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
-
-  await postJournalEntryFinal(tx, { sourceType, sourceId, postedById: input.postedById })
+  // journalEntryId = link presisi ke jurnal transaksi INI (selalu diisi sejak dibuat — lihat
+  // markServerPaid/markDomainPaid/payments/route.ts/recurring-bills mark-paid). Fallback
+  // sourceType+sourceId cuma untuk baris lama sebelum kolom ini ada — sengaja dibedakan
+  // "invoice_payment" (kalau transaksi ini baris Pembayaran) dari "transaction" biasa, supaya
+  // tidak salah tebak dan gagal nemu jurnalnya (itu penyebab bug jurnal "nyangkut" draft).
+  let posted
+  if (transaction.journalEntryId) {
+    posted = await finalizeJournalEntryById(tx, transaction.journalEntryId, input.postedById)
+  } else {
+    const sourceType = transaction.refType ?? (transaction.paymentId || transaction.invoicePayment ? "invoice_payment" : "transaction")
+    const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
+    posted = await postJournalEntryFinal(tx, { sourceType: sourceType as never, sourceId, postedById: input.postedById })
+  }
+  if (!posted) {
+    throw new Error(`Jurnal untuk transaksi "${transaction.description ?? transaction.id}" tidak ketemu — tidak bisa diposting`)
+  }
 
   if (transaction.refType === "server" && transaction.refId) {
     await tx.server.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })

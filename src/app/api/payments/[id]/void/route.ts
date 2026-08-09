@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
-import { voidJournalEntryBySource } from "@/lib/accounting/post-journal"
+import { voidJournalEntryBySource, voidJournalEntryById } from "@/lib/accounting/post-journal"
 
 /** Batalkan payment yang sudah posted (salah input) — Owner-only. Semua Transaction yang
  *  dibuat bareng payment ini (pelunasan tiap invoice + costLink Bayar Domain/Server kalau ada)
@@ -37,9 +37,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const transactions = await tx.transaction.findMany({ where: { paymentId: id, postStatus: "posted" } })
     for (const t of transactions) {
-      const sourceType = t.refType ?? "invoice_payment"
-      const sourceId = t.refType && t.refId ? t.refId : t.id
-      await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
+      if (t.journalEntryId) {
+        await voidJournalEntryById(tx, t.journalEntryId, user.id, voidReason ?? undefined)
+      } else {
+        const sourceType = t.refType ?? "invoice_payment"
+        const sourceId = t.refType && t.refId ? t.refId : t.id
+        await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
+      }
       await tx.transaction.update({
         where: { id: t.id },
         data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },

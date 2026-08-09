@@ -18,9 +18,12 @@ export default async function CoaPage({ searchParams }: { searchParams: Promise<
   })
 
   // Saldo "sendiri" dari jurnal yang nempel langsung di akun itu (sampai akhir bulan terpilih).
+  // WAJIB filter postStatus "posted" — draft belum berlaku, voided sudah dibatalkan — sama
+  // seperti Buku Besar/account-balance.ts, kalau tidak saldo ikut kehitung dobel/salah tiap kali
+  // ada draft atau pembayaran yang dibatalkan & diulang.
   const ownBalance = new Map<string, number>()
   for (const a of accounts) {
-    const relevant = a.journalLines.filter((l) => l.journalEntry.date <= monthEnd)
+    const relevant = a.journalLines.filter((l) => l.journalEntry.date <= monthEnd && l.journalEntry.postStatus === "posted")
     const debit = relevant.reduce((s, l) => s + l.debit, 0)
     const credit = relevant.reduce((s, l) => s + l.credit, 0)
     ownBalance.set(a.id, accountMovement(a.type, debit, credit))

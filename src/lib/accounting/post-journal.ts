@@ -150,8 +150,18 @@ export async function voidJournalEntryBySource(
     where: { sourceType: input.sourceType, sourceId: input.sourceId, postStatus: "posted" },
   })
   if (!entry) return null
+  return voidJournalEntryById(tx, entry.id, input.voidedById, input.voidReason)
+}
+
+/** Batalkan 1 jurnal langsung dari id-nya (lebih presisi dari voidJournalEntryBySource kalau
+ *  caller sudah punya `Transaction.journalEntryId` pasti — lihat catatan di
+ *  finalizeTransactionPosting). No-op kalau jurnalnya sudah tidak posted (mis. sudah dibatalkan
+ *  duluan). */
+export async function voidJournalEntryById(tx: TxClient, journalEntryId: string, voidedById: string, voidReason?: string) {
+  const entry = await tx.journalEntry.findUnique({ where: { id: journalEntryId } })
+  if (!entry || entry.postStatus !== "posted") return null
   return tx.journalEntry.update({
     where: { id: entry.id },
-    data: { postStatus: "voided", voidedAt: new Date(), voidedById: input.voidedById, voidReason: input.voidReason ?? null },
+    data: { postStatus: "voided", voidedAt: new Date(), voidedById, voidReason: voidReason ?? null },
   })
 }

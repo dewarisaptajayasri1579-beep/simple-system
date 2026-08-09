@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
-import { voidJournalEntryBySource } from "@/lib/accounting/post-journal"
+import { voidJournalEntryBySource, voidJournalEntryById } from "@/lib/accounting/post-journal"
 
 /** Batalkan Transaction yang sudah posted (manual Keuangan, atau hasil "Bayar Server/Domain"/
  *  "Tandai Lunas" Biaya Berkala) — Owner-only. Transaksi yang bagian dari Pembayaran dibatalkan
@@ -27,11 +27,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => null)
   const voidReason = typeof body?.reason === "string" ? body.reason.trim() || null : null
 
-  const sourceType = transaction.refType ?? "transaction"
-  const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
-
   const voided = await prisma.$transaction(async (tx) => {
-    await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
+    if (transaction.journalEntryId) {
+      await voidJournalEntryById(tx, transaction.journalEntryId, user.id, voidReason ?? undefined)
+    } else {
+      const sourceType = transaction.refType ?? "transaction"
+      const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
+      await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
+    }
     return tx.transaction.update({
       where: { id },
       data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },

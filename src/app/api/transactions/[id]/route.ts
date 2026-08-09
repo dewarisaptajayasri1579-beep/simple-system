@@ -29,11 +29,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Transaksi ini bagian dari Pembayaran — hapus lewat menu Pembayaran" }, { status: 400 })
   }
 
-  const sourceType = transaction.refType ?? "transaction"
-  const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
+  const journalWhere = transaction.journalEntryId
+    ? { id: transaction.journalEntryId, postStatus: "draft" as const }
+    : {
+        sourceType: transaction.refType ?? "transaction",
+        sourceId: transaction.refType && transaction.refId ? transaction.refId : transaction.id,
+        postStatus: "draft" as const,
+      }
 
   await prisma.$transaction([
-    prisma.journalEntry.deleteMany({ where: { sourceType, sourceId, postStatus: "draft" } }),
+    prisma.journalEntry.deleteMany({ where: journalWhere }),
     prisma.transaction.delete({ where: { id } }),
   ])
 

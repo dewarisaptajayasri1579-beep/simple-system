@@ -34,9 +34,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   await prisma.$transaction(async (tx) => {
     const transactions = await tx.transaction.findMany({ where: { paymentId: id } })
     for (const t of transactions) {
-      const sourceType = t.refType ?? "invoice_payment"
-      const sourceId = t.refType && t.refId ? t.refId : t.id
-      await tx.journalEntry.deleteMany({ where: { sourceType, sourceId, postStatus: "draft" } })
+      if (t.journalEntryId) {
+        await tx.journalEntry.deleteMany({ where: { id: t.journalEntryId, postStatus: "draft" } })
+      } else {
+        const sourceType = t.refType ?? "invoice_payment"
+        const sourceId = t.refType && t.refId ? t.refId : t.id
+        await tx.journalEntry.deleteMany({ where: { sourceType, sourceId, postStatus: "draft" } })
+      }
     }
     await tx.invoicePayment.deleteMany({ where: { paymentId: id } })
     await tx.transaction.deleteMany({ where: { paymentId: id } })

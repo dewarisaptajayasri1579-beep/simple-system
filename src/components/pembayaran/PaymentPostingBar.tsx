@@ -16,6 +16,7 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
   const router = useRouter();
   const [status, setStatus] = useState(postStatus);
   const [posting, setPosting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   const handlePost = async () => {
@@ -32,6 +33,21 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
     router.refresh();
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Hapus draft pembayaran ini? Kalau salah input, ini cara paling gampang untuk input ulang dari awal.")) return;
+    setDeleting(true);
+    setError("");
+    const res = await fetch(`/api/payments/${paymentId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setDeleting(false);
+      setError(data?.error || "Gagal menghapus draft pembayaran");
+      return;
+    }
+    router.push("/pembayaran");
+    router.refresh();
+  };
+
   return (
     <div className="no-print space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
@@ -42,9 +58,20 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
           postUrl={status === "draft" ? `/api/payments/${paymentId}/post` : undefined}
         />
         {status === "draft" && (
-          <Button size="sm" variant="primary" onClick={handlePost} isLoading={posting}>
-            Posting
-          </Button>
+          <>
+            <Button size="sm" variant="primary" onClick={handlePost} isLoading={posting}>
+              Posting
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="!text-rose-700 !border-rose-300 hover:!bg-rose-50"
+              onClick={handleDelete}
+              isLoading={deleting}
+            >
+              Hapus
+            </Button>
+          </>
         )}
         {status === "posted" && (
           <VoidButton voidUrl={`/api/payments/${paymentId}/void`} itemLabel="pembayaran ini" onVoided={() => setStatus("voided")} />

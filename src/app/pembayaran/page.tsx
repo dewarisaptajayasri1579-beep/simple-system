@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { PembayaranForm } from "@/components/pembayaran/PembayaranForm"
 import { Card, CardTitle, CardDescription, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
+import { PaymentDeleteButton } from "@/components/pembayaran/PaymentDeleteButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
@@ -53,6 +54,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
                     <TableHead>Invoice Dilunasi</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Posting</TableHead>
+                    <TableHead>Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -70,6 +72,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
                       <TableCell>
                         <StatusBadge type={p.postStatus as "draft" | "posted" | "voided"} size="sm" />
                       </TableCell>
+                      <TableCell>{p.postStatus === "draft" && <PaymentDeleteButton paymentId={p.id} />}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
