@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Receipt, Wallet, Landmark, ShoppingCart, BarChart2 } from "lucide-react";
+import { LayoutGrid, Wallet, Landmark, ShoppingCart, BarChart2 } from "lucide-react";
 
 export interface BottomNavItem {
   label: string;
@@ -13,7 +13,6 @@ export interface BottomNavItem {
 
 export const bottomNavItems: BottomNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Piutang", href: "/piutang", icon: <Receipt className="w-5 h-5" /> },
   { label: "Bayar", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Penjualan", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },

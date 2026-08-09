@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, Modal, Input, Select, Alert, CurrencyInput } from "@/components/ui";
-import { Globe, Server as ServerIcon, ArrowUpRight, ArrowDownLeft, Wallet, Plus } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Wallet, Plus } from "lucide-react";
 
 const BANK_KEYWORDS = ["mandiri", "bca", "bri", "bni", "bsi"];
 
@@ -15,9 +15,9 @@ function detectAccountType(name: string): "kas" | "bank" {
   return BANK_KEYWORDS.some((k) => lower.includes(k)) ? "bank" : "kas";
 }
 
-/** Halaman induk Keuangan — tiap kartu navigasi ke halaman riwayat + tambah entri sendiri
- *  (mis. Bayar Domain -> /keuangan/domain), bukan modal di tempat, supaya histori
- *  pembayaran per kategori langsung kelihatan. */
+/** Halaman induk Keuangan — tiap kartu navigasi ke halaman riwayat + tambah entri sendiri,
+ *  bukan modal di tempat, supaya histori pembayaran per kategori langsung kelihatan. Bayar
+ *  Domain/Server tidak lagi menu terpisah — jadi salah satu Tipe baris di Kas Keluar. */
 export const KeuanganPanel: React.FC<{ userRole: string }> = ({ userRole }) => {
   const router = useRouter();
   const isOwner = userRole === "owner";
@@ -62,27 +62,11 @@ export const KeuanganPanel: React.FC<{ userRole: string }> = ({ userRole }) => {
   };
 
   const menuCards = [
-    isOwner && {
-      key: "domain",
-      icon: <Globe className="w-6 h-6" />,
-      title: "Bayar Domain",
-      description: "Tandai lunas perpanjangan domain",
-      href: "/keuangan/domain",
-      accent: "text-blue-600 bg-blue-50",
-    },
-    isOwner && {
-      key: "server",
-      icon: <ServerIcon className="w-6 h-6" />,
-      title: "Bayar Server",
-      description: "Tandai lunas sewa server/hosting",
-      href: "/keuangan/server",
-      accent: "text-indigo-600 bg-indigo-50",
-    },
     {
       key: "kas-keluar",
       icon: <ArrowUpRight className="w-6 h-6" />,
       title: "Kas Keluar",
-      description: "Catat pengeluaran kas/bank",
+      description: "Catat pengeluaran kas/bank — termasuk Bayar Domain/Server",
       href: "/keuangan/kas-keluar",
       accent: "text-rose-600 bg-rose-50",
     },

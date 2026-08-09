@@ -3,6 +3,7 @@ import { postJournalEntry, postJournalEntryFinal, finalizeJournalEntryById } fro
 import { billPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
 import { COA_CODE } from "./coa-seed"
+import { computeDomainExpiryDate } from "@/lib/domain-status"
 
 /** Dipakai bareng oleh kartu "Bayar Server" (Keuangan) DAN dari baris Biaya di Pelunasan
  *  saat staf mengaitkan biaya ke server tertentu — supaya satu-satunya jalur pencatatan
@@ -122,7 +123,12 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
   if (transaction.refType === "server" && transaction.refId) {
     await tx.server.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
   } else if (transaction.refType === "domain" && transaction.refId) {
-    await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt } })
+    // Perpanjangan domain menyambung dari jatuh tempo SEBELUMNYA + 1 tahun, bukan dari tanggal
+    // bayar — supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan. Kalau ini
+    // pembayaran pertama (belum pernah ada lastPaidAt), baru dari tanggal bayar/aktivasi.
+    const domain = await tx.domain.findUnique({ where: { id: transaction.refId }, select: { lastPaidAt: true } })
+    const previousDueDate = computeDomainExpiryDate(domain?.lastPaidAt ?? null)
+    await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: previousDueDate ?? transaction.occurredAt } })
   } else if (transaction.refType === "recurring_bill" && transaction.refId) {
     await tx.recurringBill.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
   }

@@ -214,7 +214,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             Domain &amp; Biaya Berkala sekarang dikelola di Pengaturan &gt; Master Data (khusus Owner).
           </p>
           <div className="flex flex-wrap gap-3 mt-4">
-            <Link href="/piutang">
+            <Link href="/laporan/piutang">
               <Button variant="outline" size="sm">Lihat Piutang</Button>
             </Link>
             <Link href="/penjualan">

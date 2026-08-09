@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { AppLogo } from "../ui/AppLogo";
 import {
   LayoutGrid,
-  Receipt,
   Wallet,
   ShoppingCart,
   Landmark,
@@ -32,7 +31,6 @@ export interface SidebarProps {
 
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Piutang", href: "/piutang", icon: <Receipt className="w-5 h-5" /> },
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Penjualan", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
