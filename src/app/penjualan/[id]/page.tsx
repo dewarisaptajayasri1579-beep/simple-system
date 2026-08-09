@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { Card, CardHeader, CardTitle, CardDescription, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell, Button } from "@/components/ui"
+import { Card, CardHeader, CardTitle, CardDescription, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Alert } from "@/components/ui"
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge"
 import { PrintButton } from "@/components/penjualan/PrintButton"
+import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -44,7 +45,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Link>
           <div className="flex gap-3">
             <PrintButton />
-            {remaining > 0 && (
+            {invoice.postStatus === "draft" && <InvoicePostButton invoiceId={invoice.id} />}
+            {invoice.postStatus === "posted" && remaining > 0 && (
               <Link href={`/pembayaran?clientId=${invoice.clientId}&invoiceId=${invoice.id}`}>
                 <Button variant="primary">Input Pembayaran</Button>
               </Link>
@@ -52,15 +54,24 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
+        {invoice.postStatus === "draft" && (
+          <Alert variant="warning" className="no-print">
+            Invoice ini masih <strong>Draft</strong> — belum bisa menerima pembayaran. Posting dulu lewat tombol di atas.
+          </Alert>
+        )}
+
         <Card variant="panel" padding="lg" className="print:shadow-none print:border-none print:bg-white">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-900">SEVEN OS</h1>
               <p className="text-xs text-slate-500 font-semibold">Invoice / Faktur Penjualan</p>
             </div>
-            <div className="text-right">
+            <div className="text-right space-y-1.5">
               <p className="text-lg font-black text-slate-900">{invoice.invoiceNumber}</p>
-              <StatusBadge type={invoice.status as StatusBadgeType} size="sm" />
+              <div className="flex items-center gap-2 justify-end">
+                <StatusBadge type={invoice.status as StatusBadgeType} size="sm" />
+                <StatusBadge type={invoice.postStatus as StatusBadgeType} size="sm" />
+              </div>
             </div>
           </div>
 

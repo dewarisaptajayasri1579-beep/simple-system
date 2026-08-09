@@ -9,6 +9,7 @@ import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { DomainOwnerCell } from "@/components/domain/DomainOwnerCell";
 import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
+import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
@@ -295,7 +296,11 @@ const RECURRING_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[] }> = ({ rows }) => {
+export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: AccountOption[]; isOwner: boolean }> = ({
+  rows,
+  accounts,
+  isOwner,
+}) => {
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-recurring", RECURRING_COLUMNS);
 
@@ -319,6 +324,15 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[] }> = ({ row
     ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (r: RecurringDueRow) => formatRupiah(r.price) }] : []),
     ...(isVisible("status")
       ? [{ key: "status", header: "Status", cell: (r: RecurringDueRow) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> }]
+      : []),
+    ...(isOwner
+      ? [
+          {
+            key: "aksi",
+            header: "Aksi",
+            cell: (r: RecurringDueRow) => <MarkPaidButton url={`/api/recurring-bills/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />,
+          },
+        ]
       : []),
   ];
 
@@ -361,10 +375,12 @@ const DOMAIN_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[]; clients: { id: string; name: string }[] }> = ({
-  rows: initialRows,
-  clients,
-}) => {
+export const DomainExpiringSection: React.FC<{
+  rows: DomainExpiringRow[];
+  clients: { id: string; name: string }[];
+  accounts: AccountOption[];
+  isOwner: boolean;
+}> = ({ rows: initialRows, clients, accounts, isOwner }) => {
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-domain", DOMAIN_COLUMNS);
@@ -451,6 +467,8 @@ export const DomainExpiringSection: React.FC<{ rows: DomainExpiringRow[]; client
               message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
             />
           </div>
+        ) : isOwner ? (
+          <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
         ),
@@ -493,7 +511,11 @@ const SERVER_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const ServerDueSection: React.FC<{ rows: ServerDueRow[] }> = ({ rows }) => {
+export const ServerDueSection: React.FC<{ rows: ServerDueRow[]; accounts: AccountOption[]; isOwner: boolean }> = ({
+  rows,
+  accounts,
+  isOwner,
+}) => {
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-server", SERVER_COLUMNS);
 
@@ -529,6 +551,8 @@ export const ServerDueSection: React.FC<{ rows: ServerDueRow[] }> = ({ rows }) =
               message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })}
             />
           </div>
+        ) : isOwner ? (
+          <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />
         ) : (
           <span className="text-xs text-slate-400">Internal</span>
         ),

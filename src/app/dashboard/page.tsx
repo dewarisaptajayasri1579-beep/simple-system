@@ -37,9 +37,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
 
-  const [clientCount, clientOptions, domains, servers, bills, openInvoices, followUps] = await Promise.all([
+  const [clientCount, clientOptions, accounts, domains, servers, bills, openInvoices, followUps] = await Promise.all([
     prisma.client.count(),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
     prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
@@ -194,13 +195,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <PiutangSummarySection rows={piutangRows} />
         </div>
         <div id="pembayaran-rutin" className="scroll-mt-[150px]">
-          <RecurringDueSection rows={recurringDueRows} />
+          <RecurringDueSection rows={recurringDueRows} accounts={accounts} isOwner={user.role === "owner"} />
         </div>
         <div id="domain" className="scroll-mt-[150px]">
-          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} />
+          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
         </div>
         <div id="server" className="scroll-mt-[150px]">
-          <ServerDueSection rows={serverDueRows} />
+          <ServerDueSection rows={serverDueRows} accounts={accounts} isOwner={user.role === "owner"} />
         </div>
         <div id="follow-up" className="scroll-mt-[150px]">
           <FollowUpPanel rows={followUpRows} />
