@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardHeader, CardTitle, CardDescription, Input, Select, Modal, Alert, CurrencyInput } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
-import { jakartaTodayDateIso } from "@/lib/datetime";
+import { jakartaTodayDateIso, shiftJakartaDateIso } from "@/lib/datetime";
 
 interface ClientOption {
   id: string;
@@ -52,7 +52,15 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [items, setItems] = useState<ItemOption[]>([]);
   const [clientId, setClientId] = useState(prefill?.clientId ?? "");
   const [issuedAt, setIssuedAt] = useState(jakartaTodayDateIso());
-  const [dueDate, setDueDate] = useState("");
+  // Default jatuh tempo 7 hari dari tanggal invoice — tetap boleh diubah manual, dan kalau
+  // sudah diubah manual, tidak lagi ikut geser otomatis pas Tanggal Invoice diganti.
+  const [dueDate, setDueDate] = useState(shiftJakartaDateIso(jakartaTodayDateIso(), 7));
+  const [dueDateTouched, setDueDateTouched] = useState(false);
+
+  useEffect(() => {
+    if (dueDateTouched) return;
+    setDueDate(shiftJakartaDateIso(issuedAt, 7));
+  }, [issuedAt, dueDateTouched]);
   const [notes, setNotes] = useState("");
   const [ppnEnabled, setPpnEnabled] = useState(false);
   const [ppnRate, setPpnRate] = useState(11);
@@ -191,7 +199,15 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
             </Button>
           </div>
           <Input label="Tanggal Invoice" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
-          <Input label="Jatuh Tempo" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <Input
+            label="Jatuh Tempo"
+            type="date"
+            value={dueDate}
+            onChange={(e) => {
+              setDueDate(e.target.value);
+              setDueDateTouched(true);
+            }}
+          />
         </div>
         <div className="mt-4">
           <Input label="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
