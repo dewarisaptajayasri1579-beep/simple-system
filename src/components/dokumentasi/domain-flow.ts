@@ -27,7 +27,10 @@ export const domainClientSteps: FlowStep[] = [
     title: "Klik \"Tagih Sekarang\"",
     description:
       "Kalau domainnya milik client, tinggal klik tombol \"Tagih Sekarang\" di Dashboard — sistem otomatis buatkan tagihan (invoice) buat client itu dengan nominal sesuai harga jual domainnya.",
-    detail: ["Tagihan yang baru dibuat statusnya masih \"Draft\" — belum resmi, masih bisa dicek/diperbaiki dulu sebelum ditagihkan beneran ke client."],
+    detail: [
+      "Tagihan yang baru dibuat statusnya masih \"Draft\" — belum resmi, masih bisa dicek/diperbaiki dulu sebelum ditagihkan beneran ke client.",
+      "Tagihan ini otomatis \"diingat\" terkait ke domain yang mana — jadi nanti pas dibayar, sistem sudah tahu sendiri domain mana yang dimaksud (lihat langkah 5).",
+    ],
   },
   {
     no: "4",
@@ -40,8 +43,8 @@ export const domainClientSteps: FlowStep[] = [
     title: "Client bayar, staf input pembayarannya",
     description: "Setelah client transfer, staf masuk ke menu Pembayaran, pilih tagihan yang mau dilunasi, lalu isi jumlah yang dibayar.",
     detail: [
-      "PENTING: kalau pembayaran ini juga buat memperpanjang domainnya, wajib pilih opsi \"Bayar Domain\" dan tandai domain yang dimaksud di form Pembayaran itu.",
-      "Kalau langkah pilih domain ini dilewati, pembayarannya tetap tercatat, tapi domainnya TIDAK dianggap sudah diperpanjang.",
+      "Kalau tagihannya dibuat lewat \"Tagih Sekarang\" (langkah 3), opsi \"Bayar Domain\" dan domainnya SUDAH otomatis kepilih — staf tinggal isi berapa biaya modal domainnya (HPP), tidak perlu pilih ulang domainnya lagi.",
+      "Kalau tagihannya dibuat manual (bukan dari \"Tagih Sekarang\"), staf tetap wajib pilih sendiri opsi \"Bayar Domain\" dan domainnya di form Pembayaran, kalau tidak domainnya TIDAK dianggap sudah diperpanjang.",
     ],
   },
   {
@@ -87,7 +90,7 @@ export const domainInternalSteps: FlowStep[] = [
 ];
 
 export const domainCaveats: string[] = [
-  "Tombol \"Tagih Sekarang\" cuma membuatkan tagihannya saja — TIDAK otomatis menghubungkan tagihan itu ke domainnya. Jadi pas input pembayaran, jangan lupa pilih & kaitkan ke domain yang dimaksud, kalau tidak, tanggal berakhir domainnya tidak akan berubah walau tagihannya sudah lunas.",
+  "Tombol \"Tagih Sekarang\" sekarang otomatis mengaitkan tagihannya ke domain yang dimaksud, jadi pas dibayar, opsi \"Bayar Domain\" sudah otomatis kepilih. TAPI kalau tagihannya dibuat manual (bukan lewat \"Tagih Sekarang\"), staf tetap wajib pilih sendiri domainnya pas input pembayaran — kalau lupa, tanggal berakhir domainnya tidak akan berubah walau tagihannya sudah lunas.",
   "Tagihan dan pembayaran yang masih berstatus \"Draft\" belum dihitung di mana pun (Dashboard, laporan keuangan, saldo kas) — wajib disetujui (\"Posting\") dulu satu-satu, tagihannya dulu baru pembayarannya.",
   "\"Tgl Terakhir Bayar\" dan \"Tgl Berakhir\" itu dua hal yang beda: Tgl Terakhir Bayar cuma catatan kapan terakhir kali transfer; Tgl Berakhir itu yang menentukan kapan domainnya harus diperpanjang dan yang dipakai buat memunculkan peringatan di Dashboard.",
 ]

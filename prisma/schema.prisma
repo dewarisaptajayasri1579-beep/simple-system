@@ -328,6 +328,12 @@ model Invoice {
   // termin Project) yang pendapatannya harus masuk ke akun revenue lain dari Pendapatan Jasa.
   revenueCoaCode String? @map("revenue_coa_code")
 
+  // Kalau invoice ini dibuat dari tombol "Tagih Sekarang" di Dashboard (Domain/Server), simpan
+  // domain/server yang dimaksud di sini — dipakai form Pembayaran buat otomatis pilih "Bayar
+  // Domain/Server" + itemnya begitu invoice ini dilunasi, staf tidak perlu pilih manual lagi.
+  costLinkType String? @map("cost_link_type") // "domain" | "server"
+  costLinkId   String? @map("cost_link_id")
+
   // Draft -> Posted -> (Voided): efek invoice (masuk Piutang, jurnal HPP kalau ada) baru
   // berlaku setelah posted. Terpisah dari `status` di atas (itu status pelunasan, bukan ini).
   // Voided = salah input setelah posting — dibatalkan (bukan dihapus), efeknya hilang dari

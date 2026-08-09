@@ -39,6 +39,11 @@ export interface InvoiceFormPrefill {
   clientId?: string;
   description?: string;
   amount?: number;
+  /** Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server) — dikirim balik
+   *  saat submit supaya form Pembayaran nanti bisa otomatis pilih "Bayar Domain/Server" tanpa
+   *  staf harus pilih manual lagi. */
+  domainId?: string;
+  serverId?: string;
 }
 
 export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefill }) => {
@@ -137,7 +142,18 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, issuedAt, dueDate: dueDate || null, notes, ppnEnabled, ppnRate, discountAmount, lines }),
+        body: JSON.stringify({
+          clientId,
+          issuedAt,
+          dueDate: dueDate || null,
+          notes,
+          ppnEnabled,
+          ppnRate,
+          discountAmount,
+          lines,
+          domainId: prefill?.domainId,
+          serverId: prefill?.serverId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {

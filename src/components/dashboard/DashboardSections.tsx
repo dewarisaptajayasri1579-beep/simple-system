@@ -503,7 +503,7 @@ export const DomainExpiringSection: React.FC<{
       cell: (r) =>
         r.clientId ? (
           <Link
-            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
           >
             <Button size="sm" variant="outline">
               Tagih Sekarang
@@ -637,7 +637,7 @@ export const ServerDueSection: React.FC<{
       cell: (r) =>
         r.clientId ? (
           <Link
-            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
           >
             <Button size="sm" variant="outline">
               Tagih Sekarang

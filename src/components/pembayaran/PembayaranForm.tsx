@@ -116,29 +116,54 @@ export const PembayaranForm: React.FC<{
     setIsLoadingInvoices(true);
     fetch(`/api/invoices?clientId=${clientId}&postStatus=posted`)
       .then((r) => r.json())
-      .then((data: Array<{ id: string; invoiceNumber: string; totalAmount: number; dueDate: string | null; payments: { amount: number }[] }>) => {
-        const rows: InvoiceRow[] = data
-          .map((inv) => {
-            const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
-            return {
-              id: inv.id,
-              invoiceNumber: inv.invoiceNumber,
-              totalAmount: inv.totalAmount,
-              dueDate: inv.dueDate,
-              remaining: Math.max(0, inv.totalAmount - paid),
-            };
-          })
-          .filter((r) => r.remaining > 0.5);
-        setInvoices(rows);
-        setLines(
-          Object.fromEntries(
-            rows.map((r) => [
-              r.id,
-              { checked: r.id === prefillInvoiceId, amount: r.remaining, costMode: "none" as CostMode, costAmount: 0, costLinkId: "" },
-            ])
-          )
-        );
-      })
+      .then(
+        (
+          data: Array<{
+            id: string;
+            invoiceNumber: string;
+            totalAmount: number;
+            dueDate: string | null;
+            payments: { amount: number }[];
+            costLinkType: "domain" | "server" | null;
+            costLinkId: string | null;
+          }>
+        ) => {
+          const rows: InvoiceRow[] = data
+            .map((inv) => {
+              const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
+              return {
+                id: inv.id,
+                invoiceNumber: inv.invoiceNumber,
+                totalAmount: inv.totalAmount,
+                dueDate: inv.dueDate,
+                remaining: Math.max(0, inv.totalAmount - paid),
+              };
+            })
+            .filter((r) => r.remaining > 0.5);
+          setInvoices(rows);
+          setLines(
+            Object.fromEntries(
+              rows.map((r) => {
+                // Invoice yang dibuat dari "Tagih Sekarang" bawa costLinkType/costLinkId sendiri —
+                // langsung pilihkan Bayar Domain/Server-nya, staf tidak perlu pilih manual lagi
+                // (nominal HPP tetap wajib diisi manual, itu bukan harga jual).
+                const source = data.find((d) => d.id === r.id);
+                const autoLink = isOwner && source?.costLinkType && source.costLinkId;
+                return [
+                  r.id,
+                  {
+                    checked: r.id === prefillInvoiceId,
+                    amount: r.remaining,
+                    costMode: (autoLink ? source!.costLinkType : "none") as CostMode,
+                    costAmount: 0,
+                    costLinkId: autoLink ? source!.costLinkId! : "",
+                  },
+                ];
+              })
+            )
+          );
+        }
+      )
       .finally(() => setIsLoadingInvoices(false));
 
     if (isOwner) {

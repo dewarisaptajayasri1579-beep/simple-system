@@ -54,6 +54,13 @@ export async function POST(request: Request) {
   if (!clientId) return NextResponse.json({ error: "Client wajib dipilih" }, { status: 400 })
   if (lines.length === 0) return NextResponse.json({ error: "Minimal 1 baris item" }, { status: 400 })
 
+  // Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server) — simpan link-nya
+  // supaya form Pembayaran nanti bisa otomatis pilih Bayar Domain/Server tanpa staf pilih manual.
+  const domainId = typeof body?.domainId === "string" && body.domainId ? body.domainId : null
+  const serverId = typeof body?.serverId === "string" && body.serverId ? body.serverId : null
+  const costLinkType = domainId ? "domain" : serverId ? "server" : null
+  const costLinkId = domainId ?? serverId
+
   const settings = await prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } })
 
   const ppnEnabled = Boolean(body?.ppnEnabled)
@@ -102,6 +109,8 @@ export async function POST(request: Request) {
         totalAmount,
         totalCost,
         notes: body?.notes || null,
+        costLinkType,
+        costLinkId,
         lines: { create: preparedLines },
       },
       include: { lines: true, client: true },
