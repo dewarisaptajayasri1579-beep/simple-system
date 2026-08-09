@@ -192,7 +192,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const followUpByRef = new Map(activeFollowUps.map((f) => [`${f.refType}:${f.refId}`, f]))
   const slaFor = (refType: BillingFollowUpRef["refType"], refId: string) => {
     const record = followUpByRef.get(`${refType}:${refId}`)
-    return { billingFollowUpId: record?.id ?? null, sla: record ? computeSlaStatus(record) : null }
+    return { billingFollowUpId: record?.id ?? null, invoiceId: record?.invoiceId ?? null, sla: record ? computeSlaStatus(record) : null }
   }
 
   const domainExpiringRows: DomainExpiringRow[] = domainExpiringRowsBase.map((r) => ({ ...r, ...slaFor("domain", r.id) }))

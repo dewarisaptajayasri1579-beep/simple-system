@@ -278,6 +278,37 @@ function SlaBadge({ sla }: { sla: BillingFollowUpSla | null }) {
   return <StatusBadge type={sla.overdue ? "expired" : "expiring_this_month"} label={label} size="sm" />;
 }
 
+/** Tombol "Tagih Sekarang" vs "Lihat Tagihan" — begitu sudah pernah ditagih (sla.stage bukan
+ *  lagi "belum_ditagih"), jangan tawarkan bikin invoice baru lagi (bisa dobel), arahkan ke
+ *  invoice yang sudah ada. Kalau invoiceId-nya entah kenapa kosong (invoice dibuat manual di
+ *  luar alur ini), tetap fallback ke "Tagih Sekarang" biar tidak buntu. */
+function TagihAction({
+  sla,
+  invoiceId,
+  tagihHref,
+}: {
+  sla: BillingFollowUpSla | null;
+  invoiceId: string | null;
+  tagihHref: string;
+}) {
+  if (sla && sla.stage !== "belum_ditagih" && invoiceId) {
+    return (
+      <Link href={`/penjualan/${invoiceId}`}>
+        <Button size="sm" variant="ghost">
+          Lihat Tagihan
+        </Button>
+      </Link>
+    );
+  }
+  return (
+    <Link href={tagihHref}>
+      <Button size="sm" variant="outline">
+        Tagih Sekarang
+      </Button>
+    </Link>
+  );
+}
+
 function bucketCounts(rows: { bucket: ExpiryBucket }[]) {
   return rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.bucket] = (acc[r.bucket] ?? 0) + 1;
@@ -379,6 +410,7 @@ export interface DomainExpiringRow {
   dueDate: string | null;
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
+  invoiceId: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -518,13 +550,11 @@ export const DomainExpiringSection: React.FC<{
           <SlaBadge sla={r.sla} />
           <div className="flex items-center gap-2">
             {r.clientId ? (
-              <Link
-                href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
-              >
-                <Button size="sm" variant="outline">
-                  Tagih Sekarang
-                </Button>
-              </Link>
+              <TagihAction
+                sla={r.sla}
+                invoiceId={r.invoiceId}
+                tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
+              />
             ) : isOwner ? (
               <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
             ) : (
@@ -568,6 +598,7 @@ export interface ServerDueRow {
   dueDate: string | null;
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
+  invoiceId: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -663,13 +694,11 @@ export const ServerDueSection: React.FC<{
           <SlaBadge sla={r.sla} />
           <div className="flex items-center gap-2">
             {r.clientId ? (
-              <Link
-                href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
-              >
-                <Button size="sm" variant="outline">
-                  Tagih Sekarang
-                </Button>
-              </Link>
+              <TagihAction
+                sla={r.sla}
+                invoiceId={r.invoiceId}
+                tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
+              />
             ) : isOwner ? (
               <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
             ) : (
@@ -713,6 +742,7 @@ export interface MaintenanceDueRow {
   dueDate: string | null;
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
+  invoiceId: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -770,13 +800,11 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
         <div className="flex flex-col items-start gap-1.5">
           <SlaBadge sla={r.sla} />
           <div className="flex items-center gap-2">
-            <Link
-              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
-            >
-              <Button size="sm" variant="outline">
-                Tagih Sekarang
-              </Button>
-            </Link>
+            <TagihAction
+              sla={r.sla}
+              invoiceId={r.invoiceId}
+              tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
+            />
             {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
               <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
