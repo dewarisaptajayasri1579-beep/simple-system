@@ -12,6 +12,7 @@ import { VoidButton } from "@/components/akuntansi/VoidButton"
 import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
 import { ArrowLeft } from "lucide-react"
 
 function formatDate(date: Date | null) {
@@ -48,6 +49,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const bank = invoice.ppnEnabled
     ? { name: settings.paymentBankNamePpn, account: settings.paymentAccountNamePpn, number: settings.paymentAccountNumberPpn }
     : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
+
+  const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -193,7 +196,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
            referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
-        <NotaPrintable invoice={invoice} bank={bank} />
+        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} />
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">

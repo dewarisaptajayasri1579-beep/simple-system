@@ -16,13 +16,14 @@ export const KwitansiPrintable: React.FC<{
   payment: Payment & { client: Client; account: Account; invoicePayments: (InvoicePayment & { invoice: Invoice })[] };
   receiverName: string;
   date: string;
-}> = ({ payment, receiverName, date }) => {
+  qrDataUrl?: string;
+}> = ({ payment, receiverName, date, qrDataUrl }) => {
   const untukPembayaran = payment.invoicePayments.map((ip) => ip.invoice.invoiceNumber).join(", ");
 
   return (
     <div className="print-only">
       <Card variant="panel" padding="sm" className="print:shadow-none print:border-none print:bg-white print-nota-a5">
-        <KwitansiHeader paymentNumber={payment.paymentNumber} date={date} />
+        <KwitansiHeader paymentNumber={payment.paymentNumber} date={date} qrDataUrl={qrDataUrl} />
 
         <div className="mt-4 rounded-xl border border-slate-200 divide-y divide-dashed divide-slate-200">
           <div className="flex items-center gap-3 px-4 py-2.5">

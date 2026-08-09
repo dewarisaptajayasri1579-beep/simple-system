@@ -10,6 +10,7 @@ import { PaymentCostSection } from "@/components/pembayaran/PaymentCostSection"
 import { KwitansiPrintable } from "@/components/pembayaran/KwitansiPrintable"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { kwitansiVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
 import { ArrowLeft } from "lucide-react"
 
 function formatDate(date: Date) {
@@ -59,6 +60,8 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   const costTransactions = paymentTransactions.filter((t) => t.type === "expense")
   const totalCost = costTransactions.reduce((sum, t) => sum + t.grossAmount, 0)
   const canEditCosts = payment.postStatus === "draft" && user.role === "owner"
+
+  const qrDataUrl = await qrCodeDataUrl(kwitansiVerifyUrl(payment.paymentNumber))
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -173,7 +176,7 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format kwitansi sesuai
            referensi "Kwitansi Keren" (nota/Kwitansi Keren.png), tidak pernah dilihat staf di layar. */}
-        <KwitansiPrintable payment={payment} receiverName={user.name} date={formatDate(payment.paidAt)} />
+        <KwitansiPrintable payment={payment} receiverName={user.name} date={formatDate(payment.paidAt)} qrDataUrl={qrDataUrl} />
       </div>
     </AppLayout>
   )

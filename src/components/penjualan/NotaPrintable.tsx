@@ -33,11 +33,12 @@ export interface BankInfo {
 export const NotaPrintable: React.FC<{
   invoice: Invoice & { client: Client; lines: InvoiceLine[] };
   bank: BankInfo;
-}> = ({ invoice, bank }) => {
+  qrDataUrl?: string;
+}> = ({ invoice, bank, qrDataUrl }) => {
   return (
     <div className="print-only">
       <Card variant="panel" padding="sm" className="print:shadow-none print:border-none print:bg-white print-nota-a5">
-        <NotaHeader invoiceNumber={invoice.invoiceNumber} date={formatDate(invoice.issuedAt)} />
+        <NotaHeader invoiceNumber={invoice.invoiceNumber} date={formatDate(invoice.issuedAt)} qrDataUrl={qrDataUrl} />
 
         <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
           <div className="rounded-xl border border-slate-200 p-3 space-y-2">

@@ -2,8 +2,10 @@ import Image from "next/image";
 import { Hash, Calendar, Receipt } from "lucide-react";
 
 /** Header nota/invoice cetak — logo 7Smarts + judul INVOICE + badge No/Tanggal, meniru persis
- *  referensi "Nota Keren" (lihat nota/Nota Keren.png). Dipakai di halaman cetak invoice. */
-export const NotaHeader: React.FC<{ invoiceNumber: string; date: string }> = ({ invoiceNumber, date }) => (
+ *  referensi "Nota Keren" (lihat nota/Nota Keren.png). Dipakai di halaman cetak invoice. QR code
+ *  (opsional) di kanan bawah link ke /verify/invoice/[no] — supaya invoice yang dicetak/di-PDF
+ *  bisa dicek keasliannya lewat data yang benar-benar ada di sistem, bukan cuma dipercaya visual. */
+export const NotaHeader: React.FC<{ invoiceNumber: string; date: string; qrDataUrl?: string }> = ({ invoiceNumber, date, qrDataUrl }) => (
   <div className="print-exact-color">
     <div className="flex items-start justify-between flex-wrap gap-4">
       <Image src="/nota/logo-7smarts.png" alt="7Smarts" width={160} height={53} className="h-9 w-auto" priority />
@@ -15,7 +17,14 @@ export const NotaHeader: React.FC<{ invoiceNumber: string; date: string }> = ({ 
       </div>
     </div>
 
-    <div className="flex justify-end mt-2">
+    <div className="flex justify-end items-center gap-3 mt-2">
+      {qrDataUrl && (
+        <div className="flex flex-col items-center flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrDataUrl} alt="QR verifikasi" className="w-12 h-12" />
+          <p className="text-[7px] text-slate-400 font-semibold mt-0.5">Scan utk verifikasi</p>
+        </div>
+      )}
       <div className="flex items-stretch">
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="w-7 h-7 rounded-md border border-[#0544cc] flex items-center justify-center flex-shrink-0">
