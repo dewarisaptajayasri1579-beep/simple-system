@@ -154,7 +154,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
-  // Maintenance: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
+  // Maintenance: sudah lewat tempo atau jatuh tempo bulan ini saja (beda dari Domain/Server,
+  // sengaja tidak ikut nampilin "bulan depan" di sini).
   const maintenanceDueRows: MaintenanceDueRow[] = maintenances
     .map((m) => {
       const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
@@ -170,7 +171,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month")
     .sort(byDueDateAsc)
 
   // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.

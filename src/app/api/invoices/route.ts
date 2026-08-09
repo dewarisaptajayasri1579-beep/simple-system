@@ -4,7 +4,7 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { invoiceCostLines } from "@/lib/accounting/journal-rules"
+import { invoiceCostLines, invoiceRevenueLines } from "@/lib/accounting/journal-rules"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -107,8 +107,10 @@ export async function POST(request: Request) {
       include: { lines: true, client: true },
     })
 
-    // Cash-basis: pendapatan/piutang belum diakui saat invoice terbit, baru saat pembayaran
-    // masuk (lihat /api/payments). Cuma HPP yang tetap diakui sekarang kalau ada.
+    // Ledger akrual (JournalEntry/JournalLine): pendapatan, piutang, PPN, dan HPP semua diakui
+    // sekarang (saat invoice terbit) — beda dari Transaction cash-basis yang baru mengakui
+    // pendapatan saat pembayaran masuk (lihat /api/payments). Draft dulu, baru berlaku begitu
+    // invoice ini diposting (lihat /api/invoices/[id]/post).
     if (totalCost > 0) {
       await postJournalEntry(tx, {
         date: created.issuedAt,
@@ -117,6 +119,16 @@ export async function POST(request: Request) {
         sourceId: created.id,
         createdBy: user.id,
         lines: invoiceCostLines({ totalCost }),
+      })
+    }
+    if (totalAmount > 0) {
+      await postJournalEntry(tx, {
+        date: created.issuedAt,
+        description: `Invoice ${created.invoiceNumber} - ${created.client.name}`,
+        sourceType: "invoice_revenue",
+        sourceId: created.id,
+        createdBy: user.id,
+        lines: invoiceRevenueLines({ totalAmount, ppnAmount, revenueCoaCode: created.revenueCoaCode ?? undefined }),
       })
     }
 

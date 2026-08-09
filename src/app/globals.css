@@ -165,11 +165,21 @@ body {
 
 /* Halaman cetak invoice — sembunyikan chrome aplikasi (sidebar/header/bottom bar/footer),
    sisakan cuma konten invoice-nya. */
+.print-only {
+  display: none;
+}
 @media print {
   .no-print {
     display: none !important;
   }
   body {
     background: white !important;
+  }
+  .print-exact-color {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-only {
+    display: block !important;
   }
 }

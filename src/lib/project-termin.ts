@@ -1,4 +1,6 @@
 import type { TxClient } from "@/lib/accounting/post-journal"
+import { postJournalEntry } from "@/lib/accounting/post-journal"
+import { invoiceRevenueLines } from "@/lib/accounting/journal-rules"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
 import { COA_CODE } from "@/lib/accounting/coa-seed"
 
@@ -8,9 +10,9 @@ import { COA_CODE } from "@/lib/accounting/coa-seed"
  *
  *  Invoice-nya langsung `postStatus: posted` (bukan draft seperti invoice manual biasa) — supaya
  *  bisa langsung dibayar lewat menu Pembayaran, yang cuma menerima invoice posted. Tidak ada HPP
- *  di sini (termin project tidak melacak biaya modal), jadi tidak ada jurnal HPP yang perlu
- *  difinalisasi seperti invoice biasa. `revenueCoaCode` diisi "4-3000 Pendapatan Project" supaya
- *  invoicePaymentLines (journal-rules.ts) posting revenue-nya ke akun ini, bukan Pendapatan Jasa. */
+ *  di sini (termin project tidak melacak biaya modal). Jurnal akrual (Piutang/Pendapatan Project)
+ *  langsung diposting `postStatus: posted` juga di sini (bukan draft->post terpisah seperti
+ *  invoice manual), karena invoice-nya sendiri sudah langsung posted. */
 export async function generateTerminInvoice(
   tx: TxClient,
   input: { scheduleId: string; createdBy: string | null }
@@ -47,6 +49,16 @@ export async function generateTerminInvoice(
         ],
       },
     },
+  })
+
+  await postJournalEntry(tx, {
+    date: invoice.issuedAt,
+    description: `Invoice ${invoice.invoiceNumber} - ${description}`,
+    sourceType: "invoice_revenue",
+    sourceId: invoice.id,
+    createdBy: input.createdBy ?? undefined,
+    postStatus: "posted",
+    lines: invoiceRevenueLines({ totalAmount: schedule.amount, ppnAmount: 0, revenueCoaCode: COA_CODE.pendapatanProject }),
   })
 
   return tx.projectPaymentSchedule.update({

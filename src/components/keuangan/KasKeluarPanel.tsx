@@ -13,6 +13,7 @@ import {
   Alert,
   CurrencyInput,
   FilterableTable,
+  Modal,
   type FilterableColumn,
 } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -102,6 +103,26 @@ export const KasKeluarPanel: React.FC<{
   const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Modal "Tambah Kategori Biaya" — sekalian minta pilih COA Beban-nya, bukan cuma nama, biar
+  // kategori baru langsung ke-mapping (default-nya jatuh ke "Beban Lain-lain" kalau dilewatkan).
+  const [coaAccountList, setCoaAccounts] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [newCategoryLineIndex, setNewCategoryLineIndex] = useState<number | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryCoaId, setNewCategoryCoaId] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/coa")
+      .then((r) => r.json())
+      .then((data: { id: string; code: string; name: string; type: string; isParent: boolean }[]) => {
+        if (!Array.isArray(data)) return;
+        setCoaAccounts(data.filter((a) => a.type === "expense" && !a.isParent));
+      })
+      .catch(() => {});
+  }, []);
+  const coaOptions = useMemo(() => coaAccountList.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })), [coaAccountList]);
+
   const load = () => {
     fetch(`/api/transactions?type=expense`)
       .then((r) => r.json())
@@ -150,17 +171,35 @@ export const KasKeluarPanel: React.FC<{
     setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
   };
 
-  const handleCreateCategory = async (name: string) => {
+  const openNewCategoryModal = (lineIndex: number, name: string) => {
+    setNewCategoryLineIndex(lineIndex);
+    setNewCategoryName(name);
+    setNewCategoryCoaId("");
+    setCategoryError("");
+  };
+
+  const handleConfirmNewCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setCategoryError("Nama kategori wajib diisi");
+      return;
+    }
+    setSavingCategory(true);
+    setCategoryError("");
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, kind: "expense" }),
+      body: JSON.stringify({ name: newCategoryName.trim(), kind: "expense", coaAccountId: newCategoryCoaId || undefined }),
     });
     const cat = await res.json().catch(() => null);
-    if (!res.ok || !cat?.id) return null;
+    setSavingCategory(false);
+    if (!res.ok || !cat?.id) {
+      setCategoryError(cat?.error || "Gagal menambah kategori");
+      return;
+    }
     const newOption = { value: cat.id as string, label: cat.name as string };
     setCategoryOptions((prev) => (prev.some((o) => o.value === newOption.value) ? prev : [...prev, newOption].sort((a, b) => a.label.localeCompare(b.label))));
-    return newOption;
+    if (newCategoryLineIndex !== null) updateLine(newCategoryLineIndex, { categoryId: newOption.value });
+    setNewCategoryLineIndex(null);
   };
 
   const totalAmount = lines.reduce((sum, l) => sum + (l.amount || 0), 0);
@@ -344,7 +383,8 @@ export const KasKeluarPanel: React.FC<{
                     searchPlaceholder="Cari atau ketik untuk tambah..."
                     emptyText="Belum ada, ketik untuk menambah"
                     creatable
-                    onCreateOption={handleCreateCategory}
+                    deferCreate
+                    onCreateOption={(q) => openNewCategoryModal(i, q)}
                     createOptionLabel={(q) => `Tambah "${q}"`}
                   />
                   <Input
@@ -425,6 +465,35 @@ export const KasKeluarPanel: React.FC<{
         </div>
         <FilterableTable columns={columns} rows={rows ?? []} rowKey={(r) => r.id} pageSize={20} emptyMessage="Belum ada pengeluaran." mobileCardMode />
       </Card>
+
+      <Modal
+        isOpen={newCategoryLineIndex !== null}
+        onClose={() => setNewCategoryLineIndex(null)}
+        title="Tambah Kategori Biaya"
+        subtitle="Kategori baru langsung dipetakan ke akun COA Beban-nya, supaya jurnalnya benar sejak awal."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setNewCategoryLineIndex(null)}>
+              Batal
+            </Button>
+            <Button onClick={handleConfirmNewCategory} isLoading={savingCategory}>
+              Simpan
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {categoryError && <Alert variant="error">{categoryError}</Alert>}
+          <Input label="Nama Kategori" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="mis. Listrik Kantor" />
+          <Select
+            label="COA Beban (opsional)"
+            options={coaOptions}
+            value={newCategoryCoaId}
+            onChange={setNewCategoryCoaId}
+            placeholder="Pilih akun Beban — kosongkan untuk pakai Beban Lain-lain"
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -38,6 +38,7 @@ export const navItems: NavItem[] = [
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Akuntansi", href: "/akuntansi", icon: <BookOpen className="w-5 h-5" /> },
+  { label: "Dokumentasi", href: "/dokumentasi", icon: <Info className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/pengaturan", icon: <Settings className="w-5 h-5" /> },
 ];
 

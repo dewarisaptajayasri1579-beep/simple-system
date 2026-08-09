@@ -32,6 +32,7 @@ const SECTIONS: SectionItem[] = [
   { label: "Laporan Neraca (Akrual)", href: "/laporan/neraca-akrual" },
   { label: "Laporan Penjualan", href: "/laporan/penjualan" },
   { label: "Akuntansi", href: "/akuntansi" },
+  { label: "Dokumentasi", href: "/dokumentasi" },
   { label: "Pengaturan", href: "/pengaturan" },
 ];
 

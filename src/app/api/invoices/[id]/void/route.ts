@@ -31,6 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const voided = await prisma.$transaction(async (tx) => {
     await voidJournalEntryBySource(tx, { sourceType: "invoice", sourceId: id, voidedById: user.id, voidReason: voidReason ?? undefined })
+    await voidJournalEntryBySource(tx, { sourceType: "invoice_revenue", sourceId: id, voidedById: user.id, voidReason: voidReason ?? undefined })
     return tx.invoice.update({
       where: { id },
       data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },

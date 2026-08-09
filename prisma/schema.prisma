@@ -524,7 +524,7 @@ model JournalEntry {
   entryNumber String   @unique @map("entry_number") // "JE-2026-000001"
   date        DateTime
   description String
-  sourceType  String   @map("source_type") // "invoice" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual" | "correction"
+  sourceType  String   @map("source_type") // "invoice" | "invoice_revenue" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual" | "correction"
   sourceId    String?  @map("source_id")
   createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")

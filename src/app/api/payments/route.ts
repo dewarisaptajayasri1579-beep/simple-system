@@ -172,18 +172,15 @@ export async function POST(request: Request) {
       // sisa tagihan invoice baru benar-benar berkurang saat payment ini di-posting (lihat
       // POST /api/payments/[id]/post).
 
-      // Porsi PPN dari jumlah yang baru dibayar, proporsional terhadap PPN invoice — supaya
-      // dicicil pun PPN Keluaran ikut terpisah dari Pendapatan Jasa sesuai porsinya, bukan
-      // cuma dihitung penuh di pembayaran pertama atau terakhir.
-      const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
-
+      // Pendapatan & PPN sudah diakui di ledger akrual saat invoice terbit (invoiceRevenueLines) —
+      // di sini murni melunasi Piutang Usaha, tidak menyentuh revenue/PPN lagi.
       const journalEntry = await postJournalEntry(tx, {
         date: paidAt,
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
         sourceType: "invoice_payment",
         sourceId: transaction.id,
         createdBy: user.id,
-        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount, ppnPortion, revenueCoaCode: invoice.revenueCoaCode ?? undefined }),
+        lines: invoicePaymentLines({ kasBankCoaCode, amount: line.amount }),
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 

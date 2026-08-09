@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardHeader, CardTitle, CardDescription, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Alert } from "@/components/ui"
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge"
 import { PrintButton } from "@/components/penjualan/PrintButton"
+import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
@@ -22,10 +23,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const user = await getCurrentUser()
   const { id } = await params
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: { client: true, lines: true, payments: { include: { account: true, payment: true }, orderBy: { paidAt: "asc" } } },
-  })
+  const [invoice, settings] = await Promise.all([
+    prisma.invoice.findUnique({
+      where: { id },
+      include: { client: true, lines: true, payments: { include: { account: true, payment: true }, orderBy: { paidAt: "asc" } } },
+    }),
+    prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
+  ])
 
   if (!invoice) notFound()
 
@@ -35,6 +39,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const effectivePayments = invoice.payments.filter((p) => p.paymentId === null || p.payment?.postStatus === "posted")
   const paid = effectivePayments.reduce((sum, p) => sum + p.amount, 0)
   const remaining = Math.max(0, invoice.totalAmount - paid)
+
+  // Rekening tujuan beda tergantung invoice pakai PPN atau tidak (lihat Pengaturan > Umum).
+  const bank = invoice.ppnEnabled
+    ? { name: settings.paymentBankNamePpn, account: settings.paymentAccountNamePpn, number: settings.paymentAccountNumberPpn }
+    : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -60,7 +69,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Alert>
         )}
 
-        <Card variant="panel" padding="lg" className="print:shadow-none print:border-none print:bg-white">
+        {/* Tampilan layar — dilihat staf sehari-hari, tidak ikut tercetak (lihat NotaPrintable
+           di bawah buat format yang benar-benar keluar di kertas). */}
+        <Card variant="panel" padding="lg" className="no-print">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-900">SEVEN OS</h1>
@@ -155,6 +166,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </p>
           )}
         </Card>
+
+        {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
+           referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
+        <NotaPrintable invoice={invoice} bank={bank} />
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">

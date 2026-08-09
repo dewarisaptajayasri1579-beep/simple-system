@@ -17,6 +17,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const posted = await prisma.$transaction(async (tx) => {
     await postJournalEntryFinal(tx, { sourceType: "invoice", sourceId: invoice.id, postedById: user.id })
+    await postJournalEntryFinal(tx, { sourceType: "invoice_revenue", sourceId: invoice.id, postedById: user.id })
     return tx.invoice.update({
       where: { id },
       data: { postStatus: "posted", postedAt: new Date(), postedById: user.id },

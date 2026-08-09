@@ -25,13 +25,22 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const kind = body?.kind === "expense" || body?.kind === "hpp" ? body.kind : "income"
+  const coaAccountId = typeof body?.coaAccountId === "string" && body.coaAccountId ? body.coaAccountId : null
   if (!name) return NextResponse.json({ error: "Nama kategori wajib diisi" }, { status: 400 })
 
   const existing = await prisma.category.findFirst({
     where: { kind, name: { equals: name, mode: "insensitive" } },
   })
-  if (existing) return NextResponse.json(existing, { status: 200 })
+  if (existing) {
+    // Kalau baru sekarang di-mapping ke akun COA (sebelumnya kosong), ikut diisi supaya
+    // tidak perlu bolak-balik ke halaman COA cuma buat mapping kategori yang sudah ada.
+    if (coaAccountId && !existing.coaAccountId) {
+      const updated = await prisma.category.update({ where: { id: existing.id }, data: { coaAccountId }, include: { coaAccount: true } })
+      return NextResponse.json(updated, { status: 200 })
+    }
+    return NextResponse.json(existing, { status: 200 })
+  }
 
-  const category = await prisma.category.create({ data: { name, kind } })
+  const category = await prisma.category.create({ data: { name, kind, coaAccountId }, include: { coaAccount: true } })
   return NextResponse.json(category, { status: 201 })
 }
