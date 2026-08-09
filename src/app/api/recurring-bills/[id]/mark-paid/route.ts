@@ -17,6 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const body = await request.json().catch(() => null)
   const accountId = typeof body?.accountId === "string" ? body.accountId : ""
+  const categoryId = typeof body?.categoryId === "string" && body.categoryId ? body.categoryId : null
   if (!accountId) return NextResponse.json({ error: "Akun kas/bank wajib dipilih" }, { status: 400 })
 
   const bill = await prisma.recurringBill.findUnique({ where: { id } })
@@ -32,6 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       data: {
         accountId,
         type: "expense",
+        categoryId,
         grossAmount: bill.price!,
         cost: 0,
         netAmount: bill.price!,

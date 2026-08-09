@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardHeader,
@@ -79,8 +79,17 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
   isOwner,
 }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [entries, setEntries] = useState(initialEntries);
   const [viewing, setViewing] = useState<JurnalEntryRow | null>(null);
+
+  // Dari Buku Besar, klik No. Bukti -> /akuntansi/jurnal?entryId=... -> auto-buka modal jurnal ini.
+  useEffect(() => {
+    const entryId = searchParams.get("entryId");
+    if (!entryId) return;
+    const match = entries.find((e) => e.id === entryId);
+    if (match) setViewing(match);
+  }, [searchParams, entries]);
   const [posting, setPosting] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [date, setDate] = useState("");

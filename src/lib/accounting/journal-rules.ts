@@ -62,14 +62,16 @@ export function manualExpenseLines(input: {
   ]
 }
 
-/** "Tandai Lunas" biaya berkala / server. */
+/** "Tandai Lunas" biaya berkala / server. Tanpa memo generik di baris — biar Buku Besar
+ *  jatuh ke journalEntry.description yang sudah spesifik (mis. "Pembayaran domain - nama.com"),
+ *  bukan teks generik yang menutupi domain/server mana yang dibayar. */
 export function billPaidLines(input: {
   kasBankCoaCode: string
   expenseCoaCode: string
   amount: number
 }): JournalLineInput[] {
   return [
-    { accountCode: input.expenseCoaCode, debit: input.amount, memo: "Pembayaran biaya berkala/server" },
-    { accountCode: input.kasBankCoaCode, credit: input.amount, memo: "Pembayaran biaya berkala/server" },
+    { accountCode: input.expenseCoaCode, debit: input.amount },
+    { accountCode: input.kasBankCoaCode, credit: input.amount },
   ]
 }

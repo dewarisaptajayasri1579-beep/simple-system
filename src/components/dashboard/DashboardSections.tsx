@@ -10,6 +10,7 @@ import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { DomainLastPaidCell } from "@/components/domain/DomainLastPaidCell";
 import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
+import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { computeDomainExpiryDate, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
@@ -330,7 +331,7 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: 
           {
             key: "aksi",
             header: "Aksi",
-            cell: (r: RecurringDueRow) => <MarkPaidButton url={`/api/recurring-bills/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} />,
+            cell: (r: RecurringDueRow) => <RecurringBillPaymentCell billId={r.id} billName={r.name} accounts={accounts} />,
           },
         ]
       : []),
@@ -359,6 +360,7 @@ export interface DomainExpiringRow {
   name: string;
   owner: string;
   clientId: string | null;
+  picName: string | null;
   clientPhone: string | null;
   price: number | null;
   lastPaidAt: string | null;
@@ -389,7 +391,35 @@ export const DomainExpiringSection: React.FC<{
 
   const columns: FilterableColumn<DomainExpiringRow>[] = [
     { key: "name", header: "Domain", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
-    ...(isVisible("owner") ? [{ key: "owner", header: "Pemilik", filterValue: (r: DomainExpiringRow) => r.owner, cell: (r: DomainExpiringRow) => r.owner }] : []),
+    ...(isVisible("owner")
+      ? [
+          {
+            key: "owner",
+            header: "Pemilik",
+            filterValue: (r: DomainExpiringRow) => r.owner,
+            cell: (r: DomainExpiringRow) => (
+              <div className="space-y-1">
+                <div>{r.owner}</div>
+                {r.clientId && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-xs text-slate-500">
+                      {r.picName && <span>{r.picName}</span>}
+                      {r.picName && r.clientPhone && <span> · </span>}
+                      {r.clientPhone && <span>{r.clientPhone}</span>}
+                    </div>
+                    <FollowUpButtons
+                      phone={r.clientPhone}
+                      clientId={r.clientId}
+                      clientName={r.owner}
+                      message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
+                    />
+                  </div>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
     ...(isVisible("ownerType")
       ? [
           {
@@ -452,21 +482,13 @@ export const DomainExpiringSection: React.FC<{
       header: "Aksi",
       cell: (r) =>
         r.clientId ? (
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
-            >
-              <Button size="sm" variant="outline">
-                Tagih Sekarang
-              </Button>
-            </Link>
-            <FollowUpButtons
-              phone={r.clientPhone}
-              clientId={r.clientId}
-              clientName={r.owner}
-              message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
-            />
-          </div>
+          <Link
+            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+          >
+            <Button size="sm" variant="outline">
+              Tagih Sekarang
+            </Button>
+          </Link>
         ) : isOwner ? (
           <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
         ) : (
@@ -498,6 +520,7 @@ export interface ServerDueRow {
   name: string;
   clientId: string | null;
   clientName: string | null;
+  picName: string | null;
   clientPhone: string | null;
   price: number | null;
   dueDate: string | null;
@@ -532,7 +555,26 @@ export const ServerDueSection: React.FC<{
             key: "owner",
             header: "Pemilik",
             filterValue: (r: ServerDueRow) => r.clientName ?? "Internal",
-            cell: (r: ServerDueRow) => r.clientName ?? "Internal",
+            cell: (r: ServerDueRow) => (
+              <div className="space-y-1">
+                <div>{r.clientName ?? "Internal"}</div>
+                {r.clientId && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-xs text-slate-500">
+                      {r.picName && <span>{r.picName}</span>}
+                      {r.picName && r.clientPhone && <span> · </span>}
+                      {r.clientPhone && <span>{r.clientPhone}</span>}
+                    </div>
+                    <FollowUpButtons
+                      phone={r.clientPhone}
+                      clientId={r.clientId}
+                      clientName={r.clientName ?? ""}
+                      message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })}
+                    />
+                  </div>
+                )}
+              </div>
+            ),
           },
         ]
       : []),
@@ -574,21 +616,13 @@ export const ServerDueSection: React.FC<{
       header: "Aksi",
       cell: (r) =>
         r.clientId ? (
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
-            >
-              <Button size="sm" variant="outline">
-                Tagih Sekarang
-              </Button>
-            </Link>
-            <FollowUpButtons
-              phone={r.clientPhone}
-              clientId={r.clientId}
-              clientName={r.clientName ?? ""}
-              message={serverFollowUpMessage({ clientName: r.clientName ?? "", serverName: r.name, dueDate: r.dueDate })}
-            />
-          </div>
+          <Link
+            href={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0) }).toString()}`}
+          >
+            <Button size="sm" variant="outline">
+              Tagih Sekarang
+            </Button>
+          </Link>
         ) : isOwner ? (
           <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
         ) : (

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardHeader, CardTitle, CardDescription, TableContainer, Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui"
 import { BukuBesarFilter } from "@/components/akuntansi/BukuBesarFilter"
@@ -44,6 +45,7 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
     const isDebit = l.debit > 0
     return {
       id: l.id,
+      journalEntryId: l.journalEntry.id,
       date: l.journalEntry.date,
       entryNumber: l.journalEntry.entryNumber,
       description: l.memo || l.journalEntry.description,
@@ -125,7 +127,11 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
                     {rows.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>{formatDate(r.date)}</TableCell>
-                        <TableCell className="font-mono text-xs">{r.entryNumber}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <Link href={`/akuntansi/jurnal?entryId=${r.journalEntryId}`} className="text-[#0544cc] hover:underline">
+                            {r.entryNumber}
+                          </Link>
+                        </TableCell>
                         <TableCell>{r.description}</TableCell>
                         <TableCell className="font-bold">{r.dk}</TableCell>
                         <TableCell className="font-semibold">{formatRupiah(r.nominal)}</TableCell>
