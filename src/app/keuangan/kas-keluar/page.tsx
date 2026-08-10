@@ -6,12 +6,16 @@ import { prisma } from "@/lib/prisma"
 export default async function KeuanganKasKeluarPage() {
   const user = await getCurrentUser()
 
+  // Sengaja TIDAK difilter by price/sellPrice > 0 — item internal (tanpa Client, dibayar lewat
+  // "Bayar Sekarang" di Dashboard yang redirect ke sini) sering nilainya 0/belum keisi, tapi
+  // tetap harus bisa dipilih di sini. HPP-nya tetap wajib diisi manual (lihat CurrencyInput
+  // "Biaya (HPP)"), jadi harga di dropdown cuma informasi, bukan validasi.
   const [accounts, domains, servers, maintenances, recurringBills] = await Promise.all([
     prisma.account.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.domain.findMany({ where: { sellPrice: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
-    prisma.server.findMany({ where: { price: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
-    prisma.maintenance.findMany({ where: { price: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
-    prisma.recurringBill.findMany({ where: { active: true, price: { gt: 0 } }, orderBy: { name: "asc" } }),
+    prisma.domain.findMany({ where: { active: true }, include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.server.findMany({ where: { active: true }, include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.maintenance.findMany({ where: { active: true }, include: { client: true }, orderBy: { name: "asc" } }),
+    prisma.recurringBill.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ])
 
   return (

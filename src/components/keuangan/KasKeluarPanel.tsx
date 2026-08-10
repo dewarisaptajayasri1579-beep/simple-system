@@ -171,14 +171,28 @@ export const KasKeluarPanel: React.FC<{
 
   const kindOptions = isOwner ? KIND_OPTIONS : KIND_OPTIONS.filter((o) => o.value === "manual");
 
-  // Datang dari "Bayar Sekarang" biaya berkala di Dashboard (?recurringBillId=...) — langsung
-  // isi baris pertama supaya user tinggal pilih akun kas/bank & simpan, bukan input ulang.
+  // Datang dari "Bayar Sekarang" di Dashboard — Domain/Server internal (?domainId=/?serverId=)
+  // atau Biaya Berkala (?recurringBillId=) — langsung isi baris pertama supaya user tinggal
+  // pilih akun kas/bank & simpan, bukan input ulang.
   useEffect(() => {
+    const domainId = searchParams.get("domainId");
+    const serverId = searchParams.get("serverId");
     const billId = searchParams.get("recurringBillId");
-    if (!billId) return;
-    const bill = recurringBills.find((b) => b.id === billId);
-    if (!bill) return;
-    setLines([{ ...emptyLine(), kind: "recurring_bill", recurringBillId: bill.id, amount: bill.price ?? 0 }]);
+
+    if (domainId) {
+      const domain = domains.find((d) => d.id === domainId);
+      if (domain) setLines([{ ...emptyLine(), kind: "domain", domainId: domain.id, amount: domain.price ?? 0 }]);
+      return;
+    }
+    if (serverId) {
+      const server = servers.find((s) => s.id === serverId);
+      if (server) setLines([{ ...emptyLine(), kind: "server", serverId: server.id, amount: server.price ?? 0 }]);
+      return;
+    }
+    if (billId) {
+      const bill = recurringBills.find((b) => b.id === billId);
+      if (bill) setLines([{ ...emptyLine(), kind: "recurring_bill", recurringBillId: bill.id, amount: bill.price ?? 0 }]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 

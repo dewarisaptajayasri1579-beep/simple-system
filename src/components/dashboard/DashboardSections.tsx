@@ -556,7 +556,11 @@ export const DomainExpiringSection: React.FC<{
                 tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
               />
             ) : isOwner ? (
-              <MarkPaidButton url={`/api/domains/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
+              <Link href={`/keuangan/kas-keluar?domainId=${r.id}`}>
+                <Button size="sm" variant="outline">
+                  Bayar Sekarang
+                </Button>
+              </Link>
             ) : (
               <span className="text-xs text-slate-400">Internal</span>
             )}

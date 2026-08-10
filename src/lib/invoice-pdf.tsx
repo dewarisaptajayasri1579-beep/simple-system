@@ -35,7 +35,9 @@ const styles = StyleSheet.create({
   spaceBetween: { flexDirection: "row", justifyContent: "space-between" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   logo: { width: 90, height: 30 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   invoiceTitle: { fontFamily: "Helvetica-Bold", fontSize: 26, color: "#0f172a" },
+  qrBadge: { width: 24, height: 24, borderRadius: 4, borderWidth: 2, borderColor: BLUE },
   badgeWrap: { flexDirection: "row", alignSelf: "flex-end", marginTop: 8 },
   badgeCol: { paddingHorizontal: 10 },
   badgeDivider: { width: 1, backgroundColor: "#e2e8f0" },
@@ -86,9 +88,11 @@ export interface InvoicePdfBank {
 export function InvoicePdfDocument({
   invoice,
   bank,
+  qrDataUrl,
 }: {
   invoice: Invoice & { client: Client; lines: InvoiceLine[] }
   bank: InvoicePdfBank
+  qrDataUrl?: string
 }) {
   const logo = logoDataUri()
 
@@ -97,7 +101,10 @@ export function InvoicePdfDocument({
       <Page size="A5" orientation="landscape" style={styles.page}>
         <View style={styles.headerRow}>
           <Image src={logo} style={styles.logo} />
-          <Text style={styles.invoiceTitle}>INVOICE</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.invoiceTitle}>INVOICE</Text>
+            {qrDataUrl && <Image src={qrDataUrl} style={styles.qrBadge} />}
+          </View>
         </View>
 
         <View style={styles.badgeWrap}>

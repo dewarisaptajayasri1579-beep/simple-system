@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer"
 
 import { prisma } from "@/lib/prisma"
 import { InvoicePdfDocument } from "@/lib/invoice-pdf"
+import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
 
 /** Sengaja TANPA login — link PDF ini dikirim ke Client lewat WA (lihat InvoiceWhatsAppButton),
  *  jadi harus bisa dibuka tanpa akun. Invoice id-nya UUID (praktis tidak bisa ditebak), itu satu-
@@ -24,7 +25,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     ? { name: settings.paymentBankNamePpn, account: settings.paymentAccountNamePpn, number: settings.paymentAccountNumberPpn }
     : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
 
-  const buffer = await renderToBuffer(InvoicePdfDocument({ invoice, bank }))
+  const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
+  const buffer = await renderToBuffer(InvoicePdfDocument({ invoice, bank, qrDataUrl }))
 
   return new NextResponse(buffer, {
     headers: {

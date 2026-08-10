@@ -8,6 +8,7 @@ import { EditablePaymentAccount } from "@/components/pembayaran/EditablePaymentA
 import { EditableInvoicePaymentAmount } from "@/components/pembayaran/EditableInvoicePaymentAmount"
 import { PaymentCostSection } from "@/components/pembayaran/PaymentCostSection"
 import { KwitansiPrintable } from "@/components/pembayaran/KwitansiPrintable"
+import { PaymentWhatsAppButton } from "@/components/pembayaran/PaymentWhatsAppButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { kwitansiVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
@@ -70,7 +71,18 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
           <Link href="/pembayaran" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
             <ArrowLeft className="w-4 h-4" /> Kembali
           </Link>
-          <PrintButton label="Cetak Kwitansi" />
+          <div className="flex gap-3">
+            <PrintButton label="Cetak Kwitansi" />
+            {payment.postStatus === "posted" && payment.client.phoneNumber && (
+              <PaymentWhatsAppButton
+                paymentId={payment.id}
+                paymentNumber={payment.paymentNumber}
+                totalAmount={payment.totalAmount}
+                clientName={payment.client.name}
+                clientPhone={payment.client.phoneNumber}
+              />
+            )}
+          </div>
         </div>
 
         <PaymentPostingBar paymentId={payment.id} postStatus={payment.postStatus as "draft" | "posted" | "voided"} sources={journalSources} />
