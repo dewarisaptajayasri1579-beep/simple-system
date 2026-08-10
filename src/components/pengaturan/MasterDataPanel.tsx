@@ -702,18 +702,40 @@ const MAINTENANCE_COLUMNS = [
   { key: "aktif", label: "Aktif" },
 ];
 
+// Periode tagihan Maintenance selalu berulang tiap siklus (bukan tanggal 1x pakai), jadi
+// stafnya cuma perlu isi TANGGAL-nya (1-31) — bulan/tahunnya selalu ikut bulan berjalan saat
+// disimpan (lihat handleSave). Label di dropdown pakai "Per N Bulan" biar lebih jelas daripada
+// nama BillingPeriod aslinya ("3 Bulanan" dst, warisan data legacy).
+const MAINTENANCE_PERIOD_LABEL: Record<string, string> = {
+  Bulanan: "Per 1 Bulan",
+  "2 Bulanan": "Per 2 Bulan",
+  "3 Bulanan": "Per 3 Bulan",
+  "6 Bulanan": "Per 6 Bulan",
+  Tahunan: "Per 12 Bulan",
+};
+
 const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients }) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [editing, setEditing] = useState<MaintenanceRow | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<Partial<MaintenanceRow>>({});
+  const [billingDay, setBillingDay] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [periods, setPeriods] = useState<{ id: string; name: string }[]>([]);
   const { isVisible, toggle } = useColumnVisibility("maintenance", MAINTENANCE_COLUMNS);
 
   const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
+  const periodOptions = useMemo(
+    () => periods.map((p) => ({ value: p.id, label: MAINTENANCE_PERIOD_LABEL[p.name] ?? p.name })),
+    [periods]
+  );
+
+  useEffect(() => {
+    fetch("/api/billing-periods").then((r) => r.json()).then(setPeriods);
+  }, []);
 
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [paying, setPaying] = useState<MaintenanceRow | null>(null);
@@ -762,11 +784,13 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
   const openEdit = (row: MaintenanceRow) => {
     setEditing(row);
     setForm({ ...row, lastPaidAt: row.lastPaidAt ? row.lastPaidAt.slice(0, 10) : undefined });
+    setBillingDay(row.lastPaidAt ? String(new Date(row.lastPaidAt).getDate()) : "");
     setError("");
   };
   const openCreate = () => {
     setIsCreating(true);
     setForm({ active: true });
+    setBillingDay("");
     setError("");
   };
   const close = () => {
@@ -783,11 +807,24 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
       setError("Client wajib dipilih");
       return;
     }
+    // Tgl Tagihan Maintenance cuma minta staf isi TANGGAL-nya (1-31) — bulan/tahun selalu ikut
+    // bulan berjalan saat disimpan, bukan bulan/tahun waktu edit sebelumnya (lihat komentar
+    // MAINTENANCE_PERIOD_LABEL). Kalau field-nya kosong, lastPaidAt dikosongkan (belum pernah ditagih).
+    let lastPaidAt: string | null = null;
+    if (billingDay) {
+      const day = Math.min(31, Math.max(1, Number(billingDay) || 1));
+      const now = new Date();
+      lastPaidAt = new Date(now.getFullYear(), now.getMonth(), day).toISOString().slice(0, 10);
+    }
     setIsSaving(true);
     setError("");
     const url = editing ? `/api/maintenances/${editing.id}` : "/api/maintenances";
     const method = editing ? "PATCH" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...form, lastPaidAt }),
+    });
     const data = await res.json();
     setIsSaving(false);
     if (!res.ok) {
@@ -951,11 +988,21 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
               placeholder="Pilih client"
             />
             <CurrencyInput label="Harga" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
+            <Select
+              label="Periode Tagihan"
+              options={periodOptions}
+              value={form.periodId ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, periodId: v }))}
+              placeholder="Pilih periode"
+            />
             <Input
-              label="Tgl Tagihan"
-              type="date"
-              value={form.lastPaidAt ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
+              label="Tgl Tagihan (tanggal tiap periode)"
+              type="number"
+              min={1}
+              max={31}
+              placeholder="mis. 15"
+              value={billingDay}
+              onChange={(e) => setBillingDay(e.target.value)}
             />
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer select-none">

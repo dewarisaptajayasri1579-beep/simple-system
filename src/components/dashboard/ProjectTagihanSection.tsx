@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
 
@@ -21,8 +22,8 @@ function normalizePhoneForWaMe(raw: string) {
 
 export interface ProjectTagihanRow {
   scheduleId: string;
-  invoiceId: string;
-  invoiceNumber: string;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
   projectId: string;
   projectName: string;
   clientId: string;
@@ -31,6 +32,7 @@ export interface ProjectTagihanRow {
   label: string;
   dueDate: string;
   remaining: number;
+  bucket?: string;
 }
 
 interface ProjectGroup {
@@ -41,36 +43,63 @@ interface ProjectGroup {
   rows: ProjectTagihanRow[];
 }
 
-function projectColumns(): FilterableColumn<ProjectTagihanRow>[] {
+function projectColumns(generatingId: string | null, onGenerate: (r: ProjectTagihanRow) => void): FilterableColumn<ProjectTagihanRow>[] {
   return [
     {
       key: "label",
       header: "Termin",
       filterValue: (r) => r.label,
       cellClassName: "font-semibold",
-      cell: (r) => (
-        <Link href={`/penjualan/${r.invoiceId}`} className="hover:underline">
-          {r.label} ({r.invoiceNumber})
-        </Link>
-      ),
+      cell: (r) =>
+        r.invoiceId ? (
+          <Link href={`/penjualan/${r.invoiceId}`} className="hover:underline">
+            {r.label} ({r.invoiceNumber})
+          </Link>
+        ) : (
+          <span>
+            {r.label} <span className="italic text-slate-400 font-normal">(belum ditagih)</span>
+          </span>
+        ),
     },
     { key: "dueDate", header: "Tgl Penagihan", cell: (r) => formatDate(r.dueDate) },
     { key: "remaining", header: "Sisa Tagih", cellClassName: "font-semibold text-rose-700", cell: (r) => formatRupiah(r.remaining) },
     {
       key: "bayar",
       header: "Aksi",
-      cell: (r) => (
-        <Link href={`/pembayaran?clientId=${r.clientId}&invoiceId=${r.invoiceId}`}>
-          <Button size="sm" variant="outline">
-            Bayar
+      cell: (r) =>
+        r.invoiceId ? (
+          <Link href={`/pembayaran?clientId=${r.clientId}&invoiceId=${r.invoiceId}`}>
+            <Button size="sm" variant="outline">
+              Bayar
+            </Button>
+          </Link>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => onGenerate(r)} isLoading={generatingId === r.scheduleId}>
+            Generate Invoice
           </Button>
-        </Link>
-      ),
+        ),
     },
   ];
 }
 
 export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({ rows }) => {
+  const router = useRouter();
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const handleGenerate = async (row: ProjectTagihanRow) => {
+    setGeneratingId(row.scheduleId);
+    setError("");
+    const res = await fetch(`/api/projects/${row.projectId}/schedules/${row.scheduleId}/generate-invoice`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setGeneratingId(null);
+    if (!res.ok) {
+      setError(data?.error || "Gagal generate invoice");
+      return;
+    }
+    router.refresh();
+  };
+
   const groups = useMemo(() => {
     const map = new Map<string, ProjectGroup>();
     for (const r of rows) {
@@ -90,9 +119,11 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
         </CardDescription>
       </div>
 
+      {error && <p className="text-sm font-semibold text-rose-600 px-1">{error}</p>}
+
       {groups.length === 0 && (
         <Card variant="feature" padding="lg">
-          <p className="text-center text-slate-500">Tidak ada tagihan termin project yang terbuka.</p>
+          <p className="text-center text-slate-500">Tidak ada tagihan termin project yang jatuh tempo bulan ini/depan.</p>
         </Card>
       )}
 
@@ -128,7 +159,7 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
                 </Link>
               </div>
             </div>
-            <FilterableTable columns={projectColumns()} rows={g.rows} rowKey={(r) => r.scheduleId} mobileCardMode />
+            <FilterableTable columns={projectColumns(generatingId, handleGenerate)} rows={g.rows} rowKey={(r) => r.scheduleId} mobileCardMode />
           </Card>
         );
       })}

@@ -239,15 +239,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .reduce((sum, r) => sum + (r.price ?? 0), 0) +
     projectUninvoicedSchedules.reduce((sum, s) => sum + s.amount, 0)
 
-  // Tagihan Termin Project: termin yang sudah jadi invoice tapi belum lunas.
+  // Tagihan Termin Project: reminder, cuma tampil kalau jatuh tempo sudah lewat, bulan ini,
+  // atau bulan depan (sama pola dengan Domain/Server/Maintenance) — mencakup termin yang
+  // sudah jadi invoice (tapi belum lunas) MAUPUN yang belum sempat ditagih sama sekali.
   const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
-    .filter((s) => s.invoice)
     .map((s) => {
-      const paid = s.invoice!.payments.reduce((sum, p) => sum + p.amount, 0)
+      const paid = s.invoice ? s.invoice.payments.reduce((sum, p) => sum + p.amount, 0) : 0
       return {
         scheduleId: s.id,
-        invoiceId: s.invoice!.id,
-        invoiceNumber: s.invoice!.invoiceNumber,
+        invoiceId: s.invoice?.id ?? null,
+        invoiceNumber: s.invoice?.invoiceNumber ?? null,
         projectId: s.project.id,
         projectName: s.project.name,
         clientId: s.project.clientId,
@@ -255,10 +256,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         picPhone: s.project.picPhone,
         label: s.label,
         dueDate: s.dueDate.toISOString(),
-        remaining: Math.max(0, s.invoice!.totalAmount - paid),
+        remaining: s.invoice ? Math.max(0, s.invoice.totalAmount - paid) : s.amount,
+        bucket: getExpiryBucket(s.dueDate),
       }
     })
-    .filter((r) => r.remaining > 0)
+    .filter((r) => r.remaining > 0 && (r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
 
   // Prediksi pendapatan 6 bulan ke depan dari siklus renewal Domain (tahunan)/Server/Maintenance
