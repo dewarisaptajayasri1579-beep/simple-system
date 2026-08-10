@@ -82,7 +82,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
     prisma.followUp.findMany({ orderBy: { followUpDate: "desc" } }),
     prisma.projectPaymentSchedule.findMany({
-      where: { invoiceId: { not: null }, invoice: { status: { in: ["unpaid", "partial"] } } },
+      // Reminder Dashboard: termin yang SUDAH ditagih tapi belum lunas, ATAU yang BELUM
+      // ditagih sama sekali (invoiceId null) — dua-duanya tetap perlu diingatkan, difilter
+      // ke bucket bulan ini/depan/lewat di bawah (sama pola dengan Domain/Server/Maintenance).
+      where: { project: { status: "berjalan" }, OR: [{ invoiceId: null }, { invoice: { status: { in: ["unpaid", "partial"] } } }] },
       include: {
         project: { include: { client: true } },
         invoice: { include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } } },

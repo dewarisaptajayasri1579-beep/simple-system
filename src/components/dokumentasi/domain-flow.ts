@@ -61,7 +61,7 @@ export const domainClientSteps: FlowStep[] = [
     title: "Tercatat rapi di pembukuan perusahaan",
     description:
       "Semua uang yang masuk dari pembayaran ini, dan biaya modal domainnya (kalau ada), otomatis tercatat di laporan keuangan — tidak perlu dicatat manual lagi.",
-    detail: ["Yang kecatat: uang masuk ke kas/bank, pendapatan jasa bertambah, PPN (kalau ada), dan biaya modal domain (kalau dikaitkan)."],
+    detail: ["Yang kecatat: uang masuk ke kas/bank, Pendapatan Domain bertambah (akun khusus, bukan \"Pendapatan Jasa\" umum), PPN (kalau ada), dan biaya modal domain (kalau dikaitkan)."],
   },
 ];
 
@@ -69,24 +69,30 @@ export const domainInternalSteps: FlowStep[] = [
   {
     no: "1",
     title: "Muncul di Dashboard sebagai \"Internal\"",
-    description: "Domain yang bukan buat ditagihkan ke client (dipakai sendiri oleh perusahaan) tombolnya beda: tertulis \"Tandai Lunas\", bukan \"Tagih Sekarang\".",
+    description:
+      "Domain yang bukan buat ditagihkan ke client (dipakai sendiri oleh perusahaan) tombolnya beda: tertulis \"Bayar Sekarang\", bukan \"Tagih Sekarang\".",
   },
   {
     no: "2",
-    title: "Klik \"Tandai Lunas\"",
+    title: "Klik \"Bayar Sekarang\"",
     description:
-      "Begitu domain ini dibayar/diperpanjang, klik \"Tandai Lunas\" langsung dari Dashboard, ATAU catat lewat menu Keuangan → Kas Keluar dengan memilih tipe \"Bayar Domain\".",
-    detail: ["Domain internal seperti ini tidak pernah lewat proses tagihan/invoice sama sekali — karena memang tidak ditagihkan ke siapa-siapa."],
+      "Klik \"Bayar Sekarang\" dari Dashboard — otomatis dibawa ke menu Keuangan → Kas Keluar dengan baris \"Bayar Domain\" dan domainnya SUDAH terisi (tinggal cek nominal & akun kas/bank, lalu Simpan). Atau bisa juga input manual langsung dari Kas Keluar, pilih Tipe \"Bayar Domain\" sendiri.",
+    detail: [
+      "Domain internal seperti ini tidak pernah lewat proses tagihan/invoice sama sekali — karena memang tidak ditagihkan ke siapa-siapa.",
+      "Kalau cuma 1 baris yang disimpan di Kas Keluar, setelah klik Simpan langsung dibawa ke halaman detail transaksi kas-nya.",
+    ],
   },
   {
     no: "3",
-    title: "Otomatis tercatat sebagai pengeluaran",
-    description: "Begitu dicatat, langsung jadi pengeluaran perusahaan (Beban Domain) di pembukuan.",
+    title: "Otomatis tercatat sebagai pengeluaran, dapat nomor bukti sendiri",
+    description: "Begitu dicatat, langsung jadi pengeluaran perusahaan (Beban Domain) di pembukuan, dan dapat nomor bukti kas keluar sendiri (format BKK/tahun/nomor urut).",
   },
   {
     no: "4",
-    title: "Disetujui (Posting)",
-    description: "Setelah disetujui, tanggal berakhir domainnya otomatis maju 1 tahun, dan pengeluarannya resmi masuk laporan keuangan.",
+    title: "Setujui (Posting) dari halaman detail transaksinya",
+    description:
+      "Di halaman detail transaksi kas keluar itu ada tombol \"Posting\" (kalau masih draft), \"Hapus\" (kalau salah input), \"Lihat Jurnal\", dan \"Batalkan\" (kalau sudah posted, khusus Owner).",
+    detail: ["Setelah diposting, tanggal berakhir domainnya otomatis maju 1 tahun (dari tanggal berakhir yang LAMA, bukan dari tanggal bayar), dan pengeluarannya resmi masuk laporan keuangan."],
   },
 ];
 
@@ -94,4 +100,5 @@ export const domainCaveats: string[] = [
   "Tombol \"Tagih Sekarang\" sekarang otomatis mengaitkan tagihannya ke domain yang dimaksud, jadi pas dibayar, opsi \"Bayar Domain\" sudah otomatis kepilih. TAPI kalau tagihannya dibuat manual (bukan lewat \"Tagih Sekarang\"), staf tetap wajib pilih sendiri domainnya pas input pembayaran — kalau lupa, tanggal berakhir domainnya tidak akan berubah walau tagihannya sudah lunas.",
   "Tagihan dan pembayaran yang masih berstatus \"Draft\" belum dihitung di mana pun (Dashboard, laporan keuangan, saldo kas) — wajib disetujui (\"Posting\") dulu satu-satu, tagihannya dulu baru pembayarannya.",
   "\"Tgl Terakhir Bayar\" dan \"Tgl Berakhir\" itu dua hal yang beda: Tgl Terakhir Bayar cuma catatan kapan terakhir kali transfer; Tgl Berakhir itu yang menentukan kapan domainnya harus diperpanjang dan yang dipakai buat memunculkan peringatan di Dashboard.",
+  "Pendapatan dari pelunasan invoice Domain masuk ke akun \"Pendapatan Domain\" tersendiri (bukan digabung \"Pendapatan Jasa\" umum), dan baru diakui di pembukuan SAAT PEMBAYARANNYA DIPOSTING — bukan saat invoice dibuat/diposting.",
 ]

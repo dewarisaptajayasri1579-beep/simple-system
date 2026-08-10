@@ -4,6 +4,11 @@ Alur nyata (dari kode, bukan asumsi) untuk 1 Domain: dari input master data samp
 COA. Domain punya **2 jalur berbeda** tergantung `clientId`-nya diisi atau tidak — keduanya
 dijelaskan di bawah.
 
+> **Cash-basis** (lihat `pedoman_akunting.md` untuk aturan jurnal lengkap): Invoice TIDAK PERNAH
+> bikin jurnal apa pun. Pendapatan (ke akun **Pendapatan Domain**, 4-4000, khusus — bukan
+> "Pendapatan Jasa" umum), PPN, dan HPP semuanya baru diakui SEKALIGUS saat Payment-nya
+> diposting.
+
 ## Diagram
 
 ```mermaid
@@ -12,21 +17,21 @@ flowchart TD
 
   B -- "Ya, milik Client" --> C["2. Muncul di Dashboard\nDomain — Lewat / Bulan Ini / Bulan Depan\nsyarat: active=true DAN\nbucket = expired/bulan ini/bulan depan\n(dari expiryDate / \"Tgl Berakhir\")"]
   C --> D["3. Tagih Sekarang\nlink ke /penjualan/baru\nprefill clientId + amount + domainId"]
-  D --> E["4. Invoice dibuat (Draft)\nPOST /api/invoices\nstatus piutang: unpaid, postStatus: draft\ncostLinkType=domain, costLinkId=domain ini"]
-  E --> F["5. Posting Invoice\nPOST /api/invoices/:id/post\npostStatus -> posted\n(HPP invoice, kalau ada, ikut posted)"]
-  F --> G["6. Input Pembayaran\n/pembayaran?invoiceId=...\nPOST /api/payments\n(Payment + Transaction + Jurnal, semua Draft)\ncostMode+costLinkId AUTO terisi dari Invoice.costLinkType/Id"]
+  D --> E["4. Invoice dibuat (Draft)\nPOST /api/invoices\nTIDAK ADA JURNAL SAMA SEKALI\ncostLinkType=domain, costLinkId=domain ini"]
+  E --> F["5. Posting Invoice\nPOST /api/invoices/:id/post\npostStatus -> posted (cuma flip status)"]
+  F --> G["6. Input Pembayaran\n/pembayaran?invoiceId=...\nPOST /api/payments\ncostMode+costLinkId AUTO terisi dari Invoice.costLinkType/Id"]
   G --> G2{"Biaya ke Domain\nkepilih? (auto kalau dari\nTagih Sekarang, manual\nkalau invoice dibuat lain)"}
-  G2 -- "Ya (costLink)" --> G3["markDomainPaid()\nTransaction expense terpisah\n+ jurnal Beban Domain (Draft)"]
+  G2 -- "Ya (costLink)" --> G3["markDomainPaid()\nTransaction expense terpisah (BKK/...)\n+ jurnal Beban Domain (Draft)"]
   G2 -- "Tidak" --> H
-  G3 --> H["7. Posting Payment\nPOST /api/payments/:id/post\nsemua Transaction terkait\ndi-posting bareng"]
+  G3 --> H["7. Posting Payment\nPOST /api/payments/:id/post\nDI SINI Pendapatan Domain+PPN+HPP\nbaru dijurnal (invoicePaymentLines)"]
   H --> I["8. Efek setelah posted:\n- Invoice.status: unpaid/partial/paid\n- Domain.lastPaidAt terupdate + expiryDate +1 tahun\n  dari expiryDate sebelumnya\n  (CUMA kalau ada costLink di langkah 6)"]
-  I --> J["9. COA / Buku Besar / Laporan\nJurnal postStatus=posted dihitung:\nKas & Bank, Pendapatan Jasa, PPN Keluaran,\nBeban Domain (kalau ada costLink),\nHPP + Hutang Usaha Vendor (kalau invoice ada HPP)"]
+  I --> J["9. COA / Buku Besar / Laporan\nJurnal postStatus=posted dihitung:\nKas & Bank, Pendapatan Domain, PPN Keluaran,\nBeban Domain (kalau ada costLink), HPP"]
 
-  B -- "Tidak, Internal (7Smarts sendiri)" --> K["2b. Muncul di Dashboard\nkolom Aksi: tombol 'Tandai Lunas'\n(bukan Tagih Sekarang)"]
-  K --> L["3b. Tandai Lunas\nPOST /api/domains/:id/mark-paid\nATAU lewat Keuangan > Kas Keluar\n(Tipe baris: Bayar Domain)"]
-  L --> M["4b. markDomainPaid()\nTransaction expense (Draft)\n+ jurnal Beban Domain (Draft)\nTIDAK lewat Invoice/Payment sama sekali"]
-  M --> N["5b. Posting\nPOST /api/transactions/:id/post"]
-  N --> O["6b. Efek setelah posted:\nDomain.lastPaidAt terupdate + expiryDate +1 tahun\nBeban Domain masuk COA"]
+  B -- "Tidak, Internal (7Smarts sendiri)" --> K["2b. Muncul di Dashboard\nkolom Aksi: tombol 'Bayar Sekarang'\n(bukan Tagih Sekarang)"]
+  K --> L["3b. Bayar Sekarang\n-> /keuangan/kas-keluar?domainId=...\nbaris 'Bayar Domain' + domain SUDAH terisi\n(atau input manual, pilih Tipe 'Bayar Domain' sendiri)"]
+  L --> M["4b. Simpan -> POST /api/transactions/kas-keluar\n-> markDomainPaid()\nTransaction expense (Draft, nomor bukti BKK/tahun/urut)\n+ jurnal Beban Domain (Draft)\nTIDAK lewat Invoice/Payment sama sekali"]
+  M --> N["5b. Kalau cuma 1 baris disimpan,\nlangsung dibawa ke /keuangan/transaksi/:id\nPosting/Hapus/Lihat Jurnal/Batalkan ada di situ"]
+  N --> O["6b. Efek setelah posted:\nDomain.lastPaidAt terupdate + expiryDate +1 tahun\n(dari expiryDate LAMA, bukan tanggal bayar)\nBeban Domain masuk COA"]
 ```
 
 ## Penjelasan tiap langkah
@@ -35,8 +40,7 @@ flowchart TD
 - **Di mana:** Pengaturan → Master Data → tab Domain (`MasterDataPanel.tsx`).
 - **API:** `src/app/api/domains/route.ts` cuma punya `GET` (list) — **tidak ada `POST`, jadi domain baru TIDAK BISA ditambah lewat UI ini.** Baris Domain hanya berasal dari migrasi data lama (`legacyId`); yang bisa dilakukan staf di Master Data cuma **edit** baris yang sudah ada, lewat `PATCH /api/domains/[id]` (`src/app/api/domains/[id]/route.ts`).
 - **Field kunci yang bisa diedit:** `name`, `clientId` (kosong = Internal/7Smarts), `sellPrice` (harga jual ke client), `lastPaidAt` (kapan terakhir dibayar), `expiryDate`/"Tgl Berakhir" (kapan servicenya berakhir — acuan renewal), `active` (plus `cpanelAccountId`, tidak relevan ke alur ini).
-- `lastPaidAt` dan `expiryDate` **dua field terpisah dengan arti beda** — dulu digabung (expiry selalu dihitung dari `lastPaidAt + 1 tahun` lewat `computeDomainExpiryDate`), sekarang `expiryDate` eksplisit disimpan sendiri di kolomnya. Domain lama di-backfill `expiryDate = lastPaidAt` lamanya, lalu bisa dikoreksi manual per domain lewat kolom "Tgl Berakhir" (klik untuk edit, `DomainDateCell.tsx`).
-- `resolveDomainExpiry(domain)` (`src/lib/domain-status.ts`) = `expiryDate` kalau ada, fallback `lastPaidAt + 1 tahun` cuma buat baris yang belum pernah kesetel.
+- `lastPaidAt` dan `expiryDate` **dua field terpisah dengan arti beda**. `resolveDomainExpiry(domain)` (`src/lib/domain-status.ts`) = `expiryDate` kalau ada, fallback `lastPaidAt + 1 tahun` cuma buat baris yang belum pernah kesetel `expiryDate`-nya — bisa dikoreksi manual lewat kolom "Tgl Berakhir" (klik untuk edit, `src/components/shared/EditableDateCell.tsx`, dipakai bareng dengan Server).
 
 ### 2. Muncul di Dashboard
 - **Di mana:** `DomainExpiringSection` (`src/components/dashboard/DashboardSections.tsx`), data dari `src/app/dashboard/page.tsx`.
@@ -44,50 +48,49 @@ flowchart TD
 - Kolom **Pemilik** menampilkan nama client + PIC + No. WA + tombol follow-up WA (kalau ada `clientId`); kalau Internal cuma tampil "Internal".
 - Kolom **Aksi** beda tergantung `clientId`:
   - Ada client → tombol **"Tagih Sekarang"**.
-  - Internal → tombol **"Tandai Lunas"** (kalau Owner).
+  - Internal → tombol **"Bayar Sekarang"** (cuma tampil untuk Owner; staf lain cuma lihat teks "Internal") — link ke `/keuangan/kas-keluar?domainId=...`, BUKAN modal "Tandai Lunas" langsung (itu cara lama, lihat catatan di bagian Jalur Internal).
 
 ### 3. Jadi Tagihan (jalur Client)
 - Klik "Tagih Sekarang" → `/penjualan/baru?clientId=...&description=Perpanjangan domain ...&amount=...&domainId=...`.
-- Submit form → `POST /api/invoices` → bikin `Invoice` (default `postStatus: "draft"`, `status: "unpaid"`) + `InvoiceLine`, DAN kalau `domainId`/`serverId` dikirim, `Invoice.costLinkType`/`costLinkId` ikut kesimpan — invoice ini "ingat" domain/server mana yang dimaksud (lihat langkah 5).
-- **Cash-basis:** piutang/pendapatan BELUM diakui di titik ini. Kalau baris invoice diisi `unitCost` (HPP), langsung dibuat 1 jurnal HPP (`invoiceCostLines`): debit HPP, kredit Hutang Usaha Vendor — tapi statusnya **draft**, baru berlaku setelah invoice-nya diposting.
+- Submit form → `POST /api/invoices` → bikin `Invoice` (default `postStatus: "draft"`, `status: "unpaid"`) + `InvoiceLine`, DAN kalau `domainId`/`serverId` dikirim, `Invoice.costLinkType`/`costLinkId` ikut kesimpan — invoice ini "ingat" domain/server mana yang dimaksud (lihat langkah 6).
+- **TIDAK ADA jurnal dibuat di titik ini** — bukan cuma Piutang/Pendapatan, HPP juga tidak (beda dari versi lama dokumen ini). Detail lengkap kenapa: `pedoman_akunting.md`.
 
 ### 4. Posting Invoice
 - **Di mana:** halaman `/penjualan/[id]`, tombol **"Posting Invoice"** (`InvoicePostButton`) — cuma muncul kalau `postStatus = draft`.
-- **API:** `POST /api/invoices/:id/post` → `postStatus: draft → posted`, jurnal HPP (kalau ada) ikut difinalkan.
+- **API:** `POST /api/invoices/:id/post` → `postStatus: draft → posted`. Tidak ada jurnal yang difinalkan (tidak ada yang dibuat di langkah 3).
 - **Penting:** selama masih draft, invoice ini **tidak muncul** di daftar pilihan invoice pada form Pembayaran (`PembayaranForm` cuma fetch `?postStatus=posted`) — jadi wajib diposting dulu sebelum bisa dibayar.
 
-### 5. Pembayaran (Pelunasan)
-- **Di mana:** `/pembayaran?clientId=...&invoiceId=...` (`PembayaranForm.tsx`).
-- **API:** `POST /api/payments` → bikin `Payment` (draft) + per baris invoice: `Transaction` (income, draft) + `InvoicePayment` + jurnal (`invoicePaymentLines`: debit Kas/Bank, kredit Pendapatan Jasa, kredit PPN Keluaran kalau ada PPN) — **titik ini pendapatan baru diakui** (cash-basis).
-- **Kaitkan biaya ke Domain:** di form Pembayaran ada pilihan "Biaya" per baris yang bisa diarahkan ke `costMode: "domain"` + pilih domain-nya (`costLinkId`). Kalau dipakai, `markDomainPaid()` otomatis jalan bareng: bikin `Transaction` (expense, draft) + jurnal Beban Domain terpisah, tetap 1 `paymentId` yang sama.
-- **Otomatis terisi kalau invoice-nya dari "Tagih Sekarang":** `PembayaranForm` baca `Invoice.costLinkType`/`costLinkId` waktu fetch daftar invoice — kalau ada, baris pembayaran itu langsung di-preset `costMode`+`costLinkId`-nya, staf cuma perlu isi nominal HPP-nya. Kalau invoice dibuat manual (bukan dari "Tagih Sekarang"), field ini kosong dan staf tetap harus pilih sendiri.
-- **Kalau tidak ada cost-link sama sekali** (baik auto maupun manual), pembayaran invoice tetap sukses, tapi `Domain.lastPaidAt`/`expiryDate` **tidak ikut ter-update** — itu bukan bug, memang harus eksplisit dikaitkan.
-
-### 6. Posting Payment
-- **Di mana:** halaman `/pembayaran/[id]`, `PaymentPostingBar` — tombol "Posting".
-- **API:** `POST /api/payments/:id/post` → semua `Transaction` dengan `paymentId` yang sama (baris pendapatan invoice + baris Beban Domain kalau ada) di-posting **sekaligus, atomik**.
-- Efek setelah posted:
-  - `Invoice.status` dihitung ulang: `unpaid` → `partial`/`paid`.
-  - Kalau ada cost-link Domain: `Domain.lastPaidAt` di-update ke `occurredAt` transaksi itu, DAN `Domain.expiryDate` ditambah 1 tahun dari `expiryDate` **sebelumnya** (bukan dari tanggal bayar) — supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan (`finalizeTransactionPosting` di `src/lib/accounting/mark-paid.ts`).
+### 5-6. Pembayaran (Pelunasan) & Posting Payment — di sinilah semua jurnal Domain terjadi
+- **Di mana:** `/pembayaran?clientId=...&invoiceId=...` (`PembayaranForm.tsx`), lalu diposting dari `/pembayaran/[id]`.
+- **Kaitkan biaya ke Domain:** di form Pembayaran ada pilihan "Biaya" per baris yang bisa diarahkan ke `costMode: "domain"` + pilih domain-nya (`costLinkId`). Kalau dipakai, `markDomainPaid()` otomatis jalan bareng: bikin `Transaction` (expense, draft, nomor bukti BKK) + jurnal Beban Domain terpisah, tetap 1 `paymentId` yang sama.
+- **Otomatis terisi kalau invoice-nya dari "Tagih Sekarang":** `PembayaranForm` baca `Invoice.costLinkType`/`costLinkId` — kalau ada, baris pembayaran itu langsung di-preset `costMode`+`costLinkId`-nya, staf cuma perlu isi nominal HPP-nya. Kalau invoice dibuat manual, staf harus pilih sendiri.
+- **`POST /api/payments/:id/post`** → semua `Transaction` dengan `paymentId` yang sama di-posting sekaligus (atomik). DI SINI (bukan sebelumnya) jurnal Pendapatan Domain + PPN + HPP proporsional baru dibuat lewat `invoicePaymentLines` — lihat `pedoman_akunting.md` §3 untuk rumusnya.
+- Efek lain setelah posted: `Invoice.status` dihitung ulang (`unpaid → partial/paid`); kalau ada cost-link Domain, `Domain.lastPaidAt` diupdate ke tanggal bayar, DAN `Domain.expiryDate` ditambah 1 tahun dari `expiryDate` **sebelumnya** (bukan dari tanggal bayar) — supaya telat bayar tidak menggeser siklus jatuh tempo tahun depan (`finalizeTransactionPosting`, `src/lib/accounting/mark-paid.ts`).
+- **Kalau tidak ada cost-link sama sekali**, pembayaran invoice tetap sukses, tapi `Domain.lastPaidAt`/`expiryDate` **tidak ikut ter-update** — itu bukan bug, memang harus eksplisit dikaitkan.
 
 ### 7. COA / Buku Besar / Laporan
-- Semua laporan (`/akuntansi/coa`, `/akuntansi/buku-besar`, Neraca, Laba Rugi) cuma menghitung `JournalLine` yang jurnalnya `postStatus = "posted"` — draft dan voided dikecualikan.
-- Akun yang kena untuk 1 siklus Domain (jalur Client, lengkap dengan cost-link):
-  - **Kas & Bank** — debit (dari pembayaran invoice), kredit (dari Beban Domain kalau kas keluarnya dari akun yang sama).
-  - **Pendapatan Jasa** — kredit, sebesar (jumlah dibayar − porsi PPN).
+- Semua laporan (`/akuntansi/coa`, `/akuntansi/buku-besar`, Neraca Akrual, Laba Rugi Akrual) cuma menghitung `JournalLine` yang jurnalnya `postStatus = "posted"` — draft dan voided dikecualikan.
+- Akun yang kena untuk 1 siklus Domain (jalur Client, lengkap dengan cost-link), semua dijurnal SEKALIGUS saat Payment diposting:
+  - **Kas & Bank** — debit (dari pembayaran invoice), kredit (dari HPP & Beban Domain kalau kas keluarnya dari akun yang sama).
+  - **Pendapatan Domain** (4-4000, BUKAN "Pendapatan Jasa") — kredit, sebesar (jumlah dibayar − porsi PPN).
   - **PPN Keluaran** — kredit, kalau invoice-nya pakai PPN.
-  - **Beban Domain** — debit, HANYA kalau ada cost-link ke domain ini.
-  - **HPP** + **Hutang Usaha Vendor** — debit/kredit, HANYA kalau invoice-nya diisi HPP per baris saat dibuat.
+  - **HPP** — debit, HANYA kalau invoice-nya diisi HPP per baris saat dibuat (proporsional terhadap porsi yang dibayar).
+  - **Beban Domain** — debit, HANYA kalau ada cost-link ke domain ini (baris "Biaya" di Pelunasan, atau "Bayar Sekarang"/Kas Keluar jalur Internal) — ini TERPISAH dari HPP invoice di atas, dua hal beda.
 
 ### Jalur Internal (tanpa Client)
 Domain internal (7Smarts sendiri) **tidak pernah masuk Invoice/Piutang/Payment sama sekali** —
 langsung dicatat sebagai pengeluaran:
-- **Tombol cepat:** "Tandai Lunas" di Dashboard → `POST /api/domains/:id/mark-paid` (wajib isi HPP + akun kas/bank).
-- **Atau:** Keuangan → Kas Keluar → tambah baris dengan Tipe "Bayar Domain" → `POST /api/transactions/kas-keluar`.
-- Keduanya sama-sama manggil `markDomainPaid()` (satu fungsi, dua pintu) → `Transaction` expense (draft) + jurnal Beban Domain (draft) → diposting via `POST /api/transactions/:id/post` → `lastPaidAt` ke-update ke tanggal bayar, `expiryDate` maju 1 tahun dari `expiryDate` sebelumnya, + Beban Domain masuk COA.
+- **Tombol cepat:** "Bayar Sekarang" di Dashboard (Owner-only) → navigasi ke `/keuangan/kas-keluar?domainId=...` dengan baris "Bayar Domain" sudah keisi, staf tinggal cek nominal/akun kas lalu Simpan.
+- **Atau:** Keuangan → Kas Keluar → tambah baris manual, pilih Tipe "Bayar Domain" sendiri.
+- Submit → `POST /api/transactions/kas-keluar` → manggil `markDomainPaid()` (satu fungsi, dipakai juga oleh jalur cost-link di Pembayaran) → `Transaction` expense (draft, nomor bukti `BKK/{tahun}/{urut}`) + jurnal Beban Domain (draft).
+- **Kalau cuma 1 baris yang disimpan**, setelah Simpan langsung dibawa ke halaman detail transaksi (`/keuangan/transaksi/[id]`) — di situ ada tombol **Posting**, **Hapus** (selama masih draft), **Lihat Jurnal**, dan **Batalkan** (setelah posted, Owner-only).
+- Setelah diposting (`POST /api/transactions/:id/post`) → `Domain.lastPaidAt` ke-update ke tanggal bayar, `Domain.expiryDate` maju 1 tahun dari `expiryDate` sebelumnya (bukan dari tanggal bayar), + Beban Domain masuk COA.
+- **Catatan:** ada juga endpoint `POST /api/domains/:id/mark-paid` (dan komponen `MarkPaidButton.tsx`) dari desain lama yang masih berfungsi identik (juga manggil `markDomainPaid()`), tapi **sudah tidak dipanggil dari UI manapun** — Dashboard sekarang selalu lewat Kas Keluar. Aman dibiarkan (tidak error kalau ada yang panggil langsung), tapi kalau mau bersih-bersih kode, ini kandidat dihapus.
 
 ## Yang perlu diwaspadai (bukan bug, tapi gampang salah paham)
 1. **"Tagih Sekarang" otomatis mengaitkan Domain ke invoice-nya** (lewat `Invoice.costLinkType`/`costLinkId`), jadi form Pembayaran akan auto-preset cost-link-nya. TAPI invoice yang dibuat dengan cara lain (bukan lewat tombol "Tagih Sekarang") tidak punya link ini — staf tetap wajib pilih manual di form Pembayaran, kalau tidak `expiryDate` domain tetap tanggal lama walau invoice-nya sudah lunas.
 2. Invoice & Payment **draft tidak kehitung di mana pun** (Dashboard, COA, Buku Besar, saldo Kas) sampai eksplisit diposting — dua langkah posting terpisah (Invoice, lalu Payment) wajib dilakukan berurutan.
-3. HPP domain bisa "diakui" di 2 titik yang beda maknanya: HPP di baris Invoice (diakui saat invoice dibuat, lawan akun Hutang Usaha Vendor) vs Beban Domain lewat cost-link/Tandai Lunas (diakui saat benar-benar dibayar, lawan akun Kas/Bank) — biasanya cuma salah satu yang dipakai, bukan dua-duanya sekaligus untuk 1 domain yang sama.
-4. **`lastPaidAt` dan `expiryDate` sengaja dipisah**: `lastPaidAt` = kapan terakhir dibayar (catatan historis), `expiryDate` = kapan servicenya benar-benar berakhir (acuan renewal). Status Lewat/Bulan Ini/Bulan Depan di Dashboard SELALU pakai `expiryDate`, bukan `lastPaidAt`.
+3. **Pendapatan Domain baru diakui saat Payment diposting**, bukan saat invoice dibuat/diposting — beda dari dokumen versi lama yang bilang "diakui saat invoice terbit". Lihat `pedoman_akunting.md` untuk penjelasan lengkap migrasi cash-basis ini.
+4. HPP domain bisa "diakui" di 2 titik yang beda maknanya: **HPP invoice** (`unitCost` baris Invoice, sekarang juga baru dijurnal saat Payment diposting, proporsional) vs **Beban Domain** lewat cost-link/"Bayar Sekarang" (Transaction expense terpisah, akun beda) — biasanya cuma salah satu yang dipakai, bukan dua-duanya sekaligus untuk 1 domain yang sama.
+5. **`lastPaidAt` dan `expiryDate` sengaja dipisah**: `lastPaidAt` = kapan terakhir dibayar (catatan historis), `expiryDate` = kapan servicenya benar-benar berakhir (acuan renewal). Status Lewat/Bulan Ini/Bulan Depan di Dashboard SELALU pakai `expiryDate`, bukan `lastPaidAt`.
+6. Server sekarang punya field `expiryDate` yang sama persis polanya dengan Domain (dulu Domain-only) — lihat `Check-Flow-Server.MD`.
