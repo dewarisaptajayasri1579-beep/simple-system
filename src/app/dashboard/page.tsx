@@ -6,8 +6,9 @@ import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
 import { jakartaRangeFromToday } from "@/lib/datetime"
-import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, resolveServerExpiry, periodNameToMonths } from "@/lib/recurring-bill-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
+import { buildRevenueForecast } from "@/lib/revenue-forecast"
 import {
   PiutangSummarySection,
   RecurringDueSection,
@@ -21,6 +22,7 @@ import {
   type MaintenanceDueRow,
 } from "@/components/dashboard/DashboardSections"
 import { ProjectTagihanSection, type ProjectTagihanRow } from "@/components/dashboard/ProjectTagihanSection"
+import { RevenueForecastSection } from "@/components/dashboard/RevenueForecastSection"
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
 import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
 import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappReportButton"
@@ -47,8 +49,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Ditagih" di bawah, bareng Domain/Server/Maintenance yang statusnya masih "belum_ditagih".
   const projectUninvoicedThreshold = jakartaRangeFromToday(3).end
 
-  const [projectUninvoicedSchedules, clientOptions, accounts, domains, servers, maintenances, bills, openInvoices, followUps, projectSchedules] =
-    await Promise.all([
+  const [
+    projectUninvoicedSchedules,
+    clientOptions,
+    accounts,
+    domains,
+    servers,
+    maintenances,
+    bills,
+    openInvoices,
+    followUps,
+    projectSchedules,
+    forecastProjectSchedules,
+  ] = await Promise.all([
     prisma.projectPaymentSchedule.findMany({
       where: { invoiceId: null, dueDate: { lte: projectUninvoicedThreshold }, project: { status: "berjalan" } },
       select: { amount: true },
@@ -74,6 +87,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         project: { include: { client: true } },
         invoice: { include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } } },
       },
+    }),
+    prisma.projectPaymentSchedule.findMany({
+      where: { project: { status: "berjalan" } },
+      select: { amount: true, dueDate: true },
     }),
   ])
 
@@ -241,6 +258,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.remaining > 0)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
 
+  // Prediksi pendapatan 6 bulan ke depan dari siklus renewal Domain (tahunan)/Server/Maintenance
+  // (sesuai BillingPeriod-nya) + jadwal termin Project — lihat buildRevenueForecast untuk detail
+  // asumsinya (item aktif dianggap diperpanjang tepat waktu, bukan angka pasti).
+  const revenueForecast = buildRevenueForecast({
+    domains: domains.map((d) => ({ price: d.sellPrice ?? 0, expiry: resolveDomainExpiry(d) })),
+    servers: servers.map((s) => ({
+      price: s.price ?? 0,
+      nextDue: resolveServerExpiry(s),
+      periodMonths: periodNameToMonths(s.period?.name ?? "Tahunan") * (s.periodCount && s.periodCount > 0 ? s.periodCount : 1),
+    })),
+    maintenances: maintenances.map((m) => ({
+      price: m.price ?? 0,
+      nextDue: computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount),
+      periodMonths: periodNameToMonths(m.period?.name ?? "Bulanan") * (m.periodCount && m.periodCount > 0 ? m.periodCount : 1),
+    })),
+    projectSchedules: forecastProjectSchedules,
+  })
+
   const followUpRows = followUps.map((f) => ({
     id: f.id,
     subject: f.subject,
@@ -330,6 +365,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             )}
           </div>
         </Card>
+
+        <RevenueForecastSection months={revenueForecast} />
       </div>
     </AppLayout>
   )

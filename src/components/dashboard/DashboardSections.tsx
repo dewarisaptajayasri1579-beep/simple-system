@@ -9,7 +9,7 @@ import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
-import { MarkPaidButton, type AccountOption } from "./MarkPaidButton";
+import { type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -704,7 +704,11 @@ export const ServerDueSection: React.FC<{
                 tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
               />
             ) : isOwner ? (
-              <MarkPaidButton url={`/api/servers/${r.id}/mark-paid`} itemLabel={r.name} accounts={accounts} requireAmount />
+              <Link href={`/keuangan/kas-keluar?serverId=${r.id}`}>
+                <Button size="sm" variant="outline">
+                  Bayar Sekarang
+                </Button>
+              </Link>
             ) : (
               <span className="text-xs text-slate-400">Internal</span>
             )}
