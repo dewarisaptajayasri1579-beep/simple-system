@@ -3,16 +3,12 @@ import { notFound } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { ProjectScheduleTable } from "@/components/proyek/ProjectScheduleTable"
+import { ProjectInfoSection } from "@/components/proyek/ProjectInfoSection"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
 
 const POSTED_PAYMENTS_WHERE = { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" as const } } }] }
-
-function formatDate(date: Date | null) {
-  if (!date) return "-"
-  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(date)
-}
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
@@ -64,16 +60,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase">Periode</p>
-              <p className="font-semibold text-slate-800">{formatDate(project.startDate)} - {formatDate(project.endDate)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase">PIC</p>
-              <p className="font-semibold text-slate-800">{project.picName ?? "-"}{project.picPhone ? ` (${project.picPhone})` : ""}</p>
-            </div>
-          </div>
+          <ProjectInfoSection
+            projectId={project.id}
+            startDate={project.startDate.toISOString()}
+            endDate={project.endDate ? project.endDate.toISOString() : null}
+            picName={project.picName}
+            picPhone={project.picPhone}
+          />
 
           <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-200/60 text-center">
             <div>

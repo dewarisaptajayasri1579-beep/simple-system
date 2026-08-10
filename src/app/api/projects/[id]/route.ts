@@ -37,6 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.name === "string") data.name = body.name.trim()
   if (typeof body.picName === "string") data.picName = body.picName || null
   if (typeof body.picPhone === "string") data.picPhone = body.picPhone || null
+  if (typeof body.startDate === "string" && body.startDate) data.startDate = new Date(body.startDate)
   if (typeof body.endDate === "string") data.endDate = body.endDate ? new Date(body.endDate) : null
   if (typeof body.status === "string") data.status = body.status
   if (typeof body.notes === "string") data.notes = body.notes || null

@@ -93,7 +93,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
     prisma.projectPaymentSchedule.findMany({
       where: { project: { status: "berjalan" } },
-      select: { amount: true, dueDate: true },
+      select: { amount: true, dueDate: true, label: true, project: { select: { name: true } } },
     }),
   ])
 
@@ -272,20 +272,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const revenueForecast = buildRevenueForecast({
     domains: domains
       .filter((d) => d.clientId)
-      .map((d) => ({ price: d.sellPrice ?? 0, expiry: resolveDomainExpiry(d) })),
+      .map((d) => ({ name: `${d.name}${d.client ? ` — ${d.client.name}` : ""}`, price: d.sellPrice ?? 0, expiry: resolveDomainExpiry(d) })),
     servers: servers
       .filter((s) => s.clientId)
       .map((s) => ({
+        name: `${s.name}${s.client ? ` — ${s.client.name}` : ""}`,
         price: s.price ?? 0,
         nextDue: resolveServerExpiry(s),
         periodMonths: periodNameToMonths(s.period?.name ?? "Tahunan") * (s.periodCount && s.periodCount > 0 ? s.periodCount : 1),
       })),
     maintenances: maintenances.map((m) => ({
+      name: `${m.name}${m.client ? ` — ${m.client.name}` : ""}`,
       price: m.price ?? 0,
       nextDue: computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount),
       periodMonths: periodNameToMonths(m.period?.name ?? "Bulanan") * (m.periodCount && m.periodCount > 0 ? m.periodCount : 1),
     })),
-    projectSchedules: forecastProjectSchedules,
+    projectSchedules: forecastProjectSchedules.map((s) => ({ name: `${s.project.name} — ${s.label}`, amount: s.amount, dueDate: s.dueDate })),
   })
 
   const followUpRows = followUps.map((f) => ({
