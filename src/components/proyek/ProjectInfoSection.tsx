@@ -12,16 +12,27 @@ function formatDate(iso: string | null) {
 
 export interface ProjectInfoSectionProps {
   projectId: string;
+  projectName: string;
+  clientName: string;
   startDate: string;
   endDate: string | null;
   picName: string | null;
   picPhone: string | null;
 }
 
-/** Periode (Tgl Mulai/Selesai), PIC, dan No WA di header detail Project — dulu cuma teks statis
- *  (cuma bisa diisi sekali waktu bikin project lewat ProjectForm), sekarang bisa diedit lagi
- *  dari sini. PATCH ke /api/projects/[id], yang sudah dukung field-field ini sejak lama. */
-export const ProjectInfoSection: React.FC<ProjectInfoSectionProps> = ({ projectId, startDate, endDate, picName, picPhone }) => {
+/** Judul project + Periode (Tgl Mulai/Selesai)/PIC/No WA di header detail Project — dulu cuma
+ *  teks statis (cuma bisa diisi sekali waktu bikin project lewat ProjectForm), sekarang bisa
+ *  diedit lagi lewat tombol "Edit" di pojok kanan atas. PATCH ke /api/projects/[id], yang sudah
+ *  dukung field-field ini sejak lama. */
+export const ProjectInfoSection: React.FC<ProjectInfoSectionProps> = ({
+  projectId,
+  projectName,
+  clientName,
+  startDate,
+  endDate,
+  picName,
+  picPhone,
+}) => {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
@@ -66,50 +77,64 @@ export const ProjectInfoSection: React.FC<ProjectInfoSectionProps> = ({ projectI
     router.refresh();
   };
 
-  if (editing) {
-    return (
-      <div className="mt-6 pt-6 border-t border-slate-200/60 space-y-4">
-        {error && (
-          <Alert variant="error" onClose={() => setError("")}>
-            {error}
-          </Alert>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Tanggal Mulai" type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-          <Input label="Tanggal Selesai (opsional)" type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
-          <Input label="PIC Proyek" value={form.picName} onChange={(e) => setForm((f) => ({ ...f, picName: e.target.value }))} />
-          <Input label="No. WA PIC" value={form.picPhone} onChange={(e) => setForm((f) => ({ ...f, picPhone: e.target.value }))} />
-        </div>
-        <div className="flex justify-end gap-3">
-          <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
-            Batal
-          </Button>
-          <Button variant="primary" size="sm" onClick={save} isLoading={saving}>
-            Simpan
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60 relative">
-      <div>
-        <p className="text-xs font-bold text-slate-500 uppercase">Periode</p>
-        <p className="font-semibold text-slate-800">
-          {formatDate(startDate)} - {formatDate(endDate)}
-        </p>
+    <div>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900">{projectName}</h1>
+          <p className="text-sm text-slate-600 font-semibold mt-1">{clientName}</p>
+        </div>
+        {!editing && (
+          <Button variant="outline" size="sm" leftIcon={<Pencil className="w-3.5 h-3.5" />} onClick={startEdit}>
+            Edit
+          </Button>
+        )}
       </div>
-      <div>
-        <p className="text-xs font-bold text-slate-500 uppercase">PIC</p>
-        <p className="font-semibold text-slate-800">
-          {picName ?? "-"}
-          {picPhone ? ` (${picPhone})` : ""}
-        </p>
-      </div>
-      <Button variant="ghost" size="sm" className="absolute top-0 right-0" onClick={startEdit} title="Edit periode/PIC/No WA">
-        <Pencil className="w-4 h-4" />
-      </Button>
+
+      {editing ? (
+        <div className="mt-6 pt-6 border-t border-slate-200/60 space-y-4">
+          {error && (
+            <Alert variant="error" onClose={() => setError("")}>
+              {error}
+            </Alert>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Tanggal Mulai" type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            <Input
+              label="Tanggal Selesai (opsional)"
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+            />
+            <Input label="PIC Proyek" value={form.picName} onChange={(e) => setForm((f) => ({ ...f, picName: e.target.value }))} />
+            <Input label="No. WA PIC" value={form.picPhone} onChange={(e) => setForm((f) => ({ ...f, picPhone: e.target.value }))} />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+              Batal
+            </Button>
+            <Button variant="primary" size="sm" onClick={save} isLoading={saving}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase">Periode</p>
+            <p className="font-semibold text-slate-800">
+              {formatDate(startDate)} - {formatDate(endDate)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase">PIC</p>
+            <p className="font-semibold text-slate-800">
+              {picName ?? "-"}
+              {picPhone ? ` (${picPhone})` : ""}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

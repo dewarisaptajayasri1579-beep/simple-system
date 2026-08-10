@@ -53,15 +53,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </Link>
 
         <Card variant="panel" padding="lg">
-          <div className="flex items-start justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-2xl font-black text-slate-900">{project.name}</h1>
-              <p className="text-sm text-slate-600 font-semibold mt-1">{project.client.name}</p>
-            </div>
-          </div>
-
           <ProjectInfoSection
             projectId={project.id}
+            projectName={project.name}
+            clientName={project.client.name}
             startDate={project.startDate.toISOString()}
             endDate={project.endDate ? project.endDate.toISOString() : null}
             picName={project.picName}
