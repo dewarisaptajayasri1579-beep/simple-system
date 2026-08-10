@@ -186,8 +186,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
-  // Maintenance: sudah lewat tempo atau jatuh tempo bulan ini saja (beda dari Domain/Server,
-  // sengaja tidak ikut nampilin "bulan depan" di sini).
+  // Maintenance: sudah lewat tempo, jatuh tempo bulan ini, atau bulan depan — sama pola
+  // dengan Domain/Server (dulu sengaja cuma "bulan ini", sekarang disamakan).
   const maintenanceDueRowsBase = maintenances
     .map((m) => {
       const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
@@ -203,7 +203,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month")
+    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
   // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma buat Domain/Server yang
@@ -265,14 +265,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   // Prediksi pendapatan 6 bulan ke depan dari siklus renewal Domain (tahunan)/Server/Maintenance
   // (sesuai BillingPeriod-nya) + jadwal termin Project — lihat buildRevenueForecast untuk detail
-  // asumsinya (item aktif dianggap diperpanjang tepat waktu, bukan angka pasti).
+  // asumsinya (item aktif dianggap diperpanjang tepat waktu, bukan angka pasti). Domain/Server
+  // TANPA clientId adalah infra/langganan internal 7Smarts (mis. Zoom, Google Drive, VPS kantor)
+  // — itu biaya, bukan pendapatan, jadi WAJIB dikecualikan di sini walau harganya (price/sellPrice)
+  // terisi. Maintenance selalu punya clientId (lihat schema), tidak perlu filter serupa.
   const revenueForecast = buildRevenueForecast({
-    domains: domains.map((d) => ({ price: d.sellPrice ?? 0, expiry: resolveDomainExpiry(d) })),
-    servers: servers.map((s) => ({
-      price: s.price ?? 0,
-      nextDue: resolveServerExpiry(s),
-      periodMonths: periodNameToMonths(s.period?.name ?? "Tahunan") * (s.periodCount && s.periodCount > 0 ? s.periodCount : 1),
-    })),
+    domains: domains
+      .filter((d) => d.clientId)
+      .map((d) => ({ price: d.sellPrice ?? 0, expiry: resolveDomainExpiry(d) })),
+    servers: servers
+      .filter((s) => s.clientId)
+      .map((s) => ({
+        price: s.price ?? 0,
+        nextDue: resolveServerExpiry(s),
+        periodMonths: periodNameToMonths(s.period?.name ?? "Tahunan") * (s.periodCount && s.periodCount > 0 ? s.periodCount : 1),
+      })),
     maintenances: maintenances.map((m) => ({
       price: m.price ?? 0,
       nextDue: computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount),

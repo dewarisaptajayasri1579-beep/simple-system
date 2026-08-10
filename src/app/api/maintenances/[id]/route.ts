@@ -20,6 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.price === "number") data.price = body.price
   if (typeof body.active === "boolean") data.active = body.active
   if (typeof body.lastPaidAt === "string") data.lastPaidAt = body.lastPaidAt ? new Date(body.lastPaidAt) : null
+  if (typeof body.subscriptionStart === "string") data.subscriptionStart = body.subscriptionStart ? new Date(body.subscriptionStart) : null
 
   const maintenance = await prisma.maintenance.update({ where: { id }, data, include: { client: true, period: true } })
   return NextResponse.json(maintenance)

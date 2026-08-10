@@ -15,7 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     include: {
       client: true,
       schedules: {
-        orderBy: { sortOrder: "asc" },
+        orderBy: { dueDate: "asc" },
         include: { invoice: { include: { payments: { where: POSTED_PAYMENTS_WHERE } } } },
       },
     },

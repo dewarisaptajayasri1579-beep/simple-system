@@ -12,17 +12,18 @@ export const maintenanceSteps: FlowStep[] = [
     no: "1",
     title: "Maintenance didaftarkan ke sistem",
     description:
-      "Masuk ke Pengaturan → Master Data → Maintenance, klik \"Tambah Maintenance\", lalu isi datanya: nama jasa maintenance-nya, ini untuk Client mana (WAJIB diisi, tidak bisa dikosongkan), harganya, dan kapan tagihan terakhir dibuat.",
+      "Masuk ke Pengaturan → Master Data → Maintenance, klik \"Tambah Maintenance\", lalu isi datanya: nama jasa maintenance-nya, ini untuk Client mana (WAJIB diisi, tidak bisa dikosongkan), harganya, Periode Tagihan (per berapa bulan), tanggal tagihan tiap periode (cukup angka 1-31), dan Bulan Mulai (bulan+tahun kontrak ini dimulai, cuma catatan).",
     detail: [
       "Beda dari Domain/Server, Maintenance TIDAK punya opsi \"Internal\" — setiap baris Maintenance harus terkait ke 1 Client tertentu, karena memang selalu jasa yang dikerjakan untuk client.",
+      "\"Tgl Tagihan\" cukup diisi tanggalnya saja (1-31) — bulan & tahunnya otomatis ikut bulan saat disimpan, tidak perlu pilih tanggal lengkap.",
+      "\"Bulan Mulai\" murni catatan kontrak (kapan mulai berlangganan) — TIDAK dipakai buat menghitung jatuh tempo, itu tetap dari \"Tgl Tagihan\" + Periode.",
     ],
   },
   {
     no: "2",
     title: "Muncul otomatis di Dashboard",
-    description: "Kalau maintenance-nya sudah lewat jatuh tempo, atau jatuh tempo bulan ini, otomatis muncul di Dashboard supaya tidak kelupaan ditagih lagi.",
+    description: "Kalau maintenance-nya sudah lewat jatuh tempo, jatuh tempo bulan ini, atau bulan depan, otomatis muncul di Dashboard supaya tidak kelupaan ditagih lagi — sama pola dengan Domain/Server.",
     detail: [
-      "Beda dari Domain/Server yang juga nampilin peringatan \"bulan depan\", Maintenance SENGAJA cuma nampilin \"Sudah Lewat\" dan \"Bulan Ini\" saja — belum ada peringatan lebih awal untuk maintenance.",
       "Nama client pemiliknya, nama PIC, dan nomor WA-nya langsung kelihatan di situ, lengkap dengan tombol \"Klik WA\" buat langsung follow-up.",
     ],
   },
@@ -78,6 +79,5 @@ export const maintenanceCaveats: string[] = [
   "Maintenance WAJIB punya Client — tidak ada jalur \"Internal\" seperti Domain/Server, karena maintenance memang selalu jasa untuk client tertentu.",
   "GAP PENTING: opsi \"Bayar Maintenance\" di form Pembayaran TIDAK auto-terpilih dari \"Tagih Sekarang\" (beda dari Domain/Server yang otomatis). Staf wajib pilih sendiri setiap kali input pembayaran, kalau tidak jatuh tempo maintenance tidak akan maju walau invoice-nya sudah lunas.",
   "Maintenance tidak punya \"Tgl Berakhir\" seperti Domain/Server — jatuh tempo SELALU dihitung ulang dari \"Tgl Tagihan Terakhir\" + siklus periode, jadi kalau bayar/tagih telat, jatuh tempo berikutnya ikut mundur dari tanggal itu (bukan tetap dari jadwal lama).",
-  "Dashboard Maintenance cuma nampilin \"Sudah Lewat\" dan \"Bulan Ini\" — tidak ada peringatan \"Bulan Depan\" seperti Domain/Server, jadi follow-up-nya baru muncul lebih mepet ke jatuh temponya.",
   "Tagihan dan pembayaran yang masih berstatus \"Draft\" belum dihitung di mana pun (Dashboard, laporan keuangan, saldo kas) — wajib disetujui (\"Posting\") dulu satu-satu, tagihannya dulu baru pembayarannya.",
 ]

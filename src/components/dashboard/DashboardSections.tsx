@@ -826,12 +826,12 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Maintenance — Lewat / Bulan Ini</CardTitle>
-          <CardDescription>{rows.length} maintenance sudah lewat tempo atau jatuh tempo bulan ini</CardDescription>
+          <CardTitle>Maintenance — Lewat / Bulan Ini / Bulan Depan</CardTitle>
+          <CardDescription>{rows.length} maintenance sudah lewat tempo, jatuh tempo bulan ini, atau bulan depan</CardDescription>
         </div>
         <ColumnVisibilityMenu columns={MAINTENANCE_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS.slice(0, 2)} counts={bucketCounts(rows)} total={rows.length} />
+      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada maintenance yang perlu perhatian." mobileCardMode />
     </Card>
   );

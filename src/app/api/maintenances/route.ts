@@ -25,6 +25,7 @@ interface MaintenanceInput {
   periodCount?: number
   price?: number
   lastPaidAt?: string
+  subscriptionStart?: string
   active?: boolean
 }
 
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       periodCount: body.periodCount || null,
       price: body.price ?? null,
       lastPaidAt: body.lastPaidAt ? new Date(body.lastPaidAt) : null,
+      subscriptionStart: body.subscriptionStart ? new Date(body.subscriptionStart) : null,
       active: body.active ?? true,
     },
   })

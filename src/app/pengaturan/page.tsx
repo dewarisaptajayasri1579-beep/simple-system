@@ -97,7 +97,11 @@ export default async function PengaturanPage() {
             lastPaidAt: s.lastPaidAt ? s.lastPaidAt.toISOString() : null,
             expiryDate: s.expiryDate ? s.expiryDate.toISOString() : null,
           }))}
-          maintenances={maintenances.map((m) => ({ ...m, lastPaidAt: m.lastPaidAt ? m.lastPaidAt.toISOString() : null }))}
+          maintenances={maintenances.map((m) => ({
+            ...m,
+            lastPaidAt: m.lastPaidAt ? m.lastPaidAt.toISOString() : null,
+            subscriptionStart: m.subscriptionStart ? m.subscriptionStart.toISOString() : null,
+          }))}
           cpanelAccounts={cpanelAccounts}
         />
       </div>

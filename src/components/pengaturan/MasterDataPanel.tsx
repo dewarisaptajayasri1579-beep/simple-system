@@ -64,6 +64,7 @@ export interface MaintenanceRow {
   periodCount: number | null;
   price: number | null;
   lastPaidAt: string | null;
+  subscriptionStart: string | null;
   active: boolean;
   client: { name: string };
   period: { name: string; reminderDaysBefore: number } | null;
@@ -696,11 +697,18 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
 const MAINTENANCE_COLUMNS = [
   { key: "client", label: "Client" },
   { key: "price", label: "Harga" },
+  { key: "periode", label: "Periode" },
   { key: "lastPaid", label: "Tgl Tagihan" },
+  { key: "subscriptionStart", label: "Bulan Mulai" },
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "status", label: "Status" },
   { key: "aktif", label: "Aktif" },
 ];
+
+function formatMonthYear(iso: string | null) {
+  if (!iso) return "-";
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
+}
 
 // Periode tagihan Maintenance selalu berulang tiap siklus (bukan tanggal 1x pakai), jadi
 // stafnya cuma perlu isi TANGGAL-nya (1-31) — bulan/tahunnya selalu ikut bulan berjalan saat
@@ -721,6 +729,7 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<Partial<MaintenanceRow>>({});
   const [billingDay, setBillingDay] = useState("");
+  const [subscriptionMonth, setSubscriptionMonth] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -785,12 +794,14 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
     setEditing(row);
     setForm({ ...row, lastPaidAt: row.lastPaidAt ? row.lastPaidAt.slice(0, 10) : undefined });
     setBillingDay(row.lastPaidAt ? String(new Date(row.lastPaidAt).getDate()) : "");
+    setSubscriptionMonth(row.subscriptionStart ? row.subscriptionStart.slice(0, 7) : "");
     setError("");
   };
   const openCreate = () => {
     setIsCreating(true);
     setForm({ active: true });
     setBillingDay("");
+    setSubscriptionMonth("");
     setError("");
   };
   const close = () => {
@@ -823,7 +834,7 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, lastPaidAt }),
+      body: JSON.stringify({ ...form, lastPaidAt, subscriptionStart: subscriptionMonth ? `${subscriptionMonth}-01` : null }),
     });
     const data = await res.json();
     setIsSaving(false);
@@ -865,8 +876,27 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
       ? [{ key: "client", header: "Client", filterValue: (m: MaintenanceRow) => m.client.name, cell: (m: MaintenanceRow) => m.client.name }]
       : []),
     ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (m: MaintenanceRow) => formatRupiah(m.price) }] : []),
+    ...(isVisible("periode")
+      ? [
+          {
+            key: "periode",
+            header: "Periode",
+            filterValue: (m: MaintenanceRow) => m.period?.name ?? "",
+            cell: (m: MaintenanceRow) => (m.period ? MAINTENANCE_PERIOD_LABEL[m.period.name] ?? m.period.name : "-"),
+          },
+        ]
+      : []),
     ...(isVisible("lastPaid")
-      ? [{ key: "lastPaid", header: "Tgl Tagihan", cell: (m: MaintenanceRow) => formatDateObj(m.lastPaidAt ? new Date(m.lastPaidAt) : null) }]
+      ? [
+          {
+            key: "lastPaid",
+            header: "Tgl Tagihan",
+            cell: (m: MaintenanceRow) => (m.lastPaidAt ? `Tanggal ${new Date(m.lastPaidAt).getDate()}` : "-"),
+          },
+        ]
+      : []),
+    ...(isVisible("subscriptionStart")
+      ? [{ key: "subscriptionStart", header: "Bulan Mulai", cell: (m: MaintenanceRow) => formatMonthYear(m.subscriptionStart) }]
       : []),
     ...(isVisible("dueDate")
       ? [
@@ -1003,6 +1033,12 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
               placeholder="mis. 15"
               value={billingDay}
               onChange={(e) => setBillingDay(e.target.value)}
+            />
+            <Input
+              label="Bulan Mulai"
+              type="month"
+              value={subscriptionMonth}
+              onChange={(e) => setSubscriptionMonth(e.target.value)}
             />
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer select-none">

@@ -13,7 +13,7 @@ export async function GET() {
     include: {
       client: true,
       schedules: {
-        orderBy: { sortOrder: "asc" },
+        orderBy: { dueDate: "asc" },
         include: { invoice: { include: { payments: { where: POSTED_PAYMENTS_WHERE } } } },
       },
     },

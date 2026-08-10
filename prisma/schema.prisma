@@ -194,6 +194,10 @@ model Maintenance {
   periodCount Int?      @map("period_count")
   price       Float?
   lastPaidAt  DateTime? @map("last_paid_at")
+  // Bulan mulai kontrak maintenance ini — cuma bulan+tahun yang berarti (disimpan sebagai
+  // tanggal 1 di bulan itu), murni informasi, TIDAK dipakai buat hitung jatuh tempo
+  // (itu tetap dari lastPaidAt + periode, lihat computeNextDueDate).
+  subscriptionStart DateTime? @map("subscription_start")
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now()) @map("created_at")
 

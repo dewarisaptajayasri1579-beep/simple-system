@@ -10,7 +10,7 @@ selalu dihitung dari `lastPaidAt` + periode, tanpa anchor tersimpan seperti Doma
 
 ```mermaid
 flowchart TD
-  A["1. Input/Edit Master Data\nPengaturan > Master Data > Maintenance\nPOST /api/maintenances (create, owner-only)\nPATCH /api/maintenances/:id (edit)"] --> C["2. Muncul di Dashboard\nMaintenance — Lewat / Bulan Ini SAJA\n(TIDAK ada 'bulan depan', beda dari Domain/Server)\nsyarat: active=true DAN\nbucket = expired/bulan ini\n(computeNextDueDate dari lastPaidAt, TANPA expiryDate)"]
+  A["1. Input/Edit Master Data\nPengaturan > Master Data > Maintenance\nPOST /api/maintenances (create, owner-only)\nPATCH /api/maintenances/:id (edit)\nField: Periode, Tgl Tagihan (tanggal 1-31),\nBulan Mulai (info saja)"] --> C["2. Muncul di Dashboard\nMaintenance — Lewat / Bulan Ini / Bulan Depan\n(sekarang sama dengan Domain/Server)\nsyarat: active=true DAN\nbucket = expired/bulan ini/bulan depan\n(computeNextDueDate dari lastPaidAt, TANPA expiryDate)"]
   C --> D["3. Tagih Sekarang\nlink ke /penjualan/baru\nprefill clientId + amount + maintenanceId"]
   D --> E["4. Invoice dibuat (Draft)\nPOST /api/invoices\nstatus piutang: unpaid, postStatus: draft\ncostLinkType=maintenance, costLinkId=maintenance ini"]
   E --> F["5. Posting Invoice\nPOST /api/invoices/:id/post\npostStatus -> posted"]
@@ -33,12 +33,12 @@ flowchart TD
 - **Di mana:** Pengaturan → Master Data → tab Maintenance (`MasterDataPanel.tsx`, `MaintenanceSection`, ~line 705-990).
 - **API:** `POST /api/maintenances` (`src/app/api/maintenances/route.ts:29-53`, owner-only, `prisma.maintenance.create`, wajib `name`+`clientId`) **DAN** `PATCH /api/maintenances/[id]` (`[id]/route.ts:6-29`).
 - **Sama seperti Server:** bisa dibuat baru langsung dari UI ("Tambah Maintenance"), beda dari Domain yang cuma bisa diedit.
-- **Field kunci:** `name`, `clientId` (WAJIB, tidak bisa Internal), `price`, `lastPaidAt` ("Tgl Tagihan Terakhir"), `active`. Field `periodId`/`periodCount` ADA di schema tapi **tidak ada di modal create/edit** — jadi siklus periode Maintenance efektif tidak bisa diatur lewat UI ini saat ini (kemungkinan diisi lewat data migrasi/seed, atau memang belum ada UI-nya).
+- **Field kunci:** `name`, `clientId` (WAJIB, tidak bisa Internal), `price`, `periodId` ("Periode Tagihan", dropdown), `lastPaidAt` ("Tgl Tagihan" — staf cuma isi TANGGAL-nya 1-31, bulan/tahun otomatis ikut bulan berjalan saat disimpan, lihat komentar `MAINTENANCE_PERIOD_LABEL` di `MasterDataPanel.tsx`), `subscriptionStart` ("Bulan Mulai" — cuma bulan+tahun, murni informasi/kontrak, TIDAK dipakai buat hitung jatuh tempo), `active`. Semua field ini sudah ada di modal create/edit (tabelnya juga sudah punya kolom Periode, Tgl Tagihan, dan Bulan Mulai).
 - **BEDA DARI DOMAIN/SERVER:** tidak ada kolom `expiryDate` sama sekali di schema — jatuh tempo 100% dihitung dinamis dari `lastPaidAt + periode` (`computeNextDueDate`), tidak ada anchor tersimpan yang bisa dikoreksi manual seperti "Tgl Berakhir".
 
 ### 2. Muncul di Dashboard
 - **Di mana:** `MaintenanceDueSection` (`src/components/dashboard/DashboardSections.tsx:703-800`), data dari `src/app/dashboard/page.tsx:159-174`.
-- **Syarat tampil:** `active = true` DAN bucket `expired` ATAU `expiring_this_month` — **BEDA DARI DOMAIN/SERVER:** `expiring_next_month` sengaja DIKECUALIKAN (komentar eksplisit di kode: "beda dari Domain/Server, sengaja tidak ikut nampilin 'bulan depan' di sini"). UI filter pills juga cuma nampilin 2 opsi (`BUCKET_OPTIONS.slice(0, 2)`, `DashboardSections.tsx:792`), bukan 3.
+- **Syarat tampil:** `active = true` DAN bucket `expired` / `expiring_this_month` / `expiring_next_month` — SAMA DENGAN Domain/Server sekarang (sebelumnya sengaja cuma 2 bucket, tanpa "bulan depan"; diubah supaya konsisten). UI filter pills juga sudah nampilin 3 opsi (`BUCKET_OPTIONS` penuh, bukan `.slice(0, 2)` lagi).
 - Karena `clientId` wajib, section ini TIDAK punya tombol "Tandai Lunas" varian Internal seperti Domain/Server — setiap baris pasti punya Client & tombol "Tagih Sekarang" (kalau HPP diisi) atau langsung "Tandai Lunas" kalau memang mau bayar tanpa tagihan formal (lihat jalur terpisah di bawah).
 
 ### 3-5. Tagih Sekarang, Invoice dibuat, Posting Invoice
@@ -67,6 +67,5 @@ Walau Maintenance selalu punya Client, tetap ada jalur pintas tanpa lewat tagiha
 1. **Maintenance TIDAK PERNAH "Internal"** — `clientId` wajib di schema, beda dari Domain/Server yang punya varian tanpa client.
 2. **GAP paling penting:** form Pembayaran TIDAK auto-pilih "Bayar Maintenance" dari invoice `costLinkType`, padahal Domain/Server auto-pilih. Staf wajib ingat pilih manual, atau `lastPaidAt` Maintenance tidak akan maju walau invoice-nya sudah lunas.
 3. **Tidak ada `expiryDate`** — jatuh tempo SELALU dihitung ulang dari `lastPaidAt` + periode saat itu juga (dinamis, bukan tersimpan), jadi bayar/tagih telat otomatis menggeser seluruh jadwal berikutnya dari tanggal bayar yang sebenarnya — tidak ada mekanisme "anchor lama" seperti Domain/Server.
-4. **Dashboard cuma 2 bucket** (Lewat, Bulan Ini) — tidak ada peringatan dini "Bulan Depan" seperti Domain/Server.
-5. Field `periodId`/`periodCount` ada di database tapi tidak ada di form create/edit Master Data — kalau perlu ubah siklus periode Maintenance, belum ada jalur UI resminya.
-6. Invoice & Payment **draft tidak kehitung di mana pun** sampai eksplisit diposting — sama seperti Domain/Server.
+4. **`subscriptionStart` ("Bulan Mulai") murni informasi** — tidak dipakai sama sekali oleh `computeNextDueDate`/bucket jatuh tempo. Cuma catatan "kontrak ini mulai bulan apa", tidak mempengaruhi perhitungan reminder.
+5. Invoice & Payment **draft tidak kehitung di mana pun** sampai eksplisit diposting — sama seperti Domain/Server.
