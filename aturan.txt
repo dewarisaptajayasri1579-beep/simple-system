@@ -1,0 +1,103 @@
+Piutang hanya catatan, Pendapatan diakui setelah ada uang masuk.
+
+
+
+Rules : 
+Pendapatan, COA nya :
+    Pendapatan Domain
+    Pendapatan Server
+    Pendapatan Maintenance
+    Pendapatan Project 
+Ada Master Project 
+    Nama Client
+    Tgl Mulai 
+    Tgl Selesai
+    PIC Project
+    No WA Project
+    Jadwal Bayar 
+
+Yang Perlu di remind kan di Dashboard Keuangan
+1. Tagihan2 Project -> Berdsarkan Inputan Penjualan 
+2. Tagihan Maintenance
+3. Tagihan Server (ada yang Internal , ada yang Client)
+4. Tagihan Domain (ada yang internal, ada yang Client)
+5. Biaya Rutin Bulanan Operasional Kantor 
+
+
+Alur dari Dasbhoard Keuangan 
+Maintenance -> Klik Tagih -> Jadi Invoice -> Input Bayar -> Input Jika ada Biaya -> Update Tgl TErakhir bayar di Maintenance 
+Server yang Client -> Klik Tagih -> Jadi Invoice -> Input Bayar -> Input Jika ada Biaya -> Update Tgl TErakhir bayar di Server 
+Domain yang Client -> Klik Tagih -> Jadi Invoice -> Input Bayar -> Input Jika ada Biaya -> Update Tgl TErakhir bayar di Domain 
+
+Server Internal -> Jadi Kas/Bank Keluar 
+Domain Internal -> Jadi Kas/Bank Keluar
+
+Gladi Bersih : Pengecekan 
+1. Project
+   Jadwal Bayar 
+   Otomatis Invoice 
+   Reminder 14 Hari sebelumnya -> Masuk ke Dashboard 
+   Buat Tagihan 
+   Input Pembayaran
+   Input HPP jika ada (Komisi Marketing)
+   Cek Jurnal Pastikan betul 
+
+2. Pembayaran Rutin 
+   Dasar dari Master data -> Biaya Berkala 
+   Awal Bulan pembayaran rutin yang aktif otomatis masuk ke Dasbhoard 
+   Input Bayar -> Masuk ke Kas Keluar ->
+   Cek Jurnal -> Posting 
+   Update Tgl Terakhir bayar di Master - Biaya Berkala 
+
+3. Domain 
+   Domain ini sifatnya ditagih 1 tahun sekali 
+   Ada domain internal dan ada domain pelanggan 
+   DOmain ini akan keluar di Dasbhoard jika Jatuh Tempo (Lewat Bulan ini, Bulan Ini, Bulan Depan)
+   Domain2 tersebut siap ditagihkan 
+   Jika Domain Internal -> Klik Bayar -> masuk ke Kas Keluar -> Cek Jurnal -> Posting -> Update Tgl terakhir bayar 
+   Jika Domain Client -> Klik Tagih -> Jadi Invoice -> Kirim ke Pelanggan -> Input Pembayaran -> Input Biaya Domain -> Cek Jurnal ->posting -> Update Tgl terakhir bayar 
+
+4. Server 
+   Server ini sifatnya bulanan 
+   sama seperti domain tapi ini bulanan 
+
+5. Maintenance -> ini Sifatnya sama sperti Server -> Bulanan 
+   di master data isinya -> Pilih Client -> Tgl TAgihan, Pic, NO WA , Nominal Tagihan 
+   Saat di dasbhoard -> Klik Tagih -> Jadi Invoice -> Klik Input bayar -> Input biaya -> Cek Jurnal -> Posting -> Update tgl terakhir bayar 
+
+
+
+Alur Data Reminder Tidak muncul 
+Jika sdh lunas dibayar, atau biaya sudah dibayar 
+
+Pembayaran Rutin -> Jika sdh dibayar -> dan diposting -> Hilang dari Dashboard 
+Domain External Client -> Jika sudah ditagihkan -> Status -> Berubah menjadi "Sedang Ditagihkan" 
+ di Piutang -> Otomatis muncul Tagihan Domain tersebut -> Saat Diinput Bayar -> Dan sudah Posting -> Maka di Dasbhoard Domain -> Hilang , di Piutang Juga Hilang 
+
+Server External Client -> Sama ada Status Ditagihkan , alurnya sama sperti Domain 
+
+domain dan Server Internal -> Jika sdh dinput kas keluar dan posting -> otomatis hilang 
+
+yang Maintenance -> status -> ditagihkan -> masuk ke Piutang -> Input bayar -> dibayar -> posted -> hilang dari Dashboard-> Maintenance 
+
+
+
+Cek Semua Proses di Dashboard 
+Cek COA
+Cek Buku Besar 
+Cek Laporan 
+Cek Reminder 
+
+
+Menu Dokumentasi -> Harus Sesuai Script yang di Aplikasi 
+Jika Di Script Aplikasi ada perubahan -> Menu Dokumentasi otomatis berubah dan ada histori Versi nya.
+
+
+
+
+
+
+   
+
+
+

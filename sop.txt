@@ -1,0 +1,8 @@
+Dari Dashboard 
+Domain, Server, Biaya Bulanan, Maintenance,
+
+Itu Muncul -> batas Waktu dibuat Tagihan = 3 Hari 
+Setelah dibuat Tagihan -> Batas Waktu ada Jawaban dari Client = 3 hari 
+Jawban dari Client -> Update Tgl kapan dibayar -> diinput di sistem 
+Dari Tgl Dibayar -> sampai diinput Pembayaran = 2 Hari 
+
