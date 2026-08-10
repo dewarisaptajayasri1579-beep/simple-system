@@ -9,12 +9,12 @@ import { EditablePicInfo } from "./EditablePicInfo";
 import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
+import { PiutangFollowUpButton } from "./PiutangFollowUpButton";
 import { type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import { getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status";
-import { BillingFollowUpRespondButton } from "./BillingFollowUpRespondButton";
 import { SLA_STAGE_LABEL, type BillingFollowUpSla } from "@/lib/billing-follow-up";
 
 function formatRupiah(n: number | null) {
@@ -83,6 +83,7 @@ export interface PiutangSummaryRow {
   dueDate: string | null;
   remaining: number;
   status: string;
+  billingFollowUpId: string | null;
 }
 
 const PIUTANG_STATUS_OPTIONS: { value: string; label: string; type: StatusBadgeType }[] = [
@@ -148,11 +149,14 @@ function piutangInvoiceColumns(clientId: string, isVisible: (key: string) => boo
       key: "bayar",
       header: "Aksi",
       cell: (r) => (
-        <Link href={`/pembayaran?clientId=${clientId}&invoiceId=${r.id}`}>
-          <Button size="sm" variant="outline">
-            Bayar
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/pembayaran?clientId=${clientId}&invoiceId=${r.id}`}>
+            <Button size="sm" variant="outline">
+              Bayar
+            </Button>
+          </Link>
+          {r.billingFollowUpId && <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} />}
+        </div>
       ),
     },
   ];
@@ -565,7 +569,7 @@ export const DomainExpiringSection: React.FC<{
               <span className="text-xs text-slate-400">Internal</span>
             )}
             {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
-              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+              <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
           </div>
         </div>
@@ -713,7 +717,7 @@ export const ServerDueSection: React.FC<{
               <span className="text-xs text-slate-400">Internal</span>
             )}
             {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
-              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+              <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
           </div>
         </div>
@@ -814,7 +818,7 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
               tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Maintenance ${r.name}`, amount: String(r.price ?? 0), maintenanceId: r.id }).toString()}`}
             />
             {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
-              <BillingFollowUpRespondButton followUpId={r.billingFollowUpId} itemLabel={r.name} />
+              <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
           </div>
         </div>

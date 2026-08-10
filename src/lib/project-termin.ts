@@ -50,6 +50,13 @@ export async function generateTerminInvoice(
     },
   })
 
+  // Ikut siklus log histori penagihan yang sama dengan Domain/Server/Maintenance/invoice
+  // manual (lihat src/lib/billing-follow-up.ts) — langsung mulai dari "invoiced" (tidak ada
+  // tahap reminder). invoicedById null kalau di-generate otomatis oleh cron H-3.
+  await tx.billingFollowUp.create({
+    data: { refType: "project_termin", refId: schedule.id, invoicedAt: new Date(), invoicedById: input.createdBy, invoiceId: invoice.id },
+  })
+
   return tx.projectPaymentSchedule.update({
     where: { id: schedule.id },
     data: { invoiceId: invoice.id, invoiceGeneratedAt: new Date() },

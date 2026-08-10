@@ -836,10 +836,10 @@ const MaintenanceSection: React.FC<{ rows: MaintenanceRow[]; clients: ClientRow[
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, lastPaidAt, subscriptionStart: subscriptionMonth ? `${subscriptionMonth}-01` : null }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     setIsSaving(false);
     if (!res.ok) {
-      setError(data.error || "Gagal menyimpan");
+      setError(data?.error || `Gagal menyimpan (status ${res.status})`);
       return;
     }
     if (editing) {

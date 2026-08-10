@@ -15,7 +15,7 @@ export interface BillingFollowUpRow {
   clientName: string;
   invoiceNumber: string | null;
   invoiceId: string | null;
-  dueAppearedAt: string;
+  dueAppearedAt: string | null;
   invoicedAt: string | null;
   clientRespondedAt: string | null;
   promisedPayAt: string | null;

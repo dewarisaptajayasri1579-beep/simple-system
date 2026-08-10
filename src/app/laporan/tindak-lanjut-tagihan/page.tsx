@@ -10,27 +10,39 @@ export default async function TindakLanjutTagihanPage() {
 
   const followUps = await prisma.billingFollowUp.findMany({ orderBy: { createdAt: "desc" } })
 
-  const idsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [] }
+  const idsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [], project_termin: [], invoice: [] }
   const invoiceIds: string[] = []
   for (const f of followUps) {
     idsByType[f.refType as BillingFollowUpRefType]?.push(f.refId)
     if (f.invoiceId) invoiceIds.push(f.invoiceId)
   }
 
-  const [domains, servers, maintenances, invoices] = await Promise.all([
+  const [domains, servers, maintenances, invoices, schedules] = await Promise.all([
     prisma.domain.findMany({ where: { id: { in: idsByType.domain } }, select: { id: true, name: true, client: { select: { name: true } } } }),
     prisma.server.findMany({ where: { id: { in: idsByType.server } }, select: { id: true, name: true, client: { select: { name: true } } } }),
     prisma.maintenance.findMany({ where: { id: { in: idsByType.maintenance } }, select: { id: true, name: true, client: { select: { name: true } } } }),
-    prisma.invoice.findMany({ where: { id: { in: invoiceIds } }, select: { id: true, invoiceNumber: true } }),
+    prisma.invoice.findMany({ where: { id: { in: invoiceIds } }, select: { id: true, invoiceNumber: true, client: { select: { name: true } } } }),
+    prisma.projectPaymentSchedule.findMany({
+      where: { id: { in: idsByType.project_termin } },
+      select: { id: true, label: true, project: { select: { name: true, client: { select: { name: true } } } } },
+    }),
   ])
 
   const itemByKey = new Map<string, { name: string; clientName: string | null }>()
   for (const d of domains) itemByKey.set(`domain:${d.id}`, { name: d.name, clientName: d.client?.name ?? null })
   for (const s of servers) itemByKey.set(`server:${s.id}`, { name: s.name, clientName: s.client?.name ?? null })
   for (const m of maintenances) itemByKey.set(`maintenance:${m.id}`, { name: m.name, clientName: m.client?.name ?? null })
+  for (const s of schedules) itemByKey.set(`project_termin:${s.id}`, { name: `${s.project.name} — ${s.label}`, clientName: s.project.client.name })
+  for (const inv of invoices) itemByKey.set(`invoice:${inv.id}`, { name: inv.invoiceNumber, clientName: inv.client.name })
   const invoiceNumberById = new Map(invoices.map((i) => [i.id, i.invoiceNumber]))
 
-  const REF_TYPE_LABEL: Record<BillingFollowUpRefType, string> = { domain: "Domain", server: "Server", maintenance: "Maintenance" }
+  const REF_TYPE_LABEL: Record<BillingFollowUpRefType, string> = {
+    domain: "Domain",
+    server: "Server",
+    maintenance: "Maintenance",
+    project_termin: "Termin Project",
+    invoice: "Invoice Manual",
+  }
 
   const rows: BillingFollowUpRow[] = followUps.map((f) => {
     const item = itemByKey.get(`${f.refType}:${f.refId}`)
@@ -56,7 +68,7 @@ export default async function TindakLanjutTagihanPage() {
       clientName: item?.clientName ?? "-",
       invoiceNumber: f.invoiceId ? invoiceNumberById.get(f.invoiceId) ?? null : null,
       invoiceId: f.invoiceId,
-      dueAppearedAt: f.dueAppearedAt.toISOString(),
+      dueAppearedAt: f.dueAppearedAt ? f.dueAppearedAt.toISOString() : null,
       invoicedAt: f.invoicedAt ? f.invoicedAt.toISOString() : null,
       clientRespondedAt: f.clientRespondedAt ? f.clientRespondedAt.toISOString() : null,
       promisedPayAt: f.promisedPayAt ? f.promisedPayAt.toISOString() : null,
@@ -79,7 +91,7 @@ export default async function TindakLanjutTagihanPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Tindak Lanjut Tagihan</h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-            Riwayat SLA penagihan Domain/Server/Maintenance — dari muncul jatuh tempo sampai pembayaran diinput.
+            Riwayat SLA penagihan Domain/Server/Maintenance/Termin Project/Invoice manual — dari muncul jatuh tempo sampai pembayaran diinput.
           </p>
         </div>
 

@@ -22,6 +22,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.lastPaidAt === "string") data.lastPaidAt = body.lastPaidAt ? new Date(body.lastPaidAt) : null
   if (typeof body.subscriptionStart === "string") data.subscriptionStart = body.subscriptionStart ? new Date(body.subscriptionStart) : null
 
-  const maintenance = await prisma.maintenance.update({ where: { id }, data, include: { client: true, period: true } })
-  return NextResponse.json(maintenance)
+  try {
+    const maintenance = await prisma.maintenance.update({ where: { id }, data, include: { client: true, period: true } })
+    return NextResponse.json(maintenance)
+  } catch (err) {
+    console.error("[PATCH /api/maintenances/:id]", err)
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal menyimpan maintenance" }, { status: 500 })
+  }
 }

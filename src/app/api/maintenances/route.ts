@@ -38,17 +38,22 @@ export async function POST(request: Request) {
   if (!body?.name?.trim()) return NextResponse.json({ error: "Nama maintenance wajib diisi" }, { status: 400 })
   if (!body.clientId) return NextResponse.json({ error: "Client wajib dipilih" }, { status: 400 })
 
-  const maintenance = await prisma.maintenance.create({
-    data: {
-      name: body.name.trim(),
-      clientId: body.clientId,
-      periodId: body.periodId || null,
-      periodCount: body.periodCount || null,
-      price: body.price ?? null,
-      lastPaidAt: body.lastPaidAt ? new Date(body.lastPaidAt) : null,
-      subscriptionStart: body.subscriptionStart ? new Date(body.subscriptionStart) : null,
-      active: body.active ?? true,
-    },
-  })
-  return NextResponse.json(maintenance, { status: 201 })
+  try {
+    const maintenance = await prisma.maintenance.create({
+      data: {
+        name: body.name.trim(),
+        clientId: body.clientId,
+        periodId: body.periodId || null,
+        periodCount: body.periodCount || null,
+        price: body.price ?? null,
+        lastPaidAt: body.lastPaidAt ? new Date(body.lastPaidAt) : null,
+        subscriptionStart: body.subscriptionStart ? new Date(body.subscriptionStart) : null,
+        active: body.active ?? true,
+      },
+    })
+    return NextResponse.json(maintenance, { status: 201 })
+  } catch (err) {
+    console.error("[POST /api/maintenances]", err)
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal membuat maintenance" }, { status: 500 })
+  }
 }

@@ -23,8 +23,13 @@ export async function getDashboardSnapshot() {
 
   // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma punya refType+refId,
   // jadi resolve nama item + client-nya di sini biar laporan WA/gambar bisa langsung tampilkan.
-  const overdueIdsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [] }
-  for (const f of overdueFollowUps) overdueIdsByType[f.refType].push(f.refId)
+  // Laporan WA/gambar ini scope-nya sengaja tetap Domain/Server/Maintenance saja (invoice manual
+  // & Termin Project sudah kehitung di laporan Piutang, tidak perlu dobel di sini).
+  const overdueDomainServerMaintenance = overdueFollowUps.filter(
+    (f): f is typeof f & { refType: "domain" | "server" | "maintenance" } => f.refType === "domain" || f.refType === "server" || f.refType === "maintenance"
+  )
+  const overdueIdsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [], project_termin: [], invoice: [] }
+  for (const f of overdueDomainServerMaintenance) overdueIdsByType[f.refType].push(f.refId)
   const [overdueDomains, overdueServers, overdueMaintenances] = await Promise.all([
     prisma.domain.findMany({ where: { id: { in: overdueIdsByType.domain } }, select: { id: true, name: true, client: { select: { name: true } } } }),
     prisma.server.findMany({ where: { id: { in: overdueIdsByType.server } }, select: { id: true, name: true, client: { select: { name: true } } } }),
@@ -129,8 +134,8 @@ export async function getDashboardSnapshot() {
       })),
     },
     billingSla: {
-      overdueCount: overdueFollowUps.length,
-      overdue: overdueFollowUps.slice(0, 6).map((f) => {
+      overdueCount: overdueDomainServerMaintenance.length,
+      overdue: overdueDomainServerMaintenance.slice(0, 6).map((f) => {
         const item = overdueNameByKey.get(`${f.refType}:${f.refId}`)
         return {
           name: item?.name ?? "(sudah dihapus)",

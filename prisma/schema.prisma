@@ -214,19 +214,48 @@ model Maintenance {
 /// berikutnya bikin record baru (bukan reuse) — "record aktif" per (refType,refId) = yang
 /// paidRecordedAt-nya masih null.
 model BillingFollowUp {
-  id                String    @id @default(uuid())
-  refType           String    @map("ref_type") // "domain" | "server" | "maintenance"
-  refId             String    @map("ref_id")
-  dueAppearedAt     DateTime  @map("due_appeared_at")
-  invoicedAt        DateTime? @map("invoiced_at")
-  invoiceId         String?   @map("invoice_id")
+  id        String  @id @default(uuid())
+  refType   String  @map("ref_type") // "domain" | "server" | "maintenance" | "project_termin" | "invoice"
+  refId     String  @map("ref_id")
+  // Nullable — invoice manual & Project termin tidak lewat tahap "reminder muncul di Dashboard"
+  // (langsung dibuat), siklusnya mulai langsung dari invoicedAt buat 2 jenis itu.
+  dueAppearedAt DateTime? @map("due_appeared_at")
+  invoicedAt    DateTime? @map("invoiced_at")
+  invoicedById  String?   @map("invoiced_by_id") // null = auto-generate sistem (mis. cron Project termin)
+  invoiceId     String?   @map("invoice_id")
+  // Salinan "respon terakhir" (denormalized dari BillingFollowUpResponse terbaru) — dipakai
+  // computeSlaStatus buat hitung tahap/deadline tanpa query tabel log tiap kali. Histori
+  // lengkapnya ada di BillingFollowUpResponse (relasi responses di bawah).
   clientRespondedAt DateTime? @map("client_responded_at")
   promisedPayAt     DateTime? @map("promised_pay_at")
   paidRecordedAt    DateTime? @map("paid_recorded_at")
+  paidRecordedById  String?   @map("paid_recorded_by_id")
   createdAt         DateTime  @default(now()) @map("created_at")
+
+  responses BillingFollowUpResponse[]
 
   @@index([refType, refId])
   @@map("billing_follow_ups")
+  @@schema("simple_system")
+}
+
+/// Log respon Client — 1 baris per kali staf input respon (bukan ditimpa), supaya histori
+/// follow-up 1 piutang kelihatan lengkap (lihat Dashboard > Piutang). BillingFollowUp.
+/// clientRespondedAt/promisedPayAt tetap disalin dari baris TERBARU di sini setiap kali ada
+/// respon baru masuk, biar computeSlaStatus tidak perlu diubah.
+model BillingFollowUpResponse {
+  id                String   @id @default(uuid())
+  billingFollowUpId String   @map("billing_follow_up_id")
+  responseType      String   @map("response_type") // "sudah_bayar" | "janji_bayar" | "nego" | "tidak_respon" | "lainnya"
+  note              String?
+  promisedPayAt     DateTime? @map("promised_pay_at")
+  createdById       String   @map("created_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  billingFollowUp BillingFollowUp @relation(fields: [billingFollowUpId], references: [id], onDelete: Cascade)
+
+  @@index([billingFollowUpId])
+  @@map("billing_follow_up_responses")
   @@schema("simple_system")
 }
 

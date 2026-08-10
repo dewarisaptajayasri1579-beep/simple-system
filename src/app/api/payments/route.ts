@@ -180,7 +180,7 @@ export async function POST(request: Request) {
       // posted), bukan menunggu invoice-nya lunas total (bisa dicicil).
       await tx.billingFollowUp.updateMany({
         where: { invoiceId: line.invoiceId, paidRecordedAt: null },
-        data: { paidRecordedAt: paidAt },
+        data: { paidRecordedAt: paidAt, paidRecordedById: user.id },
       })
 
       // Cash-basis (aturan.txt: "Piutang hanya catatan, Pendapatan diakui setelah ada uang

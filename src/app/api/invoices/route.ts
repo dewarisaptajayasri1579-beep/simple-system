@@ -125,7 +125,14 @@ export async function POST(request: Request) {
       if (costLinkType && costLinkId) {
         await tx.billingFollowUp.updateMany({
           where: { refType: costLinkType, refId: costLinkId, paidRecordedAt: null, invoicedAt: null },
-          data: { invoicedAt: created.issuedAt, invoiceId: created.id },
+          data: { invoicedAt: created.issuedAt, invoiceId: created.id, invoicedById: user.id },
+        })
+      } else {
+        // Invoice manual (tidak terkait Domain/Server/Maintenance) — tetap masuk siklus log
+        // histori penagihan yang sama, cuma langsung mulai dari "invoiced" (tidak ada tahap
+        // reminder, lihat catatan dueAppearedAt di schema.prisma).
+        await tx.billingFollowUp.create({
+          data: { refType: "invoice", refId: created.id, invoicedAt: created.issuedAt, invoicedById: user.id, invoiceId: created.id },
         })
       }
 

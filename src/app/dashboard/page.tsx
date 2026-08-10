@@ -97,6 +97,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
   ])
 
+  // Siklus log histori follow-up (lihat billing-follow-up.ts) punya tiap invoice piutang di
+  // atas — dipakai tombol "Input Respon" di section Piutang, dicocokkan lewat invoiceId.
+  const piutangBillingFollowUps = await prisma.billingFollowUp.findMany({
+    where: { invoiceId: { in: openInvoices.map((inv) => inv.id) } },
+    select: { id: true, invoiceId: true },
+  })
+  const billingFollowUpIdByInvoiceId = new Map(piutangBillingFollowUps.map((f) => [f.invoiceId as string, f.id]))
+
   const domainBuckets = domains.map((d) => getExpiryBucket(resolveDomainExpiry(d)))
   const domainExpiringThisMonth = domainBuckets.filter((b) => b === "expiring_this_month").length
   const domainExpiringNextMonth = domainBuckets.filter((b) => b === "expiring_next_month").length
@@ -121,6 +129,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
         remaining: Math.max(0, inv.totalAmount - paid),
         status: inv.status,
+        billingFollowUpId: billingFollowUpIdByInvoiceId.get(inv.id) ?? null,
       }
     })
     .filter((r) => r.remaining > 0)
@@ -299,6 +308,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const navBadges: DashboardNavBadge[] = [
     { label: "SLA Lewat", href: "/laporan/tindak-lanjut-tagihan", count: slaOverdueCount, color: "rose" },
+    { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
     { label: "Biaya Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
@@ -380,7 +390,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         </Card>
 
-        <RevenueForecastSection months={revenueForecast} />
+        <div id="prediksi" className="scroll-mt-[150px]">
+          <RevenueForecastSection months={revenueForecast} />
+        </div>
       </div>
     </AppLayout>
   )

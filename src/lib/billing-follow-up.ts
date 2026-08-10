@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client"
 
 type Db = Prisma.TransactionClient
 
-export type BillingFollowUpRefType = "domain" | "server" | "maintenance"
+export type BillingFollowUpRefType = "domain" | "server" | "maintenance" | "project_termin" | "invoice"
 
 export interface BillingFollowUpRef {
   refType: BillingFollowUpRefType
@@ -46,7 +46,9 @@ export interface BillingFollowUpSla {
 }
 
 export interface BillingFollowUpRecordLike {
-  dueAppearedAt: Date
+  // Nullable — invoice manual & Project termin tidak lewat tahap reminder, siklusnya langsung
+  // mulai dari invoicedAt (lihat catatan di schema.prisma BillingFollowUp).
+  dueAppearedAt: Date | null
   invoicedAt: Date | null
   clientRespondedAt: Date | null
   promisedPayAt: Date | null
@@ -63,7 +65,9 @@ export function computeSlaStatus(record: BillingFollowUpRecordLike, now: Date = 
 
   if (!record.invoicedAt) {
     stage = "belum_ditagih"
-    deadline = new Date(record.dueAppearedAt.getTime() + INVOICE_DEADLINE_DAYS * DAY_MS)
+    // dueAppearedAt selalu terisi kalau invoicedAt masih kosong (satu-satunya jalur yang belum
+    // invoicedAt adalah Domain/Server/Maintenance yang emang lewat tahap reminder dulu).
+    deadline = new Date((record.dueAppearedAt ?? now).getTime() + INVOICE_DEADLINE_DAYS * DAY_MS)
   } else if (!record.clientRespondedAt) {
     stage = "menunggu_jawaban"
     deadline = new Date(record.invoicedAt.getTime() + RESPONSE_DEADLINE_DAYS * DAY_MS)
@@ -102,6 +106,38 @@ export async function listOverdueBillingFollowUps(db: Db, now: Date = new Date()
     .sort((a, b) => b.sla.daysOverdue - a.sla.daysOverdue)
 }
 
+export const CLIENT_RESPONSE_TYPES = ["sudah_bayar", "janji_bayar", "nego", "tidak_respon", "lainnya"] as const
+export type ClientResponseType = (typeof CLIENT_RESPONSE_TYPES)[number]
+export const CLIENT_RESPONSE_LABEL: Record<ClientResponseType, string> = {
+  sudah_bayar: "Sudah Bayar",
+  janji_bayar: "Janji Bayar",
+  nego: "Nego",
+  tidak_respon: "Tidak Merespon",
+  lainnya: "Lainnya",
+}
+
+/** Catat 1 baris respon Client baru (log, bukan menimpa) — dipakai tombol "Input Respon" di
+ *  Dashboard > Piutang. Sekalian menyalin ke field "terbaru" di BillingFollowUp
+ *  (clientRespondedAt/promisedPayAt) supaya computeSlaStatus tidak perlu query tabel log. */
+export async function recordBillingFollowUpResponse(
+  db: Db,
+  input: { billingFollowUpId: string; responseType: ClientResponseType; note: string | null; promisedPayAt: Date | null; createdById: string }
+) {
+  await db.billingFollowUpResponse.create({
+    data: {
+      billingFollowUpId: input.billingFollowUpId,
+      responseType: input.responseType,
+      note: input.note,
+      promisedPayAt: input.promisedPayAt,
+      createdById: input.createdById,
+    },
+  })
+  return db.billingFollowUp.update({
+    where: { id: input.billingFollowUpId },
+    data: { clientRespondedAt: new Date(), promisedPayAt: input.promisedPayAt },
+  })
+}
+
 export const SLA_STAGE_LABEL: Record<BillingFollowUpStage, string> = {
   belum_ditagih: "Belum ditagih",
   menunggu_jawaban: "Menunggu jawaban Client",
@@ -121,7 +157,7 @@ export function evaluateClosedCycle(record: BillingFollowUpRecordLike): { late: 
   if (!record.paidRecordedAt) return null
 
   const stages: BillingFollowUpStageTiming[] = []
-  if (record.invoicedAt) {
+  if (record.invoicedAt && record.dueAppearedAt) {
     stages.push({ label: "Bikin Tagihan", late: record.invoicedAt.getTime() - record.dueAppearedAt.getTime() > INVOICE_DEADLINE_DAYS * DAY_MS })
   }
   if (record.invoicedAt && record.clientRespondedAt) {
