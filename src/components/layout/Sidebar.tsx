@@ -16,6 +16,7 @@ import {
   ChevronRight,
   FolderKanban,
   Info,
+  RefreshCcw,
 } from "lucide-react";
 
 export interface NavItem {
@@ -32,6 +33,7 @@ export interface SidebarProps {
 
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
+  { label: "Dashboard Finance", href: "/dashboard-finance", icon: <RefreshCcw className="w-5 h-5" /> },
   { label: "Invoice", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },

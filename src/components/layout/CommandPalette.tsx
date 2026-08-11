@@ -19,6 +19,7 @@ interface SectionItem {
 
 const SECTIONS: SectionItem[] = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Dashboard Finance", href: "/dashboard-finance" },
   { label: "Piutang", href: "/laporan/piutang" },
   { label: "Pembayaran", href: "/pembayaran" },
   { label: "Invoice", href: "/penjualan" },

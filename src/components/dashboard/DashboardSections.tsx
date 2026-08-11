@@ -101,6 +101,60 @@ const PIUTANG_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
+export interface PiutangHistoryRow {
+  id: string;
+  clientId: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  responseType: string;
+  note: string | null;
+  promisedPayAt: string | null;
+  createdAt: string;
+  createdByName: string;
+}
+
+const RESPONSE_TYPE_LABEL: Record<string, string> = {
+  sudah_bayar: "Sudah Bayar",
+  janji_bayar: "Janji Bayar",
+  nego: "Nego",
+  tidak_respon: "Tidak Merespon",
+  lainnya: "Lainnya",
+};
+
+function formatDateTime(iso: string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date(iso));
+}
+
+/** Log histori respon 1 client — sengaja list statis sederhana (bukan FilterableTable), karena
+ *  ini cuma catatan kronologis buat dibaca sekilas, bukan data yang perlu dicari/difilter. */
+function PiutangHistoryLog({ rows }: { rows: PiutangHistoryRow[] }) {
+  return (
+    <ul className="space-y-2.5">
+      {rows.map((r) => (
+        <li key={r.id} className="text-sm border border-slate-200/70 rounded-xl px-3 py-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="font-bold text-slate-800">{RESPONSE_TYPE_LABEL[r.responseType] ?? r.responseType}</span>
+            <Link href={`/penjualan/${r.invoiceId}`} className="text-xs text-slate-500 hover:underline">
+              {r.invoiceNumber}
+            </Link>
+            <span className="text-xs text-slate-400">{formatDateTime(r.createdAt)}</span>
+          </div>
+          {r.promisedPayAt && <p className="text-xs text-slate-500 mt-0.5">Janji bayar: {formatDate(r.promisedPayAt)}</p>}
+          {r.note && <p className="text-slate-600 mt-1">{r.note}</p>}
+          <p className="text-xs text-slate-400 mt-1">oleh {r.createdByName}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 interface PiutangClientGroup {
   clientId: string;
   clientName: string;
@@ -162,7 +216,7 @@ function piutangInvoiceColumns(clientId: string, isVisible: (key: string) => boo
   ];
 }
 
-export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({ rows }) => {
+export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; historyRows: PiutangHistoryRow[] }> = ({ rows, historyRows }) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-piutang", PIUTANG_COLUMNS);
 
@@ -246,6 +300,17 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
             rowKey={(r) => r.id}
             mobileCardMode
           />
+
+          {(() => {
+            const clientHistory = historyRows.filter((h) => h.clientId === g.clientId);
+            if (clientHistory.length === 0) return null;
+            return (
+              <div className="border-t border-slate-200/70 p-5 sm:p-6">
+                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Log Respon ({clientHistory.length})</p>
+                <PiutangHistoryLog rows={clientHistory} />
+              </div>
+            );
+          })()}
         </Card>
       ))}
     </div>

@@ -11,12 +11,11 @@ import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } fro
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
 import {
   PiutangSummarySection,
-  RecurringDueSection,
   DomainExpiringSection,
   ServerDueSection,
   MaintenanceDueSection,
   type PiutangSummaryRow,
-  type RecurringDueRow,
+  type PiutangHistoryRow,
   type DomainExpiringRow,
   type ServerDueRow,
   type MaintenanceDueRow,
@@ -105,6 +104,39 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   })
   const billingFollowUpIdByInvoiceId = new Map(piutangBillingFollowUps.map((f) => [f.invoiceId as string, f.id]))
 
+  // Histori Respon per invoice piutang — ditampilkan sebagai tabel di dalam card client masing-
+  // masing (Dashboard > Piutang), bukan cuma di modal "Input Respon" seperti sebelumnya.
+  const followUpIds = piutangBillingFollowUps.map((f) => f.id)
+  const followUpResponses =
+    followUpIds.length > 0
+      ? await prisma.billingFollowUpResponse.findMany({ where: { billingFollowUpId: { in: followUpIds } }, orderBy: { createdAt: "desc" } })
+      : []
+  const responseUserIds = [...new Set(followUpResponses.map((r) => r.createdById))]
+  const responseUsers =
+    responseUserIds.length > 0 ? await prisma.user.findMany({ where: { id: { in: responseUserIds } }, select: { id: true, name: true } }) : []
+  const responseUserNameById = new Map(responseUsers.map((u) => [u.id, u.name]))
+  const invoiceIdByFollowUpId = new Map(piutangBillingFollowUps.map((f) => [f.id, f.invoiceId as string]))
+  const openInvoiceById = new Map(openInvoices.map((inv) => [inv.id, inv]))
+
+  const piutangHistoryRows: PiutangHistoryRow[] = followUpResponses
+    .map((r) => {
+      const invoiceId = invoiceIdByFollowUpId.get(r.billingFollowUpId)
+      const invoice = invoiceId ? openInvoiceById.get(invoiceId) : undefined
+      if (!invoice) return null
+      return {
+        id: r.id,
+        clientId: invoice.client.id,
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        responseType: r.responseType,
+        note: r.note,
+        promisedPayAt: r.promisedPayAt ? r.promisedPayAt.toISOString() : null,
+        createdAt: r.createdAt.toISOString(),
+        createdByName: responseUserNameById.get(r.createdById) ?? "-",
+      }
+    })
+    .filter((r): r is PiutangHistoryRow => r !== null)
+
   const domainBuckets = domains.map((d) => getExpiryBucket(resolveDomainExpiry(d)))
   const domainExpiringThisMonth = domainBuckets.filter((b) => b === "expiring_this_month").length
   const domainExpiringNextMonth = domainBuckets.filter((b) => b === "expiring_next_month").length
@@ -136,24 +168,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .sort(byDueDateAsc)
 
   const totalOutstanding = piutangRows.reduce((sum, r) => sum + r.remaining, 0)
-
-  // Biaya Rutin: biaya berkala yang jatuh tempo bulan ini (kalender), plus yang sudah lewat tempo.
-  const recurringDueRows: RecurringDueRow[] = bills
-    .map((b) => {
-      const nextDue = computeNextDueDate(b.lastPaidAt, b.period?.name, b.periodCount)
-      return {
-        id: b.id,
-        name: b.name,
-        identifier: b.identifier,
-        category: b.category,
-        vendorName: b.vendor?.name ?? null,
-        price: b.price,
-        dueDate: nextDue ? nextDue.toISOString() : null,
-        bucket: getExpiryBucket(nextDue),
-      }
-    })
-    .filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expired")
-    .sort(byDueDateAsc)
 
   // Domain: sudah lewat tempo, habis bulan ini, atau habis bulan depan.
   const domainExpiringRowsBase = domains
@@ -310,7 +324,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { label: "SLA Lewat", href: "/laporan/tindak-lanjut-tagihan", count: slaOverdueCount, color: "rose" },
     { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
-    { label: "Biaya Rutin", href: "#pembayaran-rutin", count: recurringDueRows.length, color: "amber" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
     { label: "Server", href: "#server", count: serverDueRows.length, color: "violet" },
     { label: "Maintenance", href: "#maintenance", count: maintenanceDueRows.length, color: "fuchsia" },
@@ -350,10 +363,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
 
         <div id="piutang" className="scroll-mt-[150px]">
-          <PiutangSummarySection rows={piutangRows} />
-        </div>
-        <div id="pembayaran-rutin" className="scroll-mt-[150px]">
-          <RecurringDueSection rows={recurringDueRows} accounts={accounts} isOwner={user.role === "owner"} />
+          <PiutangSummarySection rows={piutangRows} historyRows={piutangHistoryRows} />
         </div>
         <div id="domain" className="scroll-mt-[150px]">
           <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
