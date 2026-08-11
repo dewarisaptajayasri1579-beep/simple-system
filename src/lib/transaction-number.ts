@@ -9,7 +9,15 @@ export async function generateTransactionNumber(tx: TxClient, type: "income" | "
   const year = Number(jakartaTodayDateIso().slice(0, 4))
   const prefix = `${type === "income" ? "BKM" : "BKK"}/${year}/`
 
-  const count = await tx.transaction.count({ where: { transactionNumber: { startsWith: prefix } } })
-  const next = String(count + 1).padStart(5, "0")
+  // Pakai nomor urut TERBESAR yang sudah ada (bukan COUNT baris) — kalau pakai COUNT, sekali ada
+  // baris yang di-hapus (mis. draft transaction yang di-delete bareng payment/void-nya),
+  // hitungannya mundur dan nomor baru bisa bentrok lagi dengan nomor yang sudah dipakai.
+  const last = await tx.transaction.findFirst({
+    where: { transactionNumber: { startsWith: prefix } },
+    orderBy: { transactionNumber: "desc" },
+    select: { transactionNumber: true },
+  })
+  const lastSeq = last?.transactionNumber ? Number(last.transactionNumber.slice(prefix.length)) : 0
+  const next = String(lastSeq + 1).padStart(5, "0")
   return `${prefix}${next}`
 }
