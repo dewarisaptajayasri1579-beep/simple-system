@@ -5,7 +5,7 @@ import { Card, CardDescription, Button } from "@/components/ui"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
-import { jakartaRangeFromToday } from "@/lib/datetime"
+import { jakartaRangeFromToday, jakartaTodayDateIso } from "@/lib/datetime"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry, periodNameToMonths } from "@/lib/recurring-bill-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
@@ -28,6 +28,16 @@ import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappRep
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
+}
+
+/** True kalau `date` jatuh di bulan kalender ini atau bulan sebelumnya (zona Jakarta). */
+function isThisOrLastMonthJakarta(date: Date, reference: Date = new Date()) {
+  const [ty, tm] = jakartaTodayDateIso(reference).split("-").map(Number)
+  const [dy, dm] = jakartaTodayDateIso(date).split("-").map(Number)
+  const thisMonthIndex = ty * 12 + (tm - 1)
+  const dateMonthIndex = dy * 12 + (dm - 1)
+  const diff = thisMonthIndex - dateMonthIndex
+  return diff === 0 || diff === 1
 }
 
 function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
@@ -209,8 +219,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
     .sort(byDueDateAsc)
 
-  // Maintenance: sudah lewat tempo, jatuh tempo bulan ini, atau bulan depan — sama pola
-  // dengan Domain/Server (dulu sengaja cuma "bulan ini", sekarang disamakan).
+  // Maintenance: cuma jatuh tempo bulan ini atau bulan sebelumnya (beda dari Domain/Server
+  // yang masih include "bulan depan" — khusus Maintenance sengaja dipersempit biar list-nya
+  // gak kepanjangan sama item yang belum waktunya ditagih).
   const maintenanceDueRowsBase = maintenances
     .map((m) => {
       const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
@@ -226,7 +237,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+    .filter((r) => r.dueDate !== null && isThisOrLastMonthJakarta(new Date(r.dueDate)))
     .sort(byDueDateAsc)
 
   // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma buat Domain/Server yang
