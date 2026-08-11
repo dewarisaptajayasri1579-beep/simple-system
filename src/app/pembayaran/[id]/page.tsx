@@ -79,6 +79,10 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
 
   const qrDataUrl = await qrCodeDataUrl(kwitansiVerifyUrl(payment.paymentNumber))
 
+  // Dipakai kwitansi cetak — jangan sebut "Pelunasan" kalau ada invoice yang masih nyisa
+  // (lihat "Kurang Bayar" di tabel bawah), biar tidak menyesatkan Client yang bayarnya dicicil.
+  const isFullyPaid = payment.invoicePayments.every((ip) => ip.invoice.payments.reduce((sum, p) => sum + p.amount, 0) >= ip.invoice.totalAmount)
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -208,7 +212,7 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format kwitansi sesuai
            referensi "Kwitansi Keren" (nota/Kwitansi Keren.png), tidak pernah dilihat staf di layar. */}
-        <KwitansiPrintable payment={payment} receiverName={user.name} date={formatDate(payment.paidAt)} qrDataUrl={qrDataUrl} />
+        <KwitansiPrintable payment={payment} receiverName={user.name} date={formatDate(payment.paidAt)} qrDataUrl={qrDataUrl} isFullyPaid={isFullyPaid} />
       </div>
     </AppLayout>
   )

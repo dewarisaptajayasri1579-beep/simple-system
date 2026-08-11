@@ -17,7 +17,8 @@ export const KwitansiPrintable: React.FC<{
   receiverName: string;
   date: string;
   qrDataUrl?: string;
-}> = ({ payment, receiverName, date, qrDataUrl }) => {
+  isFullyPaid: boolean;
+}> = ({ payment, receiverName, date, qrDataUrl, isFullyPaid }) => {
   const untukPembayaran = payment.invoicePayments.map((ip) => ip.invoice.invoiceNumber).join(", ");
 
   return (
@@ -45,7 +46,7 @@ export const KwitansiPrintable: React.FC<{
               <Wallet className="w-3.5 h-3.5 text-[#0544cc]" />
             </div>
             <span className="text-[11px] font-semibold text-slate-500 w-32 flex-shrink-0">Untuk pembayaran</span>
-            <span className="text-xs font-semibold text-slate-700">Pelunasan invoice {untukPembayaran}</span>
+            <span className="text-xs font-semibold text-slate-700">{isFullyPaid ? "Pelunasan" : "Pembayaran"} invoice {untukPembayaran}</span>
           </div>
         </div>
 
