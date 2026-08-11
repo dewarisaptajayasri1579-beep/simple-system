@@ -60,11 +60,19 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
     throw new Error("Setiap baris jurnal wajib punya accountCode atau accountId")
   }
 
+  // Pakai nomor urut TERBESAR yang sudah ada (bukan COUNT baris) — kalau pakai COUNT, sekali ada
+  // baris yang di-hapus (mis. draft journal entry yang ikut di-delete saat payment/void
+  // dibersihkan), hitungannya mundur dan nomor baru bisa bentrok lagi dengan nomor yang sudah
+  // dipakai (unique constraint gagal). Sama pola dengan payment-number.ts/invoice-number.ts.
   const year = input.date.getFullYear()
-  const countThisYear = await tx.journalEntry.count({
-    where: { entryNumber: { startsWith: `JE-${year}-` } },
+  const prefix = `JE-${year}-`
+  const lastEntry = await tx.journalEntry.findFirst({
+    where: { entryNumber: { startsWith: prefix } },
+    orderBy: { entryNumber: "desc" },
+    select: { entryNumber: true },
   })
-  const entryNumber = `JE-${year}-${String(countThisYear + 1).padStart(6, "0")}`
+  const lastSeq = lastEntry ? Number(lastEntry.entryNumber.slice(prefix.length)) : 0
+  const entryNumber = `${prefix}${String(lastSeq + 1).padStart(6, "0")}`
 
   const postStatus = input.postStatus ?? "draft"
 
