@@ -33,6 +33,7 @@ interface InvoiceRow {
   totalAmount: number;
   dueDate: string | null;
   remaining: number;
+  ppnAmount: number;
 }
 
 interface DomainOption {
@@ -122,6 +123,7 @@ export const PembayaranForm: React.FC<{
             id: string;
             invoiceNumber: string;
             totalAmount: number;
+            ppnAmount: number;
             dueDate: string | null;
             payments: { amount: number }[];
             costLinkType: "domain" | "server" | null;
@@ -135,6 +137,7 @@ export const PembayaranForm: React.FC<{
                 id: inv.id,
                 invoiceNumber: inv.invoiceNumber,
                 totalAmount: inv.totalAmount,
+                ppnAmount: inv.ppnAmount,
                 dueDate: inv.dueDate,
                 remaining: Math.max(0, inv.totalAmount - paid),
               };
@@ -231,19 +234,29 @@ export const PembayaranForm: React.FC<{
     },
     { key: "dueDate", header: "Jatuh Tempo", cell: (inv) => formatDate(inv.dueDate) },
     { key: "totalAmount", header: "Total", cell: (inv) => formatRupiah(inv.totalAmount) },
+    {
+      key: "ppnAmount",
+      header: "PPN",
+      cell: (inv) => (inv.ppnAmount > 0 ? formatRupiah(inv.ppnAmount) : "-"),
+    },
     { key: "remaining", header: "Sisa", cellClassName: "font-semibold", cell: (inv) => formatRupiah(inv.remaining) },
     {
       key: "amount",
       header: "Jumlah Dibayar",
       headClassName: "min-w-[10rem]",
-      cell: (inv) => (
-        <CurrencyInput
-          sizeVariant="sm"
-          value={lines[inv.id]?.amount ?? 0}
-          disabled={!lines[inv.id]?.checked}
-          onChange={(v) => updateLine(inv.id, { amount: v })}
-        />
-      ),
+      cell: (inv) => {
+        const line = lines[inv.id];
+        // PPN proporsional terhadap porsi yang dibayar sekarang — sama persis rumus yang dipakai
+        // backend (lihat ppnPortion di app/api/payments/route.ts) supaya angka yang staf lihat di
+        // sini konsisten dengan yang benar-benar kejurnal sebagai "PPN Keluaran".
+        const ppnPortion = inv.ppnAmount > 0 && inv.totalAmount > 0 ? Math.round((inv.ppnAmount * (line?.amount ?? 0)) / inv.totalAmount) : 0;
+        return (
+          <div className="space-y-0.5">
+            <CurrencyInput sizeVariant="sm" value={line?.amount ?? 0} disabled={!line?.checked} onChange={(v) => updateLine(inv.id, { amount: v })} />
+            {line?.checked && ppnPortion > 0 && <p className="text-xs text-slate-400">termasuk PPN {formatRupiah(ppnPortion)}</p>}
+          </div>
+        );
+      },
     },
     {
       key: "cost",
