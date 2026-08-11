@@ -29,7 +29,22 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   const [payment, domains, servers, maintenances] = await Promise.all([
     prisma.payment.findUnique({
       where: { id },
-      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
+      include: {
+        client: true,
+        account: true,
+        invoicePayments: {
+          include: {
+            invoice: {
+              include: {
+                // Total dibayar SEMUA payment invoice ini (termasuk payment yang lagi dilihat
+                // sekarang) yang belum dibatalkan — dipakai hitung "Kurang Bayar" otomatis di
+                // bawah, ganti catatan manual yang sebelumnya diketik staf sendiri.
+                payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: { not: "voided" } } } }] } },
+              },
+            },
+          },
+        },
+      },
     }),
     prisma.domain.findMany({ where: { sellPrice: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
     prisma.server.findMany({ where: { price: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
@@ -128,23 +143,28 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payment.invoicePayments.map((ip) => (
-                    <TableRow key={ip.id}>
-                      <TableCell className="font-semibold">
-                        <Link href={`/penjualan/${ip.invoice.id}`} className="hover:underline">
-                          {ip.invoice.invoiceNumber}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{formatRupiah(ip.invoice.totalAmount)}</TableCell>
-                      <TableCell className="font-semibold">
-                        {payment.postStatus === "draft" ? (
-                          <EditableInvoicePaymentAmount paymentId={payment.id} invoicePaymentId={ip.id} amount={ip.amount} />
-                        ) : (
-                          formatRupiah(ip.amount)
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {payment.invoicePayments.map((ip) => {
+                    const totalPaid = ip.invoice.payments.reduce((sum, p) => sum + p.amount, 0)
+                    const remaining = Math.max(0, ip.invoice.totalAmount - totalPaid)
+                    return (
+                      <TableRow key={ip.id}>
+                        <TableCell className="font-semibold">
+                          <Link href={`/penjualan/${ip.invoice.id}`} className="hover:underline">
+                            {ip.invoice.invoiceNumber}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{formatRupiah(ip.invoice.totalAmount)}</TableCell>
+                        <TableCell className="font-semibold">
+                          {payment.postStatus === "draft" ? (
+                            <EditableInvoicePaymentAmount paymentId={payment.id} invoicePaymentId={ip.id} amount={ip.amount} />
+                          ) : (
+                            formatRupiah(ip.amount)
+                          )}
+                          {remaining > 0 && <p className="text-xs font-semibold text-rose-700 mt-0.5">Kurang bayar {formatRupiah(remaining)}</p>}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
