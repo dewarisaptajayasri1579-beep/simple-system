@@ -337,6 +337,12 @@ const BUCKET_OPTIONS: { value: ExpiryBucket; label: string; type: StatusBadgeTyp
   { value: "expiring_this_month", label: bucketLabel.expiring_this_month, type: bucketToStatus.expiring_this_month },
   { value: "expiring_next_month", label: bucketLabel.expiring_next_month, type: bucketToStatus.expiring_next_month },
 ];
+// Dipakai saat filter rentang tanggal custom aktif — item di luar 3 bucket di atas (mis. jatuh
+// tempo beberapa bulan ke depan) tetap perlu bucket "Aman" biar bisa difilter lewat pill status.
+const BUCKET_OPTIONS_WITH_SAFE: { value: ExpiryBucket; label: string; type: StatusBadgeType }[] = [
+  ...BUCKET_OPTIONS,
+  { value: "safe", label: bucketLabel.safe, type: bucketToStatus.safe },
+];
 
 /** Badge SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — dipakai bareng di
  *  Domain/Server/Maintenance. Reuse warna StatusBadge yang sudah ada: "expired" (merah) kalau
@@ -408,10 +414,11 @@ const RECURRING_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: AccountOption[]; isOwner: boolean }> = ({
+export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: AccountOption[]; isOwner: boolean; rangeActive?: boolean }> = ({
   rows,
   accounts,
   isOwner,
+  rangeActive,
 }) => {
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-recurring", RECURRING_COLUMNS);
@@ -452,12 +459,20 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: 
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Biaya Rutin Bulan Ini</CardTitle>
-          <CardDescription>{rows.length} biaya berkala jatuh tempo bulan ini / lewat tempo</CardDescription>
+          <CardTitle>{rangeActive ? "Biaya Rutin — Rentang Tanggal Custom" : "Biaya Rutin Bulan Ini"}</CardTitle>
+          <CardDescription>
+            {rangeActive ? `${rows.length} biaya berkala jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} biaya berkala jatuh tempo bulan ini / lewat tempo`}
+          </CardDescription>
         </div>
         <ColumnVisibilityMenu columns={RECURRING_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS.slice(0, 2)} counts={bucketCounts(rows)} total={rows.length} />
+      <StatusPills
+        active={statusFilter}
+        onChange={setStatusFilter}
+        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS.slice(0, 2)}
+        counts={bucketCounts(rows)}
+        total={rows.length}
+      />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada biaya rutin." mobileCardMode />
     </Card>
   );
@@ -498,7 +513,8 @@ export const DomainExpiringSection: React.FC<{
   clients: { id: string; name: string }[];
   accounts: AccountOption[];
   isOwner: boolean;
-}> = ({ rows: initialRows, clients, accounts, isOwner }) => {
+  rangeActive?: boolean;
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeActive }) => {
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-domain", DOMAIN_COLUMNS);
@@ -646,12 +662,20 @@ export const DomainExpiringSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Domain — Lewat / Bulan Ini / Bulan Depan</CardTitle>
-          <CardDescription>{rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan</CardDescription>
+          <CardTitle>{rangeActive ? "Domain — Rentang Tanggal Custom" : "Domain — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardDescription>
+            {rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`}
+          </CardDescription>
         </div>
         <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
+      <StatusPills
+        active={statusFilter}
+        onChange={setStatusFilter}
+        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
+        counts={bucketCounts(rows)}
+        total={rows.length}
+      />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada domain yang perlu perhatian." mobileCardMode />
     </Card>
   );
@@ -688,7 +712,8 @@ export const ServerDueSection: React.FC<{
   clients: { id: string; name: string }[];
   accounts: AccountOption[];
   isOwner: boolean;
-}> = ({ rows: initialRows, clients, accounts, isOwner }) => {
+  rangeActive?: boolean;
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeActive }) => {
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-server", SERVER_COLUMNS);
@@ -794,12 +819,20 @@ export const ServerDueSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Server — Lewat / Bulan Ini / Bulan Depan</CardTitle>
-          <CardDescription>{rows.length} server sudah lewat tempo atau akan jatuh tempo bulan ini/depan</CardDescription>
+          <CardTitle>{rangeActive ? "Server — Rentang Tanggal Custom" : "Server — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardDescription>
+            {rangeActive ? `${rows.length} server jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} server sudah lewat tempo atau akan jatuh tempo bulan ini/depan`}
+          </CardDescription>
         </div>
         <ColumnVisibilityMenu columns={SERVER_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
+      <StatusPills
+        active={statusFilter}
+        onChange={setStatusFilter}
+        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
+        counts={bucketCounts(rows)}
+        total={rows.length}
+      />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada server yang perlu perhatian." mobileCardMode />
     </Card>
   );
@@ -830,7 +863,7 @@ const MAINTENANCE_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({ rows }) => {
+export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeActive?: boolean }> = ({ rows, rangeActive }) => {
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-maintenance", MAINTENANCE_COLUMNS);
 
@@ -895,12 +928,22 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[] }> = ({
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>Maintenance — Lewat / Bulan Ini / Bulan Depan</CardTitle>
-          <CardDescription>{rows.length} maintenance sudah lewat tempo, jatuh tempo bulan ini, atau bulan depan</CardDescription>
+          <CardTitle>{rangeActive ? "Maintenance — Rentang Tanggal Custom" : "Maintenance — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardDescription>
+            {rangeActive
+              ? `${rows.length} maintenance jatuh tempo dalam rentang tanggal terpilih`
+              : `${rows.length} maintenance sudah lewat tempo, jatuh tempo bulan ini, atau bulan depan`}
+          </CardDescription>
         </div>
         <ColumnVisibilityMenu columns={MAINTENANCE_COLUMNS} isVisible={isVisible} onToggle={toggle} />
       </div>
-      <StatusPills active={statusFilter} onChange={setStatusFilter} options={BUCKET_OPTIONS} counts={bucketCounts(rows)} total={rows.length} />
+      <StatusPills
+        active={statusFilter}
+        onChange={setStatusFilter}
+        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
+        counts={bucketCounts(rows)}
+        total={rows.length}
+      />
       <FilterableTable columns={columns} rows={filteredRows} rowKey={(r) => r.id} emptyMessage="Tidak ada maintenance yang perlu perhatian." mobileCardMode />
     </Card>
   );

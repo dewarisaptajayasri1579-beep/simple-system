@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { generatePaymentNumber } from "@/lib/payment-number"
 import { computeSplit } from "@/lib/split"
 import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { invoicePaymentLines } from "@/lib/accounting/journal-rules"
+import { invoicePaymentLines, ppnSettlementLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
 import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
@@ -45,9 +45,20 @@ export async function POST(request: Request) {
   const paidAt = typeof body?.paidAt === "string" && body.paidAt ? new Date(body.paidAt) : new Date()
   const notes = typeof body?.notes === "string" ? body.notes : null
   const rawLines: LineInput[] = Array.isArray(body?.lines) ? body.lines : []
+  const ppnSettlementAccountId = typeof body?.ppnSettlementAccountId === "string" && body.ppnSettlementAccountId ? body.ppnSettlementAccountId : null
 
   if (!clientId) return NextResponse.json({ error: "Client wajib dipilih" }, { status: 400 })
   if (!accountId) return NextResponse.json({ error: "Akun kas/bank wajib dipilih" }, { status: 400 })
+
+  // Setor PPN Keluaran sekaligus (opsional) — sama seperti kaitkan biaya ke Bayar Domain/Server,
+  // ini langsung menjurnal & mengeluarkan kas beneran, jadi dibatasi Owner saja.
+  if (ppnSettlementAccountId && user.role !== "owner") {
+    return NextResponse.json({ error: "Cuma Owner yang bisa setor PPN sekaligus" }, { status: 403 })
+  }
+  if (ppnSettlementAccountId) {
+    const settlementAccount = await prisma.account.findUnique({ where: { id: ppnSettlementAccountId } })
+    if (!settlementAccount) return NextResponse.json({ error: "Akun setor PPN tidak ditemukan" }, { status: 404 })
+  }
 
   const lines = rawLines
     .map((l) => {
@@ -123,6 +134,7 @@ export async function POST(request: Request) {
     })
 
     const kasBankCoaCode = await getAccountCoaCode(tx, accountId)
+    let totalPpnPortion = 0
 
     for (const line of lines) {
       const invoice = invoiceById.get(line.invoiceId)!
@@ -194,6 +206,7 @@ export async function POST(request: Request) {
       const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
       const hppPortion = invoice.totalAmount > 0 ? Math.round((invoice.totalCost * line.amount) / invoice.totalAmount) : 0
       const revenuePortion = line.amount - ppnPortion
+      totalPpnPortion += ppnPortion
       const journalEntry = await postJournalEntry(tx, {
         date: paidAt,
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
@@ -220,6 +233,35 @@ export async function POST(request: Request) {
       } else if (line.costLink?.type === "server") {
         await markServerPaid(tx, { serverId: line.costLink.id, accountId, amount: line.costAmount, paidAt, createdBy: user.id, paymentId: payment.id })
       }
+    }
+
+    // Setor PPN Keluaran sekaligus (opsional, lihat ppnSettlementLines) — total PPN dari SEMUA
+    // baris invoice di pembayaran ini, keluar dari akun kas/bank yang dipilih staf (boleh beda
+    // dari akun yang menerima pelunasan client). Draft juga, ikut posted bareng payment ini.
+    if (ppnSettlementAccountId && totalPpnPortion > 0) {
+      const settlementCoaCode = await getAccountCoaCode(tx, ppnSettlementAccountId)
+      const settlementTransaction = await tx.transaction.create({
+        data: {
+          transactionNumber: await generateTransactionNumber(tx, "expense"),
+          accountId: ppnSettlementAccountId,
+          type: "expense",
+          grossAmount: totalPpnPortion,
+          cost: 0,
+          netAmount: totalPpnPortion,
+          description: `Setor PPN Keluaran - ${paymentNumber}`,
+          paymentId: payment.id,
+          occurredAt: paidAt,
+        },
+      })
+      const settlementJournal = await postJournalEntry(tx, {
+        date: paidAt,
+        description: `Setor PPN Keluaran - ${paymentNumber}`,
+        sourceType: "invoice_payment",
+        sourceId: settlementTransaction.id,
+        createdBy: user.id,
+        lines: ppnSettlementLines({ kasBankCoaCode: settlementCoaCode, amount: totalPpnPortion }),
+      })
+      await tx.transaction.update({ where: { id: settlementTransaction.id }, data: { journalEntryId: settlementJournal.id } })
     }
 
     return payment

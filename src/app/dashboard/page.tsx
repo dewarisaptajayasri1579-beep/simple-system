@@ -5,7 +5,7 @@ import { Card, CardDescription, Button } from "@/components/ui"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
-import { jakartaRangeFromToday, jakartaTodayDateIso } from "@/lib/datetime"
+import { jakartaRangeFromToday, jakartaTodayDateIso, jakartaTodayRange, parseJakartaDateIso } from "@/lib/datetime"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry, periodNameToMonths } from "@/lib/recurring-bill-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
@@ -25,6 +25,7 @@ import { RevenueForecastSection } from "@/components/dashboard/RevenueForecastSe
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
 import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
 import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappReportButton"
+import { DashboardDateRangeFilter } from "@/components/dashboard/DashboardDateRangeFilter"
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
@@ -46,12 +47,28 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
   return aTime - bTime
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quick?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quick?: string; from?: string; to?: string }> }) {
   const params = await searchParams
   // Link laporan WA (?quick=1) redirect ke modal "Login sebagai siapa?", bukan form password
   // biasa — WA tidak bisa kasih tahu ini diklik dari nomor siapa (lihat QuickLoginModal).
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
+
+  // Filter rentang tanggal jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi,
+  // section Domain/Server/Maintenance tampilkan SEMUA item jatuh tempo dalam rentang ini, ganti
+  // window bawaan (lewat tempo/bulan ini/bulan depan).
+  const dateFromIso = params.from || ""
+  const dateToIso = params.to || ""
+  const hasDateRange = Boolean(dateFromIso || dateToIso)
+  const rangeStart = dateFromIso ? jakartaTodayRange(parseJakartaDateIso(dateFromIso)).start : null
+  const rangeEnd = dateToIso ? jakartaTodayRange(parseJakartaDateIso(dateToIso)).end : null
+  const inDateRange = (dueDate: string | null) => {
+    if (!dueDate) return false
+    const t = new Date(dueDate).getTime()
+    if (rangeStart && t < rangeStart.getTime()) return false
+    if (rangeEnd && t >= rangeEnd.getTime()) return false
+    return true
+  }
 
   // Termin project yang sudah waktunya ditagih (H-3 dari dueDate, sama ambang batas dengan cron
   // auto-invoice) tapi entah kenapa belum ada invoice-nya — dipakai buat kartu "Tagihan Belum
@@ -197,7 +214,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(expiry),
       }
     })
-    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+    .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
     .sort(byDueDateAsc)
 
   // Server: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
@@ -216,7 +233,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+    .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
     .sort(byDueDateAsc)
 
   // Maintenance: cuma jatuh tempo bulan ini atau bulan sebelumnya (beda dari Domain/Server
@@ -237,7 +254,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => r.dueDate !== null && isThisOrLastMonthJakarta(new Date(r.dueDate)))
+    .filter((r) => r.dueDate !== null && (hasDateRange ? inDateRange(r.dueDate) : isThisOrLastMonthJakarta(new Date(r.dueDate))))
     .sort(byDueDateAsc)
 
   // SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — cuma buat Domain/Server yang
@@ -354,6 +371,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         <DashboardNavBadges items={navBadges} />
 
+        <Card variant="panel" padding="md">
+          <p className="text-xs font-bold text-slate-500 uppercase mb-3">Filter Rentang Tanggal Jatuh Tempo (Domain, Server, Maintenance)</p>
+          <DashboardDateRangeFilter fromIso={dateFromIso} toIso={dateToIso} />
+        </Card>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           <Card variant="feature" padding="md">
             <CardDescription>Piutang Outstanding</CardDescription>
@@ -377,13 +399,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <PiutangSummarySection rows={piutangRows} historyRows={piutangHistoryRows} />
         </div>
         <div id="domain" className="scroll-mt-[150px]">
-          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
+          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
         </div>
         <div id="server" className="scroll-mt-[150px]">
-          <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} />
+          <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
         </div>
         <div id="maintenance" className="scroll-mt-[150px]">
-          <MaintenanceDueSection rows={maintenanceDueRows} />
+          <MaintenanceDueSection rows={maintenanceDueRows} rangeActive={hasDateRange} />
         </div>
         <div id="tagihan-project" className="scroll-mt-[150px]">
           <ProjectTagihanSection rows={projectTagihanRows} />

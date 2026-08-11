@@ -31,6 +31,18 @@ export function invoicePaymentLines(input: {
   return lines
 }
 
+/** Setor PPN Keluaran ke kas negara — opsional, dipilih sekaligus saat pelunasan invoice
+ *  ber-PPN (lihat app/api/payments/route.ts) supaya PPN tidak menumpuk jadi utang di pembukuan,
+ *  langsung dianggap disetorkan begitu diterima dari client. Debit PPN Keluaran (melunasi
+ *  liability yang baru dikredit oleh invoicePaymentLines di atas), Kredit kas/bank yang dipilih
+ *  staf (uang keluar — bisa beda akun dari yang menerima pembayaran client). */
+export function ppnSettlementLines(input: { kasBankCoaCode: string; amount: number }): JournalLineInput[] {
+  return [
+    { accountCode: COA_CODE.ppnKeluaran, debit: input.amount, memo: "Setor PPN Keluaran" },
+    { accountCode: input.kasBankCoaCode, credit: input.amount, memo: "Setor PPN Keluaran" },
+  ]
+}
+
 /** Pemasukan manual (di luar invoice) — diakui langsung sebagai kas masuk + pendapatan;
  *  kalau ada biaya terkait (cost), sebagian kas itu juga langsung keluar lagi sebagai HPP. */
 export function manualIncomeLines(input: {

@@ -87,6 +87,8 @@ export const PembayaranForm: React.FC<{
   const [servers, setServers] = useState<ServerOption[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [settlePpn, setSettlePpn] = useState(false);
+  const [ppnSettlementAccountId, setPpnSettlementAccountId] = useState("");
 
   useEffect(() => {
     fetch("/api/accounts")
@@ -205,6 +207,13 @@ export const PembayaranForm: React.FC<{
     setLines((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
   const totalDibayar = Object.values(lines).reduce((sum, l) => sum + (l.checked ? l.amount : 0), 0);
+  // Total PPN dari semua invoice yang dicentang, proporsional terhadap jumlah yang dibayar —
+  // rumus sama persis dengan ppnPortion di app/api/payments/route.ts supaya konsisten.
+  const totalPpnPortion = invoices.reduce((sum, inv) => {
+    const line = lines[inv.id];
+    if (!line?.checked || inv.ppnAmount <= 0 || inv.totalAmount <= 0) return sum;
+    return sum + Math.round((inv.ppnAmount * line.amount) / inv.totalAmount);
+  }, 0);
 
   const columns: FilterableColumn<InvoiceRow>[] = [
     { key: "no", header: "#", cell: (_row, i) => i + 1, headClassName: "w-10", cellClassName: "text-slate-400" },
@@ -353,6 +362,10 @@ export const PembayaranForm: React.FC<{
       setError("Ada baris biaya yang belum diisi nominal HPP-nya");
       return;
     }
+    if (settlePpn && !ppnSettlementAccountId) {
+      setError("Pilih dulu akun kas/bank untuk setor PPN-nya");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -364,6 +377,7 @@ export const PembayaranForm: React.FC<{
           accountId,
           paidAt,
           notes,
+          ppnSettlementAccountId: settlePpn ? ppnSettlementAccountId : undefined,
           lines: selected.map(([invoiceId, l]) => ({
             invoiceId,
             amount: l.amount,
