@@ -21,6 +21,7 @@ interface RecurringBillInput {
   category?: string
   periodId?: string
   periodCount?: number
+  payDayOfWeek?: number
   price?: number
   lastPaidAt?: string
   active?: boolean
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
       category: body.category || "kantor",
       periodId: body.periodId || null,
       periodCount: body.periodCount || null,
+      payDayOfWeek: body.payDayOfWeek || null,
       price: body.price ?? null,
       lastPaidAt: body.lastPaidAt ? new Date(body.lastPaidAt) : null,
       active: body.active ?? true,

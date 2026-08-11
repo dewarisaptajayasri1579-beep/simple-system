@@ -332,6 +332,10 @@ model RecurringBill {
   billingDayOfMonth Int?      @map("billing_day_of_month")
   periodId          String?   @map("period_id")
   periodCount       Int?      @map("period_count")
+  // Cuma relevan kalau period-nya "Mingguan" — hari dalam seminggu biaya ini biasa dibayar
+  // (1=Senin .. 7=Minggu, sama konvensi dengan jakartaIsoWeekday di lib/datetime.ts). Murni info
+  // buat staf, tidak dipakai hitung jatuh tempo (itu tetap dari lastPaidAt + periode).
+  payDayOfWeek      Int?      @map("pay_day_of_week")
   price             Float?
   lastPaidAt        DateTime? @map("last_paid_at")
   lastCheckinAt     DateTime? @map("last_checkin_at") // kapan terakhir ditanya "sudah dibayar?" via WA

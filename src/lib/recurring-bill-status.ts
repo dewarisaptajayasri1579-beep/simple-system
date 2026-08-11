@@ -1,3 +1,26 @@
+import { getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
+
+/** Label hari (1=Senin .. 7=Minggu, sama konvensi dengan jakartaIsoWeekday di lib/datetime.ts) —
+ *  dipakai buat pilihan "Hari Pembayaran" biaya berkala dengan periode Mingguan. */
+export const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "Senin" },
+  { value: 2, label: "Selasa" },
+  { value: 3, label: "Rabu" },
+  { value: 4, label: "Kamis" },
+  { value: 5, label: "Jumat" },
+  { value: 6, label: "Sabtu" },
+  { value: 7, label: "Minggu" },
+]
+
+export function weekdayLabel(day: number | null): string | null {
+  return WEEKDAY_OPTIONS.find((o) => o.value === day)?.label ?? null
+}
+
+/** True kalau nama periode ini siklus mingguan ("Mingguan", "2 Mingguan", dst). */
+export function isWeeklyPeriod(name: string | null | undefined): boolean {
+  return !!name && periodNameToWeeks(name) !== null
+}
+
 /** Konversi nama periode ("Bulanan", "3 Bulanan", "Tahunan", "2 Tahunan", dst) jadi jumlah bulan. */
 export function periodNameToMonths(name: string): number {
   const lower = name.toLowerCase().trim()
@@ -60,4 +83,22 @@ export function getDueBucket(nextDueDate: Date | null, reminderDaysBefore: numbe
   reminderThreshold.setDate(reminderThreshold.getDate() - reminderDaysBefore)
   if (reference.getTime() >= reminderThreshold.getTime()) return "due_soon"
   return "ok"
+}
+
+/** Bucket biaya berkala buat Dashboard (lihat getExpiryBucket di lib/domain-status.ts) — untuk
+ *  periode Mingguan sengaja TIDAK pakai bucket kalender bulan (getExpiryBucket biasa), karena
+ *  jatuh tempo mingguan yang cuma beberapa hari lagi bisa saja jatuh di bulan kalender
+ *  berikutnya dan jadi tidak ke-detect di Dashboard. Dipetakan dari getDueBucket (berbasis
+ *  reminderDaysBefore) supaya biaya mingguan yang segera jatuh tempo selalu muncul. */
+export function getRecurringBillBucket(
+  nextDueDate: Date | null,
+  periodName: string | null | undefined,
+  reminderDaysBefore: number,
+  reference: Date = new Date()
+): ExpiryBucket {
+  if (isWeeklyPeriod(periodName)) {
+    const bucket = getDueBucket(nextDueDate, reminderDaysBefore, reference)
+    return bucket === "overdue" ? "expired" : bucket === "due_soon" ? "expiring_this_month" : "safe"
+  }
+  return getExpiryBucket(nextDueDate, reference)
 }

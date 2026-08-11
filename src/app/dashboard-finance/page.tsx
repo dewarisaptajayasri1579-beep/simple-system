@@ -2,9 +2,8 @@ import { redirect } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { getSessionUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getExpiryBucket } from "@/lib/domain-status"
 import { jakartaTodayRange, parseJakartaDateIso } from "@/lib/datetime"
-import { computeNextDueDate, getDueBucket } from "@/lib/recurring-bill-status"
+import { computeNextDueDate, getDueBucket, getRecurringBillBucket } from "@/lib/recurring-bill-status"
 import { RecurringDueSection, type RecurringDueRow } from "@/components/dashboard/DashboardSections"
 import { DashboardDateRangeFilter } from "@/components/dashboard/DashboardDateRangeFilter"
 
@@ -50,7 +49,7 @@ export default async function DashboardFinancePage({ searchParams }: { searchPar
         vendorName: b.vendor?.name ?? null,
         price: b.price,
         dueDate: nextDue ? nextDue.toISOString() : null,
-        bucket: getExpiryBucket(nextDue),
+        bucket: getRecurringBillBucket(nextDue, b.period?.name, b.period?.reminderDaysBefore ?? 7),
       }
     })
     .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expiring_this_month" || r.bucket === "expired"))

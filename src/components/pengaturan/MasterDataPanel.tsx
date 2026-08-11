@@ -20,7 +20,7 @@ import {
 } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
-import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status";
+import { computeNextDueDate, getDueBucket, resolveServerExpiry, isWeeklyPeriod, WEEKDAY_OPTIONS, weekdayLabel } from "@/lib/recurring-bill-status";
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -108,6 +108,7 @@ export interface RecurringBillRow {
   category: string;
   vendorId: string | null;
   periodId: string | null;
+  payDayOfWeek: number | null;
   price: number | null;
   lastPaidAt: string | null;
   active: boolean;
@@ -1780,6 +1781,7 @@ const BILL_COLUMNS = [
   { key: "category", label: "Kategori" },
   { key: "vendor", label: "Vendor" },
   { key: "period", label: "Periode" },
+  { key: "payDay", label: "Hari Bayar" },
   { key: "price", label: "Nominal" },
   { key: "lastPaid", label: "Terakhir Bayar" },
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
@@ -1954,6 +1956,9 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
     ...(isVisible("period")
       ? [{ key: "period", header: "Periode", filterValue: (b: RecurringBillRow) => b.period?.name ?? "", cell: (b: RecurringBillRow) => b.period?.name ?? "-" }]
       : []),
+    ...(isVisible("payDay")
+      ? [{ key: "payDay", header: "Hari Bayar", cell: (b: RecurringBillRow) => (isWeeklyPeriod(b.period?.name) ? weekdayLabel(b.payDayOfWeek) ?? "-" : "-") }]
+      : []),
     ...(isVisible("price") ? [{ key: "price", header: "Nominal", cell: (b: RecurringBillRow) => formatRupiah(b.price) }] : []),
     ...(isVisible("lastPaid")
       ? [{ key: "lastPaid", header: "Terakhir Bayar", cell: (b: RecurringBillRow) => formatDateObj(b.lastPaidAt ? new Date(b.lastPaidAt) : null) }]
@@ -2094,9 +2099,18 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
               label="Periode"
               options={periodOptions}
               value={form.periodId ?? ""}
-              onChange={(v) => setForm((f) => ({ ...f, periodId: v }))}
+              onChange={(v) => setForm((f) => ({ ...f, periodId: v, payDayOfWeek: null }))}
               placeholder="Pilih periode"
             />
+            {isWeeklyPeriod(periods.find((p) => p.id === form.periodId)?.name) && (
+              <Select
+                label="Hari Pembayaran"
+                options={WEEKDAY_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                value={form.payDayOfWeek ? String(form.payDayOfWeek) : ""}
+                onChange={(v) => setForm((f) => ({ ...f, payDayOfWeek: v ? Number(v) : null }))}
+                placeholder="Pilih hari"
+              />
+            )}
             <CurrencyInput label="Nominal" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
             <Input
               label="Terakhir Bayar"

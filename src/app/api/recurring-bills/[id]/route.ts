@@ -19,6 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.price === "number") data.price = body.price
   if (typeof body.active === "boolean") data.active = body.active
   if (typeof body.lastPaidAt === "string") data.lastPaidAt = body.lastPaidAt ? new Date(body.lastPaidAt) : null
+  if (typeof body.payDayOfWeek === "number" || body.payDayOfWeek === null) data.payDayOfWeek = body.payDayOfWeek || null
 
   const bill = await prisma.recurringBill.update({
     where: { id },
