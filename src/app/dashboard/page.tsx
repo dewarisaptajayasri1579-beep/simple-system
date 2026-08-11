@@ -47,27 +47,25 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
   return aTime - bTime
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quick?: string; from?: string; to?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ quick?: string; to?: string }> }) {
   const params = await searchParams
   // Link laporan WA (?quick=1) redirect ke modal "Login sebagai siapa?", bukan form password
   // biasa — WA tidak bisa kasih tahu ini diklik dari nomor siapa (lihat QuickLoginModal).
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
 
-  // Filter rentang tanggal jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi,
-  // section Domain/Server/Maintenance tampilkan SEMUA item jatuh tempo dalam rentang ini, ganti
-  // window bawaan (lewat tempo/bulan ini/bulan depan).
-  const dateFromIso = params.from || ""
+  // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, section
+  // Domain/Server/Maintenance tampilkan SEMUA item jatuh tempo sampai tanggal ini, ganti window
+  // bawaan (lewat tempo/bulan ini/bulan depan). Item yang sudah lewat tempo/jatuh tempo hari ini
+  // selalu ikut tampil apa pun tanggal "sampai"-nya.
   const dateToIso = params.to || ""
-  const hasDateRange = Boolean(dateFromIso || dateToIso)
-  const rangeStart = dateFromIso ? jakartaTodayRange(parseJakartaDateIso(dateFromIso)).start : null
+  const hasDateRange = Boolean(dateToIso)
   const rangeEnd = dateToIso ? jakartaTodayRange(parseJakartaDateIso(dateToIso)).end : null
+  const todayEnd = jakartaTodayRange().end
+  const effectiveEnd = rangeEnd && rangeEnd.getTime() > todayEnd.getTime() ? rangeEnd : todayEnd
   const inDateRange = (dueDate: string | null) => {
     if (!dueDate) return false
-    const t = new Date(dueDate).getTime()
-    if (rangeStart && t < rangeStart.getTime()) return false
-    if (rangeEnd && t >= rangeEnd.getTime()) return false
-    return true
+    return new Date(dueDate).getTime() < effectiveEnd.getTime()
   }
 
   // Termin project yang sudah waktunya ditagih (H-3 dari dueDate, sama ambang batas dengan cron
@@ -372,8 +370,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <DashboardNavBadges items={navBadges} />
 
         <Card variant="panel" padding="md">
-          <p className="text-xs font-bold text-slate-500 uppercase mb-3">Filter Rentang Tanggal Jatuh Tempo (Domain, Server, Maintenance)</p>
-          <DashboardDateRangeFilter fromIso={dateFromIso} toIso={dateToIso} />
+          <p className="text-xs font-bold text-slate-500 uppercase mb-3">Filter Jatuh Tempo Sampai (Domain, Server, Maintenance)</p>
+          <DashboardDateRangeFilter toIso={dateToIso} />
         </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">

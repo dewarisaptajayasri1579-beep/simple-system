@@ -14,24 +14,22 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
   return aTime - bTime
 }
 
-export default async function DashboardFinancePage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
+export default async function DashboardFinancePage({ searchParams }: { searchParams: Promise<{ to?: string }> }) {
   const user = await getSessionUser()
   if (!user) redirect("/login")
 
   const params = await searchParams
-  // Filter rentang tanggal jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi,
-  // ganti window bawaan (bulan ini/lewat tempo) dengan SEMUA biaya jatuh tempo dalam rentang ini.
-  const dateFromIso = params.from || ""
+  // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, ganti window
+  // bawaan (bulan ini/lewat tempo) dengan SEMUA biaya jatuh tempo sampai tanggal ini. Biaya yang
+  // sudah lewat tempo/jatuh tempo hari ini selalu ikut tampil apa pun tanggal "sampai"-nya.
   const dateToIso = params.to || ""
-  const hasDateRange = Boolean(dateFromIso || dateToIso)
-  const rangeStart = dateFromIso ? jakartaTodayRange(parseJakartaDateIso(dateFromIso)).start : null
+  const hasDateRange = Boolean(dateToIso)
   const rangeEnd = dateToIso ? jakartaTodayRange(parseJakartaDateIso(dateToIso)).end : null
+  const todayEnd = jakartaTodayRange().end
+  const effectiveEnd = rangeEnd && rangeEnd.getTime() > todayEnd.getTime() ? rangeEnd : todayEnd
   const inDateRange = (dueDate: string | null) => {
     if (!dueDate) return false
-    const t = new Date(dueDate).getTime()
-    if (rangeStart && t < rangeStart.getTime()) return false
-    if (rangeEnd && t >= rangeEnd.getTime()) return false
-    return true
+    return new Date(dueDate).getTime() < effectiveEnd.getTime()
   }
 
   const [accounts, bills] = await Promise.all([
@@ -72,7 +70,7 @@ export default async function DashboardFinancePage({ searchParams }: { searchPar
           </p>
         </div>
 
-        <DashboardDateRangeFilter fromIso={dateFromIso} toIso={dateToIso} />
+        <DashboardDateRangeFilter toIso={dateToIso} />
 
         <RecurringDueSection rows={recurringDueRows} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
       </div>

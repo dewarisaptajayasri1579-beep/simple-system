@@ -107,6 +107,7 @@ export interface RecurringBillRow {
   identifier: string | null;
   category: string;
   vendorId: string | null;
+  periodId: string | null;
   price: number | null;
   lastPaidAt: string | null;
   active: boolean;
@@ -1811,6 +1812,21 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
 
   const vendorOptions = useMemo(() => vendors.map((v) => ({ value: v.id, label: v.name })), [vendors]);
 
+  // Biaya Berkala cuma butuh 2 pilihan siklus (mingguan/bulanan) — beda dari Server/Maintenance
+  // yang punya opsi periode lebih banyak (2/3/6 bulanan, tahunan), jadi difilter dari daftar
+  // BillingPeriod bersama di /api/billing-periods.
+  const [periods, setPeriods] = useState<{ id: string; name: string }[]>([]);
+  const periodOptions = useMemo(
+    () =>
+      periods
+        .filter((p) => p.name === "Mingguan" || p.name === "Bulanan")
+        .map((p) => ({ value: p.id, label: p.name })),
+    [periods]
+  );
+  useEffect(() => {
+    fetch("/api/billing-periods").then((r) => r.json()).then(setPeriods);
+  }, []);
+
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [paying, setPaying] = useState<RecurringBillRow | null>(null);
   const [payAccountId, setPayAccountId] = useState("");
@@ -2073,6 +2089,13 @@ const BiayaBerkalaSection: React.FC<{ rows: RecurringBillRow[]; vendors: VendorR
               options={BILL_CATEGORY_OPTIONS}
               value={form.category ?? "kantor"}
               onChange={(v) => setForm((f) => ({ ...f, category: v }))}
+            />
+            <Select
+              label="Periode"
+              options={periodOptions}
+              value={form.periodId ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, periodId: v }))}
+              placeholder="Pilih periode"
             />
             <CurrencyInput label="Nominal" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
             <Input

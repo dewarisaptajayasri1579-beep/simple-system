@@ -11,14 +11,30 @@ export function periodNameToMonths(name: string): number {
   return 1
 }
 
+/** Konversi nama periode ("Mingguan", "2 Mingguan", dst) jadi jumlah minggu, atau null kalau
+ *  nama periodenya bukan siklus mingguan (fallback ke periodNameToMonths). */
+function periodNameToWeeks(name: string): number | null {
+  const lower = name.toLowerCase().trim()
+  const match = /^(\d+)\s*mingguan$/.exec(lower)
+  if (match) return Number(match[1])
+  if (lower === "mingguan") return 1
+  return null
+}
+
 export function computeNextDueDate(
   lastPaidAt: Date | null,
   periodName: string | undefined,
   periodCount: number | null | undefined
 ): Date | null {
   if (!lastPaidAt) return null
-  const months = (periodName ? periodNameToMonths(periodName) : 1) * (periodCount && periodCount > 0 ? periodCount : 1)
+  const count = periodCount && periodCount > 0 ? periodCount : 1
   const next = new Date(lastPaidAt)
+  const weeks = periodName ? periodNameToWeeks(periodName) : null
+  if (weeks !== null) {
+    next.setDate(next.getDate() + weeks * 7 * count)
+    return next
+  }
+  const months = (periodName ? periodNameToMonths(periodName) : 1) * count
   next.setMonth(next.getMonth() + months)
   return next
 }

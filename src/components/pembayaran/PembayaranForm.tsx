@@ -445,6 +445,27 @@ export const PembayaranForm: React.FC<{
               <p className="text-xl font-black text-emerald-700">{formatRupiah(totalDibayar)}</p>
             </div>
           </div>
+
+          {isOwner && totalPpnPortion > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-end gap-3">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" className="w-4 h-4" checked={settlePpn} onChange={(e) => setSettlePpn(e.target.checked)} />
+                Setor PPN sekaligus ({formatRupiah(totalPpnPortion)})
+              </label>
+              {settlePpn && (
+                <div className="flex-1 max-w-xs">
+                  <Select
+                    sizeVariant="sm"
+                    options={accountOptions}
+                    value={ppnSettlementAccountId}
+                    onChange={setPpnSettlementAccountId}
+                    placeholder="Pilih akun kas/bank untuk setor PPN"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end mt-4">
             <Button variant="primary" onClick={handleSubmit} isLoading={isSubmitting} disabled={totalDibayar <= 0}>
               Simpan Pembayaran

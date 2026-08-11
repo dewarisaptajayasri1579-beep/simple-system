@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma"
 // unique (data lama hasil migrasi legacy bisa punya nama ganda), jadi "ensure exists" di bawah
 // pakai findFirst per nama, bukan upsert by name.
 const DEFAULT_PERIODS: { name: string; reminderDaysBefore: number }[] = [
+  { name: "Mingguan", reminderDaysBefore: 2 },
   { name: "Bulanan", reminderDaysBefore: 7 },
   { name: "2 Bulanan", reminderDaysBefore: 14 },
   { name: "3 Bulanan", reminderDaysBefore: 20 },
