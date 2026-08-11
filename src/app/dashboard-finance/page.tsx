@@ -72,7 +72,7 @@ export default async function DashboardFinancePage({ searchParams }: { searchPar
 
         <DashboardDateRangeFilter toIso={dateToIso} />
 
-        <RecurringDueSection rows={recurringDueRows} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
+        <RecurringDueSection rows={recurringDueRows} accounts={accounts} isOwner={user.role === "owner"} rangeToIso={hasDateRange ? dateToIso : null} />
       </div>
     </AppLayout>
   )

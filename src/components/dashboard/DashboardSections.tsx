@@ -414,12 +414,13 @@ const RECURRING_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: AccountOption[]; isOwner: boolean; rangeActive?: boolean }> = ({
+export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: AccountOption[]; isOwner: boolean; rangeToIso?: string | null }> = ({
   rows,
   accounts,
   isOwner,
-  rangeActive,
+  rangeToIso,
 }) => {
+  const rangeActive = Boolean(rangeToIso);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-recurring", RECURRING_COLUMNS);
 
@@ -459,7 +460,7 @@ export const RecurringDueSection: React.FC<{ rows: RecurringDueRow[]; accounts: 
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{rangeActive ? "Biaya Rutin — Rentang Tanggal Custom" : "Biaya Rutin Bulan Ini"}</CardTitle>
+          <CardTitle>{rangeActive ? `Biaya Rutin — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Biaya Rutin Bulan Ini"}</CardTitle>
           <CardDescription>
             {rangeActive ? `${rows.length} biaya berkala jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} biaya berkala jatuh tempo bulan ini / lewat tempo`}
           </CardDescription>
@@ -513,8 +514,9 @@ export const DomainExpiringSection: React.FC<{
   clients: { id: string; name: string }[];
   accounts: AccountOption[];
   isOwner: boolean;
-  rangeActive?: boolean;
-}> = ({ rows: initialRows, clients, accounts, isOwner, rangeActive }) => {
+  rangeToIso?: string | null;
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso }) => {
+  const rangeActive = Boolean(rangeToIso);
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-domain", DOMAIN_COLUMNS);
@@ -662,7 +664,7 @@ export const DomainExpiringSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{rangeActive ? "Domain — Rentang Tanggal Custom" : "Domain — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardTitle>{rangeActive ? `Domain — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Domain — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
           <CardDescription>
             {rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`}
           </CardDescription>
@@ -712,8 +714,9 @@ export const ServerDueSection: React.FC<{
   clients: { id: string; name: string }[];
   accounts: AccountOption[];
   isOwner: boolean;
-  rangeActive?: boolean;
-}> = ({ rows: initialRows, clients, accounts, isOwner, rangeActive }) => {
+  rangeToIso?: string | null;
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso }) => {
+  const rangeActive = Boolean(rangeToIso);
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-server", SERVER_COLUMNS);
@@ -819,7 +822,7 @@ export const ServerDueSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{rangeActive ? "Server — Rentang Tanggal Custom" : "Server — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardTitle>{rangeActive ? `Server — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Server — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
           <CardDescription>
             {rangeActive ? `${rows.length} server jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} server sudah lewat tempo atau akan jatuh tempo bulan ini/depan`}
           </CardDescription>
@@ -863,7 +866,8 @@ const MAINTENANCE_COLUMNS = [
   { key: "status", label: "Status" },
 ];
 
-export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeActive?: boolean }> = ({ rows, rangeActive }) => {
+export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeToIso?: string | null }> = ({ rows, rangeToIso }) => {
+  const rangeActive = Boolean(rangeToIso);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-maintenance", MAINTENANCE_COLUMNS);
 
@@ -928,7 +932,7 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeA
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{rangeActive ? "Maintenance — Rentang Tanggal Custom" : "Maintenance — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardTitle>{rangeActive ? `Maintenance — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Maintenance — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
           <CardDescription>
             {rangeActive
               ? `${rows.length} maintenance jatuh tempo dalam rentang tanggal terpilih`

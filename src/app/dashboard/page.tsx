@@ -397,13 +397,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <PiutangSummarySection rows={piutangRows} historyRows={piutangHistoryRows} />
         </div>
         <div id="domain" className="scroll-mt-[150px]">
-          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
+          <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeToIso={hasDateRange ? dateToIso : null} />
         </div>
         <div id="server" className="scroll-mt-[150px]">
-          <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeActive={hasDateRange} />
+          <ServerDueSection rows={serverDueRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeToIso={hasDateRange ? dateToIso : null} />
         </div>
         <div id="maintenance" className="scroll-mt-[150px]">
-          <MaintenanceDueSection rows={maintenanceDueRows} rangeActive={hasDateRange} />
+          <MaintenanceDueSection rows={maintenanceDueRows} rangeToIso={hasDateRange ? dateToIso : null} />
         </div>
         <div id="tagihan-project" className="scroll-mt-[150px]">
           <ProjectTagihanSection rows={projectTagihanRows} />
