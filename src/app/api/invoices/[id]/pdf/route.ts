@@ -29,13 +29,17 @@ async function launchBrowser() {
  *  layout terpisah (dulu pakai @react-pdf/renderer — gampang divergen dari tampilan "Cetak Invoice"
  *  di browser, contoh: terbilang yang nabrak karena layout engine-nya beda). Dengan Chromium asli,
  *  hasilnya dijamin identik dengan window.print() karena sumber & rendering engine-nya sama persis. */
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
   const invoice = await prisma.invoice.findUnique({ where: { id }, select: { invoiceNumber: true } })
   if (!invoice) return NextResponse.json({ error: "Invoice tidak ditemukan" }, { status: 404 })
 
-  const printUrl = new URL(`/invoices/${id}/print`, request.url).toString()
+  // Navigasi Chromium selalu ke loopback HTTP internal (bukan origin dari request.url apa adanya) —
+  // di belakang reverse proxy Coolify, request publik masuk sebagai https://simple.onyseven.com
+  // padahal Next.js sendiri di dalam container cuma dengar HTTP biasa, jadi kalau origin request
+  // publik yang dipakai, Chromium coba HTTPS ke server yang tidak punya TLS dan gagal.
+  const printUrl = `http://127.0.0.1:${process.env.PORT || 3000}/invoices/${id}/print`
 
   const browser = await launchBrowser()
   try {
