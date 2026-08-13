@@ -65,6 +65,7 @@ const styles = StyleSheet.create({
   bottomRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   paymentCard: { flex: 1, flexDirection: "row", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8 },
   paymentCol: { flex: 1, flexDirection: "row", alignItems: "center", padding: 8, gap: 6 },
+  paymentColText: { flex: 1 },
   paymentDivider: { width: 1, backgroundColor: "#e2e8f0" },
   iconCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#eff4fe", alignItems: "center", justifyContent: "center" },
   totalsCol: { flex: 1, flexDirection: "column", gap: 4 },
@@ -175,7 +176,7 @@ export function InvoicePdfDocument({
             {bank.name && (
               <View style={styles.paymentCol}>
                 <View style={styles.iconCircle} />
-                <View>
+                <View style={styles.paymentColText}>
                   <Text style={styles.infoLabel}>Payment To</Text>
                   <Text style={styles.companyName}>{bank.name}</Text>
                   {bank.account && <Text style={{ fontSize: 7 }}>{bank.account}</Text>}
@@ -186,7 +187,7 @@ export function InvoicePdfDocument({
             <View style={styles.paymentDivider} />
             <View style={styles.paymentCol}>
               <View style={styles.iconCircle} />
-              <View>
+              <View style={styles.paymentColText}>
                 <Text style={styles.infoLabel}>Terbilang</Text>
                 <Text style={{ fontSize: 7 }}>{terbilangRupiah(invoice.totalAmount)}</Text>
               </View>

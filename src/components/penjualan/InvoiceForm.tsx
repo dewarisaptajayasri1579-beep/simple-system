@@ -3,8 +3,23 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardHeader, CardTitle, CardDescription, Input, Select, Modal, Alert, CurrencyInput } from "@/components/ui";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Sparkles } from "lucide-react";
 import { jakartaTodayDateIso, shiftJakartaDateIso } from "@/lib/datetime";
+
+interface PendingBillingItem {
+  id: string;
+  type: "domain" | "server" | "maintenance";
+  name: string;
+  price: number;
+  dueDate: string | null;
+}
+
+const PENDING_TYPE_LABEL: Record<PendingBillingItem["type"], string> = { domain: "Domain", server: "Server", maintenance: "Maintenance" };
+
+function formatDueDate(iso: string | null) {
+  if (!iso) return "-";
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
+}
 
 interface ClientOption {
   id: string;
@@ -80,11 +95,55 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [newClientPhone, setNewClientPhone] = useState("");
   const [isSavingClient, setIsSavingClient] = useState(false);
 
+  // Domain/Server/Maintenance client ini yang lagi jatuh tempo & belum pernah ditagih — bisa
+  // langsung "dipanggil" jadi baris invoice di sini, tanpa staf harus bolak-balik ke Dashboard
+  // buat klik "Tagih Sekarang" satu-satu (lihat GET /api/clients/[id]/pending-billing).
+  const [pendingItems, setPendingItems] = useState<{ domains: PendingBillingItem[]; servers: PendingBillingItem[]; maintenances: PendingBillingItem[] }>({
+    domains: [],
+    servers: [],
+    maintenances: [],
+  });
+  const [addedPendingKeys, setAddedPendingKeys] = useState<Set<string>>(new Set());
+  // Cuma 1 item yang bisa "ditautkan" resmi ke invoice (Invoice.costLinkType/costLinkId, lihat
+  // InvoiceFormPrefill) buat convenience auto-pilih "Bayar Domain/Server" pas Pembayaran nanti —
+  // kalau staf tambah lebih dari 1 dari daftar ini, cuma yang PERTAMA yang ditautkan; sisanya
+  // tetap masuk sebagai baris invoice biasa (staf pilih manual saat catat Biaya di Pembayaran).
+  const [linkedItem, setLinkedItem] = useState<{ type: PendingBillingItem["type"]; id: string } | null>(
+    prefill?.domainId
+      ? { type: "domain", id: prefill.domainId }
+      : prefill?.serverId
+        ? { type: "server", id: prefill.serverId }
+        : prefill?.maintenanceId
+          ? { type: "maintenance", id: prefill.maintenanceId }
+          : null
+  );
+
   useEffect(() => {
     fetch("/api/clients").then((r) => r.json()).then(setClients);
     fetch("/api/items").then((r) => r.json()).then(setItems);
     fetch("/api/settings").then((r) => r.json()).then((s) => setPpnRate(s.defaultPpnRate ?? 11));
   }, []);
+
+  useEffect(() => {
+    if (!clientId) {
+      setPendingItems({ domains: [], servers: [], maintenances: [] });
+      return;
+    }
+    fetch(`/api/clients/${clientId}/pending-billing`).then((r) => r.json()).then(setPendingItems);
+  }, [clientId]);
+
+  const addPendingItem = (item: PendingBillingItem) => {
+    const key = `${item.type}:${item.id}`;
+    if (addedPendingKeys.has(key)) return;
+    const typeLabel = item.type === "domain" ? "Perpanjangan domain" : item.type === "server" ? "Perpanjangan server" : "Maintenance";
+    setLines((prev) => {
+      const newLine: LineDraft = { ...emptyLine(), description: `${typeLabel} ${item.name}`, unitPrice: item.price };
+      const isBlankSingleLine = prev.length === 1 && !prev[0].description.trim() && prev[0].unitPrice === 0;
+      return isBlankSingleLine ? [newLine] : [...prev, newLine];
+    });
+    setAddedPendingKeys((prev) => new Set(prev).add(key));
+    setLinkedItem((prev) => prev ?? { type: item.type, id: item.id });
+  };
 
   const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
   const itemOptions = useMemo(
@@ -161,9 +220,9 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           ppnRate,
           discountAmount,
           lines,
-          domainId: prefill?.domainId,
-          serverId: prefill?.serverId,
-          maintenanceId: prefill?.maintenanceId,
+          domainId: linkedItem?.type === "domain" ? linkedItem.id : undefined,
+          serverId: linkedItem?.type === "server" ? linkedItem.id : undefined,
+          maintenanceId: linkedItem?.type === "maintenance" ? linkedItem.id : undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -221,6 +280,39 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           <Input label="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       </Card>
+
+      {(pendingItems.domains.length > 0 || pendingItems.servers.length > 0 || pendingItems.maintenances.length > 0) && (
+        <Card variant="panel" padding="lg">
+          <CardHeader>
+            <CardTitle>Tagihan Belum Ditagih</CardTitle>
+            <CardDescription>Domain/Server/Maintenance client ini yang jatuh tempo &amp; belum pernah ditagih — klik untuk tambah jadi baris invoice.</CardDescription>
+          </CardHeader>
+          <div className="space-y-2">
+            {[...pendingItems.domains, ...pendingItems.servers, ...pendingItems.maintenances].map((item) => {
+              const key = `${item.type}:${item.id}`;
+              const added = addedPendingKeys.has(key);
+              return (
+                <div key={key} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/60 border border-slate-200/70">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-[#0544cc] bg-blue-50 px-1.5 py-0.5 rounded">
+                        {PENDING_TYPE_LABEL[item.type]}
+                      </span>
+                      <span className="font-semibold text-slate-800 truncate">{item.name}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Jatuh tempo {formatDueDate(item.dueDate)} · {formatRupiah(item.price)}
+                    </p>
+                  </div>
+                  <Button type="button" size="sm" variant={added ? "ghost" : "outline"} disabled={added} onClick={() => addPendingItem(item)} leftIcon={<Sparkles className="w-3.5 h-3.5" />}>
+                    {added ? "Ditambahkan" : "Tambah"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card variant="panel" padding="lg">
         <CardHeader>
