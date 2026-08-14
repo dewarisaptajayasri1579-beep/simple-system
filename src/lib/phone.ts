@@ -16,3 +16,9 @@ export function normalizePhoneForWaMe(raw: string) {
 export function waWebUrl(phone: string, text: string) {
   return `https://web.whatsapp.com/send?phone=${normalizePhoneForWaMe(phone)}&text=${encodeURIComponent(text)}`;
 }
+
+/** Nama window/tab tetap buat semua tombol "buka WhatsApp" — dipakai sebagai `target` di
+ *  window.open()/<a target> supaya klik berikutnya nge-reuse tab WA Web yang sama (browser
+ *  cari browsing context yang sudah ada dengan nama ini), bukan buka tab baru yang harus
+ *  loading WA Web dari awal lagi tiap kali. */
+export const WA_WEB_WINDOW_NAME = "seven-os-whatsapp-web";

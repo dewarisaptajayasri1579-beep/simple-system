@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
-import { waWebUrl } from "@/lib/phone";
+import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -138,7 +138,7 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
               <div className="flex items-center gap-3">
                 <p className="text-lg font-black text-rose-700">{formatRupiah(totalRemaining)}</p>
                 {waUrl && (
-                  <a href={waUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={waUrl} target={WA_WEB_WINDOW_NAME} rel="noopener noreferrer">
                     <Button size="sm" variant="outline">
                       Follow Up WA
                     </Button>

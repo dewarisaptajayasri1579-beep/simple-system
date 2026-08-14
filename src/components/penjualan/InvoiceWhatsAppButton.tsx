@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { waWebUrl } from "@/lib/phone";
+import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
@@ -44,7 +44,7 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
       `Terima kasih.`,
     ].join("\n");
     const waUrl = waWebUrl(clientPhone, message);
-    window.open(waUrl, "_blank", "noopener,noreferrer");
+    window.open(waUrl, WA_WEB_WINDOW_NAME, "noopener,noreferrer");
   };
 
   return (

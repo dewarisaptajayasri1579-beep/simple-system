@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { MessageCircle, Send, Check, X } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
-import { waWebUrl } from "@/lib/phone";
+import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 interface FollowUpButtonsProps {
   phone: string | null;
@@ -128,7 +128,7 @@ export const FollowUpButtons: React.FC<FollowUpButtonsProps> = ({ phone: initial
     <div className="flex items-center gap-1.5">
       <a
         href={waMeUrl}
-        target="_blank"
+        target={WA_WEB_WINDOW_NAME}
         rel="noopener noreferrer"
         title="Follow Up Manual — buka WhatsApp"
         className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer"
