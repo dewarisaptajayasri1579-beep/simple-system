@@ -2,6 +2,10 @@
 .env
 .env*.local
 
+# Kredensial Google OAuth (backup DB ke Drive) — jangan pernah ke-commit. Anchor ke root (/)
+# supaya TIDAK ikut nge-ignore src/lib/backup/ atau src/app/api/backup/ (kode aslinya).
+/backup/
+
 # Common ignores
 node_modules
 .next/

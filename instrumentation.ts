@@ -11,6 +11,7 @@ export async function register() {
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
+  const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
   const { registerWahubWebhook } = await import("@/lib/wahub")
 
   // Daftarkan ulang webhook WAHUB (sesi WA khusus simple-system) tiap kali server start.
@@ -70,7 +71,18 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
+  // Backup database (dump data schema simple_system) ke Google Drive, jam 20:00 WIB.
+  cron.schedule(
+    "0 20 * * *",
+    () => {
+      runDatabaseBackup()
+        .then((r) => console.log(`[cron] database-backup selesai: ${r.fileName} (${r.tableCount} tabel, ${r.rowCount} baris)`))
+        .catch((e) => console.error("[cron] database-backup gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), backup database (20:00) WIB"
   )
 }

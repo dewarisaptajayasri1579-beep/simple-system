@@ -59,7 +59,14 @@ const TABS = [
   { value: "umum", label: "Umum" },
   { value: "user", label: "User" },
   { value: "master-data", label: "Master Data" },
+  { value: "backup", label: "Backup" },
 ] as const;
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export const PengaturanPanel: React.FC<{
   settings: SettingsData;
@@ -188,6 +195,25 @@ export const PengaturanPanel: React.FC<{
     setNewPhone("");
     setNewRole("admin");
     setUserMessage({ type: "success", text: "User baru dibuat." });
+  };
+
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleRunBackup = async () => {
+    setIsBackingUp(true);
+    setBackupMessage(null);
+    const res = await fetch("/api/backup/run", { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setIsBackingUp(false);
+    if (!res.ok) {
+      setBackupMessage({ type: "error", text: data?.error || "Backup gagal" });
+      return;
+    }
+    setBackupMessage({
+      type: "success",
+      text: `${data.fileName} berhasil diunggah ke Google Drive (${data.tableCount} tabel, ${data.rowCount} baris, ${formatBytes(data.sizeBytes)}).`,
+    });
   };
 
   const handleChangeRole = async (id: string, role: string) => {
@@ -380,6 +406,28 @@ export const PengaturanPanel: React.FC<{
         <div className="flex justify-end mt-4">
           <Button variant="primary" onClick={handleCreateUser} isLoading={isSavingUser}>
             Tambah User
+          </Button>
+        </div>
+      </Card>
+      )}
+
+      {activeTab === "backup" && (
+      <Card variant="panel" padding="lg">
+        <CardHeader>
+          <CardTitle>Backup Database</CardTitle>
+          <CardDescription>
+            Dump data (schema simple_system) otomatis tiap hari jam 20:00 WIB ke Google Drive. Bisa juga dijalankan manual
+            kapan saja lewat tombol di bawah.
+          </CardDescription>
+        </CardHeader>
+        {backupMessage && (
+          <Alert variant={backupMessage.type === "success" ? "success" : "error"} onClose={() => setBackupMessage(null)}>
+            {backupMessage.text}
+          </Alert>
+        )}
+        <div className="flex justify-end mt-4">
+          <Button variant="primary" onClick={handleRunBackup} isLoading={isBackingUp}>
+            Proses Backup Sekarang
           </Button>
         </div>
       </Card>
