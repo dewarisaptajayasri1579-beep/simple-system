@@ -44,6 +44,7 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
   const [phone, setPhone] = useState(clientPhone);
   const [name, setName] = useState(clientName);
   const [message, setMessage] = useState("");
+  const [downloading, setDownloading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,13 +81,26 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
     setModalOpen(true);
   };
 
-  const handleUnduh = () => {
-    const a = document.createElement("a");
-    a.href = `/api/invoices/${invoiceId}/pdf`;
-    a.download = `${invoiceNumber.replace(/\//g, "-")}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // Fetch dulu jadi blob (bukan langsung <a download href="/api/...">) — Safari kadang gagal
+  // ("Site wasn't available") kalau download attribute dipasangkan ke resource yang header
+  // Content-Disposition-nya "inline". Blob URL lokal aman dari isu itu karena tidak ada request
+  // jaringan lagi saat browser mulai proses "download"-nya.
+  const handleUnduh = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/pdf`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${invoiceNumber.replace(/\//g, "-")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -134,7 +148,7 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
             />
           </div>
           <div className="flex justify-end">
-            <Button variant="primary" leftIcon={<Download className="w-4 h-4" />} onClick={handleUnduh}>
+            <Button variant="primary" leftIcon={<Download className="w-4 h-4" />} onClick={handleUnduh} isLoading={downloading}>
               Unduh Invoice
             </Button>
           </div>
