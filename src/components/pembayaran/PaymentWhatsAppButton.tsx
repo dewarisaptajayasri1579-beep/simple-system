@@ -1,6 +1,8 @@
 "use client";
 
-import { Button } from "@/components/ui";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Download } from "lucide-react";
+import { Button, Modal, Input } from "@/components/ui";
 import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 function formatRupiah(amount: number) {
@@ -23,10 +25,11 @@ export interface PaymentWhatsAppButtonProps {
   clientPhone: string;
 }
 
-/** Tombol "Kirim WhatsApp" — sama pola dengan InvoiceWhatsAppButton.tsx: buka web.whatsapp.com (bukan kirim
- *  otomatis lewat WAHUB) dengan pesan siap kirim + link ke PDF Kwitansi (lihat
- *  /api/payments/[id]/pdf, sengaja tanpa login supaya Client bisa buka linknya). Cuma dipasang
- *  di halaman detail Pembayaran setelah `postStatus` posted (lihat pembayaran/[id]/page.tsx). */
+/** Tombol "Kirim WhatsApp" — sama pola dengan InvoiceWhatsAppButton.tsx: dropdown 2 opsi ("Kirim WA"
+ *  buka web.whatsapp.com dengan pesan siap kirim + link ke PDF Kwitansi, "Unduh Manual" buat staf
+ *  yang mau attach PDF asli — bukan cuma link — di WA Desktop/app HP-nya sendiri). Link PDF-nya
+ *  lihat /api/payments/[id]/pdf, sengaja tanpa login supaya Client bisa buka linknya. Cuma
+ *  dipasang di halaman detail Pembayaran setelah `postStatus` posted (lihat pembayaran/[id]/page.tsx). */
 export const PaymentWhatsAppButton: React.FC<PaymentWhatsAppButtonProps> = ({
   paymentId,
   paymentNumber,
@@ -34,9 +37,25 @@ export const PaymentWhatsAppButton: React.FC<PaymentWhatsAppButtonProps> = ({
   clientName,
   clientPhone,
 }) => {
-  const handleClick = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [phone, setPhone] = useState(clientPhone);
+  const [name, setName] = useState(clientName);
+  const [message, setMessage] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  const buildMessage = () => {
     const pdfUrl = `${window.location.origin}/api/payments/${paymentId}/pdf`;
-    const message = [
+    return [
       `Halo ${clientName},`,
       `Berikut kwitansi pembayaran ${paymentNumber} sebesar ${formatRupiah(totalAmount)}.`,
       ``,
@@ -44,18 +63,81 @@ export const PaymentWhatsAppButton: React.FC<PaymentWhatsAppButtonProps> = ({
       ``,
       `Terima kasih.`,
     ].join("\n");
-    const waUrl = waWebUrl(clientPhone, message);
-    window.open(waUrl, WA_WEB_WINDOW_NAME, "noopener,noreferrer");
+  };
+
+  const handleKirimWA = () => {
+    setMenuOpen(false);
+    window.open(waWebUrl(clientPhone, buildMessage()), WA_WEB_WINDOW_NAME, "noopener,noreferrer");
+  };
+
+  const openUnduhManual = () => {
+    setMenuOpen(false);
+    setPhone(clientPhone);
+    setName(clientName);
+    setMessage(buildMessage());
+    setModalOpen(true);
+  };
+
+  const handleUnduh = () => {
+    const a = document.createElement("a");
+    a.href = `/api/payments/${paymentId}/pdf`;
+    a.download = `${paymentNumber.replace(/\//g, "-")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
-    <Button
-      variant="success"
-      className="!bg-[#25D366] !border-[#25D366] hover:!bg-[#20BD5A] !shadow-[#25D366]/25 hover:!shadow-[#25D366]/40"
-      leftIcon={<WhatsAppIcon className="w-4 h-4" />}
-      onClick={handleClick}
-    >
-      Kirim WhatsApp
-    </Button>
+    <>
+      <div className="relative inline-block" ref={menuRef}>
+        <Button
+          variant="success"
+          className="!bg-[#25D366] !border-[#25D366] hover:!bg-[#20BD5A] !shadow-[#25D366]/25 hover:!shadow-[#25D366]/40"
+          leftIcon={<WhatsAppIcon className="w-4 h-4" />}
+          rightIcon={<ChevronDown className="w-4 h-4" />}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          Kirim WhatsApp
+        </Button>
+
+        {menuOpen && (
+          <div className="absolute right-0 mt-2 w-48 glass-dropdown p-1.5 rounded-2xl shadow-xl z-50">
+            <button
+              onClick={handleKirimWA}
+              className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Kirim WA
+            </button>
+            <button
+              onClick={openUnduhManual}
+              className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Unduh Manual
+            </button>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Unduh Manual" subtitle={`Kwitansi ${paymentNumber}`}>
+        <div className="space-y-4">
+          <Input label="No HP Penerima" sizeVariant="sm" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input label="Nama Penerima" sizeVariant="sm" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Pesan</label>
+            <textarea
+              rows={6}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full rounded-xl px-3 py-2 text-sm bg-white/60 hover:bg-white/80 border border-slate-200/80 text-slate-800 placeholder:text-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white/95 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button variant="primary" leftIcon={<Download className="w-4 h-4" />} onClick={handleUnduh}>
+              Unduh Kwitansi
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };

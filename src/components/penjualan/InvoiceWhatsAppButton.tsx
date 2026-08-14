@@ -1,6 +1,8 @@
 "use client";
 
-import { Button } from "@/components/ui";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Download } from "lucide-react";
+import { Button, Modal, Input } from "@/components/ui";
 import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 function formatRupiah(amount: number) {
@@ -22,10 +24,14 @@ export interface InvoiceWhatsAppButtonProps {
   clientPhone: string;
 }
 
-/** Tombol "Kirim WhatsApp" — buka web.whatsapp.com (bukan kirim otomatis lewat WAHUB) dengan pesan siap
- *  kirim + link ke PDF invoice ini (lihat /api/invoices/[id]/pdf, sengaja tanpa login supaya
- *  Client bisa buka linknya). Staf yang review pesannya sebelum tekan kirim di WhatsApp-nya
- *  sendiri, sama pola dengan tombol follow-up "Manual" di Dashboard. */
+/** Tombol "Kirim WhatsApp" — dropdown 2 opsi:
+ *  - "Kirim WA": buka web.whatsapp.com (bukan kirim otomatis lewat WAHUB) dengan pesan siap kirim +
+ *    link ke PDF invoice ini (lihat /api/invoices/[id]/pdf, sengaja tanpa login supaya Client bisa
+ *    buka linknya). Staf yang review pesannya sebelum tekan kirim, sama pola dengan follow-up
+ *    "Manual" di Dashboard.
+ *  - "Unduh Manual": web.whatsapp.com/send cuma bisa isi teks, tidak bisa nempelin file PDF-nya
+ *    langsung — jadi buat staf yang mau attach PDF asli (bukan cuma link) di WA Desktop/app HP-nya
+ *    sendiri, modal ini kasih No HP/Nama/Pesan yang bisa disalin manual + tombol unduh file PDF-nya. */
 export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
   invoiceId,
   invoiceNumber,
@@ -33,9 +39,25 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
   clientName,
   clientPhone,
 }) => {
-  const handleClick = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [phone, setPhone] = useState(clientPhone);
+  const [name, setName] = useState(clientName);
+  const [message, setMessage] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  const buildMessage = () => {
     const pdfUrl = `${window.location.origin}/api/invoices/${invoiceId}/pdf`;
-    const message = [
+    return [
       `Halo ${clientName},`,
       `Berikut invoice ${invoiceNumber} sebesar ${formatRupiah(totalAmount)}.`,
       ``,
@@ -43,18 +65,81 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
       ``,
       `Terima kasih.`,
     ].join("\n");
-    const waUrl = waWebUrl(clientPhone, message);
-    window.open(waUrl, WA_WEB_WINDOW_NAME, "noopener,noreferrer");
+  };
+
+  const handleKirimWA = () => {
+    setMenuOpen(false);
+    window.open(waWebUrl(clientPhone, buildMessage()), WA_WEB_WINDOW_NAME, "noopener,noreferrer");
+  };
+
+  const openUnduhManual = () => {
+    setMenuOpen(false);
+    setPhone(clientPhone);
+    setName(clientName);
+    setMessage(buildMessage());
+    setModalOpen(true);
+  };
+
+  const handleUnduh = () => {
+    const a = document.createElement("a");
+    a.href = `/api/invoices/${invoiceId}/pdf`;
+    a.download = `${invoiceNumber.replace(/\//g, "-")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
-    <Button
-      variant="success"
-      className="!bg-[#25D366] !border-[#25D366] hover:!bg-[#20BD5A] !shadow-[#25D366]/25 hover:!shadow-[#25D366]/40"
-      leftIcon={<WhatsAppIcon className="w-4 h-4" />}
-      onClick={handleClick}
-    >
-      Kirim WhatsApp
-    </Button>
+    <>
+      <div className="relative inline-block" ref={menuRef}>
+        <Button
+          variant="success"
+          className="!bg-[#25D366] !border-[#25D366] hover:!bg-[#20BD5A] !shadow-[#25D366]/25 hover:!shadow-[#25D366]/40"
+          leftIcon={<WhatsAppIcon className="w-4 h-4" />}
+          rightIcon={<ChevronDown className="w-4 h-4" />}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          Kirim WhatsApp
+        </Button>
+
+        {menuOpen && (
+          <div className="absolute right-0 mt-2 w-48 glass-dropdown p-1.5 rounded-2xl shadow-xl z-50">
+            <button
+              onClick={handleKirimWA}
+              className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Kirim WA
+            </button>
+            <button
+              onClick={openUnduhManual}
+              className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Unduh Manual
+            </button>
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Unduh Manual" subtitle={`Invoice ${invoiceNumber}`}>
+        <div className="space-y-4">
+          <Input label="No HP Penerima" sizeVariant="sm" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Input label="Nama Penerima" sizeVariant="sm" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Pesan</label>
+            <textarea
+              rows={6}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full rounded-xl px-3 py-2 text-sm bg-white/60 hover:bg-white/80 border border-slate-200/80 text-slate-800 placeholder:text-slate-400 font-medium transition-all duration-200 focus:outline-none focus:bg-white/95 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button variant="primary" leftIcon={<Download className="w-4 h-4" />} onClick={handleUnduh}>
+              Unduh Invoice
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
