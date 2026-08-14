@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
+import { waWebUrl } from "@/lib/phone";
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
@@ -11,13 +12,6 @@ function formatRupiah(n: number) {
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
-}
-
-function normalizePhoneForWaMe(raw: string) {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (digits.startsWith("62")) return digits;
-  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
-  return digits;
 }
 
 export interface ProjectTagihanRow {
@@ -130,9 +124,7 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
       {groups.map((g) => {
         const totalRemaining = g.rows.reduce((sum, r) => sum + r.remaining, 0);
         const waUrl = g.picPhone
-          ? `https://wa.me/${normalizePhoneForWaMe(g.picPhone)}?text=${encodeURIComponent(
-              `Halo, mengingatkan tagihan termin project "${g.projectName}" (${g.clientName}) sebesar ${formatRupiah(totalRemaining)}. Terima kasih.`
-            )}`
+          ? waWebUrl(g.picPhone, `Halo, mengingatkan tagihan termin project "${g.projectName}" (${g.clientName}) sebesar ${formatRupiah(totalRemaining)}. Terima kasih.`)
           : null;
         return (
           <Card key={g.projectId} variant="panel" padding="none">

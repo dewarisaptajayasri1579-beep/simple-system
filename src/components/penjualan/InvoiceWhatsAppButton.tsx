@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { normalizePhoneForWaMe } from "@/lib/phone";
+import { waWebUrl } from "@/lib/phone";
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
@@ -22,7 +22,7 @@ export interface InvoiceWhatsAppButtonProps {
   clientPhone: string;
 }
 
-/** Tombol "Kirim WhatsApp" — buka wa.me (bukan kirim otomatis lewat WAHUB) dengan pesan siap
+/** Tombol "Kirim WhatsApp" — buka web.whatsapp.com (bukan kirim otomatis lewat WAHUB) dengan pesan siap
  *  kirim + link ke PDF invoice ini (lihat /api/invoices/[id]/pdf, sengaja tanpa login supaya
  *  Client bisa buka linknya). Staf yang review pesannya sebelum tekan kirim di WhatsApp-nya
  *  sendiri, sama pola dengan tombol follow-up "Manual" di Dashboard. */
@@ -43,7 +43,7 @@ export const InvoiceWhatsAppButton: React.FC<InvoiceWhatsAppButtonProps> = ({
       ``,
       `Terima kasih.`,
     ].join("\n");
-    const waUrl = `https://wa.me/${normalizePhoneForWaMe(clientPhone)}?text=${encodeURIComponent(message)}`;
+    const waUrl = waWebUrl(clientPhone, message);
     window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 

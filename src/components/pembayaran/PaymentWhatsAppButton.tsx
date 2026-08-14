@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { normalizePhoneForWaMe } from "@/lib/phone";
+import { waWebUrl } from "@/lib/phone";
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
@@ -23,7 +23,7 @@ export interface PaymentWhatsAppButtonProps {
   clientPhone: string;
 }
 
-/** Tombol "Kirim WhatsApp" — sama pola dengan InvoiceWhatsAppButton.tsx: buka wa.me (bukan kirim
+/** Tombol "Kirim WhatsApp" — sama pola dengan InvoiceWhatsAppButton.tsx: buka web.whatsapp.com (bukan kirim
  *  otomatis lewat WAHUB) dengan pesan siap kirim + link ke PDF Kwitansi (lihat
  *  /api/payments/[id]/pdf, sengaja tanpa login supaya Client bisa buka linknya). Cuma dipasang
  *  di halaman detail Pembayaran setelah `postStatus` posted (lihat pembayaran/[id]/page.tsx). */
@@ -44,7 +44,7 @@ export const PaymentWhatsAppButton: React.FC<PaymentWhatsAppButtonProps> = ({
       ``,
       `Terima kasih.`,
     ].join("\n");
-    const waUrl = `https://wa.me/${normalizePhoneForWaMe(clientPhone)}?text=${encodeURIComponent(message)}`;
+    const waUrl = waWebUrl(clientPhone, message);
     window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 

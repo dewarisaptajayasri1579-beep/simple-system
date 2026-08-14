@@ -3,13 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { MessageCircle, Send, Check, X } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
-
-function normalizePhoneForWaMe(raw: string) {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (digits.startsWith("62")) return digits;
-  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
-  return digits;
-}
+import { waWebUrl } from "@/lib/phone";
 
 interface FollowUpButtonsProps {
   phone: string | null;
@@ -18,7 +12,7 @@ interface FollowUpButtonsProps {
   clientName?: string | null;
 }
 
-/** Dua tombol follow-up WA: "Manual" (buka wa.me, staf yang pencet kirim di app WhatsApp-nya
+/** Dua tombol follow-up WA: "Manual" (buka web.whatsapp.com, staf yang pencet kirim di WhatsApp-nya
  *  sendiri) dan "Otomatis" (kirim langsung dari server lewat WAHUB). Saat nomor WA belum ada,
  *  tombol ini bisa langsung mengisi data pelanggan lewat modal. */
 export const FollowUpButtons: React.FC<FollowUpButtonsProps> = ({ phone: initialPhone, message, clientId, clientName }) => {
@@ -111,7 +105,7 @@ export const FollowUpButtons: React.FC<FollowUpButtonsProps> = ({ phone: initial
     );
   }
 
-  const waMeUrl = `https://wa.me/${normalizePhoneForWaMe(phone)}?text=${encodeURIComponent(message)}`;
+  const waMeUrl = waWebUrl(phone, message);
 
   const handleAuto = async () => {
     setStatus("sending");
