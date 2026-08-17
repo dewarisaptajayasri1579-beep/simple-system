@@ -75,15 +75,25 @@ function nextChildCode(parent: CoaRow, allRows: CoaRow[]): string {
   const siblingNums = allRows
     .filter((r) => r.parentId === parent.id && r.code.startsWith(`${prefix}-`))
     .map((r) => Number(r.code.split("-")[1]))
-    .filter((n) => !Number.isNaN(n));
-  let nextNum = (siblingNums.length > 0 ? Math.max(...siblingNums) : parentNum) + 1;
-  // Sibling langsung bisa "melompat" (mis. anak baru ditambah manual dengan kode dekat cabang
-  // lain), jadi max+1 saja bisa nabrak kode yang sudah dipakai di bagian lain pohon COA — cek
-  // ke SELURUH kode (bukan cuma sibling) dan lompat terus sampai ketemu yang benar-benar kosong.
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b);
+
+  // Jarak antar kode (step) diambil dari anak pertama — level atas biasanya loncat besar
+  // (mis. 6-0000 -> 6-1000, 6-2000, ... = step 1000), level di bawahnya biasa naik 1
+  // (mis. 6-1000 -> 6-1001, 6-1002). Anak yang menyimpang dari kelipatan step ini (ditambah
+  // manual di luar pola, mis. 6-6001 nyempil di antara kelipatan 1000) diabaikan waktu cari
+  // kode "on-grid" berikutnya, supaya penomoran level ini tidak ikut melenceng ke pola anaknya.
+  const step = siblingNums.length > 0 ? siblingNums[0] - parentNum : 1;
+  const effectiveStep = step > 0 ? step : 1;
+  const onGridNums = siblingNums.filter((n) => (n - parentNum) % effectiveStep === 0);
+  let nextNum = (onGridNums.length > 0 ? Math.max(...onGridNums) : parentNum) + effectiveStep;
+
+  // Tetap jaga-jaga: kalau kode "on-grid" itu kebetulan sudah kepakai di cabang lain pohon
+  // COA, lompat lagi per step sampai ketemu yang benar-benar kosong.
   const usedCodes = new Set(allRows.map((r) => r.code));
   let candidate = `${prefix}-${String(nextNum).padStart(suffixRaw.length, "0")}`;
   while (usedCodes.has(candidate)) {
-    nextNum += 1;
+    nextNum += effectiveStep;
     candidate = `${prefix}-${String(nextNum).padStart(suffixRaw.length, "0")}`;
   }
   return candidate;
