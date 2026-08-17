@@ -4,7 +4,8 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, Button, Modal, Input, Select, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
-import { Plus, PlusCircle, Pencil, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, PlusCircle, Pencil, ChevronDown, ChevronRight, ScrollText } from "lucide-react";
+import { MutasiModal } from "./MutasiModal";
 
 export interface CoaRow {
   id: string;
@@ -114,6 +115,7 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
   const [lockedFields, setLockedFields] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [mutasiAccount, setMutasiAccount] = useState<CoaRow | null>(null);
 
   const tree = useMemo(() => buildTree(rows), [rows]);
   const depthById = useMemo(() => new Map(tree.map((t) => [t.row.id, t.depth])), [tree]);
@@ -283,14 +285,26 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
         const depth = depthById.get(r.id) ?? 0;
         const hasChildren = hasChildrenById.has(r.id);
         return (
-          <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-2">
-            {r.name}
-            {hasChildren && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
-                Parent
-              </span>
+          <div className="flex items-center justify-between gap-3">
+            <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-2">
+              {r.name}
+              {hasChildren && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
+                  Parent
+                </span>
+              )}
+            </span>
+            {!r.isParent && (
+              <button
+                onClick={() => setMutasiAccount(r)}
+                title="Lihat mutasi akun ini"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0544cc] hover:underline cursor-pointer flex-shrink-0"
+              >
+                <ScrollText className="w-3.5 h-3.5" />
+                Mutasi
+              </button>
             )}
-          </span>
+          </div>
         );
       },
     },
@@ -380,6 +394,14 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
           </div>
         </div>
       </Modal>
+
+      {mutasiAccount && (
+        <MutasiModal
+          accountId={mutasiAccount.id}
+          accountLabel={`${mutasiAccount.code} — ${mutasiAccount.name}`}
+          onClose={() => setMutasiAccount(null)}
+        />
+      )}
     </Card>
   );
 };
