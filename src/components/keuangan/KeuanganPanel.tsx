@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription } from "@/components/ui";
-import { ArrowUpRight, ArrowDownLeft, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Wallet, Tags } from "lucide-react";
 
 /** Halaman induk Keuangan — tiap kartu navigasi ke halaman riwayat + tambah entri sendiri,
  *  bukan modal di tempat, supaya histori pembayaran per kategori langsung kelihatan. Bayar
@@ -33,6 +33,14 @@ export const KeuanganPanel: React.FC = () => {
       description: "Kelola daftar akun kas/bank & saldo",
       href: "/keuangan/akun-kas-bank",
       accent: "text-sky-600 bg-sky-50",
+    },
+    {
+      key: "akun-biaya",
+      icon: <Tags className="w-6 h-6" />,
+      title: "Akun Biaya",
+      description: "Kelola kategori Pendapatan, Biaya, HPP & mapping COA",
+      href: "/keuangan/akun-biaya",
+      accent: "text-amber-600 bg-amber-50",
     },
   ];
 

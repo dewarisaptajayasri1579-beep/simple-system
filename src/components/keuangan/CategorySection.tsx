@@ -48,12 +48,13 @@ const KindTable: React.FC<{
   kind: CategoryRow["kind"];
   rows: CategoryRow[];
   coaOptions: { value: string; label: string }[];
+  canEdit: boolean;
   onRename: (id: string, name: string) => Promise<void>;
   onSetCoa: (id: string, coaAccountId: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMerge: (sourceIds: string[], targetId: string) => Promise<void>;
   onAdd: (name: string) => Promise<void>;
-}> = ({ kind, rows, coaOptions, onRename, onSetCoa, onDelete, onMerge, onAdd }) => {
+}> = ({ kind, rows, coaOptions, canEdit, onRename, onSetCoa, onDelete, onMerge, onAdd }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -93,27 +94,33 @@ const KindTable: React.FC<{
   };
 
   const columns: FilterableColumn<CategoryRow>[] = [
-    {
-      key: "select",
-      header: "",
-      headClassName: "w-10",
-      cell: (r) => (
-        <input
-          type="checkbox"
-          checked={selected.has(r.id)}
-          onChange={() => toggleSelected(r.id)}
-          className="w-4 h-4 cursor-pointer"
-          aria-label={`Pilih ${r.name} untuk digabung`}
-        />
-      ),
-    },
+    ...(canEdit
+      ? [
+          {
+            key: "select",
+            header: "",
+            headClassName: "w-10",
+            cell: (r: CategoryRow) => (
+              <input
+                type="checkbox"
+                checked={selected.has(r.id)}
+                onChange={() => toggleSelected(r.id)}
+                className="w-4 h-4 cursor-pointer"
+                aria-label={`Pilih ${r.name} untuk digabung`}
+              />
+            ),
+          },
+        ]
+      : []),
     {
       key: "name",
       header: "Nama",
       filterValue: (r) => r.name,
       cellClassName: "font-semibold",
       cell: (r) =>
-        editingId === r.id ? (
+        !canEdit ? (
+          r.name
+        ) : editingId === r.id ? (
           <div className="flex items-center gap-2">
             <Input sizeVariant="sm" value={editingName} onChange={(e) => setEditingName(e.target.value)} />
             <Button
@@ -146,46 +153,55 @@ const KindTable: React.FC<{
       key: "coa",
       header: "COA",
       cellClassName: "min-w-[220px]",
-      cell: (r) => (
-        <Select
-          sizeVariant="sm"
-          options={coaOptions}
-          value={r.coaAccountId ?? ""}
-          onChange={(v) => onSetCoa(r.id, v)}
-          placeholder="Belum dipetakan — jatuh ke Lain-lain"
-          searchPlaceholder="Cari akun..."
-        />
-      ),
+      cell: (r) =>
+        canEdit ? (
+          <Select
+            sizeVariant="sm"
+            options={coaOptions}
+            value={r.coaAccountId ?? ""}
+            onChange={(v) => onSetCoa(r.id, v)}
+            placeholder="Belum dipetakan — jatuh ke Lain-lain"
+            searchPlaceholder="Cari akun..."
+          />
+        ) : r.coaAccount ? (
+          `${r.coaAccount.code} — ${r.coaAccount.name}`
+        ) : (
+          "Belum dipetakan — jatuh ke Lain-lain"
+        ),
     },
     {
       key: "usage",
       header: "Transaksi",
       cell: (r) => <span className="text-slate-600 font-semibold">{r._count.transactions}</span>,
     },
-    {
-      key: "aksi",
-      header: "Aksi",
-      cell: (r) =>
-        r._count.transactions === 0 ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            isLoading={busyId === r.id}
-            onClick={async () => {
-              setBusyId(r.id);
-              try {
-                await onDelete(r.id);
-              } finally {
-                setBusyId(null);
-              }
-            }}
-          >
-            <Trash2 className="w-4 h-4 text-rose-500" />
-          </Button>
-        ) : (
-          <span className="text-xs text-slate-400">dipakai</span>
-        ),
-    },
+    ...(canEdit
+      ? [
+          {
+            key: "aksi",
+            header: "Aksi",
+            cell: (r: CategoryRow) =>
+              r._count.transactions === 0 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isLoading={busyId === r.id}
+                  onClick={async () => {
+                    setBusyId(r.id);
+                    try {
+                      await onDelete(r.id);
+                    } finally {
+                      setBusyId(null);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                </Button>
+              ) : (
+                <span className="text-xs text-slate-400">dipakai</span>
+              ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -197,7 +213,7 @@ const KindTable: React.FC<{
         </CardDescription>
       </CardHeader>
 
-      {selected.size >= 2 && (
+      {canEdit && selected.size >= 2 && (
         <div className="mx-5 sm:mx-6 mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 flex flex-wrap items-center gap-3">
           <Combine className="w-4 h-4 text-blue-600 flex-shrink-0" />
           <span className="text-xs font-semibold text-blue-800">{selected.size} kategori dipilih — gabung ke:</span>
@@ -215,17 +231,19 @@ const KindTable: React.FC<{
 
       <FilterableTable columns={columns} rows={rows} rowKey={(r) => r.id} emptyMessage={`Belum ada kategori ${KIND_LABEL[kind].toLowerCase()}.`} />
 
-      <div className="flex gap-2 p-5 sm:p-6 pt-4 border-t border-slate-200/60">
-        <Input sizeVariant="sm" placeholder={`Kategori ${KIND_LABEL[kind].toLowerCase()} baru`} value={newName} onChange={(e) => setNewName(e.target.value)} />
-        <Button size="sm" variant="outline" onClick={handleAdd} leftIcon={<Plus className="w-4 h-4" />}>
-          Tambah
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex gap-2 p-5 sm:p-6 pt-4 border-t border-slate-200/60">
+          <Input sizeVariant="sm" placeholder={`Kategori ${KIND_LABEL[kind].toLowerCase()} baru`} value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <Button size="sm" variant="outline" onClick={handleAdd} leftIcon={<Plus className="w-4 h-4" />}>
+            Tambah
+          </Button>
+        </div>
+      )}
     </Card>
   );
 };
 
-export const CategorySection: React.FC = () => {
+export const CategorySection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [coaAccounts, setCoaAccounts] = useState<CoaRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -349,6 +367,7 @@ export const CategorySection: React.FC = () => {
           kind={kind}
           rows={categories.filter((c) => c.kind === kind)}
           coaOptions={coaOptionsByKind[kind]}
+          canEdit={canEdit}
           onRename={handleRename}
           onSetCoa={handleSetCoa}
           onDelete={handleDelete}

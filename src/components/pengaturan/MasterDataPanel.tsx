@@ -24,7 +24,6 @@ import { computeNextDueDate, getDueBucket, resolveServerExpiry, isWeeklyPeriod, 
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
-import { CategorySection } from "./CategorySection";
 
 export interface VendorRow {
   id: string;
@@ -2591,7 +2590,6 @@ const MASTER_TABS = [
   { value: "client", label: "Pelanggan" },
   { value: "legacy-client", label: "Pelanggan Baru (Staging)" },
   { value: "item", label: "Jasa" },
-  { value: "kategori", label: "Kategori" },
   { value: "server", label: "Server" },
   { value: "maintenance", label: "Maintenance" },
   { value: "cpanel", label: "Akun cPanel" },
@@ -2648,7 +2646,6 @@ export const MasterDataPanel: React.FC<{
       {tab === "client" && <ClientSection rows={clients} />}
       {tab === "legacy-client" && <LegacyClientStagingSection rows={legacySalesClients} />}
       {tab === "item" && <ItemSection rows={items} />}
-      {tab === "kategori" && <CategorySection />}
       {tab === "server" && <ServerSection rows={servers} vendors={vendors} cloudTypes={cloudTypes} clients={clients} />}
       {tab === "maintenance" && <MaintenanceSection rows={maintenances} clients={clients} />}
       {tab === "cpanel" && <CpanelAccountSection rows={cpanelAccounts} cloudTypes={cloudTypes} packages={hostingPackages} />}

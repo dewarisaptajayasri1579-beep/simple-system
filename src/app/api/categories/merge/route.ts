@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma"
 export async function POST(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa menggabung kategori" }, { status: 403 })
 
   const body = await request.json().catch(() => null)
   const targetId = typeof body?.targetId === "string" ? body.targetId : ""
