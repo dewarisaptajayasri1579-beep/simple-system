@@ -1409,6 +1409,10 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
   const [togglingOwnerId, setTogglingOwnerId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<DomainRow | null>(null);
   const [assignClientId, setAssignClientId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState<Partial<DomainRow>>({});
+  const [createError, setCreateError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [localClients, setLocalClients] = useState(initialClients);
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -1522,6 +1526,39 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
 
     await patchDomainClient(assigning.id, targetClientId);
     setAssigning(null);
+  };
+
+  const openCreate = () => {
+    setIsCreating(true);
+    setForm({ active: true });
+    setCreateError("");
+  };
+  const closeCreate = () => {
+    setIsCreating(false);
+    setForm({});
+  };
+
+  const handleCreate = async () => {
+    if (!form.name?.trim()) {
+      setCreateError("Nama domain wajib diisi");
+      return;
+    }
+    setIsSaving(true);
+    setCreateError("");
+    const res = await fetch("/api/domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json().catch(() => null);
+    setIsSaving(false);
+    if (!res.ok) {
+      setCreateError(data?.error || `Gagal menyimpan (status ${res.status})`);
+      return;
+    }
+    setRows((prev) => [...prev, data]);
+    closeCreate();
+    router.refresh();
   };
 
   const openNewClientForm = (prefillName: string) => {
@@ -1700,8 +1737,59 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
           </div>
           <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
         </div>
+        <div className="px-5 sm:px-6 pb-2 flex flex-col sm:flex-row gap-3">
+          <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
+            Tambah Domain
+          </Button>
+        </div>
         <FilterableTable columns={columns} rows={rows} rowKey={(d) => d.id} emptyMessage="Tidak ada domain yang cocok." />
       </Card>
+
+      <Modal isOpen={isCreating} onClose={closeCreate} title="Domain Baru" size="lg">
+        <div className="space-y-4">
+          {createError && (
+            <Alert variant="error" onClose={() => setCreateError("")}>
+              {createError}
+            </Alert>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama Domain" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <Select
+              label="Client"
+              options={clientOptions}
+              value={form.clientId ?? ""}
+              onChange={(v) => setForm((f) => ({ ...f, clientId: v }))}
+              placeholder="Internal (7Smarts)"
+              searchable
+            />
+            <CurrencyInput label="Harga Jual" value={form.sellPrice ?? 0} onChange={(v) => setForm((f) => ({ ...f, sellPrice: v }))} />
+            <Input
+              label="Terakhir Bayar"
+              type="date"
+              value={form.lastPaidAt ? form.lastPaidAt.slice(0, 10) : ""}
+              onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
+            />
+            <Input
+              label="Tgl Berakhir"
+              type="date"
+              value={form.expiryDate ? form.expiryDate.slice(0, 10) : ""}
+              onChange={(e) => setForm((f) => ({ ...f, expiryDate: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <input type="checkbox" checked={form.active ?? true} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="w-5 h-5" />
+            <span className="text-sm font-semibold text-slate-700">Aktif</span>
+          </label>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={closeCreate}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleCreate} isLoading={isSaving}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={!!assigning}
