@@ -186,6 +186,7 @@ const KindTable: React.FC<{
                   variant="ghost"
                   isLoading={busyId === r.id}
                   onClick={async () => {
+                    if (!confirm(`Hapus kategori "${r.name}"?`)) return;
                     setBusyId(r.id);
                     try {
                       await onDelete(r.id);
