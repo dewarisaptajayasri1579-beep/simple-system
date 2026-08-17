@@ -298,10 +298,7 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
       key: "saldo",
       header: "Saldo",
       cellClassName: "font-semibold text-right",
-      cell: (r) => {
-        const depth = depthById.get(r.id) ?? 0;
-        return <span style={{ paddingRight: depth * 20 }}>{formatRupiah(r.saldoAkhir)}</span>;
-      },
+      cell: (r) => formatRupiah(r.saldoAkhir),
     },
     {
       key: "aksi",
