@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { TransactionPostingBar } from "@/components/keuangan/TransactionPostingBar"
+import { TransactionDetailFields } from "@/components/keuangan/TransactionDetailFields"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
@@ -10,10 +11,6 @@ import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal"
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }).format(date)
-}
-
-function formatRupiah(amount: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
 }
 
 const REF_LABEL: Record<string, string> = {
@@ -46,6 +43,17 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   // Pembayaran — lihat guard yang sama di POST/DELETE /api/transactions/[id].
   const managedByPaymentId = transaction.paymentId
 
+  // Sama syaratnya dengan PATCH /api/transactions/[id]: cuma draft pengeluaran manual (Kas
+  // Keluar, tanpa refType Bayar Domain/Server/dst, bukan bagian dari Payment) yang boleh edit
+  // inline di sini — sisanya tetap lewat Posting/Hapus seperti biasa.
+  const editable = transaction.postStatus === "draft" && transaction.type === "expense" && !transaction.refType && !managedByPaymentId
+  const [accounts, categories] = editable
+    ? await Promise.all([
+        prisma.account.findMany({ orderBy: { name: "asc" } }),
+        prisma.category.findMany({ where: { kind: "expense" }, orderBy: { name: "asc" } }),
+      ])
+    : [[], []]
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-2xl mx-auto">
@@ -73,26 +81,18 @@ export default async function TransactionDetailPage({ params }: { params: Promis
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase">Keterangan</p>
-              <p className="font-bold text-slate-900 mt-1">{transaction.description || "-"}</p>
-              {transaction.category && <p className="text-sm text-slate-600">{transaction.category.name}</p>}
-            </div>
-            <div className="sm:text-right">
-              <p className="text-xs font-bold text-slate-500 uppercase">Akun</p>
-              <p className="font-semibold text-slate-800">{transaction.account.name}</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end mt-6 pt-6 border-t border-slate-200/60">
-            <div className="w-full sm:w-72 space-y-1.5 text-sm">
-              <div className="flex justify-between text-lg font-black text-slate-900">
-                <span>Jumlah</span>
-                <span>{formatRupiah(transaction.grossAmount)}</span>
-              </div>
-            </div>
-          </div>
+          <TransactionDetailFields
+            transactionId={transaction.id}
+            editable={editable}
+            description={transaction.description ?? ""}
+            accountId={transaction.accountId}
+            accountName={transaction.account.name}
+            categoryId={transaction.categoryId ?? ""}
+            categoryName={transaction.category?.name ?? ""}
+            grossAmount={transaction.grossAmount}
+            accountOptions={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            categoryOptions={categories.map((c) => ({ value: c.id, label: c.name }))}
+          />
         </Card>
       </div>
     </AppLayout>
