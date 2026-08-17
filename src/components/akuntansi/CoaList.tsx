@@ -242,8 +242,20 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
       cellClassName: "font-mono font-semibold",
       cell: (r) => {
         const depth = depthById.get(r.id) ?? 0;
+        const hasChildren = hasChildrenById.has(r.id);
         return (
           <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-1.5">
+            {hasChildren ? (
+              <button
+                onClick={() => toggleCollapse(r.id)}
+                title={collapsedIds.has(r.id) ? "Buka sub-akun" : "Tutup sub-akun"}
+                className="text-slate-400 hover:text-[#0544cc] cursor-pointer flex-shrink-0"
+              >
+                {collapsedIds.has(r.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            ) : (
+              depth > 0 && <span className="w-4 flex-shrink-0" />
+            )}
             {depth > 0 && <span className="text-slate-300">└</span>}
             {r.code}
             {isOwner && r.isParent && (
@@ -268,17 +280,6 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
         const hasChildren = hasChildrenById.has(r.id);
         return (
           <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-2">
-            {hasChildren ? (
-              <button
-                onClick={() => toggleCollapse(r.id)}
-                title={collapsedIds.has(r.id) ? "Buka sub-akun" : "Tutup sub-akun"}
-                className="text-slate-400 hover:text-[#0544cc] cursor-pointer flex-shrink-0"
-              >
-                {collapsedIds.has(r.id) ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
-            ) : (
-              depth > 0 && <span className="w-4 flex-shrink-0" />
-            )}
             {r.name}
             {hasChildren && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
