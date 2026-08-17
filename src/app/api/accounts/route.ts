@@ -26,12 +26,23 @@ export async function POST(request: Request) {
     const kasBankParent = await tx.chartOfAccount.findUnique({ where: { code: "1-1000" } })
     if (!kasBankParent) throw new Error('COA induk "1-1000 Kas & Bank" belum tersedia')
 
+    // Kalau staf pilih COA eksplisit lewat dropdown, pakai itu. Kalau tidak, jatuhkan ke
+    // pencarian berdasarkan nama yang sama seperti sebelumnya (atau buat otomatis).
+    let coa = typeof body?.coaAccountId === "string" && body.coaAccountId
+      ? await tx.chartOfAccount.findUnique({ where: { id: body.coaAccountId } })
+      : null
+    if (typeof body?.coaAccountId === "string" && body.coaAccountId && !coa) {
+      throw new Error("Akun COA yang dipilih tidak ditemukan")
+    }
+
     // Jika COA dengan nama yang sama sudah dibuat lebih dulu secara manual, pakai dan
     // hubungkan COA tersebut. Kalau belum ada, buat otomatis sebagai akun detail di
     // bawah Kas & Bank dengan nomor berikutnya (1-1001, 1-1002, dst.).
-    let coa = await tx.chartOfAccount.findFirst({
-      where: { name: { equals: name, mode: "insensitive" }, type: "asset", parentId: kasBankParent.id },
-    })
+    if (!coa) {
+      coa = await tx.chartOfAccount.findFirst({
+        where: { name: { equals: name, mode: "insensitive" }, type: "asset", parentId: kasBankParent.id },
+      })
+    }
     if (!coa) {
       const siblings = await tx.chartOfAccount.findMany({ where: { parentId: kasBankParent.id }, select: { code: true } })
       const lastNumber = siblings.reduce((highest, sibling) => {

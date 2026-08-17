@@ -1,9 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input, Select, Alert, CurrencyInput } from "@/components/ui";
 import { Plus } from "lucide-react";
+import { COA_CODE } from "@/lib/accounting/coa-seed";
+
+interface CoaOption {
+  id: string;
+  code: string;
+  name: string;
+  isParent: boolean;
+  parent: { code: string } | null;
+}
 
 const BANK_KEYWORDS = ["mandiri", "bca", "bri", "bni", "bsi"];
 
@@ -21,15 +30,31 @@ export const AddAccountButton: React.FC = () => {
   const [name, setName] = useState("");
   const [type, setType] = useState<"kas" | "bank">("kas");
   const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [openingBalance, setOpeningBalance] = useState(0);
+  const [coaAccountId, setCoaAccountId] = useState("");
+  const [coaOptions, setCoaOptions] = useState<CoaOption[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/coa")
+      .then((r) => r.json())
+      .then((data: CoaOption[]) => {
+        if (Array.isArray(data)) setCoaOptions(data.filter((a) => !a.isParent && a.parent?.code === COA_CODE.kasBankParent));
+      })
+      .catch(() => {});
+  }, []);
+
+  const coaSelectOptions = useMemo(() => coaOptions.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })), [coaOptions]);
 
   const openModal = () => {
     setName("");
     setType("kas");
     setBankName("");
+    setAccountNumber("");
     setOpeningBalance(0);
+    setCoaAccountId("");
     setError("");
     setIsOpen(true);
   };
@@ -41,7 +66,7 @@ export const AddAccountButton: React.FC = () => {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type, bankName, openingBalance }),
+        body: JSON.stringify({ name, type, bankName, accountNumber, openingBalance, coaAccountId }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -88,8 +113,18 @@ export const AddAccountButton: React.FC = () => {
             value={type}
             onChange={(v) => setType(v as "kas" | "bank")}
           />
-          {type === "bank" && <Input label="Nama Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} />}
+          {type === "bank" && <Input label="Nama Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="mis. BCA" />}
+          <Input label="No. Rekening (opsional)" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
           <CurrencyInput label="Saldo Awal" value={openingBalance} onChange={setOpeningBalance} />
+          <Select
+            label="COA Terkait (opsional)"
+            options={coaSelectOptions}
+            value={coaAccountId}
+            onChange={setCoaAccountId}
+            placeholder="Otomatis dibuat kalau tidak dipilih"
+            searchPlaceholder="Cari kode atau nama akun..."
+            emptyText="Belum ada akun COA di bawah Kas & Bank"
+          />
           <Button className="w-full" onClick={handleSave} disabled={isSaving || !name.trim()}>
             {isSaving ? "Menyimpan..." : "Simpan"}
           </Button>
