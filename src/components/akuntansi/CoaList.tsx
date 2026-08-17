@@ -76,8 +76,17 @@ function nextChildCode(parent: CoaRow, allRows: CoaRow[]): string {
     .filter((r) => r.parentId === parent.id && r.code.startsWith(`${prefix}-`))
     .map((r) => Number(r.code.split("-")[1]))
     .filter((n) => !Number.isNaN(n));
-  const maxNum = siblingNums.length > 0 ? Math.max(...siblingNums) : parentNum;
-  return `${prefix}-${String(maxNum + 1).padStart(suffixRaw.length, "0")}`;
+  let nextNum = (siblingNums.length > 0 ? Math.max(...siblingNums) : parentNum) + 1;
+  // Sibling langsung bisa "melompat" (mis. anak baru ditambah manual dengan kode dekat cabang
+  // lain), jadi max+1 saja bisa nabrak kode yang sudah dipakai di bagian lain pohon COA — cek
+  // ke SELURUH kode (bukan cuma sibling) dan lompat terus sampai ketemu yang benar-benar kosong.
+  const usedCodes = new Set(allRows.map((r) => r.code));
+  let candidate = `${prefix}-${String(nextNum).padStart(suffixRaw.length, "0")}`;
+  while (usedCodes.has(candidate)) {
+    nextNum += 1;
+    candidate = `${prefix}-${String(nextNum).padStart(suffixRaw.length, "0")}`;
+  }
+  return candidate;
 }
 
 export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string }> = ({ rows: initialRows, isOwner, month }) => {
