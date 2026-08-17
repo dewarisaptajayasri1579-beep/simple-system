@@ -8,6 +8,7 @@ import { InvoiceWhatsAppButton } from "@/components/penjualan/InvoiceWhatsAppBut
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { InvoiceDeleteButton } from "@/components/penjualan/InvoiceDeleteButton"
+import { InvoiceEditableDetail } from "@/components/penjualan/InvoiceEditableDetail"
 import { VoidButton } from "@/components/akuntansi/VoidButton"
 import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { getCurrentUser } from "@/lib/current-user"
@@ -113,85 +114,26 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60">
-            <div>
-              <p className="text-xs font-bold text-slate-500 uppercase">Ditagihkan Kepada</p>
-              <p className="font-bold text-slate-900 mt-1">{invoice.client.name}</p>
-              {invoice.client.address && <p className="text-sm text-slate-600">{invoice.client.address}</p>}
-              {invoice.client.phoneNumber && <p className="text-sm text-slate-600">{invoice.client.phoneNumber}</p>}
-            </div>
-            <div className="sm:text-right">
-              <p className="text-xs font-bold text-slate-500 uppercase">Tanggal Terbit</p>
-              <p className="font-semibold text-slate-800">{formatDate(invoice.issuedAt)}</p>
-              <p className="text-xs font-bold text-slate-500 uppercase mt-2">Jatuh Tempo</p>
-              <p className="font-semibold text-slate-800">{formatDate(invoice.dueDate)}</p>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <TableContainer>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Keterangan</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Harga</TableHead>
-                    <TableHead>Diskon</TableHead>
-                    <TableHead>Subtotal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoice.lines.map((line) => (
-                    <TableRow key={line.id}>
-                      <TableCell>{line.description}</TableCell>
-                      <TableCell>{line.qty}</TableCell>
-                      <TableCell>{formatRupiah(line.unitPrice)}</TableCell>
-                      <TableCell>{formatRupiah(line.discountAmount)}</TableCell>
-                      <TableCell className="font-semibold">{formatRupiah(line.lineTotal)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </div>
-
-          <div className="flex justify-end mt-6">
-            <div className="w-full sm:w-72 space-y-1.5 text-sm">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span>{formatRupiah(invoice.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Diskon</span>
-                <span>- {formatRupiah(invoice.discountAmount)}</span>
-              </div>
-              {invoice.ppnEnabled && (
-                <div className="flex justify-between text-slate-600">
-                  <span>PPN {invoice.ppnRate}%</span>
-                  <span>{formatRupiah(invoice.ppnAmount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200/60">
-                <span>Total</span>
-                <span>{formatRupiah(invoice.totalAmount)}</span>
-              </div>
-              <div className="flex justify-between text-emerald-700 font-semibold">
-                <span>Terbayar</span>
-                <span>{formatRupiah(paid)}</span>
-              </div>
-              <div className="flex justify-between text-rose-700 font-bold">
-                <span>Sisa</span>
-                <span>{formatRupiah(remaining)}</span>
-              </div>
-            </div>
-          </div>
-
-          {invoice.notes && (
-            <p className="mt-6 text-sm text-slate-600 border-t border-slate-200/60 pt-4">
-              <span className="font-bold">Catatan: </span>
-              {invoice.notes}
-            </p>
-          )}
+          <InvoiceEditableDetail
+            invoiceId={invoice.id}
+            editable={invoice.postStatus === "draft"}
+            clientId={invoice.clientId}
+            clientName={invoice.client.name}
+            clientAddress={invoice.client.address ?? ""}
+            clientPhone={invoice.client.phoneNumber ?? ""}
+            issuedAt={invoice.issuedAt}
+            dueDate={invoice.dueDate}
+            notes={invoice.notes ?? ""}
+            ppnEnabled={invoice.ppnEnabled}
+            ppnRate={invoice.ppnRate}
+            discountAmount={invoice.discountAmount}
+            subtotal={invoice.subtotal}
+            ppnAmount={invoice.ppnAmount}
+            totalAmount={invoice.totalAmount}
+            paid={paid}
+            remaining={remaining}
+            lines={invoice.lines}
+          />
         </Card>
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
