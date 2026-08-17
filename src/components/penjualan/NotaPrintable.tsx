@@ -37,7 +37,14 @@ export const NotaPrintable: React.FC<{
 }> = ({ invoice, bank, qrDataUrl }) => {
   return (
     <div className="print-only">
-      <Card variant="panel" padding="sm" className="print:shadow-none print:border-none print:bg-white print-nota-a5">
+      <Card variant="panel" padding="sm" className="relative overflow-hidden print:shadow-none print:border-none print:bg-white print-nota-a5">
+        {invoice.postStatus === "draft" && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50 print-exact-color">
+            <span className="text-2xl font-black text-rose-600/40 uppercase tracking-widest -rotate-[25deg] border-4 border-rose-600/40 rounded-2xl px-6 py-2 whitespace-nowrap">
+              Draft — Belum Sah
+            </span>
+          </div>
+        )}
         <NotaHeader invoiceNumber={invoice.invoiceNumber} date={formatDate(invoice.issuedAt)} qrDataUrl={qrDataUrl} />
 
         <div className="grid grid-cols-2 gap-3 mt-3 text-xs">

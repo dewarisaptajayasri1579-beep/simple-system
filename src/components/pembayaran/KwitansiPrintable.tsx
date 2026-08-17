@@ -23,7 +23,14 @@ export const KwitansiPrintable: React.FC<{
 
   return (
     <div className="print-only">
-      <Card variant="panel" padding="sm" className="print:shadow-none print:border-none print:bg-white print-nota-a5">
+      <Card variant="panel" padding="sm" className="relative overflow-hidden print:shadow-none print:border-none print:bg-white print-nota-a5">
+        {payment.postStatus === "draft" && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50 print-exact-color">
+            <span className="text-2xl font-black text-rose-600/40 uppercase tracking-widest -rotate-[25deg] border-4 border-rose-600/40 rounded-2xl px-6 py-2 whitespace-nowrap">
+              Draft — Belum Sah
+            </span>
+          </div>
+        )}
         <KwitansiHeader paymentNumber={payment.paymentNumber} date={date} qrDataUrl={qrDataUrl} />
 
         <div className="mt-4 rounded-xl border border-slate-200 divide-y divide-dashed divide-slate-200">
