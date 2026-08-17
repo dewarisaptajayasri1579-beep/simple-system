@@ -41,6 +41,8 @@ export interface FilterableTableProps<T> {
   searchPlaceholder?: string | null;
   /** Render rows as stacked cards on small screens instead of a table. */
   mobileCardMode?: boolean;
+  /** Extra className per row (mis. beda background/font buat baris induk di tabel hierarkis). */
+  rowClassName?: (row: T) => string;
 }
 
 export function FilterableTable<T>({
@@ -52,6 +54,7 @@ export function FilterableTable<T>({
   containerClassName = "rounded-none border-x-0 border-b-0 shadow-none",
   searchPlaceholder = "Cari...",
   mobileCardMode = false,
+  rowClassName,
 }: FilterableTableProps<T>) {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
@@ -113,7 +116,7 @@ export function FilterableTable<T>({
         {mobileCardMode && (
           <div className="block md:hidden p-3 sm:p-4 space-y-3">
             {pageRows.map((row, i) => (
-              <div key={rowKey(row)} className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm">
+              <div key={rowKey(row)} className={`rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm ${rowClassName?.(row) ?? ""}`}>
                 <div className="space-y-3">
                   {columns.map((col) => (
                     <div key={col.key} className="flex items-start justify-between gap-3">
@@ -178,7 +181,7 @@ export function FilterableTable<T>({
             </TableHeader>
             <TableBody>
               {pageRows.map((row, i) => (
-                <TableRow key={rowKey(row)}>
+                <TableRow key={rowKey(row)} className={rowClassName?.(row)}>
                   {columns.map((col) => (
                     <TableCell key={col.key} className={col.cellClassName}>
                       {col.cell(row, pagination.start + i)}

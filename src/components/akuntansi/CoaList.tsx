@@ -245,12 +245,15 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
     {
       key: "code",
       header: "Kode",
-      cellClassName: "font-mono font-semibold",
+      cellClassName: "font-mono",
       cell: (r) => {
         const depth = depthById.get(r.id) ?? 0;
         const hasChildren = hasChildrenById.has(r.id);
         return (
-          <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-1.5">
+          <span
+            style={{ paddingLeft: depth * 20 }}
+            className={`inline-flex items-center gap-1.5 ${hasChildren ? "font-bold text-slate-900" : "font-medium text-slate-500"}`}
+          >
             {hasChildren ? (
               <button
                 onClick={() => toggleCollapse(r.id)}
@@ -280,13 +283,15 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
     {
       key: "name",
       header: "Nama Akun",
-      cellClassName: "font-semibold",
       cell: (r) => {
         const depth = depthById.get(r.id) ?? 0;
         const hasChildren = hasChildrenById.has(r.id);
         return (
           <div className="flex items-center justify-between gap-3">
-            <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-2">
+            <span
+              style={{ paddingLeft: depth * 20 }}
+              className={`inline-flex items-center gap-2 ${hasChildren ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}
+            >
               {r.name}
               {hasChildren && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
@@ -311,8 +316,11 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
     {
       key: "saldo",
       header: "Saldo",
-      cellClassName: "font-semibold text-right",
-      cell: (r) => formatRupiah(r.saldoAkhir),
+      cellClassName: "text-right",
+      cell: (r) => {
+        const hasChildren = hasChildrenById.has(r.id);
+        return <span className={hasChildren ? "font-bold text-slate-900" : "font-medium text-slate-600"}>{formatRupiah(r.saldoAkhir)}</span>;
+      },
     },
     {
       key: "aksi",
@@ -350,7 +358,14 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
           )}
         </div>
       </div>
-      <FilterableTable columns={columns} rows={treeRows} rowKey={(r) => r.id} pageSize={100} emptyMessage="Belum ada akun." />
+      <FilterableTable
+        columns={columns}
+        rows={treeRows}
+        rowKey={(r) => r.id}
+        pageSize={100}
+        emptyMessage="Belum ada akun."
+        rowClassName={(r) => (hasChildrenById.has(r.id) ? "bg-slate-50" : "")}
+      />
 
       <Modal
         isOpen={isCreating}
