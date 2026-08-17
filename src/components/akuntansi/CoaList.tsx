@@ -245,6 +245,7 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
         return (
           <span style={{ paddingLeft: depth * 20 }} className="inline-flex items-center gap-1.5">
             {depth > 0 && <span className="text-slate-300">└</span>}
+            {r.code}
             {isOwner && r.isParent && (
               <button
                 onClick={() => openCreateChild(r)}
@@ -254,7 +255,6 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
                 <PlusCircle className="w-4 h-4" />
               </button>
             )}
-            {r.code}
           </span>
         );
       },
