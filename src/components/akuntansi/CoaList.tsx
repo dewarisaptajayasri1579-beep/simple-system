@@ -126,9 +126,13 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
     return set;
   }, [rows]);
 
-  // Expand/collapse per induk — default semua kebuka. Nutup satu induk otomatis nyembunyiin
-  // seluruh keturunannya (bukan cuma anak langsung), dicek lewat rantai parentId ke atas.
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  // Expand/collapse per induk — default semua TERTUTUP begitu halaman dibuka (COA bisa
+  // berlapis dalam & bikin daftar kepanjangan kalau langsung kebuka semua). Nutup satu induk
+  // otomatis nyembunyiin seluruh keturunannya (bukan cuma anak langsung), dicek lewat rantai
+  // parentId ke atas.
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    () => new Set(initialRows.filter((r) => r.parentId).map((r) => r.parentId as string))
+  );
   const toggleCollapse = (id: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
