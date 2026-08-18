@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { waWebUrl, WA_WEB_WINDOW_NAME } from "@/lib/phone";
 
 function formatRupiah(n: number) {
@@ -18,6 +19,11 @@ export interface ProjectTagihanRow {
   scheduleId: string;
   invoiceId: string | null;
   invoiceNumber: string | null;
+  invoicedAt: string | null;
+  paidAt: string | null;
+  paymentId: string | null;
+  paymentNumber: string | null;
+  paymentPostStatus: string | null;
   projectId: string;
   projectName: string;
   clientId: string;
@@ -86,6 +92,37 @@ function projectTagihanColumns(
     },
     { key: "dueDate", header: "Tgl Penagihan", cell: (r) => formatDate(r.dueDate) },
     { key: "remaining", header: "Sisa Tagih", cellClassName: "font-semibold text-rose-700", cell: (r) => formatRupiah(r.remaining) },
+    {
+      key: "track",
+      header: "Track",
+      cell: (r) => (
+        <div className="text-xs space-y-0.5">
+          <div>
+            {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
+            {r.invoiceNumber && (
+              r.invoiceId ? (
+                <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.invoiceNumber}</Link>
+              ) : (
+                <span className="text-slate-500"> · {r.invoiceNumber}</span>
+              )
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span>
+              {r.paidAt ? formatDate(r.paidAt) : "-"}
+              {r.paymentNumber && (
+                r.paymentId ? (
+                  <Link href={`/pembayaran/${r.paymentId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.paymentNumber}</Link>
+                ) : (
+                  <span className="text-slate-500"> · {r.paymentNumber}</span>
+                )
+              )}
+            </span>
+            {r.paymentPostStatus && <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />}
+          </div>
+        </div>
+      ),
+    },
     {
       key: "bayar",
       header: "Aksi",

@@ -111,7 +111,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       where: { project: { status: "berjalan" }, OR: [{ invoiceId: null }, { invoice: { status: { in: ["unpaid", "partial"] } } }] },
       include: {
         project: { include: { client: true } },
-        invoice: { include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } } },
+        invoice: {
+          include: {
+            payments: {
+              where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
+              include: { payment: true },
+              orderBy: { paidAt: "desc" },
+            },
+          },
+        },
       },
     }),
     prisma.projectPaymentSchedule.findMany({
@@ -295,10 +303,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const projectTagihanRows: ProjectTagihanRow[] = projectSchedules
     .map((s) => {
       const paid = s.invoice ? s.invoice.payments.reduce((sum, p) => sum + p.amount, 0) : 0
+      const latestPayment = s.invoice?.payments[0]
       return {
         scheduleId: s.id,
         invoiceId: s.invoice?.id ?? null,
         invoiceNumber: s.invoice?.invoiceNumber ?? null,
+        invoicedAt: s.invoice ? s.invoice.issuedAt.toISOString() : null,
+        paidAt: latestPayment ? latestPayment.paidAt.toISOString() : null,
+        paymentId: latestPayment?.payment?.id ?? null,
+        paymentNumber: latestPayment?.payment?.paymentNumber ?? null,
+        paymentPostStatus: latestPayment?.payment?.postStatus ?? null,
         projectId: s.project.id,
         projectName: s.project.name,
         clientId: s.project.clientId,

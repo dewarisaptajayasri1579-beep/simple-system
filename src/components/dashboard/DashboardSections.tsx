@@ -660,6 +660,12 @@ export interface ServerDueRow {
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
   invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoicedAt: string | null;
+  paidAt: string | null;
+  paymentId: string | null;
+  paymentNumber: string | null;
+  paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -669,6 +675,7 @@ const SERVER_COLUMNS = [
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "price", label: "Harga" },
   { key: "status", label: "Status" },
+  { key: "track", label: "Track" },
 ];
 
 export const ServerDueSection: React.FC<{
@@ -749,6 +756,43 @@ export const ServerDueSection: React.FC<{
     ...(isVisible("status")
       ? [{ key: "status", header: "Status", cell: (r: ServerDueRow) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> }]
       : []),
+    ...(isVisible("track")
+      ? [
+          {
+            key: "track",
+            header: "Track",
+            cell: (r: ServerDueRow) => (
+              <div className="text-xs space-y-0.5">
+                <div>
+                  {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
+                  {r.invoiceNumber && (
+                    r.invoiceId ? (
+                      <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.invoiceNumber}</Link>
+                    ) : (
+                      <span className="text-slate-500"> · {r.invoiceNumber}</span>
+                    )
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span>
+                    {r.paidAt ? formatDate(r.paidAt) : "-"}
+                    {r.paymentNumber && (
+                      r.paymentId ? (
+                        <Link href={`/pembayaran/${r.paymentId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.paymentNumber}</Link>
+                      ) : (
+                        <span className="text-slate-500"> · {r.paymentNumber}</span>
+                      )
+                    )}
+                  </span>
+                  {r.paymentPostStatus && (
+                    <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />
+                  )}
+                </div>
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       key: "aksi",
       header: "Aksi",
@@ -818,6 +862,12 @@ export interface MaintenanceDueRow {
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
   invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoicedAt: string | null;
+  paidAt: string | null;
+  paymentId: string | null;
+  paymentNumber: string | null;
+  paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -826,6 +876,7 @@ const MAINTENANCE_COLUMNS = [
   { key: "dueDate", label: "Estimasi Jatuh Tempo" },
   { key: "price", label: "Harga" },
   { key: "status", label: "Status" },
+  { key: "track", label: "Track" },
 ];
 
 export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeToIso?: string | null }> = ({ rows, rangeToIso }) => {
@@ -868,6 +919,43 @@ export const MaintenanceDueSection: React.FC<{ rows: MaintenanceDueRow[]; rangeT
     ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (r: MaintenanceDueRow) => formatRupiah(r.price) }] : []),
     ...(isVisible("status")
       ? [{ key: "status", header: "Status", cell: (r: MaintenanceDueRow) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> }]
+      : []),
+    ...(isVisible("track")
+      ? [
+          {
+            key: "track",
+            header: "Track",
+            cell: (r: MaintenanceDueRow) => (
+              <div className="text-xs space-y-0.5">
+                <div>
+                  {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
+                  {r.invoiceNumber && (
+                    r.invoiceId ? (
+                      <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.invoiceNumber}</Link>
+                    ) : (
+                      <span className="text-slate-500"> · {r.invoiceNumber}</span>
+                    )
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span>
+                    {r.paidAt ? formatDate(r.paidAt) : "-"}
+                    {r.paymentNumber && (
+                      r.paymentId ? (
+                        <Link href={`/pembayaran/${r.paymentId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.paymentNumber}</Link>
+                      ) : (
+                        <span className="text-slate-500"> · {r.paymentNumber}</span>
+                      )
+                    )}
+                  </span>
+                  {r.paymentPostStatus && (
+                    <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />
+                  )}
+                </div>
+              </div>
+            ),
+          },
+        ]
       : []),
     {
       key: "aksi",
