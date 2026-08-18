@@ -432,6 +432,7 @@ export interface DomainExpiringRow {
   invoiceNumber: string | null;
   invoicedAt: string | null;
   paidAt: string | null;
+  paymentId: string | null;
   paymentNumber: string | null;
   paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
@@ -548,12 +549,24 @@ export const DomainExpiringSection: React.FC<{
               <div className="text-xs space-y-0.5">
                 <div>
                   {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
-                  {r.invoiceNumber && <span className="text-slate-500"> · {r.invoiceNumber}</span>}
+                  {r.invoiceNumber && (
+                    r.invoiceId ? (
+                      <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.invoiceNumber}</Link>
+                    ) : (
+                      <span className="text-slate-500"> · {r.invoiceNumber}</span>
+                    )
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span>
                     {r.paidAt ? formatDate(r.paidAt) : "-"}
-                    {r.paymentNumber && <span className="text-slate-500"> · {r.paymentNumber}</span>}
+                    {r.paymentNumber && (
+                      r.paymentId ? (
+                        <Link href={`/pembayaran/${r.paymentId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"> · {r.paymentNumber}</Link>
+                      ) : (
+                        <span className="text-slate-500"> · {r.paymentNumber}</span>
+                      )
+                    )}
                   </span>
                   {r.paymentPostStatus && (
                     <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />
