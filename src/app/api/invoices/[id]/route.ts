@@ -54,7 +54,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const ppnEnabled = Boolean(body?.ppnEnabled)
   const ppnRate = ppnEnabled ? Number(body?.ppnRate) || settings.defaultPpnRate : 0
-  // "Exclude PPN" — lihat catatan sama di POST /api/invoices.
+  // "Include PPN" — lihat catatan sama di POST /api/invoices.
   const ppnInclusive = ppnEnabled && Boolean(body?.ppnInclusive)
   const invoiceDiscount = Number(body?.discountAmount) || 0
 

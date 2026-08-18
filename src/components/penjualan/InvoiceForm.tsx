@@ -8,13 +8,18 @@ import { jakartaTodayDateIso, shiftJakartaDateIso } from "@/lib/datetime";
 
 interface PendingBillingItem {
   id: string;
-  type: "domain" | "server" | "maintenance";
+  type: "domain" | "server" | "maintenance" | "project_termin";
   name: string;
   price: number;
   dueDate: string | null;
 }
 
-const PENDING_TYPE_LABEL: Record<PendingBillingItem["type"], string> = { domain: "Domain", server: "Server", maintenance: "Maintenance" };
+const PENDING_TYPE_LABEL: Record<PendingBillingItem["type"], string> = {
+  domain: "Domain",
+  server: "Server",
+  maintenance: "Maintenance",
+  project_termin: "Project",
+};
 
 function formatDueDate(iso: string | null) {
   if (!iso) return "-";
@@ -81,7 +86,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [notes, setNotes] = useState("");
   const [ppnEnabled, setPpnEnabled] = useState(false);
   const [ppnRate, setPpnRate] = useState(11);
-  // "Exclude PPN" — nominal yang diketik di baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan
+  // "Include PPN" — nominal yang diketik di baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan
   // kontrak 8,8jt include PPN 11%), jadi PPN-nya di-BREAKDOWN dari situ (DPP = total/1,11), BUKAN
   // ditambahkan lagi di atas. Beda dari mode default (PPN ditambahkan di atas harga yang diketik).
   const [ppnInclusive, setPpnInclusive] = useState(false);
@@ -109,20 +114,26 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   // Domain/Server/Maintenance client ini yang lagi jatuh tempo & belum pernah ditagih — bisa
   // langsung "dipanggil" jadi baris invoice di sini, tanpa staf harus bolak-balik ke Dashboard
   // buat klik "Tagih Sekarang" satu-satu (lihat GET /api/clients/[id]/pending-billing).
-  const [pendingItems, setPendingItems] = useState<{ domains: PendingBillingItem[]; servers: PendingBillingItem[]; maintenances: PendingBillingItem[] }>({
+  const [pendingItems, setPendingItems] = useState<{
+    domains: PendingBillingItem[];
+    servers: PendingBillingItem[];
+    maintenances: PendingBillingItem[];
+    projects: PendingBillingItem[];
+  }>({
     domains: [],
     servers: [],
     maintenances: [],
+    projects: [],
   });
   const [addedPendingKeys, setAddedPendingKeys] = useState<Set<string>>(new Set());
   // "Tampilkan semua" — lepas filter jatuh tempo (lihat ?all=true di pending-billing route),
-  // buat kasus staf mau nagih lebih awal padahal Domain/Server/Maintenance-nya belum due.
+  // buat kasus staf mau nagih lebih awal padahal Domain/Server/Maintenance/Project-nya belum due.
   const [showAllPending, setShowAllPending] = useState(false);
   // Cuma 1 item yang bisa "ditautkan" resmi ke invoice (Invoice.costLinkType/costLinkId, lihat
   // InvoiceFormPrefill) buat convenience auto-pilih "Bayar Domain/Server" pas Pembayaran nanti —
   // kalau staf tambah lebih dari 1 dari daftar ini, cuma yang PERTAMA yang ditautkan; sisanya
   // tetap masuk sebagai baris invoice biasa (staf pilih manual saat catat Biaya di Pembayaran).
-  const [linkedItem, setLinkedItem] = useState<{ type: PendingBillingItem["type"]; id: string } | null>(
+  const [linkedItem, setLinkedItem] = useState<{ type: "domain" | "server" | "maintenance"; id: string } | null>(
     prefill?.domainId
       ? { type: "domain", id: prefill.domainId }
       : prefill?.serverId
@@ -131,6 +142,10 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           ? { type: "maintenance", id: prefill.maintenanceId }
           : null
   );
+  // Termin Project yang ditarik dari panel — beda mekanisme dari linkedItem di atas (bukan
+  // costLinkType, Project tidak punya alur "Bayar Project"), cuma dipakai buat link balik
+  // ProjectPaymentSchedule.invoiceId + akun Pendapatan Project (lihat POST /api/invoices).
+  const [linkedProjectScheduleId, setLinkedProjectScheduleId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/clients").then((r) => r.json()).then(setClients);
@@ -140,7 +155,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
 
   useEffect(() => {
     if (!clientId) {
-      setPendingItems({ domains: [], servers: [], maintenances: [] });
+      setPendingItems({ domains: [], servers: [], maintenances: [], projects: [] });
       return;
     }
     fetch(`/api/clients/${clientId}/pending-billing${showAllPending ? "?all=true" : ""}`)
@@ -151,14 +166,27 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const addPendingItem = (item: PendingBillingItem) => {
     const key = `${item.type}:${item.id}`;
     if (addedPendingKeys.has(key)) return;
-    const typeLabel = item.type === "domain" ? "Perpanjangan domain" : item.type === "server" ? "Perpanjangan server" : "Maintenance";
+    const description =
+      item.type === "domain"
+        ? `Perpanjangan domain ${item.name}`
+        : item.type === "server"
+          ? `Perpanjangan server ${item.name}`
+          : item.type === "maintenance"
+            ? `Maintenance ${item.name}`
+            : item.name; // project_termin — item.name sudah "Nama Project - Termin"
     setLines((prev) => {
-      const newLine: LineDraft = { ...emptyLine(), description: `${typeLabel} ${item.name}`, unitPrice: item.price };
+      const newLine: LineDraft = { ...emptyLine(), description, unitPrice: item.price };
       const isBlankSingleLine = prev.length === 1 && !prev[0].description.trim() && prev[0].unitPrice === 0;
       return isBlankSingleLine ? [newLine] : [...prev, newLine];
     });
     setAddedPendingKeys((prev) => new Set(prev).add(key));
-    setLinkedItem((prev) => prev ?? { type: item.type, id: item.id });
+    if (item.type === "project_termin") {
+      setLinkedProjectScheduleId((prev) => prev ?? item.id);
+    } else {
+      const costLinkType = item.type;
+      const costLinkId = item.id;
+      setLinkedItem((prev) => prev ?? { type: costLinkType, id: costLinkId });
+    }
   };
 
   const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
@@ -188,7 +216,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
   const totalLineDiscount = lines.reduce((sum, l) => sum + l.discountAmount, 0);
   const afterDiscount = Math.max(0, subtotal - totalLineDiscount - discountAmount);
-  // Mode "Exclude PPN": afterDiscount SUDAH termasuk PPN, jadi di-breakdown (bukan ditambah lagi
+  // Mode "Include PPN": afterDiscount SUDAH termasuk PPN, jadi di-breakdown (bukan ditambah lagi
   // di atas) — rumus sama dengan invoiceCashDue/pemungut PPN: PPN = gross * rate/(100+rate).
   const ppnAmount = !ppnEnabled ? 0 : ppnInclusive ? Math.round(afterDiscount * (ppnRate / (100 + ppnRate))) : Math.round(afterDiscount * (ppnRate / 100));
   const totalAmount = ppnInclusive ? afterDiscount : afterDiscount + ppnAmount;
@@ -260,6 +288,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           domainId: linkedItem?.type === "domain" ? linkedItem.id : undefined,
           serverId: linkedItem?.type === "server" ? linkedItem.id : undefined,
           maintenanceId: linkedItem?.type === "maintenance" ? linkedItem.id : undefined,
+          projectScheduleId: linkedProjectScheduleId ?? undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -324,21 +353,21 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
             <CardTitle>Tagihan Belum Ditagih</CardTitle>
             <CardDescription>
               {showAllPending
-                ? "Semua Domain/Server/Maintenance aktif client ini, termasuk yang belum jatuh tempo — klik untuk tambah jadi baris invoice."
-                : "Domain/Server/Maintenance client ini yang jatuh tempo & belum pernah ditagih — klik untuk tambah jadi baris invoice."}
+                ? "Semua Domain/Server/Maintenance/Project aktif client ini, termasuk yang belum jatuh tempo — klik untuk tambah jadi baris invoice."
+                : "Domain/Server/Maintenance/Project client ini yang jatuh tempo & belum pernah ditagih — klik untuk tambah jadi baris invoice."}
             </CardDescription>
           </CardHeader>
           <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
             <input type="checkbox" className="w-4 h-4" checked={showAllPending} onChange={(e) => setShowAllPending(e.target.checked)} />
             Tampilkan semua (termasuk yang belum jatuh tempo)
           </label>
-          {pendingItems.domains.length === 0 && pendingItems.servers.length === 0 && pendingItems.maintenances.length === 0 ? (
+          {pendingItems.domains.length === 0 && pendingItems.servers.length === 0 && pendingItems.maintenances.length === 0 && pendingItems.projects.length === 0 ? (
             <p className="text-sm text-slate-500">
-              {showAllPending ? "Client ini belum punya Domain/Server/Maintenance aktif." : "Tidak ada yang jatuh tempo saat ini."}
+              {showAllPending ? "Client ini belum punya Domain/Server/Maintenance/Project aktif." : "Tidak ada yang jatuh tempo saat ini."}
             </p>
           ) : (
           <div className="space-y-2">
-            {[...pendingItems.domains, ...pendingItems.servers, ...pendingItems.maintenances].map((item) => {
+            {[...pendingItems.domains, ...pendingItems.servers, ...pendingItems.maintenances, ...pendingItems.projects].map((item) => {
               const key = `${item.type}:${item.id}`;
               const added = addedPendingKeys.has(key);
               return (
@@ -444,7 +473,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           <label className="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer select-none">
             <input type="checkbox" className="w-5 h-5 mt-0.5" checked={ppnInclusive} onChange={(e) => setPpnInclusive(e.target.checked)} />
             <span>
-              <span className="block text-sm font-semibold text-slate-700">Exclude PPN (harga di atas sudah termasuk PPN)</span>
+              <span className="block text-sm font-semibold text-slate-700">Include PPN (Total Harga sudah termasuk PPN)</span>
               <span className="block text-xs text-slate-500">
                 Nominal yang diketik di baris item sudah termasuk PPN {ppnRate}% (mis. Nilai Pekerjaan kontrak) — sistem breakdown DPP &amp; PPN dari situ,
                 bukan menambahkan PPN baru di atas harga.

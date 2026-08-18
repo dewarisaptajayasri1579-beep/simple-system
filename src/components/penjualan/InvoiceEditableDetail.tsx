@@ -108,7 +108,7 @@ export const InvoiceEditableDetail: React.FC<{
     notes,
     ppnEnabled,
     ppnRate,
-    // "Exclude PPN" — cuma dipakai sesaat buat pilih rumus breakdown pas simpan (lihat PATCH
+    // "Include PPN" — cuma dipakai sesaat buat pilih rumus breakdown pas simpan (lihat PATCH
     // /api/invoices/[id]); tidak disimpan sebagai kolom Invoice, karena DPP selalu bisa dihitung
     // ulang dari totalAmount - ppnAmount berapa pun mode yang dipakai waktu input.
     ppnInclusive: false,
@@ -243,7 +243,7 @@ export const InvoiceEditableDetail: React.FC<{
               onChange={(e) => setForm((f) => ({ ...f, ppnInclusive: e.target.checked }))}
             />
             <span>
-              <span className="block text-sm font-semibold text-slate-700">Exclude PPN (harga di atas sudah termasuk PPN)</span>
+              <span className="block text-sm font-semibold text-slate-700">Include PPN (Total Harga sudah termasuk PPN)</span>
               <span className="block text-xs text-slate-500">
                 Nominal baris item sudah termasuk PPN {form.ppnRate}% — sistem breakdown DPP &amp; PPN dari situ, bukan menambahkan PPN baru di atas.
               </span>

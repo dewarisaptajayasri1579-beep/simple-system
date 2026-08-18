@@ -63,11 +63,18 @@ export async function POST(request: Request) {
   const costLinkType = domainId ? "domain" : serverId ? "server" : maintenanceId ? "maintenance" : null
   const costLinkId = domainId ?? serverId ?? maintenanceId
 
+  // Kalau invoice ini narik 1 termin Project dari panel "Tagihan Belum Ditagih" — beda dari
+  // costLinkType di atas (itu buat auto-pilih Bayar Domain/Server di Pembayaran, Project tidak
+  // punya alur "Bayar Project" serupa). Cuma dipakai buat: (1) resolve akun Pendapatan Project,
+  // (2) link balik ProjectPaymentSchedule.invoiceId, (3) BillingFollowUp refType "project_termin"
+  // (skip tahap reminder, sama seperti generateTerminInvoice — lihat lib/project-termin.ts).
+  const projectScheduleId = typeof body?.projectScheduleId === "string" && body.projectScheduleId ? body.projectScheduleId : null
+
   const settings = await prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } })
 
   const ppnEnabled = Boolean(body?.ppnEnabled)
   const ppnRate = ppnEnabled ? Number(body?.ppnRate) || settings.defaultPpnRate : 0
-  // "Exclude PPN": nominal baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan kontrak
+  // "Include PPN": nominal baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan kontrak
   // include PPN 11%) — di-breakdown jadi DPP+PPN, bukan ditambah PPN baru di atas afterDiscount.
   const ppnInclusive = ppnEnabled && Boolean(body?.ppnInclusive)
   const invoiceDiscount = Number(body?.discountAmount) || 0
@@ -105,6 +112,17 @@ export async function POST(request: Request) {
     const invoiceNumber = await generateInvoiceNumber()
 
     const invoice = await prisma.$transaction(async (tx) => {
+      // Kalau ditautkan ke termin Project, klaim jadwalnya dulu secara atomic (where invoiceId:
+      // null) — jaga-jaga kepentok bareng cron H-3 / tombol "Generate Invoice Sekarang" yang
+      // barengan generate untuk termin yang sama.
+      if (projectScheduleId) {
+        const claimed = await tx.projectPaymentSchedule.updateMany({
+          where: { id: projectScheduleId, invoiceId: null },
+          data: { invoiceGeneratedAt: new Date() },
+        })
+        if (claimed.count === 0) throw new Error("Termin ini sudah ada invoice-nya atau tidak ditemukan")
+      }
+
       const created = await tx.invoice.create({
         data: {
           invoiceNumber,
@@ -119,6 +137,7 @@ export async function POST(request: Request) {
           totalAmount,
           totalCost,
           notes: body?.notes || null,
+          revenueCoaCode: projectScheduleId ? COA_CODE.pendapatanProject : null,
           costLinkType,
           costLinkId,
           lines: { create: preparedLines },
@@ -135,12 +154,25 @@ export async function POST(request: Request) {
           where: { refType: costLinkType, refId: costLinkId, paidRecordedAt: null, invoicedAt: null },
           data: { invoicedAt: created.issuedAt, invoiceId: created.id, invoicedById: user.id },
         })
-      } else {
-        // Invoice manual (tidak terkait Domain/Server/Maintenance) — tetap masuk siklus log
-        // histori penagihan yang sama, cuma langsung mulai dari "invoiced" (tidak ada tahap
+      } else if (!projectScheduleId) {
+        // Invoice manual (tidak terkait Domain/Server/Maintenance/Project) — tetap masuk siklus
+        // log histori penagihan yang sama, cuma langsung mulai dari "invoiced" (tidak ada tahap
         // reminder, lihat catatan dueAppearedAt di schema.prisma).
         await tx.billingFollowUp.create({
           data: { refType: "invoice", refId: created.id, invoicedAt: created.issuedAt, invoicedById: user.id, invoiceId: created.id },
+        })
+      }
+
+      // Termin Project yang ditarik dari panel "Tagihan Belum Ditagih" — link balik ke jadwalnya
+      // + BillingFollowUp "project_termin" (skip tahap reminder), sama persis bookkeeping yang
+      // dilakukan generateTerminInvoice (auto H-3 / tombol "Generate Invoice Sekarang").
+      if (projectScheduleId) {
+        await tx.projectPaymentSchedule.update({
+          where: { id: projectScheduleId },
+          data: { invoiceId: created.id },
+        })
+        await tx.billingFollowUp.create({
+          data: { refType: "project_termin", refId: projectScheduleId, invoicedAt: created.issuedAt, invoicedById: user.id, invoiceId: created.id },
         })
       }
 
