@@ -1,0 +1,8 @@
+# Nixpacks otomatis mendeteksi dependency puppeteer-core/@sparticuz/chromium dan menambahkan
+# install "chromium-browser" via apt (100+ paket sistem, sangat lambat & pernah bikin build gagal
+# di Coolify) — padahal TIDAK dipakai. Aplikasi ini pakai @sparticuz/chromium (binary Chromium
+# serverless yang sudah dibundel dalam package npm-nya sendiri) buat generate PDF invoice/kwitansi
+# (lihat src/app/api/invoices/[id]/pdf/route.ts), bukan Chromium sistem. Kosongkan aptPkgs supaya
+# langkah apt install chromium-browser ini dilewati sepenuhnya.
+[phases.setup]
+aptPkgs = []
