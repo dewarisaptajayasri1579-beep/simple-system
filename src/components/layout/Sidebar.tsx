@@ -17,6 +17,7 @@ import {
   FolderKanban,
   Info,
   RefreshCcw,
+  ListChecks,
 } from "lucide-react";
 
 export interface NavItem {
@@ -41,6 +42,7 @@ export const navItems: NavItem[] = [
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Akuntansi", href: "/akuntansi", icon: <BookOpen className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/pengaturan", icon: <Settings className="w-5 h-5" /> },
+  { label: "Pengembangan Sistem", href: "/pengaturan/pengembangan-sistem", icon: <ListChecks className="w-5 h-5" /> },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse, className = "" }) => {

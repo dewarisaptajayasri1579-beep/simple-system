@@ -51,6 +51,12 @@ export default async function PengaturanPage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
+              href="/pengaturan/pengembangan-sistem"
+              className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
+            >
+              Pengembangan Sistem &rarr;
+            </Link>
+            <Link
               href="/pengaturan/cek-konsistensi-data"
               className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
             >

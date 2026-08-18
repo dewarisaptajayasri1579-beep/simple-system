@@ -30,6 +30,26 @@ model User {
   @@schema("simple_system")
 }
 
+// ---------------------------------------------------------------------------
+// Pengembangan Sistem — daftar fitur/perbaikan yang akan/sedang dikerjakan di
+// aplikasi ini sendiri (bukan data operasional client). Semua role bisa lihat &
+// tambah usulan; status cuma "belum"/"proses"/"selesai" (bukan Prisma enum,
+// sama pola dengan Transaction.postStatus dkk).
+// ---------------------------------------------------------------------------
+model SystemDevelopmentItem {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  status        String   @default("belum") // "belum" | "proses" | "selesai"
+  createdById   String?  @map("created_by_id")
+  createdByName String?  @map("created_by_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("system_development_items")
+  @@schema("simple_system")
+}
+
 model Session {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
