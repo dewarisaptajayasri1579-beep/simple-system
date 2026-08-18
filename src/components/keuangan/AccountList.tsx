@@ -36,6 +36,7 @@ const TYPE_OPTIONS = [
 
 export const AccountList: React.FC<{ rows: AccountRow[]; canEdit: boolean }> = ({ rows: initialRows, canEdit }) => {
   const [rows, setRows] = useState(initialRows)
+  useEffect(() => setRows(initialRows), [initialRows])
   const [editing, setEditing] = useState<AccountRow | null>(null)
   const [name, setName] = useState("")
   const [type, setType] = useState<"kas" | "bank">("kas")
