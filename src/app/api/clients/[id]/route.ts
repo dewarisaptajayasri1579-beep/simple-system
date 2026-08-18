@@ -11,10 +11,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: "Body tidak valid" }, { status: 400 })
 
-  const data: Record<string, string | null> = {}
+  const data: Record<string, string | null | boolean> = {}
   for (const key of ["name", "email", "phoneNumber", "picName", "picPhone", "city", "address", "notes"]) {
     if (typeof body[key] === "string") data[key] = body[key] || null
   }
+  if (typeof body.isPemungutPpn === "boolean") data.isPemungutPpn = body.isPemungutPpn
   if (typeof body.name === "string" && !body.name.trim()) {
     return NextResponse.json({ error: "Nama client wajib diisi" }, { status: 400 })
   }

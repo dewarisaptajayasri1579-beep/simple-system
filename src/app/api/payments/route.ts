@@ -10,6 +10,7 @@ import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
 import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 export async function GET() {
   const user = await getApiUser()
@@ -111,11 +112,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Semua invoice harus milik client yang sama" }, { status: 400 })
   }
 
+  const client = await prisma.client.findUnique({ where: { id: clientId } })
+  if (!client) return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 })
+
   const invoiceById = new Map(invoices.map((inv) => [inv.id, inv]))
   for (const line of lines) {
     const invoice = invoiceById.get(line.invoiceId)!
     const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
-    const remaining = invoice.totalAmount - alreadyPaid
+    const remaining = invoiceCashDue(invoice, client.isPemungutPpn) - alreadyPaid
     if (line.amount > remaining + 0.5) {
       return NextResponse.json(
         { error: `${invoice.invoiceNumber}: jumlah bayar melebihi sisa tagihan (sisa: ${remaining})` },
@@ -139,10 +143,16 @@ export async function POST(request: Request) {
     for (const line of lines) {
       const invoice = invoiceById.get(line.invoiceId)!
 
+      // Client Pemungut PPN (mis. instansi pemerintah): PPN invoice ini tidak pernah masuk kas
+      // kita (disetor client langsung ke negara, lihat invoiceCashDue) — jadi basisnya DPP
+      // (cashDue), bukan totalAmount, dan PPN tidak ikut dipotong dari revenue.
+      const isPemungutInvoice = client.isPemungutPpn && invoice.ppnEnabled
+      const cashDue = invoiceCashDue(invoice, client.isPemungutPpn)
+
       // Alokasikan HPP+PPN invoice secara proporsional ke pembayaran ini (supaya PPN & HPP tidak
       // ikut kena split walau tagihannya dicicil), lalu tambah HPP manual yang diinput staf khusus
       // untuk transaksi ini (mis. biaya kirim/admin yang baru muncul saat pelunasan).
-      const rawPortion = invoice.totalAmount > 0 ? ((invoice.totalCost + invoice.ppnAmount) * line.amount) / invoice.totalAmount : 0
+      const rawPortion = cashDue > 0 ? ((invoice.totalCost + (isPemungutInvoice ? 0 : invoice.ppnAmount)) * line.amount) / cashDue : 0
       const nonRevenuePortion = Math.round(rawPortion) + Math.round(line.costAmount)
       const split = computeSplit(line.amount, nonRevenuePortion, {
         operasionalPct: settings.operasionalPct,
@@ -203,8 +213,8 @@ export async function POST(request: Request) {
       // HPP invoice (unitCost baris invoice, BUKAN line.costAmount manual — itu sudah
       // dijurnal terpisah lewat markDomainPaid/markServerPaid/markMaintenancePaid kalau
       // dikaitkan) juga baru diakui SEKARANG, proporsional — konsisten dengan Pendapatan/PPN.
-      const ppnPortion = invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
-      const hppPortion = invoice.totalAmount > 0 ? Math.round((invoice.totalCost * line.amount) / invoice.totalAmount) : 0
+      const ppnPortion = !isPemungutInvoice && invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
+      const hppPortion = cashDue > 0 ? Math.round((invoice.totalCost * line.amount) / cashDue) : 0
       const revenuePortion = line.amount - ppnPortion
       totalPpnPortion += ppnPortion
       const journalEntry = await postJournalEntry(tx, {

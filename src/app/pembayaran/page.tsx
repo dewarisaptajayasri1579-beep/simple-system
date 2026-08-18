@@ -10,7 +10,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
   const params = await searchParams
 
   const [clients, recentPayments] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, isPemungutPpn: true } }),
     prisma.payment.findMany({
       include: { client: true, invoicePayments: { include: { invoice: { select: { invoiceNumber: true } } } } },
       orderBy: { createdAt: "desc" },

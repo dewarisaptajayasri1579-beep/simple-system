@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { sendWhatsappMessage } from "@/lib/wahub"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 const FOLLOWUP_COOLDOWN_DAYS = 3
 
@@ -39,7 +40,7 @@ export async function runReceivableFollowups() {
     })
     if (claim.count === 0) continue
 
-    const remaining = invoice.totalAmount - invoice.payments.reduce((s, p) => s + p.amount, 0)
+    const remaining = invoiceCashDue(invoice, invoice.client.isPemungutPpn) - invoice.payments.reduce((s, p) => s + p.amount, 0)
     const message = [
       `Halo ${invoice.client.name},`,
       "",

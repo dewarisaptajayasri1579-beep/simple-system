@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 import { listOverdueBillingFollowUps, SLA_STAGE_LABEL, type BillingFollowUpRefType } from "@/lib/billing-follow-up"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 /** Ringkasan operasional (piutang, saldo, domain, server, biaya berkala) — dipakai bareng oleh
  *  laporan gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
@@ -82,7 +83,7 @@ export async function getDashboardSnapshot() {
     })
 
   const invoicesWithRemaining = openInvoices
-    .map((inv) => ({ inv, remaining: inv.totalAmount - inv.payments.reduce((s, p) => s + p.amount, 0) }))
+    .map((inv) => ({ inv, remaining: invoiceCashDue(inv, inv.client.isPemungutPpn) - inv.payments.reduce((s, p) => s + p.amount, 0) }))
     .filter((r) => r.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining)
   const totalOutstanding = invoicesWithRemaining.reduce((sum, r) => sum + r.remaining, 0)

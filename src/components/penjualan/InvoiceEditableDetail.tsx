@@ -18,6 +18,7 @@ import {
   Alert,
 } from "@/components/ui"
 import { Pencil, Plus, Trash2 } from "lucide-react"
+import { EditableBuktiPungutPpn } from "./EditableBuktiPungutPpn"
 
 function formatDate(date: Date | null) {
   if (!date) return "-"
@@ -65,6 +66,9 @@ export const InvoiceEditableDetail: React.FC<{
   totalAmount: number
   paid: number
   remaining: number
+  isPemungutInvoice: boolean
+  noBuktiPungutPpn: string | null
+  tglBuktiPungutPpn: string | null
   lines: { id: string; itemId: string | null; description: string; qty: number; unitPrice: number; unitCost: number; discountAmount: number; lineTotal: number }[]
 }> = ({
   invoiceId,
@@ -84,6 +88,9 @@ export const InvoiceEditableDetail: React.FC<{
   totalAmount,
   paid,
   remaining,
+  isPemungutInvoice,
+  noBuktiPungutPpn,
+  tglBuktiPungutPpn,
   lines,
 }) => {
   const router = useRouter()

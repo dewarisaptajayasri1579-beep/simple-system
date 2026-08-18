@@ -11,6 +11,7 @@ import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { PiutangFollowUpButton } from "./PiutangFollowUpButton";
 import { SyncDomainStatusButton } from "./SyncDomainStatusButton";
+import { DeactivateDomainButton } from "./DeactivateDomainButton";
 import { type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
@@ -588,6 +589,7 @@ export const DomainExpiringSection: React.FC<{
             {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && (
               <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
+            {isOwner && <DeactivateDomainButton domainId={r.id} domainName={r.name} />}
           </div>
         </div>
       ),

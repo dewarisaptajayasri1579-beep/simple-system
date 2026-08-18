@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       city: body?.city || null,
       address: body?.address || null,
       notes: body?.notes || null,
+      isPemungutPpn: Boolean(body?.isPemungutPpn),
     },
   })
 

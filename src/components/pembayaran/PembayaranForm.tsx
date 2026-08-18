@@ -20,6 +20,7 @@ import { jakartaTodayDateIso } from "@/lib/datetime";
 export interface ClientOption {
   id: string;
   name: string;
+  isPemungutPpn: boolean;
 }
 
 interface AccountOption {
@@ -34,6 +35,9 @@ interface InvoiceRow {
   dueDate: string | null;
   remaining: number;
   ppnAmount: number;
+  // PPN invoice ini disetor client langsung ke negara (client Pemungut PPN) — sisa tagih &
+  // porsi PPN yang ditampilkan/dikirim ke backend jadi 0, cuma DPP yang benar-benar ditagih.
+  isPemungutInvoice: boolean;
 }
 
 interface DomainOption {
@@ -109,6 +113,8 @@ export const PembayaranForm: React.FC<{
       .catch(() => {});
   }, [isOwner]);
 
+  const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
+
   useEffect(() => {
     if (!clientId) {
       setInvoices([]);
@@ -126,6 +132,7 @@ export const PembayaranForm: React.FC<{
             invoiceNumber: string;
             totalAmount: number;
             ppnAmount: number;
+            ppnEnabled: boolean;
             dueDate: string | null;
             payments: { amount: number }[];
             costLinkType: "domain" | "server" | null;
@@ -135,13 +142,18 @@ export const PembayaranForm: React.FC<{
           const rows: InvoiceRow[] = data
             .map((inv) => {
               const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
+              // Client Pemungut PPN: PPN invoice ini tidak pernah masuk kas kita, jadi yang
+              // ditagih/dianggap sisa cuma DPP-nya (sama rumus dengan invoiceCashDue backend).
+              const isPemungutInvoice = Boolean(selectedClient?.isPemungutPpn) && inv.ppnEnabled;
+              const cashDue = isPemungutInvoice ? inv.totalAmount - inv.ppnAmount : inv.totalAmount;
               return {
                 id: inv.id,
                 invoiceNumber: inv.invoiceNumber,
                 totalAmount: inv.totalAmount,
                 ppnAmount: inv.ppnAmount,
                 dueDate: inv.dueDate,
-                remaining: Math.max(0, inv.totalAmount - paid),
+                remaining: Math.max(0, cashDue - paid),
+                isPemungutInvoice,
               };
             })
             .filter((r) => r.remaining > 0.5);
@@ -211,7 +223,7 @@ export const PembayaranForm: React.FC<{
   // rumus sama persis dengan ppnPortion di app/api/payments/route.ts supaya konsisten.
   const totalPpnPortion = invoices.reduce((sum, inv) => {
     const line = lines[inv.id];
-    if (!line?.checked || inv.ppnAmount <= 0 || inv.totalAmount <= 0) return sum;
+    if (!line?.checked || inv.isPemungutInvoice || inv.ppnAmount <= 0 || inv.totalAmount <= 0) return sum;
     return sum + Math.round((inv.ppnAmount * line.amount) / inv.totalAmount);
   }, 0);
 
@@ -246,7 +258,14 @@ export const PembayaranForm: React.FC<{
     {
       key: "ppnAmount",
       header: "PPN",
-      cell: (inv) => (inv.ppnAmount > 0 ? formatRupiah(inv.ppnAmount) : "-"),
+      cell: (inv) =>
+        inv.ppnAmount <= 0 ? "-" : inv.isPemungutInvoice ? (
+          <span className="text-slate-400" title="Disetor client (Pemungut PPN), bukan ke kas kita">
+            {formatRupiah(inv.ppnAmount)} (dipungut client)
+          </span>
+        ) : (
+          formatRupiah(inv.ppnAmount)
+        ),
     },
     { key: "remaining", header: "Sisa", cellClassName: "font-semibold", cell: (inv) => formatRupiah(inv.remaining) },
     {
@@ -258,7 +277,10 @@ export const PembayaranForm: React.FC<{
         // PPN proporsional terhadap porsi yang dibayar sekarang — sama persis rumus yang dipakai
         // backend (lihat ppnPortion di app/api/payments/route.ts) supaya angka yang staf lihat di
         // sini konsisten dengan yang benar-benar kejurnal sebagai "PPN Keluaran".
-        const ppnPortion = inv.ppnAmount > 0 && inv.totalAmount > 0 ? Math.round((inv.ppnAmount * (line?.amount ?? 0)) / inv.totalAmount) : 0;
+        const ppnPortion =
+          !inv.isPemungutInvoice && inv.ppnAmount > 0 && inv.totalAmount > 0
+            ? Math.round((inv.ppnAmount * (line?.amount ?? 0)) / inv.totalAmount)
+            : 0;
         return (
           <div className="space-y-0.5">
             <CurrencyInput sizeVariant="sm" value={line?.amount ?? 0} disabled={!line?.checked} onChange={(v) => updateLine(inv.id, { amount: v })} />

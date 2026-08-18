@@ -14,6 +14,7 @@ import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
+import { invoiceCashDue } from "@/lib/invoice-due"
 import { ArrowLeft } from "lucide-react"
 
 function formatDate(date: Date | null) {
@@ -44,7 +45,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   // menampilkan SEMUA baris (termasuk draft) agar bisa direview.
   const effectivePayments = invoice.payments.filter((p) => p.paymentId === null || p.payment?.postStatus === "posted")
   const paid = effectivePayments.reduce((sum, p) => sum + p.amount, 0)
-  const remaining = Math.max(0, invoice.totalAmount - paid)
+  const isPemungutInvoice = invoice.client.isPemungutPpn && invoice.ppnEnabled
+  const remaining = Math.max(0, invoiceCashDue(invoice, invoice.client.isPemungutPpn) - paid)
 
   // Rekening tujuan beda tergantung invoice pakai PPN atau tidak (lihat Pengaturan > Umum).
   const bank = invoice.ppnEnabled
@@ -132,6 +134,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             totalAmount={invoice.totalAmount}
             paid={paid}
             remaining={remaining}
+            isPemungutInvoice={isPemungutInvoice}
+            noBuktiPungutPpn={invoice.noBuktiPungutPpn}
+            tglBuktiPungutPpn={invoice.tglBuktiPungutPpn ? invoice.tglBuktiPungutPpn.toISOString() : null}
             lines={invoice.lines}
           />
         </Card>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 export type ConsistencySeverity = "error" | "warning"
 
@@ -68,19 +69,23 @@ async function checkInvoiceTotals(): Promise<ConsistencyFinding[]> {
 async function checkOverpayment(): Promise<ConsistencyFinding[]> {
   const invoices = await prisma.invoice.findMany({
     where: { postStatus: "posted" },
-    include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
+    include: {
+      client: true,
+      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+    },
   })
 
   const findings: ConsistencyFinding[] = []
   for (const inv of invoices) {
     const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0)
-    if (paid - inv.totalAmount > AMOUNT_TOLERANCE) {
+    const cashDue = invoiceCashDue(inv, inv.client.isPemungutPpn)
+    if (paid - cashDue > AMOUNT_TOLERANCE) {
       findings.push({
         id: `overpayment-${inv.id}`,
         checkLabel: "Pembayaran melebihi total Invoice",
         severity: "error",
         entityLabel: inv.invoiceNumber,
-        description: `Sudah dibayar ${paid.toLocaleString("id-ID")}, tapi total invoice cuma ${inv.totalAmount.toLocaleString("id-ID")}`,
+        description: `Sudah dibayar ${paid.toLocaleString("id-ID")}, tapi yang harus ditagih (kas) cuma ${cashDue.toLocaleString("id-ID")}`,
         href: `/penjualan/${inv.id}`,
       })
     }

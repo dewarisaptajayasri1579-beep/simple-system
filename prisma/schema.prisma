@@ -77,6 +77,11 @@ model Client {
   city        String?
   address     String?
   notes       String?
+  // Instansi pemerintah/badan yang berstatus Pemungut PPN — PPN atas invoice ke client ini
+  // disetor LANGSUNG oleh client ke kas negara (bukti pungut), TIDAK ditransfer ke kita.
+  // Efeknya: sisa tagih/lunas invoice dihitung dari DPP saja (totalAmount - ppnAmount), lihat
+  // `invoiceCashDue` di lib/invoice-due.ts — jangan hitung ulang manual di tempat lain.
+  isPemungutPpn Boolean @default(false) @map("is_pemungut_ppn")
   createdAt   DateTime @default(now()) @map("created_at")
 
   domains            Domain[]
@@ -409,6 +414,13 @@ model Invoice {
   totalCost     Float    @default(0) @map("total_cost")
   status        String   @default("unpaid") // "unpaid" | "partial" | "paid" | "claimed_paid"
   notes         String?
+
+  // Arsip bukti setor PPN oleh client Pemungut PPN (mis. instansi pemerintah) — CATATAN saja,
+  // tidak ada efek jurnal (PPN-nya memang tidak pernah masuk kas kita, lihat Client.isPemungutPpn
+  // dan invoiceCashDue di lib/invoice-due.ts). Diisi manual, boleh kosong walau client-nya
+  // pemungut (bukti belum diterima) — tidak menghalangi invoice ditandai lunas di DPP.
+  noBuktiPungutPpn  String?   @map("no_bukti_pungut_ppn")
+  tglBuktiPungutPpn DateTime? @map("tgl_bukti_pungut_ppn")
   lastFollowUpAt DateTime? @map("last_follow_up_at") // kapan terakhir AI Agent follow-up ke Client
   createdAt     DateTime @default(now()) @map("created_at")
 

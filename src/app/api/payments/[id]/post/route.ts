@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { finalizeTransactionPosting } from "@/lib/accounting/mark-paid"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 /** Posting Payment draft: semua Transaction yang dibuat bareng payment ini (pelunasan tiap
  *  invoice, plus costLink Bayar Domain/Server kalau ada) ikut diposting sekaligus, baru di
@@ -15,7 +16,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   const payment = await prisma.payment.findUnique({
     where: { id },
-    include: { invoicePayments: { include: { invoice: { include: { payments: true } } } } },
+    include: { client: true, invoicePayments: { include: { invoice: { include: { payments: true } } } } },
   })
   if (!payment) return NextResponse.json({ error: "Pembayaran tidak ditemukan" }, { status: 404 })
   if (payment.postStatus !== "draft") return NextResponse.json({ error: "Pembayaran ini bukan draft (sudah diposting/dibatalkan)" }, { status: 400 })
@@ -52,7 +53,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         where: { invoiceId: ip.invoiceId, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
       })
       const totalPaid = postedPayments.reduce((sum, p) => sum + p.amount, 0)
-      const newStatus = totalPaid >= ip.invoice.totalAmount - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
+      const cashDue = invoiceCashDue(ip.invoice, payment.client.isPemungutPpn)
+      const newStatus = totalPaid >= cashDue - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
       await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
     }
 

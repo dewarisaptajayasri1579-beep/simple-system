@@ -7,6 +7,7 @@ import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { computeNextDueDate, getDueBucket, resolveServerExpiry } from "@/lib/recurring-bill-status"
 import { formatJakartaDateLabel, jakartaTodayDateIso } from "@/lib/datetime"
 import { generateTransactionNumber } from "@/lib/transaction-number"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 export interface ToolContext {
   mode: "staff" | "client"
@@ -72,12 +73,13 @@ async function getOutstandingInvoices(input: { clientName?: string }) {
 
   return invoices.map((inv) => {
     const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
+    const remaining = invoiceCashDue(inv, inv.client.isPemungutPpn) - paid
     return {
       invoiceNumber: inv.invoiceNumber,
       client: inv.client.name,
       totalAmount: inv.totalAmount,
-      remaining: inv.totalAmount - paid,
-      remainingLabel: formatRupiah(inv.totalAmount - paid),
+      remaining,
+      remainingLabel: formatRupiah(remaining),
       status: inv.status,
       dueDateLabel: inv.dueDate ? formatJakartaDateLabel(inv.dueDate.toISOString().slice(0, 10)) : null,
     }
@@ -308,6 +310,7 @@ async function markRecurringBillPaid(input: { billName: string }) {
 // ---------------------------------------------------------------------------
 
 async function getMyInvoices(clientId: string) {
+  const client = await prisma.client.findUnique({ where: { id: clientId } })
   const invoices = await prisma.invoice.findMany({
     where: { clientId, status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
     include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
@@ -315,10 +318,11 @@ async function getMyInvoices(clientId: string) {
   })
   return invoices.map((inv) => {
     const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
+    const remaining = invoiceCashDue(inv, client?.isPemungutPpn ?? false) - paid
     return {
       invoiceNumber: inv.invoiceNumber,
-      remaining: inv.totalAmount - paid,
-      remainingLabel: formatRupiah(inv.totalAmount - paid),
+      remaining,
+      remainingLabel: formatRupiah(remaining),
       dueDateLabel: inv.dueDate ? formatJakartaDateLabel(inv.dueDate.toISOString().slice(0, 10)) : null,
     }
   })

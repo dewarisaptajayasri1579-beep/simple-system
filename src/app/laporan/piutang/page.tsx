@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { PiutangList, type PiutangClientGroup } from "@/components/piutang/PiutangList"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { invoiceCashDue } from "@/lib/invoice-due"
 
 export default async function PiutangPage() {
   const user = await getCurrentUser()
@@ -18,7 +19,7 @@ export default async function PiutangPage() {
   const groupsMap = new Map<string, PiutangClientGroup>()
   for (const inv of invoices) {
     const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0)
-    const remaining = Math.max(0, inv.totalAmount - paid)
+    const remaining = Math.max(0, invoiceCashDue(inv, inv.client.isPemungutPpn) - paid)
     if (remaining <= 0) continue
 
     const group = groupsMap.get(inv.clientId) ?? {

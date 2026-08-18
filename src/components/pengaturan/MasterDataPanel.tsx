@@ -89,6 +89,7 @@ export interface ClientRow {
   city: string | null;
   address: string | null;
   notes: string | null;
+  isPemungutPpn: boolean;
 }
 export interface DomainRow {
   id: string;
@@ -1259,6 +1260,7 @@ const CLIENT_COLUMNS = [
   { key: "city", label: "Kota" },
   { key: "phone", label: "No. HP" },
   { key: "pic", label: "PIC" },
+  { key: "pemungutPpn", label: "Pemungut PPN" },
 ];
 
 const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) => {
@@ -1317,6 +1319,16 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
       ? [{ key: "phone", header: "No. HP", filterValue: (c: ClientRow) => c.phoneNumber ?? "", cell: (c: ClientRow) => c.phoneNumber ?? "-" }]
       : []),
     ...(isVisible("pic") ? [{ key: "pic", header: "PIC", filterValue: (c: ClientRow) => c.picName ?? "", cell: (c: ClientRow) => c.picName ?? "-" }] : []),
+    ...(isVisible("pemungutPpn")
+      ? [
+          {
+            key: "pemungutPpn",
+            header: "Pemungut PPN",
+            cell: (c: ClientRow) =>
+              c.isPemungutPpn ? <span className="text-[11px] font-bold text-[#0544cc]">Ya</span> : <span className="text-slate-400">-</span>,
+          },
+        ]
+      : []),
     {
       key: "aksi",
       header: "Aksi",
@@ -1361,6 +1373,21 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
           </div>
           <Input label="Alamat" value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
           <Input label="Catatan" value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
+            <input
+              type="checkbox"
+              className="w-5 h-5 mt-0.5"
+              checked={form.isPemungutPpn ?? false}
+              onChange={(e) => setForm((f) => ({ ...f, isPemungutPpn: e.target.checked }))}
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-700">Pemungut PPN (instansi pemerintah)</span>
+              <span className="block text-xs text-slate-500">
+                PPN pada invoice ke client ini disetor client langsung ke kas negara (bukti pungut) — tidak pernah masuk kas kita. Sisa tagih & status
+                lunas invoice-nya dihitung dari DPP saja, bukan total termasuk PPN.
+              </span>
+            </span>
+          </label>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={close}>
               Batal
