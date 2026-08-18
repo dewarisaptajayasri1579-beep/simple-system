@@ -20,6 +20,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Nama client wajib diisi" }, { status: 400 })
   }
 
-  const client = await prisma.client.update({ where: { id }, data })
-  return NextResponse.json(client)
+  try {
+    const client = await prisma.client.update({ where: { id }, data })
+    return NextResponse.json(client)
+  } catch (err) {
+    console.error("PATCH /api/clients/[id] gagal:", err)
+    return NextResponse.json({ error: "Gagal menyimpan client" }, { status: 500 })
+  }
 }

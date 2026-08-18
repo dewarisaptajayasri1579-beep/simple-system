@@ -19,19 +19,23 @@ export async function POST(request: Request) {
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   if (!name) return NextResponse.json({ error: "Nama client wajib diisi" }, { status: 400 })
 
-  const client = await prisma.client.create({
-    data: {
-      name,
-      email: body?.email || null,
-      phoneNumber: body?.phoneNumber || null,
-      picName: body?.picName || null,
-      picPhone: body?.picPhone || null,
-      city: body?.city || null,
-      address: body?.address || null,
-      notes: body?.notes || null,
-      isPemungutPpn: Boolean(body?.isPemungutPpn),
-    },
-  })
-
-  return NextResponse.json(client, { status: 201 })
+  try {
+    const client = await prisma.client.create({
+      data: {
+        name,
+        email: body?.email || null,
+        phoneNumber: body?.phoneNumber || null,
+        picName: body?.picName || null,
+        picPhone: body?.picPhone || null,
+        city: body?.city || null,
+        address: body?.address || null,
+        notes: body?.notes || null,
+        isPemungutPpn: Boolean(body?.isPemungutPpn),
+      },
+    })
+    return NextResponse.json(client, { status: 201 })
+  } catch (err) {
+    console.error("POST /api/clients gagal:", err)
+    return NextResponse.json({ error: "Gagal menyimpan client" }, { status: 500 })
+  }
 }

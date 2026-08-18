@@ -1315,10 +1315,10 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
     const url = editing ? `/api/clients/${editing.id}` : "/api/clients";
     const method = editing ? "PATCH" : "POST";
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     setIsSaving(false);
-    if (!res.ok) {
-      setError(data.error || "Gagal menyimpan");
+    if (!res.ok || !data) {
+      setError(data?.error || "Gagal menyimpan client");
       return;
     }
     if (editing) {
