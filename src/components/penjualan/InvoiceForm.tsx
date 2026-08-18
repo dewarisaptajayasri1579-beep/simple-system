@@ -81,6 +81,10 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [notes, setNotes] = useState("");
   const [ppnEnabled, setPpnEnabled] = useState(false);
   const [ppnRate, setPpnRate] = useState(11);
+  // "Exclude PPN" — nominal yang diketik di baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan
+  // kontrak 8,8jt include PPN 11%), jadi PPN-nya di-BREAKDOWN dari situ (DPP = total/1,11), BUKAN
+  // ditambahkan lagi di atas. Beda dari mode default (PPN ditambahkan di atas harga yang diketik).
+  const [ppnInclusive, setPpnInclusive] = useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [lines, setLines] = useState<LineDraft[]>([
     prefill?.description || prefill?.amount
@@ -179,8 +183,11 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
   const totalLineDiscount = lines.reduce((sum, l) => sum + l.discountAmount, 0);
   const afterDiscount = Math.max(0, subtotal - totalLineDiscount - discountAmount);
-  const ppnAmount = ppnEnabled ? Math.round(afterDiscount * (ppnRate / 100)) : 0;
-  const totalAmount = afterDiscount + ppnAmount;
+  // Mode "Exclude PPN": afterDiscount SUDAH termasuk PPN, jadi di-breakdown (bukan ditambah lagi
+  // di atas) — rumus sama dengan invoiceCashDue/pemungut PPN: PPN = gross * rate/(100+rate).
+  const ppnAmount = !ppnEnabled ? 0 : ppnInclusive ? Math.round(afterDiscount * (ppnRate / (100 + ppnRate))) : Math.round(afterDiscount * (ppnRate / 100));
+  const totalAmount = ppnInclusive ? afterDiscount : afterDiscount + ppnAmount;
+  const dppAmount = totalAmount - ppnAmount;
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) return;
@@ -242,6 +249,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           notes,
           ppnEnabled,
           ppnRate,
+          ppnInclusive,
           discountAmount,
           lines,
           domainId: linkedItem?.type === "domain" ? linkedItem.id : undefined,
@@ -413,6 +421,19 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           </label>
         </div>
 
+        {ppnEnabled && (
+          <label className="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer select-none">
+            <input type="checkbox" className="w-5 h-5 mt-0.5" checked={ppnInclusive} onChange={(e) => setPpnInclusive(e.target.checked)} />
+            <span>
+              <span className="block text-sm font-semibold text-slate-700">Exclude PPN (harga di atas sudah termasuk PPN)</span>
+              <span className="block text-xs text-slate-500">
+                Nominal yang diketik di baris item sudah termasuk PPN {ppnRate}% (mis. Nilai Pekerjaan kontrak) — sistem breakdown DPP &amp; PPN dari situ,
+                bukan menambahkan PPN baru di atas harga.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div className="mt-6 pt-4 border-t border-slate-200/60 space-y-1.5 text-sm">
           <div className="flex justify-between text-slate-600">
             <span>Subtotal</span>
@@ -423,10 +444,16 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
             <span>- {formatRupiah(totalLineDiscount + discountAmount)}</span>
           </div>
           {ppnEnabled && (
-            <div className="flex justify-between text-slate-600">
-              <span>PPN {ppnRate}%</span>
-              <span>{formatRupiah(ppnAmount)}</span>
-            </div>
+            <>
+              <div className="flex justify-between text-slate-600">
+                <span>DPP</span>
+                <span>{formatRupiah(dppAmount)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>PPN {ppnRate}%{ppnInclusive ? " (breakdown)" : ""}</span>
+                <span>{formatRupiah(ppnAmount)}</span>
+              </div>
+            </>
           )}
           <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t border-slate-200/60">
             <span>Total</span>

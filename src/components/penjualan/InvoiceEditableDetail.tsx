@@ -108,12 +108,16 @@ export const InvoiceEditableDetail: React.FC<{
     notes,
     ppnEnabled,
     ppnRate,
+    // "Exclude PPN" — cuma dipakai sesaat buat pilih rumus breakdown pas simpan (lihat PATCH
+    // /api/invoices/[id]); tidak disimpan sebagai kolom Invoice, karena DPP selalu bisa dihitung
+    // ulang dari totalAmount - ppnAmount berapa pun mode yang dipakai waktu input.
+    ppnInclusive: false,
     discountAmount,
   })
   const [formLines, setFormLines] = useState<LineDraft[]>([])
 
   const openEdit = async () => {
-    setForm({ clientId, issuedAt: toDateInput(issuedAt), dueDate: toDateInput(dueDate), notes, ppnEnabled, ppnRate, discountAmount })
+    setForm({ clientId, issuedAt: toDateInput(issuedAt), dueDate: toDateInput(dueDate), notes, ppnEnabled, ppnRate, ppnInclusive: false, discountAmount })
     setFormLines(lines.map((l) => ({ itemId: l.itemId, description: l.description, qty: l.qty, unitPrice: l.unitPrice, unitCost: l.unitCost, discountAmount: l.discountAmount })))
     setError("")
     setIsEditing(true)
@@ -146,8 +150,13 @@ export const InvoiceEditableDetail: React.FC<{
   const formSubtotal = formLines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
   const formLineDiscount = formLines.reduce((sum, l) => sum + l.discountAmount, 0)
   const formAfterDiscount = Math.max(0, formSubtotal - formLineDiscount - form.discountAmount)
-  const formPpnAmount = form.ppnEnabled ? Math.round(formAfterDiscount * (form.ppnRate / 100)) : 0
-  const formTotalAmount = formAfterDiscount + formPpnAmount
+  const formPpnAmount = !form.ppnEnabled
+    ? 0
+    : form.ppnInclusive
+      ? Math.round(formAfterDiscount * (form.ppnRate / (100 + form.ppnRate)))
+      : Math.round(formAfterDiscount * (form.ppnRate / 100))
+  const formTotalAmount = form.ppnInclusive ? formAfterDiscount : formAfterDiscount + formPpnAmount
+  const formDppAmount = formTotalAmount - formPpnAmount
 
   const handleSave = async () => {
     if (!form.clientId) {
@@ -225,6 +234,23 @@ export const InvoiceEditableDetail: React.FC<{
           </label>
         </div>
 
+        {form.ppnEnabled && (
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-5 h-5 mt-0.5"
+              checked={form.ppnInclusive}
+              onChange={(e) => setForm((f) => ({ ...f, ppnInclusive: e.target.checked }))}
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-700">Exclude PPN (harga di atas sudah termasuk PPN)</span>
+              <span className="block text-xs text-slate-500">
+                Nominal baris item sudah termasuk PPN {form.ppnRate}% — sistem breakdown DPP &amp; PPN dari situ, bukan menambahkan PPN baru di atas.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div className="pt-4 border-t border-slate-200/60 space-y-1.5 text-sm">
           <div className="flex justify-between text-slate-600">
             <span>Subtotal</span>
@@ -235,10 +261,16 @@ export const InvoiceEditableDetail: React.FC<{
             <span>- {formatRupiah(formLineDiscount + form.discountAmount)}</span>
           </div>
           {form.ppnEnabled && (
-            <div className="flex justify-between text-slate-600">
-              <span>PPN {form.ppnRate}%</span>
-              <span>{formatRupiah(formPpnAmount)}</span>
-            </div>
+            <>
+              <div className="flex justify-between text-slate-600">
+                <span>DPP</span>
+                <span>{formatRupiah(formDppAmount)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>PPN {form.ppnRate}%{form.ppnInclusive ? " (breakdown)" : ""}</span>
+                <span>{formatRupiah(formPpnAmount)}</span>
+              </div>
+            </>
           )}
           <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t border-slate-200/60">
             <span>Total</span>
@@ -326,10 +358,16 @@ export const InvoiceEditableDetail: React.FC<{
             <span>- {formatRupiah(discountAmount)}</span>
           </div>
           {ppnEnabled && (
-            <div className="flex justify-between text-slate-600">
-              <span>PPN {ppnRate}%{isPemungutInvoice ? " (dipungut client)" : ""}</span>
-              <span>{formatRupiah(ppnAmount)}</span>
-            </div>
+            <>
+              <div className="flex justify-between text-slate-600">
+                <span>DPP</span>
+                <span>{formatRupiah(totalAmount - ppnAmount)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>PPN {ppnRate}%{isPemungutInvoice ? " (dipungut client)" : ""}</span>
+                <span>{formatRupiah(ppnAmount)}</span>
+              </div>
+            </>
           )}
           <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200/60">
             <span>Total</span>

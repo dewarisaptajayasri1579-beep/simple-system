@@ -54,6 +54,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const ppnEnabled = Boolean(body?.ppnEnabled)
   const ppnRate = ppnEnabled ? Number(body?.ppnRate) || settings.defaultPpnRate : 0
+  // "Exclude PPN" — lihat catatan sama di POST /api/invoices.
+  const ppnInclusive = ppnEnabled && Boolean(body?.ppnInclusive)
   const invoiceDiscount = Number(body?.discountAmount) || 0
 
   const preparedLines = lines.map((line) => {
@@ -78,8 +80,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const totalCost = preparedLines.reduce((sum, l) => sum + l.qty * l.unitCost, 0)
   const discountAmount = totalLineDiscount + invoiceDiscount
   const afterDiscount = Math.max(0, subtotal - discountAmount)
-  const ppnAmount = ppnEnabled ? Math.round(afterDiscount * (ppnRate / 100)) : 0
-  const totalAmount = afterDiscount + ppnAmount
+  const ppnAmount = !ppnEnabled
+    ? 0
+    : ppnInclusive
+      ? Math.round(afterDiscount * (ppnRate / (100 + ppnRate)))
+      : Math.round(afterDiscount * (ppnRate / 100))
+  const totalAmount = ppnInclusive ? afterDiscount : afterDiscount + ppnAmount
 
   try {
     const updated = await prisma.$transaction(async (tx) => {

@@ -66,6 +66,9 @@ export async function POST(request: Request) {
 
   const ppnEnabled = Boolean(body?.ppnEnabled)
   const ppnRate = ppnEnabled ? Number(body?.ppnRate) || settings.defaultPpnRate : 0
+  // "Exclude PPN": nominal baris item SUDAH termasuk PPN (mis. Nilai Pekerjaan kontrak
+  // include PPN 11%) — di-breakdown jadi DPP+PPN, bukan ditambah PPN baru di atas afterDiscount.
+  const ppnInclusive = ppnEnabled && Boolean(body?.ppnInclusive)
   const invoiceDiscount = Number(body?.discountAmount) || 0
 
   const preparedLines = lines.map((line) => {
@@ -90,8 +93,12 @@ export async function POST(request: Request) {
   const totalCost = preparedLines.reduce((sum, l) => sum + l.qty * l.unitCost, 0)
   const discountAmount = totalLineDiscount + invoiceDiscount
   const afterDiscount = Math.max(0, subtotal - discountAmount)
-  const ppnAmount = ppnEnabled ? Math.round(afterDiscount * (ppnRate / 100)) : 0
-  const totalAmount = afterDiscount + ppnAmount
+  const ppnAmount = !ppnEnabled
+    ? 0
+    : ppnInclusive
+      ? Math.round(afterDiscount * (ppnRate / (100 + ppnRate)))
+      : Math.round(afterDiscount * (ppnRate / 100))
+  const totalAmount = ppnInclusive ? afterDiscount : afterDiscount + ppnAmount
 
   try {
     const invoiceNumber = await generateInvoiceNumber()

@@ -159,10 +159,16 @@ export const NotaPrintable: React.FC<{
               </div>
             )}
             {invoice.ppnEnabled && (
-              <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
-                <span>PPN {invoice.ppnRate}%{invoice.client.isPemungutPpn ? " (dipungut & disetor sendiri oleh Pemungut PPN)" : ""}</span>
-                <span>{formatRupiah(invoice.ppnAmount)}</span>
-              </div>
+              <>
+                <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+                  <span>DPP</span>
+                  <span>{formatRupiah(invoice.totalAmount - invoice.ppnAmount)}</span>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+                  <span>PPN {invoice.ppnRate}%{invoice.client.isPemungutPpn ? " (dipungut & disetor sendiri oleh Pemungut PPN)" : ""}</span>
+                  <span>{formatRupiah(invoice.ppnAmount)}</span>
+                </div>
+              </>
             )}
             {/* Tinggi ngikutin sisa tinggi kolom (flex-1) supaya batas bawahnya rata sama kartu
                Payment To/Terbilang di sebelah kiri — teks di-tengah-in vertikal (items-center). */}
