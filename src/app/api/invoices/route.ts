@@ -78,6 +78,10 @@ export async function POST(request: Request) {
   // include PPN 11%) — di-breakdown jadi DPP+PPN, bukan ditambah PPN baru di atas afterDiscount.
   const ppnInclusive = ppnEnabled && Boolean(body?.ppnInclusive)
   const invoiceDiscount = Number(body?.discountAmount) || 0
+  // DP (Rencana) — CATATAN saja (lihat Invoice.dpAmount di schema.prisma), tidak ada efek
+  // kas/jurnal. Boleh diisi langsung saat create, sama field yang nanti diedit klik-langsung
+  // lewat PATCH /api/invoices/[id]/dp.
+  const dpAmount = Math.max(0, Number(body?.dpAmount) || 0)
 
   const preparedLines = lines.map((line) => {
     const qty = Number(line.qty) || 1
@@ -137,6 +141,7 @@ export async function POST(request: Request) {
           totalAmount,
           totalCost,
           notes: body?.notes || null,
+          dpAmount,
           revenueCoaCode: projectScheduleId ? COA_CODE.pendapatanProject : null,
           costLinkType,
           costLinkId,

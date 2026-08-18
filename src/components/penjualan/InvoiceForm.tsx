@@ -91,6 +91,9 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   // ditambahkan lagi di atas. Beda dari mode default (PPN ditambahkan di atas harga yang diketik).
   const [ppnInclusive, setPpnInclusive] = useState(false);
   const [discountAmount, setDiscountAmount] = useState(0);
+  // DP (Rencana) — CATATAN saja (Invoice.dpAmount), belum tentu sudah dibayar, tidak ada efek
+  // kas/jurnal. Lihat PATCH /api/invoices/[id]/dp buat penjelasan lengkap.
+  const [dpAmount, setDpAmount] = useState(0);
   const [lines, setLines] = useState<LineDraft[]>([
     prefill?.description || prefill?.amount
       ? { ...emptyLine(), description: prefill.description ?? "", unitPrice: prefill.amount ?? 0 }
@@ -284,6 +287,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           ppnRate,
           ppnInclusive,
           discountAmount,
+          dpAmount,
           lines,
           domainId: linkedItem?.type === "domain" ? linkedItem.id : undefined,
           serverId: linkedItem?.type === "server" ? linkedItem.id : undefined,
@@ -507,6 +511,23 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
             <span>Total</span>
             <span>{formatRupiah(totalAmount)}</span>
           </div>
+        </div>
+
+        {/* DP (Rencana) — CATATAN saja, belum tentu sudah dibayar (beda dari pelunasan asli
+           lewat menu Pembayaran). Opsional, boleh kosong/0 kalau belum ada kesepakatan DP. */}
+        <div className="mt-4 pt-4 border-t border-slate-200/60">
+          <CurrencyInput
+            label="DP (Rencana) — opsional"
+            helperText="Cuma catatan (belum tentu sudah dibayar) — dipakai buat tampilkan estimasi Sisa Setelah DP di invoice. Pelunasan beneran tetap lewat menu Pembayaran."
+            value={dpAmount}
+            onChange={setDpAmount}
+          />
+          {dpAmount > 0 && (
+            <div className="mt-2 flex justify-between text-sm text-amber-700 font-semibold">
+              <span>Sisa Setelah DP (Rencana)</span>
+              <span>{formatRupiah(Math.max(0, totalAmount - dpAmount))}</span>
+            </div>
+          )}
         </div>
       </Card>
 
