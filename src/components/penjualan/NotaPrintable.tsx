@@ -56,8 +56,8 @@ export const NotaPrintable: React.FC<{
         )}
         <NotaHeader invoiceNumber={invoice.invoiceNumber} date={formatDate(invoice.issuedAt)} qrDataUrl={qrDataUrl} />
 
-        <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
-          <div className="rounded-xl border border-slate-200 p-2.5 space-y-1.5">
+        <div className="grid grid-cols-2 gap-3 mt-1.5 text-xs">
+          <div className="rounded-xl border border-slate-200 p-2 space-y-1.5">
             <div className="flex items-start gap-2">
               <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#0544cc]" />
               <div className="leading-snug text-slate-700 font-medium">
@@ -75,7 +75,7 @@ export const NotaPrintable: React.FC<{
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-blue-50/50 p-2.5 print-exact-color">
+          <div className="rounded-xl border border-slate-200 bg-blue-50/50 p-2 print-exact-color">
             <div className="flex items-start gap-2">
               <div className="w-7 h-7 rounded-full bg-[#0544cc] flex items-center justify-center flex-shrink-0">
                 <User className="w-3.5 h-3.5 text-white" />
@@ -102,25 +102,25 @@ export const NotaPrintable: React.FC<{
           </div>
         </div>
 
-        <div className="mt-2 print-exact-color">
+        <div className="mt-1.5 print-exact-color">
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-slate-900 text-white">
-                <th className="text-center px-2.5 py-1.5 rounded-tl-lg w-8">No</th>
-                <th className="text-left px-2.5 py-1.5">Nama</th>
-                <th className="text-center px-2.5 py-1.5">Qty</th>
-                <th className="text-center px-2.5 py-1.5">Harga</th>
-                <th className="text-center px-2.5 py-1.5 rounded-tr-lg">Total</th>
+                <th className="text-center px-2.5 py-1 rounded-tl-lg w-8">No</th>
+                <th className="text-left px-2.5 py-1">Nama</th>
+                <th className="text-center px-2.5 py-1">Qty</th>
+                <th className="text-center px-2.5 py-1">Harga</th>
+                <th className="text-center px-2.5 py-1 rounded-tr-lg">Total</th>
               </tr>
             </thead>
             <tbody>
               {invoice.lines.map((line, i) => (
                 <tr key={line.id} className="border-b border-slate-100">
-                  <td className="px-2.5 py-1.5 text-center text-slate-500">{i + 1}</td>
-                  <td className="px-2.5 py-1.5 font-semibold text-slate-800">{line.description}</td>
-                  <td className="px-2.5 py-1.5 text-center">{line.qty}</td>
-                  <td className="px-2.5 py-1.5 text-center">{formatRupiah(line.unitPrice)}</td>
-                  <td className="px-2.5 py-1.5 text-center font-bold">{formatRupiah(line.lineTotal)}</td>
+                  <td className="px-2.5 py-1 text-center text-slate-500">{i + 1}</td>
+                  <td className="px-2.5 py-1 font-semibold text-slate-800">{line.description}</td>
+                  <td className="px-2.5 py-1 text-center">{line.qty}</td>
+                  <td className="px-2.5 py-1 text-center">{formatRupiah(line.unitPrice)}</td>
+                  <td className="px-2.5 py-1 text-center font-bold">{formatRupiah(line.lineTotal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -130,10 +130,10 @@ export const NotaPrintable: React.FC<{
         {/* 1 baris, 3 kolom — persis referensi "Nota Keren": Payment To + Terbilang (6/12,
            1 kartu nyambung dipisah garis vertikal tipis di tengah, bukan 2 kartu terpisah),
            Subtotal+Grand Total (6/12, lebih lebar karena isinya 2 baris). */}
-        <div className="grid grid-cols-12 gap-3 mt-2 print-exact-color items-stretch">
+        <div className="grid grid-cols-12 gap-3 mt-1.5 print-exact-color items-stretch">
           <div className="col-span-6 rounded-xl border border-slate-200 flex items-center divide-x divide-slate-200">
             {bank.name && (
-              <div className="flex-1 flex items-center gap-2.5 px-4 py-3">
+              <div className="flex-1 flex items-center gap-2.5 px-4 py-2.5">
                 <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
                   <Landmark className="w-4 h-4 text-[#0544cc]" />
                 </div>
@@ -145,7 +145,7 @@ export const NotaPrintable: React.FC<{
                 </div>
               </div>
             )}
-            <div className="flex-1 flex items-center gap-2.5 px-4 py-3">
+            <div className="flex-1 flex items-center gap-2.5 px-4 py-2.5">
               <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <FileText className="w-4 h-4 text-[#0544cc]" />
               </div>
@@ -156,24 +156,24 @@ export const NotaPrintable: React.FC<{
             </div>
           </div>
 
-          <div className="col-span-6 flex flex-col gap-1.5">
-            <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+          <div className="col-span-6 flex flex-col gap-1">
+            <div className="rounded-lg bg-slate-50 px-3 py-1 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
               <span>Subtotal</span>
               <span>{formatRupiah(invoice.subtotal)}</span>
             </div>
             {invoice.discountAmount > 0 && (
-              <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+              <div className="rounded-lg bg-slate-50 px-3 py-1 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
                 <span>Potongan</span>
                 <span>- {formatRupiah(invoice.discountAmount)}</span>
               </div>
             )}
             {invoice.ppnEnabled && (
               <>
-                <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+                <div className="rounded-lg bg-slate-50 px-3 py-1 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
                   <span>DPP</span>
                   <span>{formatRupiah(invoice.totalAmount - invoice.ppnAmount)}</span>
                 </div>
-                <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
+                <div className="rounded-lg bg-slate-50 px-3 py-1 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
                   <span>PPN {invoice.ppnRate}%{invoice.client.isPemungutPpn ? " (dipungut & disetor sendiri oleh Pemungut PPN)" : ""}</span>
                   <span>{formatRupiah(invoice.ppnAmount)}</span>
                 </div>
@@ -189,24 +189,24 @@ export const NotaPrintable: React.FC<{
         </div>
 
         {paid > 0 ? (
-          <div className="grid grid-cols-2 gap-3 mt-2 print-exact-color">
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 flex justify-between text-xs font-bold text-emerald-700">
+          <div className="grid grid-cols-2 gap-3 mt-1.5 print-exact-color">
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1 flex justify-between text-xs font-bold text-emerald-700">
               <span>Dibayar (DP)</span>
               <span>{formatRupiah(paid)}</span>
             </div>
-            <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1.5 flex justify-between text-xs font-bold text-rose-700">
+            <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-1 flex justify-between text-xs font-bold text-rose-700">
               <span>Sisa Kurang Bayar</span>
               <span>{formatRupiah(remaining)}</span>
             </div>
           </div>
         ) : (
           dpAmount > 0 && (
-            <div className="grid grid-cols-2 gap-3 mt-2 print-exact-color">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 flex justify-between text-xs font-bold text-amber-700">
-                <span>DP (Rencana) — belum masuk kas</span>
+            <div className="grid grid-cols-2 gap-3 mt-1.5 print-exact-color">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 flex justify-between text-xs font-bold text-amber-700">
+                <span>Down Payment</span>
                 <span>{formatRupiah(dpAmount)}</span>
               </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 flex justify-between text-xs font-bold text-slate-700">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1 flex justify-between text-xs font-bold text-slate-700">
                 <span>Sisa Setelah DP</span>
                 <span>{formatRupiah(remainingAfterPlannedDp)}</span>
               </div>
@@ -215,13 +215,13 @@ export const NotaPrintable: React.FC<{
         )}
 
         {invoice.notes && (
-          <p className="mt-2 text-xs text-slate-600 border-t border-slate-200/60 pt-2">
+          <p className="mt-1.5 text-xs text-slate-600 border-t border-slate-200/60 pt-1.5">
             <span className="font-bold">Catatan: </span>
             {invoice.notes}
           </p>
         )}
 
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200/60">
+        <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-200/60">
           <ShieldCheck className="w-3.5 h-3.5 text-[#0544cc] flex-shrink-0" />
           <p className="text-xs text-slate-500 font-medium">Terima kasih atas kepercayaan dan kerja samanya.</p>
         </div>

@@ -194,7 +194,8 @@ body {
   }
   .print-nota-a5 {
     width: 100%;
-    font-size: 11px;
+    font-size: 10.5px;
+    padding: 8px !important; /* override Card padding="sm" (p-3 sm:p-4) — sm:p-4 kepakai pas print, kelewat lega buat A5 */
     page-break-inside: avoid;
     break-inside: avoid;
   }
