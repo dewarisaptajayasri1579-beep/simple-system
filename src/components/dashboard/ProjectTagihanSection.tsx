@@ -29,21 +29,50 @@ export interface ProjectTagihanRow {
   bucket?: string;
 }
 
-interface ProjectGroup {
-  projectId: string;
+interface ProjectTotal {
   projectName: string;
   clientName: string;
-  picPhone: string | null;
-  rows: ProjectTagihanRow[];
+  totalRemaining: number;
+  scheduleCount: number;
 }
 
-function projectColumns(generatingId: string | null, onGenerate: (r: ProjectTagihanRow) => void): FilterableColumn<ProjectTagihanRow>[] {
+function projectTagihanColumns(
+  projectTotals: Map<string, ProjectTotal>,
+  generatingId: string | null,
+  onGenerate: (r: ProjectTagihanRow) => void
+): FilterableColumn<ProjectTagihanRow>[] {
   return [
+    {
+      key: "project",
+      header: "Project",
+      filterValue: (r) => `${r.projectName} ${r.clientName}`,
+      cellClassName: "font-semibold",
+      cell: (r) => {
+        const totals = projectTotals.get(r.projectId);
+        const waUrl = r.picPhone && totals
+          ? waWebUrl(r.picPhone, `Halo, mengingatkan tagihan termin project "${totals.projectName}" (${totals.clientName}) sebesar ${formatRupiah(totals.totalRemaining)}. Terima kasih.`)
+          : null;
+        return (
+          <div className="space-y-1">
+            <Link href={`/proyek/${r.projectId}`} className="hover:underline">
+              {r.projectName}
+            </Link>
+            <div className="text-xs text-slate-500">{r.clientName}</div>
+            {waUrl && (
+              <a href={waUrl} target={WA_WEB_WINDOW_NAME} rel="noopener noreferrer" className="inline-block">
+                <Button size="sm" variant="outline">
+                  Follow Up WA
+                </Button>
+              </a>
+            )}
+          </div>
+        );
+      },
+    },
     {
       key: "label",
       header: "Termin",
       filterValue: (r) => r.label,
-      cellClassName: "font-semibold",
       cell: (r) =>
         r.invoiceId ? (
           <Link href={`/penjualan/${r.invoiceId}`} className="hover:underline">
@@ -94,14 +123,21 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
     router.refresh();
   };
 
-  const groups = useMemo(() => {
-    const map = new Map<string, ProjectGroup>();
+  // Total per project (dipakai buat pesan follow-up WA di kolom Project) — bukan buat grouping,
+  // tabelnya sengaja dibiarkan flat 1 baris per termin biar lebih enak dibaca (sama pola dengan
+  // Piutang Penjualan).
+  const projectTotals = useMemo(() => {
+    const map = new Map<string, ProjectTotal>();
     for (const r of rows) {
       const existing = map.get(r.projectId);
-      if (existing) existing.rows.push(r);
-      else map.set(r.projectId, { projectId: r.projectId, projectName: r.projectName, clientName: r.clientName, picPhone: r.picPhone, rows: [r] });
+      if (existing) {
+        existing.totalRemaining += r.remaining;
+        existing.scheduleCount += 1;
+      } else {
+        map.set(r.projectId, { projectName: r.projectName, clientName: r.clientName, totalRemaining: r.remaining, scheduleCount: 1 });
+      }
     }
-    return Array.from(map.values()).sort((a, b) => new Date(a.rows[0].dueDate).getTime() - new Date(b.rows[0].dueDate).getTime());
+    return map;
   }, [rows]);
 
   return (
@@ -109,52 +145,21 @@ export const ProjectTagihanSection: React.FC<{ rows: ProjectTagihanRow[] }> = ({
       <div className="px-1">
         <CardTitle>Tagihan Termin Project</CardTitle>
         <CardDescription>
-          {rows.length} termin belum lunas dari {groups.length} project
+          {rows.length} termin belum lunas dari {projectTotals.size} project
         </CardDescription>
       </div>
 
       {error && <p className="text-sm font-semibold text-rose-600 px-1">{error}</p>}
 
-      {groups.length === 0 && (
-        <Card variant="feature" padding="lg">
-          <p className="text-center text-slate-500">Tidak ada tagihan termin project yang jatuh tempo bulan ini/depan.</p>
-        </Card>
-      )}
-
-      {groups.map((g) => {
-        const totalRemaining = g.rows.reduce((sum, r) => sum + r.remaining, 0);
-        const waUrl = g.picPhone
-          ? waWebUrl(g.picPhone, `Halo, mengingatkan tagihan termin project "${g.projectName}" (${g.clientName}) sebesar ${formatRupiah(totalRemaining)}. Terima kasih.`)
-          : null;
-        return (
-          <Card key={g.projectId} variant="panel" padding="none">
-            <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <CardTitle>
-                  {g.projectName} <span className="font-medium text-slate-500">— {g.clientName}</span>
-                </CardTitle>
-                <CardDescription>{g.rows.length} termin belum lunas</CardDescription>
-              </div>
-              <div className="flex items-center gap-3">
-                <p className="text-lg font-black text-rose-700">{formatRupiah(totalRemaining)}</p>
-                {waUrl && (
-                  <a href={waUrl} target={WA_WEB_WINDOW_NAME} rel="noopener noreferrer">
-                    <Button size="sm" variant="outline">
-                      Follow Up WA
-                    </Button>
-                  </a>
-                )}
-                <Link href={`/proyek/${g.projectId}`}>
-                  <Button size="sm" variant="primary">
-                    Detail
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            <FilterableTable columns={projectColumns(generatingId, handleGenerate)} rows={g.rows} rowKey={(r) => r.scheduleId} mobileCardMode />
-          </Card>
-        );
-      })}
+      <Card variant="panel" padding="none">
+        <FilterableTable
+          columns={projectTagihanColumns(projectTotals, generatingId, handleGenerate)}
+          rows={rows}
+          rowKey={(r) => r.scheduleId}
+          emptyMessage="Tidak ada tagihan termin project yang jatuh tempo bulan ini/depan."
+          mobileCardMode
+        />
+      </Card>
     </div>
   );
 };
