@@ -34,7 +34,11 @@ export const NotaPrintable: React.FC<{
   invoice: Invoice & { client: Client; lines: InvoiceLine[] };
   bank: BankInfo;
   qrDataUrl?: string;
-}> = ({ invoice, bank, qrDataUrl }) => {
+  /** Total InvoicePayment efektif (posted) — kalau > 0, nota ikut nampilin baris "Dibayar (DP)"
+   *  & "Sisa Kurang Bayar" di bawah Grand Total (mis. client bayar termin/DP dulu). */
+  paid?: number;
+}> = ({ invoice, bank, qrDataUrl, paid = 0 }) => {
+  const remaining = Math.max(0, invoice.totalAmount - paid);
   return (
     <div className="print-only">
       <Card variant="panel" padding="sm" className="relative overflow-hidden print:shadow-none print:border-none print:bg-white print-nota-a5">
@@ -178,6 +182,19 @@ export const NotaPrintable: React.FC<{
             </div>
           </div>
         </div>
+
+        {paid > 0 && (
+          <div className="grid grid-cols-2 gap-3 mt-3 print-exact-color">
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex justify-between text-xs font-bold text-emerald-700">
+              <span>Dibayar (DP)</span>
+              <span>{formatRupiah(paid)}</span>
+            </div>
+            <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 flex justify-between text-xs font-bold text-rose-700">
+              <span>Sisa Kurang Bayar</span>
+              <span>{formatRupiah(remaining)}</span>
+            </div>
+          </div>
+        )}
 
         {invoice.notes && (
           <p className="mt-3 text-xs text-slate-600 border-t border-slate-200/60 pt-2">

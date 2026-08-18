@@ -15,7 +15,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const [invoice, settings] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
-      include: { client: true, lines: true },
+      include: { client: true, lines: true, payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
     }),
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
   ])
@@ -27,6 +27,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
     : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
 
   const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
+  const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
 
-  return <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} />
+  return <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} />
 }

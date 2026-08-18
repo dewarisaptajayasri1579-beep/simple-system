@@ -143,7 +143,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
            referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
-        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} />
+        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} />
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">
