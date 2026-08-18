@@ -21,3 +21,19 @@ export async function generateTransactionNumber(tx: TxClient, type: "income" | "
   const next = String(lastSeq + 1).padStart(5, "0")
   return `${prefix}${next}`
 }
+
+/** Nomor bukti Pindah Buku — format BPB/{tahun}/{5 digit urut}, sama pola dengan
+ *  generateTransactionNumber di atas, cuma tabelnya AccountTransfer. */
+export async function generateTransferNumber(tx: TxClient): Promise<string> {
+  const year = Number(jakartaTodayDateIso().slice(0, 4))
+  const prefix = `BPB/${year}/`
+
+  const last = await tx.accountTransfer.findFirst({
+    where: { transferNumber: { startsWith: prefix } },
+    orderBy: { transferNumber: "desc" },
+    select: { transferNumber: true },
+  })
+  const lastSeq = last?.transferNumber ? Number(last.transferNumber.slice(prefix.length)) : 0
+  const next = String(lastSeq + 1).padStart(5, "0")
+  return `${prefix}${next}`
+}

@@ -74,6 +74,20 @@ export function manualExpenseLines(input: {
   ]
 }
 
+/** Pindah Buku — pemindahan saldo antar akun kas/bank sendiri, KEDUA kaki jurnalnya sama-sama
+ *  akun Kas & Bank (bukan Beban/Pendapatan), beda dari manualExpenseLines/manualIncomeLines
+ *  yang salah satu kakinya selalu akun Kas & Bank & satunya lagi Beban/Pendapatan. */
+export function accountTransferLines(input: {
+  sourceKasBankCoaCode: string
+  destinationKasBankCoaCode: string
+  amount: number
+}): JournalLineInput[] {
+  return [
+    { accountCode: input.destinationKasBankCoaCode, debit: input.amount, memo: "Pindah Buku" },
+    { accountCode: input.sourceKasBankCoaCode, credit: input.amount, memo: "Pindah Buku" },
+  ]
+}
+
 /** "Tandai Lunas" biaya berkala / server. Tanpa memo generik di baris — biar Buku Besar
  *  jatuh ke journalEntry.description yang sudah spesifik (mis. "Pembayaran domain - nama.com"),
  *  bukan teks generik yang menutupi domain/server mana yang dibayar. */

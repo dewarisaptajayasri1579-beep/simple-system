@@ -570,10 +570,12 @@ model Account {
   coaAccountId   String?  @map("coa_account_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  transactions    Transaction[]
-  invoicePayments InvoicePayment[]
-  payments        Payment[]
-  coaAccount      ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
+  transactions       Transaction[]
+  invoicePayments    InvoicePayment[]
+  payments           Payment[]
+  coaAccount         ChartOfAccount?   @relation(fields: [coaAccountId], references: [id])
+  transfersOut       AccountTransfer[] @relation("AccountTransferSource")
+  transfersIn        AccountTransfer[] @relation("AccountTransferDestination")
 
   @@map("accounts")
   @@schema("simple_system")
@@ -640,8 +642,9 @@ model JournalEntry {
   voidedById String?   @map("voided_by_id")
   voidReason String?   @map("void_reason")
 
-  lines       JournalLine[]
-  transaction Transaction?
+  lines           JournalLine[]
+  transaction     Transaction?
+  accountTransfer AccountTransfer?
 
   @@map("journal_entries")
   @@schema("simple_system")
@@ -718,6 +721,42 @@ model Transaction {
   journalEntry   JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
   @@map("transactions")
+  @@schema("simple_system")
+}
+
+// Pindah Buku — pemindahan saldo antar akun kas/bank sendiri (bukan pendapatan/beban), mis.
+// tarik tunai ATM (Bank -> Kas) atau setor tunai (Kas -> Bank). Sengaja model terpisah dari
+// Transaction (bukan overload type="transfer") karena butuh 2 accountId sekaligus (sumber +
+// tujuan), beda bentuk dari Transaction yang cuma 1 accountId + kategori. Draft -> Posted ->
+// (Voided) sama persis polanya dengan Transaction — jurnal dibuat draft bareng record ini,
+// baru berlaku (masuk saldo/laporan) begitu di-posting.
+model AccountTransfer {
+  id                    String   @id @default(uuid())
+  // Nomor bukti — BPB/{tahun}/{5 digit urut}, sama pola dengan BKK/BKM (transaction-number.ts).
+  transferNumber        String?  @unique @map("transfer_number")
+  sourceAccountId       String   @map("source_account_id")
+  destinationAccountId  String   @map("destination_account_id")
+  amount                Float
+  description           String?
+  occurredAt            DateTime @default(now()) @map("occurred_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
+  postedAt   DateTime? @map("posted_at")
+  postedById String?   @map("posted_by_id")
+  voidedAt   DateTime? @map("voided_at")
+  voidedById String?   @map("voided_by_id")
+  voidReason String?   @map("void_reason")
+
+  // Sama pola dengan Transaction.journalEntryId — link presisi ke JournalEntry yang dibuat
+  // bareng record ini, bukan lookup by sourceType+sourceId.
+  journalEntryId String? @unique @map("journal_entry_id")
+
+  sourceAccount      Account      @relation("AccountTransferSource", fields: [sourceAccountId], references: [id])
+  destinationAccount Account      @relation("AccountTransferDestination", fields: [destinationAccountId], references: [id])
+  journalEntry       JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@map("account_transfers")
   @@schema("simple_system")
 }
 

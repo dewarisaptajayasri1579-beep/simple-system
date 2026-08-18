@@ -15,7 +15,7 @@ export interface JournalLineInput {
 export interface PostJournalInput {
   date: Date
   description: string
-  sourceType: "invoice" | "invoice_revenue" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "maintenance" | "manual" | "correction"
+  sourceType: "invoice" | "invoice_revenue" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "maintenance" | "transfer" | "manual" | "correction"
   /** Default "draft" — jurnal baru berlaku (masuk laporan/saldo) setelah di-posting lewat
    *  postJournalEntryFinal(). Cuma dipakai untuk kasus khusus (mis. koreksi migrasi) yang
    *  memang harus langsung final tanpa alur draft. */
