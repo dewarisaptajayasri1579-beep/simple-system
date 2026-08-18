@@ -10,6 +10,7 @@ import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { PiutangFollowUpButton } from "./PiutangFollowUpButton";
+import { SyncDomainStatusButton } from "./SyncDomainStatusButton";
 import { type AccountOption } from "./MarkPaidButton";
 import { RecurringBillPaymentCell } from "./RecurringBillPaymentCell";
 import { piutangGroupFollowUpMessage, domainFollowUpMessage, serverFollowUpMessage, maintenanceFollowUpMessage } from "@/lib/follow-up-templates";
@@ -431,6 +432,7 @@ export interface DomainExpiringRow {
   invoicedAt: string | null;
   paidAt: string | null;
   paymentNumber: string | null;
+  paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
 }
 
@@ -547,9 +549,14 @@ export const DomainExpiringSection: React.FC<{
                   {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
                   {r.invoiceNumber && <span className="text-slate-500"> · {r.invoiceNumber}</span>}
                 </div>
-                <div>
-                  {r.paidAt ? formatDate(r.paidAt) : "-"}
-                  {r.paymentNumber && <span className="text-slate-500"> · {r.paymentNumber}</span>}
+                <div className="flex items-center gap-1.5">
+                  <span>
+                    {r.paidAt ? formatDate(r.paidAt) : "-"}
+                    {r.paymentNumber && <span className="text-slate-500"> · {r.paymentNumber}</span>}
+                  </span>
+                  {r.paymentPostStatus && (
+                    <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />
+                  )}
                 </div>
               </div>
             ),
@@ -596,7 +603,10 @@ export const DomainExpiringSection: React.FC<{
             {rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`}
           </CardDescription>
         </div>
-        <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+        <div className="flex items-start gap-2">
+          <SyncDomainStatusButton />
+          <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+        </div>
       </div>
       <StatusPills
         active={statusFilter}

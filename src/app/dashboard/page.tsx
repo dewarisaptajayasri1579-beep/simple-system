@@ -248,7 +248,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           select: {
             id: true,
             invoiceNumber: true,
-            payments: { orderBy: { paidAt: "desc" }, take: 1, select: { paidAt: true, payment: { select: { paymentNumber: true } } } },
+            payments: {
+              orderBy: { paidAt: "desc" },
+              take: 1,
+              select: { paidAt: true, payment: { select: { paymentNumber: true, postStatus: true } } },
+            },
           },
         })
       : []
@@ -265,6 +269,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       invoicedAt: record?.invoicedAt ? record.invoicedAt.toISOString() : null,
       paidAt: latestPayment ? latestPayment.paidAt.toISOString() : null,
       paymentNumber: latestPayment?.payment?.paymentNumber ?? null,
+      paymentPostStatus: latestPayment?.payment?.postStatus ?? null,
       sla: record ? computeSlaStatus(record) : null,
     }
   }
