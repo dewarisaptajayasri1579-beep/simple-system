@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { postJournalEntry, voidJournalEntryBySource } from "@/lib/accounting/post-journal"
+import { COA_CODE } from "@/lib/accounting/coa-seed"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
@@ -30,6 +32,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!targetCoa) return NextResponse.json({ error: "Akun COA yang dipilih tidak ditemukan" }, { status: 400 })
   }
 
+  const openingBalance = Number(body?.openingBalance) || 0
+
   const updated = await prisma.$transaction(async (tx) => {
     // Kalau COA-nya tidak diganti (masih yang lama, biasanya auto-dibuat bareng akun ini), ikut
     // perbarui namanya saat nama akun diubah, supaya nama di dropdown & Buku Besar tetap
@@ -39,18 +43,53 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await tx.chartOfAccount.update({ where: { id: nextCoaAccountId }, data: { name } })
     }
 
-    return tx.account.update({
+    const result = await tx.account.update({
       where: { id },
       data: {
         name,
         type: body?.type === "bank" ? "bank" : "kas",
         bankName: body?.type === "bank" && typeof body?.bankName === "string" ? body.bankName.trim() || null : null,
         accountNumber: typeof body?.accountNumber === "string" ? body.accountNumber.trim() || null : null,
-        openingBalance: Number(body?.openingBalance) || 0,
+        openingBalance,
         coaAccountId: nextCoaAccountId,
       },
       include: { coaAccount: true },
     })
+
+    // Saldo awal atau COA terkait berubah -> koreksi jurnal pembukaan: batalkan yang lama (kalau
+    // ada), lalu buat ulang jurnal baru sesuai nilai/akun COA yang terbaru.
+    if (openingBalance !== account.openingBalance || nextCoaAccountId !== account.coaAccountId) {
+      await voidJournalEntryBySource(tx, {
+        sourceType: "account_opening_balance",
+        sourceId: id,
+        voidedById: user.id,
+        voidReason: "Saldo awal/COA akun diubah",
+      })
+
+      if (openingBalance !== 0 && nextCoaAccountId) {
+        const amount = Math.abs(openingBalance)
+        await postJournalEntry(tx, {
+          date: new Date(),
+          description: `Saldo awal akun ${name}`,
+          sourceType: "account_opening_balance",
+          sourceId: id,
+          createdBy: user.id,
+          postStatus: "posted",
+          lines:
+            openingBalance > 0
+              ? [
+                  { accountId: nextCoaAccountId, debit: amount, memo: "Saldo awal" },
+                  { accountCode: COA_CODE.modal, credit: amount, memo: `Saldo awal — ${name}` },
+                ]
+              : [
+                  { accountCode: COA_CODE.modal, debit: amount, memo: `Saldo awal — ${name}` },
+                  { accountId: nextCoaAccountId, credit: amount, memo: "Saldo awal" },
+                ],
+        })
+      }
+    }
+
+    return result
   })
 
   return NextResponse.json(updated)

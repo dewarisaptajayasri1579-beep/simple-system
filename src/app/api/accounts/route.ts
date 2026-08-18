@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { postJournalEntry } from "@/lib/accounting/post-journal"
+import { COA_CODE } from "@/lib/accounting/coa-seed"
 
 export async function GET() {
   const user = await getApiUser()
@@ -54,17 +56,43 @@ export async function POST(request: Request) {
       })
     }
 
-    return tx.account.create({
+    const openingBalance = Number(body?.openingBalance) || 0
+
+    const created = await tx.account.create({
       data: {
         name,
         type: body?.type === "bank" ? "bank" : "kas",
         bankName: body?.bankName || null,
         accountNumber: body?.accountNumber || null,
-        openingBalance: Number(body?.openingBalance) || 0,
+        openingBalance,
         coaAccountId: coa.id,
       },
       include: { coaAccount: true },
     })
+
+    if (openingBalance !== 0) {
+      const amount = Math.abs(openingBalance)
+      await postJournalEntry(tx, {
+        date: new Date(),
+        description: `Saldo awal akun ${name}`,
+        sourceType: "account_opening_balance",
+        sourceId: created.id,
+        createdBy: user.id,
+        postStatus: "posted",
+        lines:
+          openingBalance > 0
+            ? [
+                { accountId: coa.id, debit: amount, memo: "Saldo awal" },
+                { accountCode: COA_CODE.modal, credit: amount, memo: `Saldo awal — ${name}` },
+              ]
+            : [
+                { accountCode: COA_CODE.modal, debit: amount, memo: `Saldo awal — ${name}` },
+                { accountId: coa.id, credit: amount, memo: "Saldo awal" },
+              ],
+      })
+    }
+
+    return created
   })
 
   return NextResponse.json(account, { status: 201 })
