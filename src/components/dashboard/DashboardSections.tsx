@@ -94,77 +94,48 @@ const PIUTANG_STATUS_OPTIONS: { value: string; label: string; type: StatusBadgeT
 
 const PIUTANG_COLUMNS = [
   { key: "invoiceNumber", label: "No. Invoice" },
-  { key: "issuedAt", label: "Tanggal Pembuatan" },
-  { key: "age", label: "Umur Tagihan" },
+  { key: "issuedAt", label: "Tgl Buat" },
+  { key: "age", label: "Umur" },
   { key: "dueDate", label: "Jatuh Tempo" },
   { key: "remaining", label: "Sisa" },
   { key: "status", label: "Status" },
 ];
 
-export interface PiutangHistoryRow {
-  id: string;
-  clientId: string;
-  invoiceId: string;
-  invoiceNumber: string;
-  responseType: string;
-  note: string | null;
-  promisedPayAt: string | null;
-  createdAt: string;
-  createdByName: string;
-}
-
-const RESPONSE_TYPE_LABEL: Record<string, string> = {
-  sudah_bayar: "Sudah Bayar",
-  janji_bayar: "Janji Bayar",
-  nego: "Nego",
-  tidak_respon: "Tidak Merespon",
-  lainnya: "Lainnya",
-};
-
-function formatDateTime(iso: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Jakarta",
-  }).format(new Date(iso));
-}
-
-/** Log histori respon 1 client — sengaja list statis sederhana (bukan FilterableTable), karena
- *  ini cuma catatan kronologis buat dibaca sekilas, bukan data yang perlu dicari/difilter. */
-function PiutangHistoryLog({ rows }: { rows: PiutangHistoryRow[] }) {
-  return (
-    <ul className="space-y-2.5">
-      {rows.map((r) => (
-        <li key={r.id} className="text-sm border border-slate-200/70 rounded-xl px-3 py-2">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="font-bold text-slate-800">{RESPONSE_TYPE_LABEL[r.responseType] ?? r.responseType}</span>
-            <Link href={`/penjualan/${r.invoiceId}`} className="text-xs text-slate-500 hover:underline">
-              {r.invoiceNumber}
-            </Link>
-            <span className="text-xs text-slate-400">{formatDateTime(r.createdAt)}</span>
-          </div>
-          {r.promisedPayAt && <p className="text-xs text-slate-500 mt-0.5">Janji bayar: {formatDate(r.promisedPayAt)}</p>}
-          {r.note && <p className="text-slate-600 mt-1">{r.note}</p>}
-          <p className="text-xs text-slate-400 mt-1">oleh {r.createdByName}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-interface PiutangClientGroup {
-  clientId: string;
+interface PiutangClientTotal {
   clientName: string;
-  picName: string | null;
-  picPhone: string | null;
-  rows: PiutangSummaryRow[];
+  totalRemaining: number;
+  invoiceCount: number;
 }
 
-function piutangInvoiceColumns(clientId: string, isVisible: (key: string) => boolean): FilterableColumn<PiutangSummaryRow>[] {
+function piutangColumns(isVisible: (key: string) => boolean, clientTotals: Map<string, PiutangClientTotal>): FilterableColumn<PiutangSummaryRow>[] {
   return [
+    {
+      key: "clientName",
+      header: "Client",
+      filterValue: (r) => r.clientName,
+      cellClassName: "font-semibold",
+      cell: (r) => {
+        const totals = clientTotals.get(r.clientId);
+        return (
+          <div className="space-y-1">
+            <Link href={`/pembayaran?clientId=${r.clientId}`} className="hover:underline">
+              {r.clientName}
+            </Link>
+            <div className="flex items-center gap-1.5">
+              <EditablePicInfo clientId={r.clientId} picName={r.picName} picPhone={r.picPhone} />
+              {totals && (
+                <FollowUpButtons
+                  phone={r.picPhone}
+                  clientId={r.clientId}
+                  clientName={r.clientName}
+                  message={piutangGroupFollowUpMessage({ clientName: totals.clientName, totalRemaining: totals.totalRemaining, invoiceCount: totals.invoiceCount })}
+                />
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
     ...(isVisible("invoiceNumber")
       ? [
           {
@@ -180,9 +151,9 @@ function piutangInvoiceColumns(clientId: string, isVisible: (key: string) => boo
           },
         ]
       : []),
-    ...(isVisible("issuedAt") ? [{ key: "issuedAt", header: "Tanggal Pembuatan", cell: (r: PiutangSummaryRow) => formatDate(r.issuedAt) }] : []),
+    ...(isVisible("issuedAt") ? [{ key: "issuedAt", header: "Tgl Buat", cell: (r: PiutangSummaryRow) => formatDate(r.issuedAt) }] : []),
     ...(isVisible("age")
-      ? [{ key: "age", header: "Umur Tagihan", cell: (r: PiutangSummaryRow) => `${invoiceAgeDays(r.issuedAt)} hari` }]
+      ? [{ key: "age", header: "Umur", cell: (r: PiutangSummaryRow) => `${invoiceAgeDays(r.issuedAt)} hari` }]
       : []),
     ...(isVisible("dueDate") ? [{ key: "dueDate", header: "Jatuh Tempo", cell: (r: PiutangSummaryRow) => formatDate(r.dueDate) }] : []),
     ...(isVisible("remaining")
@@ -201,22 +172,29 @@ function piutangInvoiceColumns(clientId: string, isVisible: (key: string) => boo
       : []),
     {
       key: "bayar",
-      header: "Aksi",
+      header: "Bayar",
       cell: (r) => (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/pembayaran?clientId=${clientId}&invoiceId=${r.id}`}>
-            <Button size="sm" variant="outline">
-              Bayar
-            </Button>
-          </Link>
-          {r.billingFollowUpId && <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} />}
-        </div>
+        <Link href={`/pembayaran?clientId=${r.clientId}&invoiceId=${r.id}`}>
+          <Button size="sm" variant="outline">
+            Bayar
+          </Button>
+        </Link>
       ),
+    },
+    {
+      key: "inputRespon",
+      header: "Input Respon",
+      cell: (r) =>
+        r.billingFollowUpId ? (
+          <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} />
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        ),
     },
   ];
 }
 
-export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; historyRows: PiutangHistoryRow[] }> = ({ rows, historyRows }) => {
+export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({ rows }) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-piutang", PIUTANG_COLUMNS);
 
@@ -226,19 +204,20 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; histor
   }, {});
   const filteredRows = statusFilter === "all" ? rows : rows.filter((r) => r.status === statusFilter);
 
-  // Grup per client — client dengan invoice jatuh tempo paling dekat tampil duluan.
-  const groups = useMemo(() => {
-    const map = new Map<string, PiutangClientGroup>();
+  // Total per client (dipakai buat pesan follow-up WA di kolom Client) — bukan buat grouping,
+  // tabelnya sengaja dibiarkan flat 1 baris per invoice biar lebih enak dibaca.
+  const clientTotals = useMemo(() => {
+    const map = new Map<string, PiutangClientTotal>();
     for (const r of filteredRows) {
       const existing = map.get(r.clientId);
-      if (existing) existing.rows.push(r);
-      else map.set(r.clientId, { clientId: r.clientId, clientName: r.clientName, picName: r.picName, picPhone: r.picPhone, rows: [r] });
+      if (existing) {
+        existing.totalRemaining += r.remaining;
+        existing.invoiceCount += 1;
+      } else {
+        map.set(r.clientId, { clientName: r.clientName, totalRemaining: r.remaining, invoiceCount: 1 });
+      }
     }
-    return Array.from(map.values()).sort((a, b) => {
-      const aTime = a.rows[0].dueDate ? new Date(a.rows[0].dueDate).getTime() : Infinity;
-      const bTime = b.rows[0].dueDate ? new Date(b.rows[0].dueDate).getTime() : Infinity;
-      return aTime - bTime;
-    });
+    return map;
   }, [filteredRows]);
 
   return (
@@ -247,7 +226,7 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; histor
         <div>
           <CardTitle>Piutang Penjualan</CardTitle>
           <CardDescription>
-            {rows.length} invoice belum lunas dari {groups.length} client
+            {rows.length} invoice belum lunas dari {clientTotals.size} client
           </CardDescription>
         </div>
         <ColumnVisibilityMenu columns={PIUTANG_COLUMNS} isVisible={isVisible} onToggle={toggle} />
@@ -257,62 +236,14 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; histor
         <div className="pt-4 sm:pt-5">
           <StatusPills active={statusFilter} onChange={setStatusFilter} options={PIUTANG_STATUS_OPTIONS} counts={counts} total={rows.length} />
         </div>
+        <FilterableTable
+          columns={piutangColumns(isVisible, clientTotals)}
+          rows={filteredRows}
+          rowKey={(r) => r.id}
+          emptyMessage="Tidak ada piutang terbuka."
+          mobileCardMode
+        />
       </Card>
-
-      {groups.length === 0 && (
-        <Card variant="feature" padding="lg">
-          <p className="text-center text-slate-500">Tidak ada piutang terbuka.</p>
-        </Card>
-      )}
-
-      {groups.map((g) => (
-        <Card key={g.clientId} variant="panel" padding="none">
-          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>{g.clientName}</CardTitle>
-              <CardDescription>{g.rows.length} invoice belum lunas</CardDescription>
-              <div className="flex items-center gap-2 mt-1">
-                <EditablePicInfo clientId={g.clientId} picName={g.picName} picPhone={g.picPhone} />
-                <FollowUpButtons
-                  phone={g.picPhone}
-                  clientId={g.clientId}
-                  clientName={g.clientName}
-                  message={piutangGroupFollowUpMessage({
-                    clientName: g.clientName,
-                    totalRemaining: g.rows.reduce((sum, r) => sum + r.remaining, 0),
-                    invoiceCount: g.rows.length,
-                  })}
-                />
-              </div>
-            </div>
-            <div className="flex flex-col items-start sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-shrink-0">
-              <p className="text-lg font-black text-rose-700">{formatRupiah(g.rows.reduce((sum, r) => sum + r.remaining, 0))}</p>
-              <Link href={`/pembayaran?clientId=${g.clientId}`}>
-                <Button size="sm" variant="primary">
-                  Bayar
-                </Button>
-              </Link>
-            </div>
-          </div>
-          <FilterableTable
-            columns={piutangInvoiceColumns(g.clientId, isVisible)}
-            rows={g.rows}
-            rowKey={(r) => r.id}
-            mobileCardMode
-          />
-
-          {(() => {
-            const clientHistory = historyRows.filter((h) => h.clientId === g.clientId);
-            if (clientHistory.length === 0) return null;
-            return (
-              <div className="border-t border-slate-200/70 p-5 sm:p-6">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Log Respon ({clientHistory.length})</p>
-                <PiutangHistoryLog rows={clientHistory} />
-              </div>
-            );
-          })()}
-        </Card>
-      ))}
     </div>
   );
 };
