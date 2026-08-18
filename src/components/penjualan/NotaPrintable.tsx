@@ -160,7 +160,7 @@ export const NotaPrintable: React.FC<{
             )}
             {invoice.ppnEnabled && (
               <div className="rounded-lg bg-slate-50 px-3 py-1.5 flex justify-between text-[10px] font-semibold text-slate-700 flex-shrink-0">
-                <span>PPN {invoice.ppnRate}%</span>
+                <span>PPN {invoice.ppnRate}%{invoice.client.isPemungutPpn ? " (dipungut & disetor sendiri oleh Pemungut PPN)" : ""}</span>
                 <span>{formatRupiah(invoice.ppnAmount)}</span>
               </div>
             )}

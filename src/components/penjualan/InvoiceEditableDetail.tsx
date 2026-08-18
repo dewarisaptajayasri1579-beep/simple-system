@@ -266,6 +266,12 @@ export const InvoiceEditableDetail: React.FC<{
           <p className="font-bold text-slate-900 mt-1">{clientName}</p>
           {clientAddress && <p className="text-sm text-slate-600">{clientAddress}</p>}
           {clientPhone && <p className="text-sm text-slate-600">{clientPhone}</p>}
+          {isPemungutInvoice && (
+            <>
+              <p className="mt-2 text-xs font-bold text-[#0544cc]">Client Pemungut PPN — PPN disetor langsung ke negara, tidak masuk kas kita</p>
+              <EditableBuktiPungutPpn invoiceId={invoiceId} noBuktiPungutPpn={noBuktiPungutPpn} tglBuktiPungutPpn={tglBuktiPungutPpn} />
+            </>
+          )}
         </div>
         <div className="sm:text-right">
           <p className="text-xs font-bold text-slate-500 uppercase">Tanggal Terbit</p>
@@ -321,7 +327,7 @@ export const InvoiceEditableDetail: React.FC<{
           </div>
           {ppnEnabled && (
             <div className="flex justify-between text-slate-600">
-              <span>PPN {ppnRate}%</span>
+              <span>PPN {ppnRate}%{isPemungutInvoice ? " (dipungut client)" : ""}</span>
               <span>{formatRupiah(ppnAmount)}</span>
             </div>
           )}
