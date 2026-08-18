@@ -421,6 +421,14 @@ model Invoice {
   // pemungut (bukti belum diterima) — tidak menghalangi invoice ditandai lunas di DPP.
   noBuktiPungutPpn  String?   @map("no_bukti_pungut_ppn")
   tglBuktiPungutPpn DateTime? @map("tgl_bukti_pungut_ppn")
+
+  // DP yang DISEPAKATI/direncanakan (mis. dinas janji bayar DP dulu) — CATATAN saja, sama pola
+  // dengan noBuktiPungutPpn/Piutang Termin Project: TIDAK ADA efek kas/jurnal, karena uangnya
+  // belum benar-benar masuk. Beda dari pelunasan asli (InvoicePayment, lewat menu Pembayaran)
+  // yang baru itu jurnal Kas/Bank + Pendapatan. Dipakai buat tampilkan estimasi "Sisa Setelah DP"
+  // di invoice cetak SEBELUM ada uang masuk sama sekali — begitu ada InvoicePayment asli, nota
+  // beralih pakai angka pelunasan asli (lihat NotaPrintable), bukan dpAmount ini lagi.
+  dpAmount Float @default(0) @map("dp_amount")
   lastFollowUpAt DateTime? @map("last_follow_up_at") // kapan terakhir AI Agent follow-up ke Client
   createdAt     DateTime @default(now()) @map("created_at")
 

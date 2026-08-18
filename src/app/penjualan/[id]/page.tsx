@@ -137,13 +137,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             isPemungutInvoice={isPemungutInvoice}
             noBuktiPungutPpn={invoice.noBuktiPungutPpn}
             tglBuktiPungutPpn={invoice.tglBuktiPungutPpn ? invoice.tglBuktiPungutPpn.toISOString() : null}
+            dpAmount={invoice.dpAmount}
             lines={invoice.lines}
           />
         </Card>
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
            referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
-        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} />
+        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">

@@ -29,5 +29,5 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
   const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
 
-  return <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} />
+  return <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
 }

@@ -34,11 +34,16 @@ export const NotaPrintable: React.FC<{
   invoice: Invoice & { client: Client; lines: InvoiceLine[] };
   bank: BankInfo;
   qrDataUrl?: string;
-  /** Total InvoicePayment efektif (posted) — kalau > 0, nota ikut nampilin baris "Dibayar (DP)"
-   *  & "Sisa Kurang Bayar" di bawah Grand Total (mis. client bayar termin/DP dulu). */
+  /** Total InvoicePayment efektif (posted) — uang yang BENERAN sudah masuk kas. Kalau > 0, nota
+   *  nampilin "Dibayar (DP)" & "Sisa Kurang Bayar" beneran, dan dpAmount (rencana) diabaikan. */
   paid?: number;
-}> = ({ invoice, bank, qrDataUrl, paid = 0 }) => {
+  /** DP yang DISEPAKATI tapi belum tentu sudah dibayar (Invoice.dpAmount, catatan saja) — cuma
+   *  ditampilkan kalau `paid` masih 0, sebagai estimasi "Sisa Setelah DP (Rencana)". Begitu ada
+   *  pelunasan asli (paid > 0), field ini tidak lagi dipakai di tampilan. */
+  dpAmount?: number;
+}> = ({ invoice, bank, qrDataUrl, paid = 0, dpAmount = 0 }) => {
   const remaining = Math.max(0, invoice.totalAmount - paid);
+  const remainingAfterPlannedDp = Math.max(0, invoice.totalAmount - dpAmount);
   return (
     <div className="print-only">
       <Card variant="panel" padding="sm" className="relative overflow-hidden print:shadow-none print:border-none print:bg-white print-nota-a5">
@@ -183,7 +188,7 @@ export const NotaPrintable: React.FC<{
           </div>
         </div>
 
-        {paid > 0 && (
+        {paid > 0 ? (
           <div className="grid grid-cols-2 gap-3 mt-3 print-exact-color">
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex justify-between text-xs font-bold text-emerald-700">
               <span>Dibayar (DP)</span>
@@ -194,6 +199,19 @@ export const NotaPrintable: React.FC<{
               <span>{formatRupiah(remaining)}</span>
             </div>
           </div>
+        ) : (
+          dpAmount > 0 && (
+            <div className="grid grid-cols-2 gap-3 mt-3 print-exact-color">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 flex justify-between text-xs font-bold text-amber-700">
+                <span>DP (Rencana) — belum masuk kas</span>
+                <span>{formatRupiah(dpAmount)}</span>
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex justify-between text-xs font-bold text-slate-700">
+                <span>Sisa Setelah DP</span>
+                <span>{formatRupiah(remainingAfterPlannedDp)}</span>
+              </div>
+            </div>
+          )
         )}
 
         {invoice.notes && (

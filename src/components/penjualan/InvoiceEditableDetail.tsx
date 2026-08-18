@@ -19,6 +19,7 @@ import {
 } from "@/components/ui"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { EditableBuktiPungutPpn } from "./EditableBuktiPungutPpn"
+import { EditableCurrencyCell } from "@/components/shared/EditableCurrencyCell"
 
 function formatDate(date: Date | null) {
   if (!date) return "-"
@@ -69,6 +70,7 @@ export const InvoiceEditableDetail: React.FC<{
   isPemungutInvoice: boolean
   noBuktiPungutPpn: string | null
   tglBuktiPungutPpn: string | null
+  dpAmount: number
   lines: { id: string; itemId: string | null; description: string; qty: number; unitPrice: number; unitCost: number; discountAmount: number; lineTotal: number }[]
 }> = ({
   invoiceId,
@@ -91,8 +93,10 @@ export const InvoiceEditableDetail: React.FC<{
   isPemungutInvoice,
   noBuktiPungutPpn,
   tglBuktiPungutPpn,
+  dpAmount: initialDpAmount,
   lines,
 }) => {
+  const [dpAmount, setDpAmount] = useState(initialDpAmount)
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
@@ -373,6 +377,25 @@ export const InvoiceEditableDetail: React.FC<{
             <span>Total</span>
             <span>{formatRupiah(totalAmount)}</span>
           </div>
+          {/* DP (Rencana) — CATATAN saja (Invoice.dpAmount), belum tentu sudah dibayar, beda
+             dari Terbayar/Sisa di bawah yang dihitung dari InvoicePayment ASLI. Klik buat isi. */}
+          <div className="flex justify-between text-slate-600">
+            <span>DP (Rencana)</span>
+            <EditableCurrencyCell
+              apiPath={`/api/invoices/${invoiceId}/dp`}
+              field="dpAmount"
+              value={dpAmount}
+              formatRupiah={(v) => formatRupiah(v ?? 0)}
+              title="Klik untuk isi/ubah DP yang disepakati (belum tentu sudah dibayar)"
+              onUpdated={(v) => setDpAmount(v ?? 0)}
+            />
+          </div>
+          {paid === 0 && dpAmount > 0 && (
+            <div className="flex justify-between text-amber-700 font-semibold">
+              <span>Sisa Setelah DP (Rencana)</span>
+              <span>{formatRupiah(Math.max(0, totalAmount - dpAmount))}</span>
+            </div>
+          )}
           <div className="flex justify-between text-emerald-700 font-semibold">
             <span>Terbayar</span>
             <span>{formatRupiah(paid)}</span>
