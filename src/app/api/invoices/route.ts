@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { generateInvoiceNumber } from "@/lib/invoice-number"
+import { COA_CODE } from "@/lib/accounting/coa-seed"
 
 export async function GET(request: Request) {
   const user = await getApiUser()

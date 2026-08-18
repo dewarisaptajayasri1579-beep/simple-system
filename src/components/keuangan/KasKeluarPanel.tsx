@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AccountPicker, type AccountOption } from "./AccountPicker";
-import { ChevronLeft, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, Pencil } from "lucide-react";
 import { guessCategoryId } from "@/lib/category-guess";
 import { jakartaTodayDateIso } from "@/lib/datetime";
 
@@ -62,7 +62,10 @@ interface TransactionRow {
   postStatus: "draft" | "posted" | "voided";
   refType: string | null;
   refId: string | null;
+  paymentId: string | null;
   journalEntryId: string | null;
+  accountId: string;
+  categoryId: string | null;
   account: { name: string };
   category: { name: string } | null;
 }
@@ -114,6 +117,47 @@ export const KasKeluarPanel: React.FC<{
   const [newCategoryCoaId, setNewCategoryCoaId] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
   const [categoryError, setCategoryError] = useState("");
+
+  // Edit draft pengeluaran manual langsung dari tabel riwayat — sama syaratnya dengan PATCH
+  // /api/transactions/[id] (draft, tanpa refType Bayar Domain/dst, bukan bagian dari Payment).
+  const [editingRow, setEditingRow] = useState<TransactionRow | null>(null);
+  const [editForm, setEditForm] = useState({ description: "", accountId: "", categoryId: "", grossAmount: 0 });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const openEdit = (row: TransactionRow) => {
+    setEditingRow(row);
+    setEditForm({ description: row.description ?? "", accountId: row.accountId, categoryId: row.categoryId ?? "", grossAmount: row.grossAmount });
+    setEditError("");
+  };
+
+  const handleEditSave = async () => {
+    if (!editingRow) return;
+    if (!editForm.accountId) {
+      setEditError("Akun kas/bank wajib dipilih");
+      return;
+    }
+    if (!editForm.grossAmount || editForm.grossAmount <= 0) {
+      setEditError("Nominal tidak valid");
+      return;
+    }
+    setEditSaving(true);
+    setEditError("");
+    const res = await fetch(`/api/transactions/${editingRow.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    const data = await res.json().catch(() => null);
+    setEditSaving(false);
+    if (!res.ok) {
+      setEditError(data?.error || "Gagal menyimpan perubahan");
+      return;
+    }
+    setEditingRow(null);
+    window.dispatchEvent(new Event("transactions-changed"));
+    router.refresh();
+  };
 
   useEffect(() => {
     fetch("/api/coa")
@@ -340,6 +384,18 @@ export const KasKeluarPanel: React.FC<{
     { key: "account", header: "Akun", cell: (r) => r.account.name },
     { key: "amount", header: "Jumlah", cellClassName: "font-semibold", cell: (r) => formatRupiah(r.grossAmount) },
     { key: "status", header: "Status", cell: (r) => <StatusBadge type={r.postStatus} size="sm" /> },
+    {
+      key: "aksi",
+      header: "Aksi",
+      cell: (r) =>
+        r.postStatus === "draft" && !r.refType && !r.paymentId ? (
+          <Button size="sm" variant="ghost" onClick={() => openEdit(r)} leftIcon={<Pencil className="w-3.5 h-3.5" />}>
+            Edit
+          </Button>
+        ) : (
+          <span className="text-xs text-slate-400">-</span>
+        ),
+    },
   ];
 
   return (
@@ -538,6 +594,43 @@ export const KasKeluarPanel: React.FC<{
             onChange={setNewCategoryCoaId}
             placeholder="Pilih akun Beban — kosongkan untuk pakai Beban Lain-lain"
           />
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={editingRow !== null}
+        onClose={() => setEditingRow(null)}
+        title="Edit Kas Keluar"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEditingRow(null)}>
+              Batal
+            </Button>
+            <Button onClick={handleEditSave} isLoading={editSaving}>
+              Simpan
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {editError && <Alert variant="error">{editError}</Alert>}
+          <Input label="Keterangan" value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Akun"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              value={editForm.accountId}
+              onChange={(v) => setEditForm((f) => ({ ...f, accountId: v }))}
+            />
+            <Select
+              label="Kategori Biaya"
+              options={categoryOptions}
+              value={editForm.categoryId}
+              onChange={(v) => setEditForm((f) => ({ ...f, categoryId: v }))}
+              placeholder="Tanpa kategori"
+            />
+          </div>
+          <CurrencyInput label="Nominal" value={editForm.grossAmount} onChange={(v) => setEditForm((f) => ({ ...f, grossAmount: v }))} />
         </div>
       </Modal>
     </div>

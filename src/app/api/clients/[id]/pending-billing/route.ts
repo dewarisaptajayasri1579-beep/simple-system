@@ -8,7 +8,7 @@ import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } fro
 
 interface PendingItem {
   id: string
-  type: "domain" | "server" | "maintenance"
+  type: "domain" | "server" | "maintenance" | "project_termin"
   name: string
   price: number
   dueDate: string | null
@@ -34,10 +34,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id: clientId } = await params
   const showAll = new URL(request.url).searchParams.get("all") === "true"
 
-  const [domains, servers, maintenances] = await Promise.all([
+  const [domains, servers, maintenances, projectSchedules] = await Promise.all([
     prisma.domain.findMany({ where: { active: true, clientId } }),
     prisma.server.findMany({ where: { active: true, clientId }, include: { period: true } }),
     prisma.maintenance.findMany({ where: { active: true, clientId }, include: { period: true } }),
+    prisma.projectPaymentSchedule.findMany({ where: { invoiceId: null, project: { clientId, status: "berjalan" } }, include: { project: true } }),
   ])
 
   const domainAll: PendingItem[] = domains.map((d) => {
@@ -52,10 +53,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const nextDue = computeNextDueDate(m.lastPaidAt, m.period?.name, m.periodCount)
     return { id: m.id, type: "maintenance" as const, name: m.name, price: m.price ?? 0, dueDate: nextDue ? nextDue.toISOString() : null, bucket: getExpiryBucket(nextDue) }
   })
+  // Termin Project belum pernah punya invoice (invoiceId null) — TIDAK lewat ensureBillingFollowUps/
+  // stillPending di bawah (itu buat siklus Domain/Server/Maintenance yang punya tahap "reminder").
+  // Termin Project sengaja skip tahap reminder (lihat catatan BillingFollowUp di schema.prisma),
+  // siklusnya baru mulai pas beneran diinvoice — dibikin manual di POST /api/invoices.
+  const projectAll: PendingItem[] = projectSchedules.map((s) => ({
+    id: s.id,
+    type: "project_termin" as const,
+    name: `${s.project.name} - ${s.label}`,
+    price: s.amount,
+    dueDate: s.dueDate.toISOString(),
+    bucket: getExpiryBucket(s.dueDate),
+  }))
 
   const domainDue = domainAll.filter((r) => isDue(r.bucket))
   const serverDue = serverAll.filter((r) => isDue(r.bucket))
   const maintenanceDue = maintenanceAll.filter((r) => isDue(r.bucket))
+  const projectDue = projectAll.filter((r) => isDue(r.bucket))
 
   const dueRows = [...domainDue, ...serverDue, ...maintenanceDue]
   const refs: BillingFollowUpRef[] = dueRows.map((r) => ({ refType: r.type, refId: r.id }))
@@ -77,5 +91,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     domains: (showAll ? domainAll : domainDue).filter(stillPending),
     servers: (showAll ? serverAll : serverDue).filter(stillPending),
     maintenances: (showAll ? maintenanceAll : maintenanceDue).filter(stillPending),
+    projects: showAll ? projectAll : projectDue,
   })
 }
