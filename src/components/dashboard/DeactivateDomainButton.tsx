@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Power } from "lucide-react";
 import { Button, Modal, Alert } from "@/components/ui";
 
 /** Tombol "Nonaktifkan" di kolom Aksi Dashboard > Domain — minta alasan dulu (wajib), dicatat
@@ -44,9 +45,15 @@ export const DeactivateDomainButton: React.FC<{ domainId: string; domainName: st
 
   return (
     <>
-      <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50" onClick={openModal}>
-        Nonaktifkan
-      </Button>
+      <button
+        type="button"
+        onClick={openModal}
+        title="Nonaktifkan domain"
+        aria-label="Nonaktifkan domain"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+      >
+        <Power className="w-4 h-4" />
+      </button>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Nonaktifkan Domain" subtitle={domainName}>
         <div className="space-y-4">
           {error && <Alert variant="error">{error}</Alert>}

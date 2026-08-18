@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Pencil, Check, X } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { Pencil } from "lucide-react";
+import { Button, Input, Modal } from "@/components/ui";
 
 /** PIC + No. HP di bawah nama client — kalau kosong tetap tampil (bukan disembunyikan) supaya
- *  bisa langsung diklik buat diisi. Klik teksnya -> jadi 2 input kecil + simpan, langsung
- *  PATCH ke Client, tanpa perlu buka halaman/modal terpisah. */
+ *  bisa langsung diklik buat diisi. Klik teksnya -> buka modal dengan 2 field (Nama PIC, No. WA)
+ *  + tombol Simpan, langsung PATCH ke Client. */
 export const EditablePicInfo: React.FC<{
   clientId: string;
   picName: string | null;
@@ -51,35 +51,35 @@ export const EditablePicInfo: React.FC<{
     }
   };
 
-  if (isEditing) {
-    return (
-      <div className="mt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-md">
-        <Input sizeVariant="sm" placeholder="Nama PIC" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
-        <Input sizeVariant="sm" placeholder="No. HP PIC" value={draftPhone} onChange={(e) => setDraftPhone(e.target.value)} />
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <Button size="sm" variant="primary" onClick={handleSave} isLoading={isSaving}>
-            <Check className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        {error && <p className="text-xs text-rose-600 font-semibold">{error}</p>}
-      </div>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      onClick={openEdit}
-      className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors cursor-pointer group"
-    >
-      <span>
-        PIC: {picName || <span className="italic text-slate-400">klik isi</span>} · No. HP:{" "}
-        {picPhone || <span className="italic text-slate-400">klik isi</span>}
-      </span>
-      <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={openEdit}
+        className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors cursor-pointer group"
+      >
+        <span>
+          PIC: {picName || <span className="italic text-slate-400">klik isi</span>} · No. HP:{" "}
+          {picPhone || <span className="italic text-slate-400">klik isi</span>}
+        </span>
+        <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </button>
+
+      <Modal isOpen={isEditing} onClose={() => setIsEditing(false)} title="Edit PIC" size="sm">
+        <div className="space-y-4">
+          {error && <p className="text-sm text-rose-600 font-semibold">{error}</p>}
+          <Input label="Nama PIC" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="mis. Budi" />
+          <Input label="No. WA PIC" value={draftPhone} onChange={(e) => setDraftPhone(e.target.value)} placeholder="mis. 08123456789" />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>
+              Batal
+            </Button>
+            <Button type="button" variant="primary" onClick={handleSave} isLoading={isSaving}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
