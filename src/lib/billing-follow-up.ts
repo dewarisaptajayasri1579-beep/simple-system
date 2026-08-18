@@ -29,9 +29,36 @@ export async function ensureBillingFollowUps(db: Db, items: BillingFollowUpRef[]
   const missing = items.filter((i) => !existingKeys.has(`${i.refType}:${i.refId}`))
   if (missing.length === 0) return
 
+  // Siklus sebelumnya bisa saja sudah ditutup (paidRecordedAt keisi begitu Payment-nya diinput,
+  // lihat catatan Tahap 3 SLA di /api/payments) padahal expiryDate item ini belum sempat maju
+  // karena Payment-nya masih draft (belum diposting) — dalam kondisi itu invoice-nya SUDAH ada,
+  // cuma belum lunas. Kalau langsung bikin siklus baru kosong (invoicedAt null), stage-nya salah
+  // kebaca "belum_ditagih" padahal senyatanya "belum dibayar". Cek dulu ada invoice
+  // posted+unpaid/partial yang masih nyangkut buat item ini, kalau ada langsung isi
+  // invoicedAt/invoiceId dari situ biar stage-nya benar (menunggu_jawaban/menunggu_bayar).
+  const pendingInvoices = await db.invoice.findMany({
+    where: {
+      postStatus: "posted",
+      status: { in: ["unpaid", "partial"] },
+      OR: missing.map((i) => ({ costLinkType: i.refType, costLinkId: i.refId })),
+    },
+    orderBy: { issuedAt: "desc" },
+    select: { id: true, issuedAt: true, costLinkType: true, costLinkId: true },
+  })
+  const pendingInvoiceByKey = new Map(pendingInvoices.map((inv) => [`${inv.costLinkType}:${inv.costLinkId}`, inv]))
+
   const now = new Date()
   await db.billingFollowUp.createMany({
-    data: missing.map((i) => ({ refType: i.refType, refId: i.refId, dueAppearedAt: now })),
+    data: missing.map((i) => {
+      const pending = pendingInvoiceByKey.get(`${i.refType}:${i.refId}`)
+      return {
+        refType: i.refType,
+        refId: i.refId,
+        dueAppearedAt: now,
+        invoicedAt: pending?.issuedAt ?? null,
+        invoiceId: pending?.id ?? null,
+      }
+    }),
   })
 }
 
