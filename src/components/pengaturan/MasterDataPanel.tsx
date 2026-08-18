@@ -23,6 +23,7 @@ import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { computeNextDueDate, getDueBucket, resolveServerExpiry, isWeeklyPeriod, WEEKDAY_OPTIONS, weekdayLabel } from "@/lib/recurring-bill-status";
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
+import { EditableCurrencyCell } from "@/components/shared/EditableCurrencyCell";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 
 export interface VendorRow {
@@ -499,7 +500,24 @@ const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTy
           },
         ]
       : []),
-    ...(isVisible("price") ? [{ key: "price", header: "Harga", cell: (s: ServerRow) => formatRupiah(s.price) }] : []),
+    ...(isVisible("price")
+      ? [
+          {
+            key: "price",
+            header: "Harga",
+            cell: (s: ServerRow) => (
+              <EditableCurrencyCell
+                apiPath={`/api/servers/${s.id}`}
+                field="price"
+                value={s.price}
+                formatRupiah={formatRupiah}
+                title="Klik untuk ubah harga"
+                onUpdated={(price) => setRows((prev) => prev.map((r) => (r.id === s.id ? { ...r, price } : r)))}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(isVisible("lastPaid")
       ? [
           {
@@ -1636,7 +1654,24 @@ const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ 
           },
         ]
       : []),
-    ...(isVisible("price") ? [{ key: "price", header: "Harga Jual", cell: (d: DomainRow) => formatRupiah(d.sellPrice) }] : []),
+    ...(isVisible("price")
+      ? [
+          {
+            key: "price",
+            header: "Harga Jual",
+            cell: (d: DomainRow) => (
+              <EditableCurrencyCell
+                apiPath={`/api/domains/${d.id}`}
+                field="sellPrice"
+                value={d.sellPrice}
+                formatRupiah={formatRupiah}
+                title="Klik untuk ubah harga jual"
+                onUpdated={(sellPrice) => setRows((prev) => prev.map((r) => (r.id === d.id ? { ...r, sellPrice } : r)))}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(isVisible("lastPaid")
       ? [
           {

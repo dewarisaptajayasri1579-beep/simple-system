@@ -13,6 +13,9 @@ export interface CurrencyInputProps {
   disabled?: boolean;
   className?: string;
   id?: string;
+  autoFocus?: boolean;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }
 
 function formatThousands(n: number): string {
@@ -30,7 +33,7 @@ function parseDigits(raw: string): number {
  *  (bukan qty, persentase, atau field angka non-uang lain — itu tetap pakai <Input type="number">
  *  biasa). Kalau bikin form input nominal uang baru, pakai komponen ini, jangan Input biasa. */
 export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ label, helperText, error, value, onChange, sizeVariant = "lg", placeholder = "0", disabled, className = "", id }, ref) => {
+  ({ label, helperText, error, value, onChange, sizeVariant = "lg", placeholder = "0", disabled, className = "", id, autoFocus, onBlur, onKeyDown }, ref) => {
     const [display, setDisplay] = useState(() => formatThousands(value));
 
     useEffect(() => {
@@ -68,7 +71,10 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
             disabled={disabled}
             placeholder={placeholder}
             value={display}
+            autoFocus={autoFocus}
             onChange={handleChange}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
             className={`w-full ${sizeClasses[sizeVariant]} bg-white/60 hover:bg-white/80 border border-slate-200/80 text-slate-800 placeholder:text-slate-400 font-medium text-right transition-all duration-200 focus:outline-none focus:bg-white/95 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.02)] disabled:opacity-50 disabled:cursor-not-allowed ${
               error ? "border-red-500 focus:ring-red-500/10 focus:border-red-500" : ""
             } ${className}`}
