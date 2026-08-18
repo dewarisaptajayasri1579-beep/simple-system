@@ -63,7 +63,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const stillPending = (r: PendingItem) => {
     const record = followUpByRef.get(`${r.type}:${r.id}`)
     if (!record) return true
-    return computeSlaStatus(record)?.stage === "belum_ditagih"
+    const stage = computeSlaStatus(record)?.stage
+    return stage === "belum_ditagih" || stage === "tagih_lagi"
   }
 
   return NextResponse.json({

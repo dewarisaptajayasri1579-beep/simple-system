@@ -284,7 +284,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // di-generate invoice-nya (projectUninvoicedSchedules, lihat query di atas).
   const belumDitagihNominal =
     [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows]
-      .filter((r) => r.sla?.stage === "belum_ditagih")
+      .filter((r) => r.sla?.stage === "belum_ditagih" || r.sla?.stage === "tagih_lagi")
       .reduce((sum, r) => sum + (r.price ?? 0), 0) +
     projectUninvoicedSchedules.reduce((sum, s) => sum + s.amount, 0)
 
