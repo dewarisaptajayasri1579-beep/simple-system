@@ -215,7 +215,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
     .sort(byDueDateAsc)
 
-  // Server: sudah lewat tempo, jatuh tempo bulan ini, atau jatuh tempo bulan depan.
+  // Server: sudah lewat tempo, atau jatuh tempo bulan ini — bulan depan sengaja tidak
+  // ditampilkan (beda dari Domain) biar list tidak kepanjangan sama item yang belum waktunya ditagih.
   const serverDueRowsBase = servers
     .map((s) => {
       const nextDue = resolveServerExpiry(s)
@@ -231,7 +232,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         bucket: getExpiryBucket(nextDue),
       }
     })
-    .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
+    .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month"))
     .sort(byDueDateAsc)
 
   // Maintenance: cuma jatuh tempo bulan ini atau bulan sebelumnya (beda dari Domain/Server

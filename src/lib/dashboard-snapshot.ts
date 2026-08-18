@@ -55,12 +55,13 @@ export async function getDashboardSnapshot() {
     return at - bt
   })
 
-  // Server: sama seperti Domain — sudah lewat tempo, atau jatuh tempo bulan ini/depan.
+  // Server: beda dari Domain — cuma sudah lewat tempo atau jatuh tempo bulan ini, bulan depan
+  // sengaja tidak ditampilkan biar tidak kepanjangan sama item yang belum waktunya ditagih.
   const serverRows = servers.map((s) => {
     const dueDate = resolveServerExpiry(s)
     return { server: s, dueDate, bucket: getExpiryBucket(dueDate) }
   })
-  const serverExpiring = serverRows.filter((r) => r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month")
+  const serverExpiring = serverRows.filter((r) => r.bucket === "expiring_this_month")
   const serverExpired = serverRows.filter((r) => r.bucket === "expired")
   const serverDue = [...serverExpired, ...serverExpiring].sort((a, b) => {
     const at = a.dueDate ? a.dueDate.getTime() : Infinity
