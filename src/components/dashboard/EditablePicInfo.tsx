@@ -7,11 +7,12 @@ import { Button, Input } from "@/components/ui";
 /** PIC + No. HP di bawah nama client — kalau kosong tetap tampil (bukan disembunyikan) supaya
  *  bisa langsung diklik buat diisi. Klik teksnya -> jadi 2 input kecil + simpan, langsung
  *  PATCH ke Client, tanpa perlu buka halaman/modal terpisah. */
-export const EditablePicInfo: React.FC<{ clientId: string; picName: string | null; picPhone: string | null }> = ({
-  clientId,
-  picName: initialPicName,
-  picPhone: initialPicPhone,
-}) => {
+export const EditablePicInfo: React.FC<{
+  clientId: string;
+  picName: string | null;
+  picPhone: string | null;
+  onUpdated?: (patch: { picName: string | null; picPhone: string | null }) => void;
+}> = ({ clientId, picName: initialPicName, picPhone: initialPicPhone, onUpdated }) => {
   const [picName, setPicName] = useState(initialPicName);
   const [picPhone, setPicPhone] = useState(initialPicPhone);
   const [isEditing, setIsEditing] = useState(false);
@@ -37,9 +38,12 @@ export const EditablePicInfo: React.FC<{ clientId: string; picName: string | nul
         body: JSON.stringify({ picName: draftName.trim() || null, picPhone: draftPhone.trim() || null }),
       });
       if (!res.ok) throw new Error();
-      setPicName(draftName.trim() || null);
-      setPicPhone(draftPhone.trim() || null);
+      const nextPicName = draftName.trim() || null;
+      const nextPicPhone = draftPhone.trim() || null;
+      setPicName(nextPicName);
+      setPicPhone(nextPicPhone);
       setIsEditing(false);
+      onUpdated?.({ picName: nextPicName, picPhone: nextPicPhone });
     } catch {
       setError("Gagal menyimpan, coba lagi.");
     } finally {

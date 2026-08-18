@@ -469,17 +469,27 @@ export const DomainExpiringSection: React.FC<{
         <div className="space-y-0.5">
           <div className="font-semibold">{r.name}</div>
           <div className="text-xs text-slate-600">{r.owner}</div>
-          {r.clientId && <div className="text-xs text-slate-500">{r.picName ?? "-"}</div>}
           {r.clientId && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span>{r.clientPhone ?? "-"}</span>
-              <FollowUpButtons
-                phone={r.clientPhone}
+            <>
+              <EditablePicInfo
                 clientId={r.clientId}
-                clientName={r.owner}
-                message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
+                picName={r.picName}
+                picPhone={r.clientPhone}
+                onUpdated={(patch) =>
+                  setRows((prev) =>
+                    prev.map((row) => (row.id === r.id ? { ...row, picName: patch.picName, clientPhone: patch.picPhone } : row))
+                  )
+                }
               />
-            </div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <FollowUpButtons
+                  phone={r.clientPhone}
+                  clientId={r.clientId}
+                  clientName={r.owner}
+                  message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
+                />
+              </div>
+            </>
           )}
         </div>
       ),
