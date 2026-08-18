@@ -69,6 +69,7 @@ export default async function CoaPage({ searchParams }: { searchParams: Promise<
             parentId: a.parentId,
             parentName: null,
             saldoAkhir: rollupCache.get(a.id) ?? 0,
+            hasHistory: a.journalLines.length > 0,
           }))}
           isOwner={user.role === "owner"}
           month={month}

@@ -17,6 +17,7 @@ export interface CoaRow {
   parentId: string | null;
   parentName: string | null;
   saldoAkhir: number;
+  hasHistory: boolean;
 }
 
 function formatRupiah(n: number) {
@@ -115,6 +116,7 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
   const [lockedFields, setLockedFields] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [mutasiAccount, setMutasiAccount] = useState<CoaRow | null>(null);
 
   const tree = useMemo(() => buildTree(rows), [rows]);
@@ -235,8 +237,27 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
         prev.map((r) => (r.id === editingId ? { ...r, name: data.name, type: data.type, parentId: data.parentId, isParent: data.isParent } : r))
       );
     } else {
-      setRows((prev) => [...prev, { ...data, parentName: null, saldoAkhir: 0 }].sort((a, b) => a.code.localeCompare(b.code)));
+      setRows((prev) => [...prev, { ...data, parentName: null, saldoAkhir: 0, hasHistory: false }].sort((a, b) => a.code.localeCompare(b.code)));
     }
+    close();
+    router.refresh();
+  };
+
+  const editingRow = editingId ? rowById.get(editingId) : null;
+  const canDeleteEditing = !!editingRow && !editingRow.isParent && !hasChildrenById.has(editingRow.id) && !editingRow.hasHistory;
+
+  const handleDelete = async () => {
+    if (!editingId || !confirm(`Hapus akun "${code} — ${name}"? Tidak bisa dibatalkan.`)) return;
+    setIsDeleting(true);
+    setError("");
+    const res = await fetch(`/api/coa/${editingId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => null);
+    setIsDeleting(false);
+    if (!res.ok) {
+      setError(data?.error || "Gagal menghapus akun");
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== editingId));
     close();
     router.refresh();
   };
@@ -399,13 +420,27 @@ export const CoaList: React.FC<{ rows: CoaRow[]; isOwner: boolean; month: string
             <input type="checkbox" checked={isParentField} onChange={(e) => setIsParentField(e.target.checked)} className="w-5 h-5" />
             <span className="text-sm font-semibold text-slate-700">As Parent — boleh ditambahi sub-akun</span>
           </label>
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={close}>
-              Batal
-            </Button>
-            <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
-              Simpan
-            </Button>
+          <div className="flex items-center justify-between gap-3">
+            {canDeleteEditing ? (
+              <Button
+                variant="outline"
+                className="!text-rose-700 !border-rose-300 hover:!bg-rose-50"
+                onClick={handleDelete}
+                isLoading={isDeleting}
+              >
+                Hapus
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={close}>
+                Batal
+              </Button>
+              <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
+                Simpan
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>
