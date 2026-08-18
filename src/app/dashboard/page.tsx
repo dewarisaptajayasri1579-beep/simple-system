@@ -236,9 +236,37 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       ? await prisma.billingFollowUp.findMany({ where: { paidRecordedAt: null, OR: slaRefs.map((r) => ({ refType: r.refType, refId: r.refId })) } })
       : []
   const followUpByRef = new Map(activeFollowUps.map((f) => [`${f.refType}:${f.refId}`, f]))
+
+  // Buat kolom "Track" (Domain) — No Invoice/Tgl Tagih & No Bayar/Tgl Bayar dari siklus aktif
+  // ini. BillingFollowUp.invoiceId tidak punya relasi Prisma ke Invoice (cuma id polos, sama
+  // pola dengan refType/refId), jadi di-resolve manual lewat query terpisah di sini.
+  const followUpInvoiceIds = activeFollowUps.map((f) => f.invoiceId).filter((id): id is string => Boolean(id))
+  const followUpInvoices =
+    followUpInvoiceIds.length > 0
+      ? await prisma.invoice.findMany({
+          where: { id: { in: followUpInvoiceIds } },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            payments: { orderBy: { paidAt: "desc" }, take: 1, select: { paidAt: true, payment: { select: { paymentNumber: true } } } },
+          },
+        })
+      : []
+  const invoiceById = new Map(followUpInvoices.map((inv) => [inv.id, inv]))
+
   const slaFor = (refType: BillingFollowUpRef["refType"], refId: string) => {
     const record = followUpByRef.get(`${refType}:${refId}`)
-    return { billingFollowUpId: record?.id ?? null, invoiceId: record?.invoiceId ?? null, sla: record ? computeSlaStatus(record) : null }
+    const invoice = record?.invoiceId ? invoiceById.get(record.invoiceId) : undefined
+    const latestPayment = invoice?.payments[0]
+    return {
+      billingFollowUpId: record?.id ?? null,
+      invoiceId: record?.invoiceId ?? null,
+      invoiceNumber: invoice?.invoiceNumber ?? null,
+      invoicedAt: record?.invoicedAt ? record.invoicedAt.toISOString() : null,
+      paidAt: latestPayment ? latestPayment.paidAt.toISOString() : null,
+      paymentNumber: latestPayment?.payment?.paymentNumber ?? null,
+      sla: record ? computeSlaStatus(record) : null,
+    }
   }
 
   const domainExpiringRows: DomainExpiringRow[] = domainExpiringRowsBase.map((r) => ({ ...r, ...slaFor("domain", r.id) }))

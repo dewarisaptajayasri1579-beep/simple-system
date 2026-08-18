@@ -427,17 +427,19 @@ export interface DomainExpiringRow {
   bucket: ExpiryBucket;
   billingFollowUpId: string | null;
   invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoicedAt: string | null;
+  paidAt: string | null;
+  paymentNumber: string | null;
   sla: BillingFollowUpSla | null;
 }
 
 const DOMAIN_COLUMNS = [
-  { key: "owner", label: "Pemilik" },
   { key: "ownerType", label: "Internal/Client" },
-  { key: "lastPaidAt", label: "Terakhir Bayar" },
   { key: "expiryDate", label: "Tgl Berakhir" },
-  { key: "dueDate", label: "Estimasi Habis" },
   { key: "price", label: "Harga Jual" },
   { key: "status", label: "Status" },
+  { key: "track", label: "Track" },
 ];
 
 export const DomainExpiringSection: React.FC<{
@@ -455,36 +457,29 @@ export const DomainExpiringSection: React.FC<{
   const filteredRows = statusFilter === "all" ? rows : rows.filter((r) => r.bucket === statusFilter);
 
   const columns: FilterableColumn<DomainExpiringRow>[] = [
-    { key: "name", header: "Domain", filterValue: (r) => r.name, cellClassName: "font-semibold", cell: (r) => r.name },
-    ...(isVisible("owner")
-      ? [
-          {
-            key: "owner",
-            header: "Pemilik",
-            filterValue: (r: DomainExpiringRow) => r.owner,
-            cell: (r: DomainExpiringRow) => (
-              <div className="space-y-1">
-                <div>{r.owner}</div>
-                {r.clientId && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="text-xs text-slate-500">
-                      {r.picName && <span>{r.picName}</span>}
-                      {r.picName && r.clientPhone && <span> · </span>}
-                      {r.clientPhone && <span>{r.clientPhone}</span>}
-                    </div>
-                    <FollowUpButtons
-                      phone={r.clientPhone}
-                      clientId={r.clientId}
-                      clientName={r.owner}
-                      message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
-                    />
-                  </div>
-                )}
-              </div>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: "name",
+      header: "Domain",
+      filterValue: (r) => `${r.name} ${r.owner} ${r.picName ?? ""} ${r.clientPhone ?? ""}`,
+      cell: (r) => (
+        <div className="space-y-0.5">
+          <div className="font-semibold">{r.name}</div>
+          <div className="text-xs text-slate-600">{r.owner}</div>
+          {r.clientId && <div className="text-xs text-slate-500">{r.picName ?? "-"}</div>}
+          {r.clientId && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>{r.clientPhone ?? "-"}</span>
+              <FollowUpButtons
+                phone={r.clientPhone}
+                clientId={r.clientId}
+                clientName={r.owner}
+                message={domainFollowUpMessage({ clientName: r.owner, domainName: r.name, dueDate: r.dueDate })}
+              />
+            </div>
+          )}
+        </div>
+      ),
+    },
     ...(isVisible("ownerType")
       ? [
           {
@@ -508,24 +503,6 @@ export const DomainExpiringSection: React.FC<{
                     )
                   )
                 }
-              />
-            ),
-          },
-        ]
-      : []),
-    ...(isVisible("lastPaidAt")
-      ? [
-          {
-            key: "lastPaidAt",
-            header: "Terakhir Bayar",
-            cell: (r: DomainExpiringRow) => (
-              <EditableDateCell
-                apiPath={`/api/domains/${r.id}`}
-                field="lastPaidAt"
-                value={r.lastPaidAt}
-                formatDate={(d) => formatDate(d ? d.toISOString() : null)}
-                title="Klik untuk ubah tanggal terakhir bayar"
-                onUpdated={(lastPaidAt) => setRows((prev) => prev.map((row) => (row.id === r.id ? { ...row, lastPaidAt } : row)))}
               />
             ),
           },
@@ -555,10 +532,29 @@ export const DomainExpiringSection: React.FC<{
           },
         ]
       : []),
-    ...(isVisible("dueDate") ? [{ key: "dueDate", header: "Estimasi Habis", cell: (r: DomainExpiringRow) => formatDate(r.dueDate) }] : []),
     ...(isVisible("price") ? [{ key: "price", header: "Harga Jual", cell: (r: DomainExpiringRow) => formatRupiah(r.price) }] : []),
     ...(isVisible("status")
       ? [{ key: "status", header: "Status", cell: (r: DomainExpiringRow) => <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" /> }]
+      : []),
+    ...(isVisible("track")
+      ? [
+          {
+            key: "track",
+            header: "Track",
+            cell: (r: DomainExpiringRow) => (
+              <div className="text-xs space-y-0.5">
+                <div>
+                  {r.invoicedAt ? formatDate(r.invoicedAt) : "-"}
+                  {r.invoiceNumber && <span className="text-slate-500"> · {r.invoiceNumber}</span>}
+                </div>
+                <div>
+                  {r.paidAt ? formatDate(r.paidAt) : "-"}
+                  {r.paymentNumber && <span className="text-slate-500"> · {r.paymentNumber}</span>}
+                </div>
+              </div>
+            ),
+          },
+        ]
       : []),
     {
       key: "aksi",
