@@ -115,6 +115,9 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
     maintenances: [],
   });
   const [addedPendingKeys, setAddedPendingKeys] = useState<Set<string>>(new Set());
+  // "Tampilkan semua" — lepas filter jatuh tempo (lihat ?all=true di pending-billing route),
+  // buat kasus staf mau nagih lebih awal padahal Domain/Server/Maintenance-nya belum due.
+  const [showAllPending, setShowAllPending] = useState(false);
   // Cuma 1 item yang bisa "ditautkan" resmi ke invoice (Invoice.costLinkType/costLinkId, lihat
   // InvoiceFormPrefill) buat convenience auto-pilih "Bayar Domain/Server" pas Pembayaran nanti —
   // kalau staf tambah lebih dari 1 dari daftar ini, cuma yang PERTAMA yang ditautkan; sisanya
@@ -140,8 +143,10 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
       setPendingItems({ domains: [], servers: [], maintenances: [] });
       return;
     }
-    fetch(`/api/clients/${clientId}/pending-billing`).then((r) => r.json()).then(setPendingItems);
-  }, [clientId]);
+    fetch(`/api/clients/${clientId}/pending-billing${showAllPending ? "?all=true" : ""}`)
+      .then((r) => r.json())
+      .then(setPendingItems);
+  }, [clientId, showAllPending]);
 
   const addPendingItem = (item: PendingBillingItem) => {
     const key = `${item.type}:${item.id}`;
@@ -313,12 +318,25 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
         </div>
       </Card>
 
-      {(pendingItems.domains.length > 0 || pendingItems.servers.length > 0 || pendingItems.maintenances.length > 0) && (
+      {clientId && (
         <Card variant="panel" padding="lg">
           <CardHeader>
             <CardTitle>Tagihan Belum Ditagih</CardTitle>
-            <CardDescription>Domain/Server/Maintenance client ini yang jatuh tempo &amp; belum pernah ditagih — klik untuk tambah jadi baris invoice.</CardDescription>
+            <CardDescription>
+              {showAllPending
+                ? "Semua Domain/Server/Maintenance aktif client ini, termasuk yang belum jatuh tempo — klik untuk tambah jadi baris invoice."
+                : "Domain/Server/Maintenance client ini yang jatuh tempo & belum pernah ditagih — klik untuk tambah jadi baris invoice."}
+            </CardDescription>
           </CardHeader>
+          <label className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+            <input type="checkbox" className="w-4 h-4" checked={showAllPending} onChange={(e) => setShowAllPending(e.target.checked)} />
+            Tampilkan semua (termasuk yang belum jatuh tempo)
+          </label>
+          {pendingItems.domains.length === 0 && pendingItems.servers.length === 0 && pendingItems.maintenances.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              {showAllPending ? "Client ini belum punya Domain/Server/Maintenance aktif." : "Tidak ada yang jatuh tempo saat ini."}
+            </p>
+          ) : (
           <div className="space-y-2">
             {[...pendingItems.domains, ...pendingItems.servers, ...pendingItems.maintenances].map((item) => {
               const key = `${item.type}:${item.id}`;
@@ -343,6 +361,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
               );
             })}
           </div>
+          )}
         </Card>
       )}
 
