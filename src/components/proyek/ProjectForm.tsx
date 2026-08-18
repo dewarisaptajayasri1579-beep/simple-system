@@ -9,6 +9,9 @@ import { jakartaTodayDateIso } from "@/lib/datetime";
 interface ClientOption {
   id: string;
   name: string;
+  picName: string | null;
+  picPhone: string | null;
+  phoneNumber: string | null;
 }
 
 interface ScheduleDraft {
@@ -48,6 +51,17 @@ export const ProjectForm: React.FC = () => {
 
   const clientOptions = useMemo(() => clients.map((c) => ({ value: c.id, label: c.name })), [clients]);
 
+  // Pilih client -> auto-isi PIC Proyek & WA PIC dari master data client, biar gak input dobel.
+  // Tetap bisa diubah manual setelahnya kalau PIC proyeknya beda dari PIC client.
+  const handleClientChange = (value: string) => {
+    setClientId(value);
+    const client = clients.find((c) => c.id === value);
+    if (client) {
+      setPicName(client.picName ?? "");
+      setPicPhone(client.picPhone || client.phoneNumber || "");
+    }
+  };
+
   const updateSchedule = (index: number, patch: Partial<ScheduleDraft>) => {
     setSchedules((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   };
@@ -69,6 +83,8 @@ export const ProjectForm: React.FC = () => {
       const created = await res.json();
       setClients((prev) => [...prev, created]);
       setClientId(created.id);
+      setPicName(created.picName ?? "");
+      setPicPhone(created.picPhone || created.phoneNumber || "");
       setIsNewClientOpen(false);
       setNewClientName("");
       setNewClientPhone("");
@@ -128,7 +144,7 @@ export const ProjectForm: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <Select label="Client" options={clientOptions} value={clientId} onChange={setClientId} placeholder="Pilih client" />
+              <Select label="Client" options={clientOptions} value={clientId} onChange={handleClientChange} placeholder="Pilih client" />
             </div>
             <Button type="button" variant="outline" size="md" onClick={() => setIsNewClientOpen(true)}>
               <Plus className="w-4 h-4" />
