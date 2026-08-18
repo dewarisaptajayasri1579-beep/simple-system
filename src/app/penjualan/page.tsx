@@ -14,7 +14,7 @@ export default async function PenjualanPage() {
       client: true,
       payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
     },
-    orderBy: { issuedAt: "desc" },
+    orderBy: { invoiceNumber: "desc" },
   })
 
   return (

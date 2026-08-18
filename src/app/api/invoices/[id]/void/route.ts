@@ -29,11 +29,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const voidReason = typeof body?.reason === "string" ? body.reason.trim() || null : null
 
   const voided = await prisma.$transaction(async (tx) => {
-    return tx.invoice.update({
+    const updated = await tx.invoice.update({
       where: { id },
       data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
       include: { client: true },
     })
+
+    // Kalau invoice ini kelahiran dari "Tagih Sekarang" (Dashboard Domain/Server/Maintenance),
+    // reset siklus BillingFollowUp-nya biar item itu balik bisa ditagih ulang — tanpa ini,
+    // invoicedAt/invoiceId tetap nempel dan status tindak-lanjutnya nyangkut selamanya di
+    // "Menunggu jawaban Client" walau invoice-nya sudah dibatalkan (lihat billing-follow-up.ts).
+    await tx.billingFollowUp.updateMany({
+      where: { invoiceId: id },
+      data: { invoicedAt: null, invoiceId: null, invoicedById: null, clientRespondedAt: null, promisedPayAt: null, voidedAt: new Date() },
+    })
+
+    return updated
   })
 
   return NextResponse.json(voided)

@@ -250,6 +250,11 @@ model BillingFollowUp {
   promisedPayAt     DateTime? @map("promised_pay_at")
   paidRecordedAt    DateTime? @map("paid_recorded_at")
   paidRecordedById  String?   @map("paid_recorded_by_id")
+  // Terisi kalau invoice yang nempel di siklus ini dibatalkan (Void) — invoicedAt/invoiceId
+  // ikut direset ke null bareng ini (lihat POST /api/invoices/[id]/void) supaya siklusnya balik
+  // ke tahap "perlu ditagih ulang" (bedain dari belum_ditagih yang benar-benar belum pernah
+  // ditagih sama sekali — lihat computeSlaStatus di billing-follow-up.ts).
+  voidedAt          DateTime? @map("voided_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
   responses BillingFollowUpResponse[]

@@ -35,7 +35,7 @@ export async function ensureBillingFollowUps(db: Db, items: BillingFollowUpRef[]
   })
 }
 
-export type BillingFollowUpStage = "belum_ditagih" | "menunggu_jawaban" | "menunggu_bayar"
+export type BillingFollowUpStage = "belum_ditagih" | "tagih_lagi" | "menunggu_jawaban" | "menunggu_bayar"
 
 export interface BillingFollowUpSla {
   stage: BillingFollowUpStage
@@ -53,6 +53,7 @@ export interface BillingFollowUpRecordLike {
   clientRespondedAt: Date | null
   promisedPayAt: Date | null
   paidRecordedAt: Date | null
+  voidedAt: Date | null
 }
 
 /** Hitung tahap SLA sekarang + apakah sudah lewat deadline tahap itu. Return null kalau siklus
@@ -63,7 +64,12 @@ export function computeSlaStatus(record: BillingFollowUpRecordLike, now: Date = 
   let stage: BillingFollowUpStage
   let deadline: Date
 
-  if (!record.invoicedAt) {
+  if (!record.invoicedAt && record.voidedAt) {
+    // Sudah pernah ditagih, tapi invoice-nya dibatalkan (Void) — bedakan dari belum_ditagih
+    // (yang belum pernah ditagih sama sekali) supaya staf tahu ini perlu dibuatkan ulang.
+    stage = "tagih_lagi"
+    deadline = new Date(record.voidedAt.getTime() + INVOICE_DEADLINE_DAYS * DAY_MS)
+  } else if (!record.invoicedAt) {
     stage = "belum_ditagih"
     // dueAppearedAt selalu terisi kalau invoicedAt masih kosong (satu-satunya jalur yang belum
     // invoicedAt adalah Domain/Server/Maintenance yang emang lewat tahap reminder dulu).
@@ -140,6 +146,7 @@ export async function recordBillingFollowUpResponse(
 
 export const SLA_STAGE_LABEL: Record<BillingFollowUpStage, string> = {
   belum_ditagih: "Belum ditagih",
+  tagih_lagi: "Tagih lagi",
   menunggu_jawaban: "Menunggu jawaban Client",
   menunggu_bayar: "Menunggu pembayaran",
 }
