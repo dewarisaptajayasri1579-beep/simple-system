@@ -93,6 +93,13 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [isNewClientOpen, setIsNewClientOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientCity, setNewClientCity] = useState("");
+  const [newClientPicName, setNewClientPicName] = useState("");
+  const [newClientPicPhone, setNewClientPicPhone] = useState("");
+  const [newClientAddress, setNewClientAddress] = useState("");
+  const [newClientNotes, setNewClientNotes] = useState("");
+  const [newClientIsPemungutPpn, setNewClientIsPemungutPpn] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
 
   // Domain/Server/Maintenance client ini yang lagi jatuh tempo & belum pernah ditagih — bisa
@@ -182,7 +189,17 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newClientName, phoneNumber: newClientPhone }),
+        body: JSON.stringify({
+          name: newClientName,
+          phoneNumber: newClientPhone,
+          email: newClientEmail,
+          city: newClientCity,
+          picName: newClientPicName,
+          picPhone: newClientPicPhone,
+          address: newClientAddress,
+          notes: newClientNotes,
+          isPemungutPpn: newClientIsPemungutPpn,
+        }),
       });
       const created = await res.json();
       setClients((prev) => [...prev, created]);
@@ -190,6 +207,13 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
       setIsNewClientOpen(false);
       setNewClientName("");
       setNewClientPhone("");
+      setNewClientEmail("");
+      setNewClientCity("");
+      setNewClientPicName("");
+      setNewClientPicPhone("");
+      setNewClientAddress("");
+      setNewClientNotes("");
+      setNewClientIsPemungutPpn(false);
     } finally {
       setIsSavingClient(false);
     }
@@ -420,10 +444,32 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
         </Button>
       </div>
 
-      <Modal isOpen={isNewClientOpen} onClose={() => setIsNewClientOpen(false)} title="Client Baru">
+      <Modal isOpen={isNewClientOpen} onClose={() => setIsNewClientOpen(false)} title="Client Baru" size="lg">
         <div className="space-y-4">
-          <Input label="Nama Client" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
-          <Input label="No. HP (opsional)" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Nama" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
+            <Input label="Email" value={newClientEmail} onChange={(e) => setNewClientEmail(e.target.value)} />
+            <Input label="No. HP" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} />
+            <Input label="Kota" value={newClientCity} onChange={(e) => setNewClientCity(e.target.value)} />
+            <Input label="Nama PIC" value={newClientPicName} onChange={(e) => setNewClientPicName(e.target.value)} />
+            <Input label="No. HP PIC" value={newClientPicPhone} onChange={(e) => setNewClientPicPhone(e.target.value)} />
+          </div>
+          <Input label="Alamat" value={newClientAddress} onChange={(e) => setNewClientAddress(e.target.value)} />
+          <Input label="Catatan" value={newClientNotes} onChange={(e) => setNewClientNotes(e.target.value)} />
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
+            <input
+              type="checkbox"
+              className="w-5 h-5 mt-0.5"
+              checked={newClientIsPemungutPpn}
+              onChange={(e) => setNewClientIsPemungutPpn(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-700">Pemungut PPN (instansi pemerintah)</span>
+              <span className="block text-xs text-slate-500">
+                PPN pada invoice ke client ini disetor client langsung ke kas negara — tidak pernah masuk kas kita.
+              </span>
+            </span>
+          </label>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setIsNewClientOpen(false)}>
               Batal
