@@ -43,14 +43,22 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   // Pembayaran — lihat guard yang sama di POST/DELETE /api/transactions/[id].
   const managedByPaymentId = transaction.paymentId
 
-  // Sama syaratnya dengan PATCH /api/transactions/[id]: cuma draft pengeluaran manual (Kas
-  // Keluar, tanpa refType Bayar Domain/Server/dst, bukan bagian dari Payment) yang boleh edit
-  // inline di sini — sisanya tetap lewat Posting/Hapus seperti biasa.
-  const editable = transaction.postStatus === "draft" && transaction.type === "expense" && !transaction.refType && !managedByPaymentId
+  // Sama syaratnya dengan PATCH /api/transactions/[id]: draft pengeluaran manual ATAU baris
+  // Bayar Domain/Server/Maintenance/Biaya Berkala (bukan bagian dari Payment) boleh edit inline
+  // di sini — sisanya (Kas Masuk manual, atau bagian dari Payment) tetap lewat Posting/Hapus.
+  const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill"])
+  const editable =
+    transaction.postStatus === "draft" &&
+    transaction.type === "expense" &&
+    (!transaction.refType || EDITABLE_REF_TYPES.has(transaction.refType)) &&
+    !managedByPaymentId
+  // Kategori baris ref-based ngikut item terkait (Domain/Server/Maintenance/kategori Biaya
+  // Berkala), bukan pilihan bebas — jadi selector Kategori dikunci buat kasus itu.
+  const categoryLocked = Boolean(transaction.refType)
   const [accounts, categories] = editable
     ? await Promise.all([
         prisma.account.findMany({ orderBy: { name: "asc" } }),
-        prisma.category.findMany({ where: { kind: "expense" }, orderBy: { name: "asc" } }),
+        categoryLocked ? Promise.resolve([]) : prisma.category.findMany({ where: { kind: "expense" }, orderBy: { name: "asc" } }),
       ])
     : [[], []]
 
@@ -84,6 +92,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
           <TransactionDetailFields
             transactionId={transaction.id}
             editable={editable}
+            categoryLocked={categoryLocked}
             description={transaction.description ?? ""}
             accountId={transaction.accountId}
             accountName={transaction.account.name}

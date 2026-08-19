@@ -38,7 +38,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     prisma.domain.findMany({ where: { active: true, clientId } }),
     prisma.server.findMany({ where: { active: true, clientId }, include: { period: true } }),
     prisma.maintenance.findMany({ where: { active: true, clientId }, include: { period: true } }),
-    prisma.projectPaymentSchedule.findMany({ where: { invoiceId: null, project: { clientId, status: "berjalan" } }, include: { project: true } }),
+    prisma.projectPaymentSchedule.findMany({
+      where: { OR: [{ invoiceId: null }, { invoice: { is: { postStatus: "voided" } } }], project: { clientId, status: "berjalan" } },
+      include: { project: true },
+    }),
   ])
 
   const domainAll: PendingItem[] = domains.map((d) => {

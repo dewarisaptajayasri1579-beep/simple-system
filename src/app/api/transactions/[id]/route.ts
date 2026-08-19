@@ -2,9 +2,16 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
-import { postJournalEntry } from "@/lib/accounting/post-journal"
-import { manualExpenseLines } from "@/lib/accounting/journal-rules"
+import { postJournalEntry, type TxClient } from "@/lib/accounting/post-journal"
+import { manualExpenseLines, billPaidLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
+import { COA_CODE, bebanCodeForCategory } from "@/lib/accounting/coa-seed"
+
+/** refType yang aman diedit inline (bukan cuma hapus+input ulang) — semuanya masih draft di
+ *  titik ini jadi lastPaidAt/expiryDate/dsb belum ke-update sama sekali (baru kesentuh pas
+ *  posting, lihat finalizeTransactionPosting), jadi ubah nominal/keterangan sebelum posting
+ *  aman, tidak menyentuh tracking field apa pun. */
+const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill"])
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
@@ -16,12 +23,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(transaction)
 }
 
-/** Edit Transaction manual (Kas Keluar) yang masih draft — Keterangan/Akun/Kategori/Nominal.
- *  Dibatasi ke pengeluaran manual (type "expense", tanpa refType, bukan bagian dari Payment)
- *  karena baris "Bayar Domain/Server/Maintenance/Biaya Berkala" dan pemasukan manual (splitnya
- *  ikut dihitung ulang dari % settings saat dibuat) lebih aman diedit lewat hapus+input ulang
- *  (lihat DELETE di bawah) daripada disamakan logikanya di sini. Jurnal draft yang menempel
- *  ikut dihapus & dibuat ulang supaya tetap sinkron dengan akun/nominal barunya. */
+/** Edit Transaction (Kas Keluar) yang masih draft — Keterangan/Akun/Kategori/Nominal. Berlaku
+ *  buat pengeluaran manual DAN baris "Bayar Domain/Server/Maintenance/Biaya Berkala" (refType
+ *  terisi) — aman diedit inline selama masih draft karena lastPaidAt/expiryDate/dsb belum
+ *  ke-update sama sekali di titik ini (baru kesentuh pas posting, lihat
+ *  finalizeTransactionPosting). Kategori-nya sendiri TIDAK bisa diganti buat baris ref-based
+ *  (akun Beban-nya ngikut item terkait, bukan pilihan bebas). Pemasukan manual & transaksi
+ *  bagian dari Payment tetap TIDAK bisa diedit di sini (splitnya ikut dihitung ulang dari %
+ *  settings saat dibuat / dikelola lewat menu Pembayaran) — hapus lalu input ulang (lihat
+ *  DELETE di bawah). Jurnal draft yang menempel ikut dihapus & dibuat ulang supaya tetap
+ *  sinkron dengan akun/nominal barunya. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
@@ -35,8 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (transaction.paymentId) {
     return NextResponse.json({ error: "Transaksi ini bagian dari Pembayaran — edit lewat menu Pembayaran" }, { status: 400 })
   }
-  if (transaction.type !== "expense" || transaction.refType) {
-    return NextResponse.json({ error: "Cuma pengeluaran manual (Kas Keluar) yang bisa diedit — hapus lalu input ulang" }, { status: 400 })
+  if (transaction.type !== "expense" || (transaction.refType && !EDITABLE_REF_TYPES.has(transaction.refType))) {
+    return NextResponse.json({ error: "Transaksi ini tidak bisa diedit — hapus lalu input ulang" }, { status: 400 })
   }
 
   const body = await request.json().catch(() => null)
@@ -52,35 +63,56 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ? { id: transaction.journalEntryId, postStatus: "draft" as const }
     : { sourceType: "transaction" as const, sourceId: transaction.id, postStatus: "draft" as const }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.journalEntry.deleteMany({ where: journalWhere })
+  // Baris ref-based: akun Beban-nya tetap (ngikut Domain/Server/Maintenance/kategori Biaya
+  // Berkala terkait, TIDAK dari `categoryId` body) — cuma manual yang boleh ganti kategori bebas.
+  const resolveExpenseCoaCode = async (tx: TxClient) => {
+    if (!transaction.refType) return getCategoryCoaCode(tx, categoryId, "expense")
+    if (transaction.refType === "domain") return COA_CODE.bebanDomain
+    if (transaction.refType === "server") return COA_CODE.bebanServerHosting
+    if (transaction.refType === "maintenance") return COA_CODE.bebanMaintenance
+    const bill = await tx.recurringBill.findUnique({ where: { id: transaction.refId! } })
+    if (!bill) throw new Error("Biaya berkala terkait tidak ditemukan")
+    return bebanCodeForCategory(bill.category)
+  }
 
-    const saved = await tx.transaction.update({
-      where: { id },
-      data: { accountId, categoryId, description: description || null, grossAmount, netAmount: grossAmount },
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.journalEntry.deleteMany({ where: journalWhere })
+
+      const saved = await tx.transaction.update({
+        where: { id },
+        data: {
+          accountId,
+          categoryId: transaction.refType ? transaction.categoryId : categoryId,
+          description: description || null,
+          grossAmount,
+          netAmount: grossAmount,
+        },
+      })
+
+      const [kasBankCoaCode, expenseCoaCode] = await Promise.all([getAccountCoaCode(tx, accountId), resolveExpenseCoaCode(tx)])
+      const journalEntry = await postJournalEntry(tx, {
+        date: saved.occurredAt,
+        description: saved.description || "Pengeluaran manual",
+        sourceType: "transaction",
+        sourceId: saved.id,
+        createdBy: user.id,
+        lines: transaction.refType
+          ? billPaidLines({ kasBankCoaCode, expenseCoaCode, amount: grossAmount })
+          : manualExpenseLines({ kasBankCoaCode, expenseCoaCode, grossAmount }),
+      })
+
+      return tx.transaction.update({
+        where: { id: saved.id },
+        data: { journalEntryId: journalEntry.id },
+        include: { account: true, category: true },
+      })
     })
 
-    const [kasBankCoaCode, expenseCoaCode] = await Promise.all([
-      getAccountCoaCode(tx, accountId),
-      getCategoryCoaCode(tx, categoryId, "expense"),
-    ])
-    const journalEntry = await postJournalEntry(tx, {
-      date: saved.occurredAt,
-      description: saved.description || "Pengeluaran manual",
-      sourceType: "transaction",
-      sourceId: saved.id,
-      createdBy: user.id,
-      lines: manualExpenseLines({ kasBankCoaCode, expenseCoaCode, grossAmount }),
-    })
-
-    return tx.transaction.update({
-      where: { id: saved.id },
-      data: { journalEntryId: journalEntry.id },
-      include: { account: true, category: true },
-    })
-  })
-
-  return NextResponse.json(updated)
+    return NextResponse.json(updated)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal menyimpan perubahan" }, { status: 400 })
+  }
 }
 
 /** Hapus Transaction DRAFT (belum diposting) — dipakai untuk "edit": hapus draft, input ulang

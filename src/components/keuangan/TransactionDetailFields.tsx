@@ -16,6 +16,9 @@ function formatRupiah(amount: number) {
 export const TransactionDetailFields: React.FC<{
   transactionId: string
   editable: boolean
+  /** True buat baris Bayar Domain/Server/Maintenance/Biaya Berkala — kategori/akun Beban-nya
+   *  ngikut item terkait, bukan pilihan bebas, jadi selector Kategori disembunyikan pas edit. */
+  categoryLocked?: boolean
   description: string
   accountId: string
   accountName: string
@@ -24,7 +27,7 @@ export const TransactionDetailFields: React.FC<{
   grossAmount: number
   accountOptions: { value: string; label: string }[]
   categoryOptions: { value: string; label: string }[]
-}> = ({ transactionId, editable, description, accountId, accountName, categoryId, categoryName, grossAmount, accountOptions, categoryOptions }) => {
+}> = ({ transactionId, editable, categoryLocked, description, accountId, accountName, categoryId, categoryName, grossAmount, accountOptions, categoryOptions }) => {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [form, setForm] = useState({ description, accountId, categoryId, grossAmount })
@@ -74,13 +77,22 @@ export const TransactionDetailFields: React.FC<{
         <Input label="Keterangan" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select label="Akun" options={accountOptions} value={form.accountId} onChange={(v) => setForm((f) => ({ ...f, accountId: v }))} />
-          <Select
-            label="Kategori Biaya"
-            options={categoryOptions}
-            value={form.categoryId}
-            onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
-            placeholder="Tanpa kategori"
-          />
+          {categoryLocked ? (
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-slate-700 mb-1.5">Kategori Biaya</p>
+              <p className="text-sm font-semibold text-slate-500 px-3 py-2 rounded-xl bg-slate-100/70 border border-slate-200/80">
+                {categoryName || "Mengikuti item terkait"} <span className="font-normal text-xs">(tidak bisa diganti)</span>
+              </p>
+            </div>
+          ) : (
+            <Select
+              label="Kategori Biaya"
+              options={categoryOptions}
+              value={form.categoryId}
+              onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
+              placeholder="Tanpa kategori"
+            />
+          )}
         </div>
         <CurrencyInput label="Nominal" value={form.grossAmount} onChange={(v) => setForm((f) => ({ ...f, grossAmount: v }))} />
         <div className="flex justify-end gap-3">
