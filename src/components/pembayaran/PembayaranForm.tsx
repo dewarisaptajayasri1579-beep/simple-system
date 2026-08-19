@@ -60,6 +60,9 @@ interface LineState {
   costMode: CostMode;
   costAmount: number;
   costLinkId: string;
+  // Kosong = pakai akun yang sama dengan "Masuk ke Akun" di atas (default lama) — diisi kalau
+  // Biaya (HPP) Bayar Domain/Server ini mau dikeluarkan dari kas/bank yang beda.
+  costAccountId: string;
 }
 
 function formatRupiah(amount: number) {
@@ -179,6 +182,7 @@ export const PembayaranForm: React.FC<{
                     costMode: (autoLink ? source!.costLinkType : "none") as CostMode,
                     costAmount: 0,
                     costLinkId: autoLink ? source!.costLinkId! : "",
+                    costAccountId: "",
                   },
                 ];
               })
@@ -303,7 +307,7 @@ export const PembayaranForm: React.FC<{
               options={costModeOptions}
               value={line?.costMode ?? "none"}
               disabled={disabled}
-              onChange={(v) => updateLine(inv.id, { costMode: v as CostMode, costAmount: 0, costLinkId: "" })}
+              onChange={(v) => updateLine(inv.id, { costMode: v as CostMode, costAmount: 0, costLinkId: "", costAccountId: "" })}
               searchable={false}
             />
             {line?.costMode === "manual" && (
@@ -327,6 +331,14 @@ export const PembayaranForm: React.FC<{
                   placeholder="Biaya (HPP), bukan harga jual"
                   onChange={(v) => updateLine(inv.id, { costAmount: v })}
                 />
+                <Select
+                  sizeVariant="sm"
+                  options={accountOptions}
+                  value={line.costAccountId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costAccountId: v })}
+                  placeholder="Bayar dari akun yang sama"
+                />
               </>
             )}
             {line?.costMode === "server" && (
@@ -345,6 +357,14 @@ export const PembayaranForm: React.FC<{
                   disabled={disabled}
                   placeholder="Biaya (HPP), bukan harga jual"
                   onChange={(v) => updateLine(inv.id, { costAmount: v })}
+                />
+                <Select
+                  sizeVariant="sm"
+                  options={accountOptions}
+                  value={line.costAccountId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costAccountId: v })}
+                  placeholder="Bayar dari akun yang sama"
                 />
               </>
             )}
@@ -404,7 +424,10 @@ export const PembayaranForm: React.FC<{
             invoiceId,
             amount: l.amount,
             costAmount: l.costMode === "none" ? 0 : l.costAmount,
-            costLink: l.costMode === "domain" || l.costMode === "server" ? { type: l.costMode, id: l.costLinkId } : undefined,
+            costLink:
+              l.costMode === "domain" || l.costMode === "server"
+                ? { type: l.costMode, id: l.costLinkId, accountId: l.costAccountId || undefined }
+                : undefined,
           })),
         }),
       });

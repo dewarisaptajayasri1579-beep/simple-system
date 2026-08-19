@@ -27,6 +27,10 @@ export async function GET() {
 interface CostLinkInput {
   type: "domain" | "server"
   id: string
+  // Kosong/tidak diisi = pakai `accountId` utama (akun yang menerima pelunasan) — sama pola
+  // dengan ppnSettlementAccountId, biar Biaya (HPP) domain/server bisa dibayar dari kas/bank
+  // yang beda dari yang baru saja menerima pelunasan invoice-nya.
+  accountId?: string
 }
 
 interface LineInput {
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
       const rawLink = l.costLink
       const costLink: CostLinkInput | undefined =
         rawLink && (rawLink.type === "domain" || rawLink.type === "server") && typeof rawLink.id === "string"
-          ? { type: rawLink.type, id: rawLink.id }
+          ? { type: rawLink.type, id: rawLink.id, accountId: typeof rawLink.accountId === "string" && rawLink.accountId ? rawLink.accountId : undefined }
           : undefined
       return {
         invoiceId: typeof l.invoiceId === "string" ? l.invoiceId : "",
@@ -91,6 +95,16 @@ export async function POST(request: Request) {
   // sengaja dibatasi Owner saja. Jangan longgarkan cuma karena masuk lewat form Pelunasan.
   if (lines.some((l) => l.costLink) && user.role !== "owner") {
     return NextResponse.json({ error: "Cuma Owner yang bisa mengaitkan biaya ke Bayar Domain/Server" }, { status: 403 })
+  }
+
+  // Biaya (HPP) domain/server boleh dibayar dari kas/bank yang beda dari yang menerima
+  // pelunasan (costLink.accountId, opsional) — validasi akunnya beneran ada sebelum lanjut.
+  const costAccountIds = [...new Set(lines.map((l) => l.costLink?.accountId).filter((v): v is string => Boolean(v)))]
+  if (costAccountIds.length > 0) {
+    const costAccounts = await prisma.account.findMany({ where: { id: { in: costAccountIds } } })
+    if (costAccounts.length !== costAccountIds.length) {
+      return NextResponse.json({ error: "Ada akun kas/bank untuk Biaya (HPP) yang tidak ditemukan" }, { status: 404 })
+    }
   }
 
   const invoiceIds = lines.map((l) => l.invoiceId)
@@ -234,14 +248,29 @@ export async function POST(request: Request) {
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
 
-      // Biaya yang dikaitkan ke domain/server langsung dibayar dari kas yang sama dengan
-      // yang baru saja menerima pelunasan ini — bukan cuma angka pengurang split, tapi
-      // benaran menandai domain/server itu lunas (update lastPaidAt + jurnal beban),
-      // persis efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan.
+      // Biaya yang dikaitkan ke domain/server — bukan cuma angka pengurang split, tapi
+      // benaran menandai domain/server itu lunas (update lastPaidAt + jurnal beban), persis
+      // efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan. Defaultnya
+      // dari kas yang sama dengan yang baru saja menerima pelunasan ini, tapi boleh beda kalau
+      // staf pilih akun lain (costLink.accountId, mis. biaya domain dibayar dari kas kecil).
       if (line.costLink?.type === "domain") {
-        await markDomainPaid(tx, { domainId: line.costLink.id, accountId, amount: line.costAmount, paidAt, createdBy: user.id, paymentId: payment.id })
+        await markDomainPaid(tx, {
+          domainId: line.costLink.id,
+          accountId: line.costLink.accountId ?? accountId,
+          amount: line.costAmount,
+          paidAt,
+          createdBy: user.id,
+          paymentId: payment.id,
+        })
       } else if (line.costLink?.type === "server") {
-        await markServerPaid(tx, { serverId: line.costLink.id, accountId, amount: line.costAmount, paidAt, createdBy: user.id, paymentId: payment.id })
+        await markServerPaid(tx, {
+          serverId: line.costLink.id,
+          accountId: line.costLink.accountId ?? accountId,
+          amount: line.costAmount,
+          paidAt,
+          createdBy: user.id,
+          paymentId: payment.id,
+        })
       }
     }
 
