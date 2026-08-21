@@ -44,7 +44,10 @@ export function ppnSettlementLines(input: { kasBankCoaCode: string; amount: numb
 }
 
 /** Pemasukan manual (di luar invoice) — diakui langsung sebagai kas masuk + pendapatan;
- *  kalau ada biaya terkait (cost), sebagian kas itu juga langsung keluar lagi sebagai HPP. */
+ *  kalau ada biaya terkait (cost), sebagian kas itu juga langsung keluar lagi sebagai HPP.
+ *  2 baris utama TANPA memo generik — biar Buku Besar jatuh ke journalEntry.description yang
+ *  sudah diisi dari keterangan asli yang diketik staf (lihat catatan di manualExpenseLines/
+ *  billPaidLines), bukan teks generik "Pemasukan manual" yang menutupi keterangan aslinya. */
 export function manualIncomeLines(input: {
   kasBankCoaCode: string
   revenueCoaCode: string
@@ -52,8 +55,8 @@ export function manualIncomeLines(input: {
   cost: number
 }): JournalLineInput[] {
   const lines: JournalLineInput[] = [
-    { accountCode: input.kasBankCoaCode, debit: input.grossAmount, memo: "Pemasukan manual" },
-    { accountCode: input.revenueCoaCode, credit: input.grossAmount, memo: "Pemasukan manual" },
+    { accountCode: input.kasBankCoaCode, debit: input.grossAmount },
+    { accountCode: input.revenueCoaCode, credit: input.grossAmount },
   ]
   if (input.cost > 0) {
     lines.push({ accountCode: COA_CODE.hpp, debit: input.cost, memo: "Biaya terkait pemasukan" })
@@ -62,15 +65,20 @@ export function manualIncomeLines(input: {
   return lines
 }
 
-/** Pengeluaran manual (Keuangan > Input Pengeluaran). */
+/** Pengeluaran manual (Keuangan > Input Pengeluaran, termasuk Kas Keluar/Bank Keluar > Biaya
+ *  Manual). TANPA memo generik di baris — biar Buku Besar jatuh ke journalEntry.description
+ *  yang sudah diisi dari keterangan asli yang diketik staf (lihat caller di
+ *  app/api/transactions/{route,kas-keluar/route,[id]/route}.ts: `description: transaction.
+ *  description || "Pengeluaran manual"`), bukan teks generik "Pengeluaran manual" yang dulu
+ *  selalu menimpa keterangan itu di kolom Keterangan Buku Besar — sama pola dengan billPaidLines. */
 export function manualExpenseLines(input: {
   kasBankCoaCode: string
   expenseCoaCode: string
   grossAmount: number
 }): JournalLineInput[] {
   return [
-    { accountCode: input.expenseCoaCode, debit: input.grossAmount, memo: "Pengeluaran manual" },
-    { accountCode: input.kasBankCoaCode, credit: input.grossAmount, memo: "Pengeluaran manual" },
+    { accountCode: input.expenseCoaCode, debit: input.grossAmount },
+    { accountCode: input.kasBankCoaCode, credit: input.grossAmount },
   ]
 }
 
