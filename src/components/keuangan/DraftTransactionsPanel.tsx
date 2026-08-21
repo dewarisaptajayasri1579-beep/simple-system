@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
@@ -11,6 +13,7 @@ import { VoidButton } from "@/components/akuntansi/VoidButton";
 interface TransactionRow {
   id: string;
   type: "income" | "expense";
+  transactionNumber: string | null;
   grossAmount: number;
   description: string | null;
   occurredAt: string;
@@ -88,6 +91,7 @@ export const DraftTransactionsPanel: React.FC = () => {
   const recentPostedRows = allRows.filter((t) => t.postStatus === "posted").slice(0, 10);
 
   const baseColumns: FilterableColumn<TransactionRow>[] = [
+    { key: "transactionNumber", header: "No. Bukti", cell: (r) => r.transactionNumber ?? "-" },
     { key: "occurredAt", header: "Tanggal", cell: (r) => formatDate(r.occurredAt) },
     {
       key: "description",
@@ -107,6 +111,11 @@ export const DraftTransactionsPanel: React.FC = () => {
       header: "Aksi",
       cell: (r) => (
         <div className="flex items-center gap-2">
+          <Link href={`/keuangan/transaksi/${r.id}`}>
+            <Button size="sm" variant="ghost" leftIcon={<Pencil className="w-3.5 h-3.5" />}>
+              Edit
+            </Button>
+          </Link>
           <JournalButton
             title="Jurnal Transaksi"
             sources={[journalSourceFor(r)]}
