@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto"
-import sharp from "sharp"
 import { sendWhatsappImage } from "@/lib/wahub"
 import { uploadToSupabaseStorage, deleteFromSupabaseStorage } from "@/lib/supabase-storage"
 import { getDashboardSnapshot, renderDashboardImage1, renderDashboardImage2 } from "@/lib/dashboard-report-images"
@@ -15,6 +14,13 @@ function formatRupiah(amount: number) {
  *  redeploy = hilang, gagal "Failed to fetch stream" di production). JPEG dipilih daripada WebP
  *  supaya WhatsApp pasti perlakukan sebagai foto biasa, bukan stiker. Lihat lib/supabase-storage.ts. */
 async function renderAndUpload(imageResponse: Response) {
+  // Dynamic import (bukan static import di atas) SENGAJA — Turbopack production build (Next.js
+  // 16) gagal di tahap "Collecting page data" kalau sharp di-static-import (error "Failed to
+  // load external module sharp-xxxx: Cannot read properties of undefined (reading 'endsWith')"
+  // begitu ada route yang transitively meng-import modul ini, walau sudah didaftarkan di
+  // serverExternalPackages). Dynamic import menunda loading sharp sampai fungsi ini benar-benar
+  // dipanggil saat runtime, jadi tidak ikut dieksekusi/dianalisis saat build.
+  const { default: sharp } = await import("sharp")
   const pngBuffer = Buffer.from(await imageResponse.arrayBuffer())
   const jpegBuffer = await sharp(pngBuffer).jpeg({ quality: 90, mozjpeg: true }).toBuffer()
   const filename = `dashboard-report-${randomUUID()}.jpg`
