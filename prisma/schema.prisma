@@ -34,6 +34,27 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
 
+  // ---- Relasi modul Marketing (Simple Lead) — lihat docs/04-database.md. Reuse User yang
+  // sudah ada (bukan tabel users terpisah) supaya 1 login = 1 identitas di semua modul; role
+  // SALES/SPV/MEMBER per-team disimpan di TeamMembership.membershipRole, TERPISAH dari
+  // User.role (owner/direktur/admin) di atas yang mengatur modul Internal.
+  teamsManaged             Team[]                @relation("TeamManager")
+  teamMemberships          TeamMembership[]      @relation("TeamMembershipUser")
+  supervisedMemberships    TeamMembership[]      @relation("TeamMembershipSupervisor")
+  leadSegmentChanges       LeadSegmentHistory[]
+  leadTemperatureChanges   LeadTemperatureHistory[]
+  leadAssignmentsReceived  LeadAssignment[]      @relation("LeadAssignmentAssignee")
+  leadAssignmentsMade      LeadAssignment[]      @relation("LeadAssignmentAssignedBy")
+  sentMessages             Message[]
+  leadActivities           LeadActivity[]
+  leadFollowUpsAssigned    LeadFollowUp[]        @relation("LeadFollowUpAssignee")
+  leadFollowUpsCreated     LeadFollowUp[]        @relation("LeadFollowUpCreator")
+  leadAiSuggestionsUsed    LeadAiSuggestion[]
+  leadNotifications        LeadNotification[]
+  pushSubscriptions        PushSubscription[]
+  auditLogs                AuditLog[]
+  leadSystemSettingsUpdated LeadSystemSetting[]
+
   @@map("users")
   @@schema("simple_system")
 }
@@ -940,5 +961,564 @@ model DeactivationLog {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("deactivation_logs")
+  @@schema("simple_system")
+}
+
+// ---------------------------------------------------------------------------
+// Marketing — "Simple Lead" (lead management berbasis WhatsApp: inbox, follow up,
+// priority engine, AI analysis). Spesifikasi lengkap ada di docs/01-project-overview.md
+// s.d. docs/06-business-rule.md — schema di bawah mengikuti docs/04-database.md field-by-
+// field. Sengaja TIDAK pakai Prisma `enum` (konsisten dengan seluruh schema di atas): semua
+// nilai enum-like disimpan sebagai String + komentar daftar nilai yang valid, supaya
+// perubahan pilihan tidak butuh migration.
+// ---------------------------------------------------------------------------
+
+model Team {
+  id            String   @id @default(uuid())
+  name          String
+  code          String   @unique
+  managerUserId String?  @map("manager_user_id")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  managerUser User?            @relation("TeamManager", fields: [managerUserId], references: [id])
+  memberships TeamMembership[]
+
+  @@index([managerUserId])
+  @@map("teams")
+  @@schema("simple_system")
+}
+
+/// Mendukung user pindah team + histori. `membershipRole` (SALES/SPV/MEMBER) terpisah dari
+/// User.role (owner/direktur/admin) — lihat catatan di model User.
+model TeamMembership {
+  id                 String    @id @default(uuid())
+  teamId             String    @map("team_id")
+  userId             String    @map("user_id")
+  membershipRole     String    @map("membership_role") // "SALES" | "SPV" | "MEMBER"
+  supervisorUserId   String?   @map("supervisor_user_id")
+  activeFrom         DateTime  @default(now()) @map("active_from")
+  activeUntil        DateTime? @map("active_until")
+  isPrimary          Boolean   @default(true) @map("is_primary")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  team           Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User  @relation("TeamMembershipUser", fields: [userId], references: [id])
+  supervisorUser User? @relation("TeamMembershipSupervisor", fields: [supervisorUserId], references: [id])
+
+  @@index([teamId])
+  @@index([userId])
+  @@index([supervisorUserId])
+  @@map("team_memberships")
+  @@schema("simple_system")
+}
+
+/// Master produk/segmentasi (SevenRent, SAP, dst) — BUKAN indikator kualitas lead, itu
+/// tugasnya Lead.temperature. Jangan hard delete segment yang pernah dipakai lead manapun.
+model Segment {
+  id                   String   @id @default(uuid())
+  code                 String   @unique
+  name                 String
+  description          String?
+  isActive             Boolean  @default(true) @map("is_active")
+  defaultFollowUpHours Int?     @map("default_follow_up_hours")
+  aiContext            String?  @map("ai_context")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  leads              Lead[]
+  segmentHistoryFrom LeadSegmentHistory[] @relation("SegmentHistoryFrom")
+  segmentHistoryTo   LeadSegmentHistory[] @relation("SegmentHistoryTo")
+
+  @@map("segments")
+  @@schema("simple_system")
+}
+
+model LeadSource {
+  id       String  @id @default(uuid())
+  code     String  @unique
+  name     String
+  isActive Boolean @default(true) @map("is_active")
+
+  leads Lead[]
+
+  @@map("lead_sources")
+  @@schema("simple_system")
+}
+
+model LeadLostReason {
+  id       String  @id @default(uuid())
+  code     String  @unique
+  name     String
+  isActive Boolean @default(true) @map("is_active")
+
+  leads Lead[]
+
+  @@map("lead_lost_reasons")
+  @@schema("simple_system")
+}
+
+/// Core entity. `temperature`/`currentActivityStage`/`outcome` sengaja field terpisah (lihat
+/// docs/04-database.md §1 & §7) — jangan pernah dipakai gantian satu sama lain (mis. "Closing"
+/// bukan temperatur).
+model Lead {
+  id                     String    @id @default(uuid())
+  displayName            String    @map("display_name")
+  companyName            String?   @map("company_name")
+  contactName            String?   @map("contact_name")
+  whatsappNumber         String    @map("whatsapp_number")
+  email                  String?
+  city                   String?
+  segmentId              String?   @map("segment_id")
+  sourceId               String?   @map("source_id")
+  temperature            String    @default("COLD") @map("temperature") // "COLD" | "WARM" | "HOT"
+  temperatureSource      String    @default("MANUAL") @map("temperature_source") // "MANUAL" | "AI" | "RULE"
+  outcome                String    @default("OPEN") // "OPEN" | "WON" | "LOST"
+  currentActivityStage   String    @default("NONE") @map("current_activity_stage") // "NONE" | "DISCUSSION" | "ZOOM_DEMO" | "PROPOSAL" | "NEGOTIATION"
+  priorityScore          Float     @default(0) @map("priority_score") // 0-100, lihat LeadPrioritySnapshot untuk breakdown
+  priorityLevel          String    @default("LOW") @map("priority_level") // "LOW" | "MONITOR" | "HIGH" | "TOP"
+  firstContactAt         DateTime  @default(now()) @map("first_contact_at")
+  lastInteractionAt      DateTime? @map("last_interaction_at")
+  lastCustomerMessageAt  DateTime? @map("last_customer_message_at")
+  lastSalesMessageAt     DateTime? @map("last_sales_message_at")
+  // outcome WON wajib wonAt terisi, outcome LOST wajib lostAt terisi — divalidasi di service
+  // layer (endpoint Won/Lost, lihat docs/04-database.md §28), bukan DB constraint.
+  wonAt                  DateTime? @map("won_at")
+  lostAt                 DateTime? @map("lost_at")
+  lostReasonId           String?   @map("lost_reason_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  segment    Segment?        @relation(fields: [segmentId], references: [id])
+  source     LeadSource?     @relation(fields: [sourceId], references: [id])
+  lostReason LeadLostReason? @relation(fields: [lostReasonId], references: [id])
+
+  segmentHistory     LeadSegmentHistory[]
+  temperatureHistory LeadTemperatureHistory[]
+  assignments        LeadAssignment[]
+  conversations      Conversation[]
+  activities         LeadActivity[]
+  followUps          LeadFollowUp[]
+  aiAnalyses         LeadAiAnalysis[]
+  aiSuggestions      LeadAiSuggestion[]
+  prioritySnapshots  LeadPrioritySnapshot[]
+
+  @@index([whatsappNumber])
+  @@index([segmentId])
+  @@index([sourceId])
+  @@index([temperature])
+  @@index([outcome])
+  @@index([priorityScore])
+  @@index([lastInteractionAt])
+  @@index([createdAt])
+  @@index([lostReasonId])
+  @@map("leads")
+  @@schema("simple_system")
+}
+
+model LeadSegmentHistory {
+  id              String   @id @default(uuid())
+  leadId          String   @map("lead_id")
+  fromSegmentId   String?  @map("from_segment_id")
+  toSegmentId     String   @map("to_segment_id")
+  source          String // "MANUAL" | "AI" | "RULE"
+  confidence      Float?
+  reason          String?
+  changedByUserId String?  @map("changed_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromSegment   Segment? @relation("SegmentHistoryFrom", fields: [fromSegmentId], references: [id])
+  toSegment     Segment  @relation("SegmentHistoryTo", fields: [toSegmentId], references: [id])
+  changedByUser User?    @relation(fields: [changedByUserId], references: [id])
+
+  @@index([leadId])
+  @@index([fromSegmentId])
+  @@index([toSegmentId])
+  @@index([changedByUserId])
+  @@map("lead_segment_history")
+  @@schema("simple_system")
+}
+
+model LeadTemperatureHistory {
+  id              String   @id @default(uuid())
+  leadId          String   @map("lead_id")
+  fromTemperature String?  @map("from_temperature")
+  toTemperature   String   @map("to_temperature")
+  source          String // "MANUAL" | "AI" | "RULE"
+  scoreSnapshot   Float?   @map("score_snapshot")
+  confidence      Float?
+  reason          String?
+  changedByUserId String?  @map("changed_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  lead          Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  changedByUser User? @relation(fields: [changedByUserId], references: [id])
+
+  @@index([leadId])
+  @@index([changedByUserId])
+  @@map("lead_temperature_history")
+  @@schema("simple_system")
+}
+
+/// "Satu active PRIMARY per lead" (docs/04-database.md §11) tidak di-enforce lewat unique
+/// constraint (butuh partial index yang tidak didukung Prisma native) — divalidasi di endpoint
+/// reassign/takeover lewat transaction (§28 doc yang sama): close assignment lama dulu baru
+/// create yang baru, dalam satu transaction.
+model LeadAssignment {
+  id               String    @id @default(uuid())
+  leadId           String    @map("lead_id")
+  assignedUserId   String    @map("assigned_user_id")
+  assignedByUserId String?   @map("assigned_by_user_id")
+  assignmentType   String    @map("assignment_type") // "PRIMARY" | "TAKEOVER"
+  reason           String?
+  startedAt        DateTime  @default(now()) @map("started_at")
+  endedAt          DateTime? @map("ended_at")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  lead           Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedUser   User  @relation("LeadAssignmentAssignee", fields: [assignedUserId], references: [id])
+  assignedByUser User? @relation("LeadAssignmentAssignedBy", fields: [assignedByUserId], references: [id])
+
+  @@index([leadId, isActive])
+  @@index([assignedUserId, isActive])
+  @@index([assignedByUserId])
+  @@map("lead_assignments")
+  @@schema("simple_system")
+}
+
+/// Satu lead bisa punya lebih dari satu conversation/channel di masa depan (baseline cuma
+/// WhatsApp). `unreadCustomerCount` dihitung ulang tiap pesan masuk/dibaca, bukan derived saat
+/// query (biar list inbox tetap cepat).
+model Conversation {
+  id                     String    @id @default(uuid())
+  leadId                 String    @map("lead_id")
+  provider               String
+  providerConversationId String?   @map("provider_conversation_id")
+  channel                String    @default("WHATSAPP")
+  status                 String    @default("OPEN") // "OPEN" | "ARCHIVED"
+  lastMessageAt          DateTime? @map("last_message_at")
+  unreadCustomerCount    Int       @default(0) @map("unread_customer_count")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  lead          Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  aiSuggestions LeadAiSuggestion[]
+
+  @@unique([provider, providerConversationId])
+  @@index([leadId])
+  @@map("conversations")
+  @@schema("simple_system")
+}
+
+/// `senderUserId` null = pesan dari customer (inbound) ATAU sistem; wajib terisi utk outbound
+/// yang dikirim staf — validasi di service layer. `providerMessageId` unique = kunci idempotency
+/// webhook (retry provider tidak boleh dobel insert).
+model Message {
+  id                 String    @id @default(uuid())
+  conversationId     String    @map("conversation_id")
+  providerMessageId  String?   @unique @map("provider_message_id")
+  direction          String // "INBOUND" | "OUTBOUND"
+  messageType        String    @map("message_type") // "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "OTHER"
+  body               String?
+  mediaUrl           String?   @map("media_url")
+  senderUserId       String?   @map("sender_user_id")
+  senderExternalId   String?   @map("sender_external_id")
+  aiSuggestionId     String?   @map("ai_suggestion_id")
+  sentAt             DateTime  @map("sent_at")
+  receivedAt         DateTime? @map("received_at")
+  deliveryStatus     String    @default("QUEUED") @map("delivery_status") // "QUEUED" | "SENT" | "DELIVERED" | "READ" | "FAILED"
+  rawProviderPayload Json?     @map("raw_provider_payload")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUser   User?            @relation(fields: [senderUserId], references: [id])
+  aiSuggestion LeadAiSuggestion? @relation(fields: [aiSuggestionId], references: [id])
+
+  @@index([conversationId, sentAt])
+  @@index([senderUserId])
+  @@index([aiSuggestionId])
+  @@map("messages")
+  @@schema("simple_system")
+}
+
+/// Baseline rank 1-4: DISCUSSION, ZOOM_DEMO, PROPOSAL, NEGOTIATION (lihat docs/06-business-rule.md).
+model LeadActivityType {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  stageRank Int     @map("stage_rank")
+  score     Int
+  isActive  Boolean @default(true) @map("is_active")
+
+  activities LeadActivity[]
+
+  @@map("lead_activity_types")
+  @@schema("simple_system")
+}
+
+model LeadActivity {
+  id             String   @id @default(uuid())
+  leadId         String   @map("lead_id")
+  activityTypeId String   @map("activity_type_id")
+  actorUserId    String   @map("actor_user_id")
+  occurredAt     DateTime @map("occurred_at")
+  result         String?
+  note           String?
+  attachmentUrl  String?  @map("attachment_url")
+  source         String   @default("MANUAL") // "MANUAL" | "SYSTEM" | "AI"
+  isVoid         Boolean  @default(false) @map("is_void")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  lead         Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  activityType LeadActivityType @relation(fields: [activityTypeId], references: [id])
+  actorUser    User             @relation(fields: [actorUserId], references: [id])
+
+  @@index([leadId, occurredAt])
+  @@index([actorUserId])
+  @@index([activityTypeId])
+  @@map("lead_activities")
+  @@schema("simple_system")
+}
+
+/// Baseline effect (bisa di-config lewat LeadSystemSetting): REQUEST_PROPOSAL +20,
+/// REQUEST_DEMO +18, INTERESTED +15, CALL_LATER +8, INTERNAL_DISCUSSION +5, NO_RESPONSE -5,
+/// NOT_INTERESTED -25 (lihat docs/04-database.md §16).
+model LeadFollowUpResultType {
+  id                     String   @id @default(uuid())
+  code                   String   @unique
+  name                   String
+  priorityScoreEffect    Int      @map("priority_score_effect")
+  temperatureSignalScore Int      @map("temperature_signal_score")
+  isPositive             Boolean? @map("is_positive")
+  isActive               Boolean  @default(true) @map("is_active")
+
+  followUps LeadFollowUp[]
+
+  @@map("lead_follow_up_result_types")
+  @@schema("simple_system")
+}
+
+/// `isOverdue` SENGAJA tidak disimpan sebagai kolom (derived: status=OPEN && now >
+/// scheduledAt + grace, lihat docs/04-database.md §27) — hitung di query/service layer supaya
+/// tidak perlu cron buat sinkronisasi status. `nextFollowUpId` unique = self relation 1:1
+/// (follow-up hasil tindak-lanjut dari follow-up ini).
+model LeadFollowUp {
+  id              String    @id @default(uuid())
+  leadId          String    @map("lead_id")
+  assignedUserId  String    @map("assigned_user_id")
+  createdByUserId String    @map("created_by_user_id")
+  scheduledAt     DateTime  @map("scheduled_at")
+  purpose         String
+  note            String?
+  status          String    @default("OPEN") // "OPEN" | "COMPLETED" | "CANCELLED"
+  resultTypeId    String?   @map("result_type_id")
+  resultNote      String?   @map("result_note")
+  completedAt     DateTime? @map("completed_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+  isOnTime        Boolean?  @map("is_on_time")
+  nextFollowUpId  String?   @unique @map("next_follow_up_id")
+  reminderSentAt  DateTime? @map("reminder_sent_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  lead             Lead                    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedUser     User                    @relation("LeadFollowUpAssignee", fields: [assignedUserId], references: [id])
+  createdByUser    User                    @relation("LeadFollowUpCreator", fields: [createdByUserId], references: [id])
+  resultType       LeadFollowUpResultType? @relation(fields: [resultTypeId], references: [id])
+  nextFollowUp     LeadFollowUp?           @relation("FollowUpChain", fields: [nextFollowUpId], references: [id])
+  previousFollowUp LeadFollowUp?           @relation("FollowUpChain")
+
+  @@index([assignedUserId, scheduledAt])
+  @@index([leadId, scheduledAt])
+  @@index([status])
+  @@index([resultTypeId])
+  @@index([createdByUserId])
+  @@map("lead_follow_ups")
+  @@schema("simple_system")
+}
+
+/// Versioned AI output — jangan pernah overwrite baris lama, selalu insert baru dengan
+/// `version` naik supaya histori keputusan AI bisa diaudit (docs/04-database.md §18).
+model LeadAiAnalysis {
+  id                  String   @id @default(uuid())
+  leadId              String   @map("lead_id")
+  analysisType        String   @map("analysis_type") // "SEGMENTATION" | "PROFILING" | "SUMMARY" | "NEXT_BEST_ACTION" | "BUYING_SIGNAL" | "TEMPERATURE_RECOMMENDATION"
+  version             Int
+  modelName           String   @map("model_name")
+  promptVersion       String   @map("prompt_version")
+  inputUntilMessageId String?  @map("input_until_message_id")
+  inputContextHash    String?  @map("input_context_hash")
+  outputJson          Json     @map("output_json")
+  confidence          Float?
+  status              String   @default("PENDING") // "PENDING" | "SUCCESS" | "FAILED"
+  errorCode           String?  @map("error_code")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, analysisType])
+  @@map("lead_ai_analyses")
+  @@schema("simple_system")
+}
+
+/// AI tidak boleh auto-send pada baseline MVP (docs/01-project-overview.md §9.4) — `usedAt`/
+/// `usedByUserId` baru terisi kalau sales benar-benar menekan "Gunakan" lalu kirim.
+model LeadAiSuggestion {
+  id             String    @id @default(uuid())
+  leadId         String    @map("lead_id")
+  conversationId String    @map("conversation_id")
+  style          String // "PROFESSIONAL" | "CASUAL" | "CLOSING"
+  text           String
+  modelName      String    @map("model_name")
+  promptVersion  String    @map("prompt_version")
+  generatedAt    DateTime  @default(now()) @map("generated_at")
+  usedAt         DateTime? @map("used_at")
+  usedByUserId   String?   @map("used_by_user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  usedByUser   User?        @relation(fields: [usedByUserId], references: [id])
+  messages     Message[]
+
+  @@index([leadId])
+  @@index([conversationId])
+  @@index([usedByUserId])
+  @@map("lead_ai_suggestions")
+  @@schema("simple_system")
+}
+
+/// Snapshot tiap kali Priority Engine menghitung ulang skor 1 lead — `leads.priorityScore`
+/// menyimpan nilai terbaru buat query cepat (list/sort), tabel ini buat audit/analytics
+/// breakdown per komponen (docs/04-database.md §20 & §8).
+model LeadPrioritySnapshot {
+  id                   String   @id @default(uuid())
+  leadId               String   @map("lead_id")
+  score                Float
+  level                String // "LOW" | "MONITOR" | "HIGH" | "TOP"
+  componentTemperature Float    @map("component_temperature")
+  componentActivity    Float    @map("component_activity")
+  componentFollowUp    Float    @map("component_follow_up")
+  componentRecency     Float    @map("component_recency")
+  componentAi          Float    @map("component_ai")
+  reasonJson           Json     @map("reason_json")
+  ruleVersion          String   @map("rule_version")
+  calculatedAt         DateTime @default(now()) @map("calculated_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, calculatedAt])
+  @@map("lead_priority_snapshots")
+  @@schema("simple_system")
+}
+
+/// Role-aware & scope-aware notification (lead di-assign, follow up jatuh tempo, dst) — beda
+/// dari LeadFollowUp.reminderSentAt yang cuma flag internal, ini yang benar-benar tampil/di-push
+/// ke user. `dedupeKey` unique (nullable-safe di Postgres) buat tipe yang butuh dedupe.
+model LeadNotification {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  type        String
+  title       String
+  body        String
+  entityType  String?   @map("entity_type")
+  entityId    String?   @map("entity_id")
+  deepLink    String?   @map("deep_link")
+  dedupeKey   String?   @unique @map("dedupe_key")
+  scheduledAt DateTime? @map("scheduled_at")
+  sentAt      DateTime? @map("sent_at")
+  readAt      DateTime? @map("read_at")
+  status      String    @default("PENDING") // "PENDING" | "SENT" | "FAILED" | "READ"
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("lead_notifications")
+  @@schema("simple_system")
+}
+
+/// Web Push subscription per device — generic (bukan spesifik Marketing), taruh di sini dulu
+/// karena modul Marketing yang pertama butuh PWA push; modul lain boleh reuse tabel yang sama.
+model PushSubscription {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  endpoint   String    @unique
+  p256dh     String?
+  auth       String?
+  userAgent  String?   @map("user_agent")
+  deviceName String?   @map("device_name")
+  isActive   Boolean   @default(true) @map("is_active")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+  @@schema("simple_system")
+}
+
+/// Append-only — jangan pernah sediakan endpoint edit/delete baris di sini (docs/04-database.md
+/// §24). Generic (bukan spesifik Marketing), tapi baris pertama yang mengisinya kemungkinan
+/// besar dari modul ini (reassign/takeover/won/lost lead).
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String?  @map("actor_user_id")
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String?  @map("entity_id")
+  beforeJson   Json?    @map("before_json")
+  afterJson    Json?    @map("after_json")
+  metadataJson Json?    @map("metadata_json")
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actorUser User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+  @@schema("simple_system")
+}
+
+/// Key-value tunable khusus Priority Engine/Follow Up/AI Marketing (priority.weights,
+/// follow_up.grace_minutes, temperature.automation_mode, dst — lihat docs/04-database.md §25).
+/// TERPISAH dari model `Settings` yang sudah ada (itu singleton split kas operasional/direksi/
+/// bonus buat modul Internal, beda domain sama sekali).
+model LeadSystemSetting {
+  key             String   @id
+  valueJson       Json     @map("value_json")
+  description     String?
+  updatedByUserId String   @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  updatedByUser User @relation(fields: [updatedByUserId], references: [id])
+
+  @@map("lead_system_settings")
+  @@schema("simple_system")
+}
+
+/// Optional (docs/04-database.md §26) — log mentah tiap webhook WhatsApp masuk buat
+/// idempotency/debug, terpisah dari Message.providerMessageId yang cuma dedupe di level pesan.
+model LeadWebhookEvent {
+  id               String    @id @default(uuid())
+  provider         String
+  providerEventId  String    @map("provider_event_id")
+  eventType        String    @map("event_type")
+  payload          Json
+  receivedAt       DateTime  @default(now()) @map("received_at")
+  processedAt      DateTime? @map("processed_at")
+  processingStatus String    @default("PENDING") @map("processing_status") // "PENDING" | "PROCESSED" | "FAILED"
+  error            String?
+
+  @@unique([provider, providerEventId])
+  @@map("lead_webhook_events")
   @@schema("simple_system")
 }
