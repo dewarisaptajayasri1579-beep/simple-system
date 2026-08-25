@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "../ui/Avatar";
-import { Calendar, ChevronDown, Info, LogOut, Search } from "lucide-react";
+import { ArrowLeftRight, Calendar, ChevronDown, Info, LogOut, Search } from "lucide-react";
 
 export interface HeaderProps {
   userName: string;
@@ -119,6 +119,13 @@ export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", cl
                 <p className="text-xs font-bold text-slate-800">{userName}</p>
                 <p className="text-[11px] text-slate-500 font-medium">{ROLE_LABEL[userRole] ?? userRole}</p>
               </div>
+              <Link
+                href="/modules"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors text-left cursor-pointer"
+              >
+                <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+                <span>Ganti Modul</span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left cursor-pointer"

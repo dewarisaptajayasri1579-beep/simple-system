@@ -11,7 +11,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await request.json().catch(() => null)
 
-  const data: { role?: string; phoneNumber?: string | null } = {}
+  const data: { role?: string; phoneNumber?: string | null; modules?: string[] } = {}
   if (body?.role !== undefined) {
     if (!["owner", "direktur", "admin"].includes(body.role)) {
       return NextResponse.json({ error: "Role tidak valid" }, { status: 400 })
@@ -19,11 +19,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data.role = body.role
   }
   if (typeof body?.phoneNumber === "string") data.phoneNumber = body.phoneNumber || null
+  if (Array.isArray(body?.modules)) {
+    const valid = ["internal", "marketing", "monitoring"]
+    if (body.modules.some((m: unknown) => !valid.includes(m as string))) {
+      return NextResponse.json({ error: "Modul tidak valid" }, { status: 400 })
+    }
+    data.modules = body.modules
+  }
 
   const updated = await prisma.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true },
   })
   return NextResponse.json(updated)
 }

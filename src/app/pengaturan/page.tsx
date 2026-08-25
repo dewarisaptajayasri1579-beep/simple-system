@@ -94,7 +94,7 @@ export default async function PengaturanPage() {
             paymentAccountNameNonPpn: settings.paymentAccountNameNonPpn,
             paymentAccountNumberNonPpn: settings.paymentAccountNumberNonPpn,
           }}
-          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber }))}
+          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber, modules: u.modules }))}
           domains={domains.map((d) => ({
             ...d,
             lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,

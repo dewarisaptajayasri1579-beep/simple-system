@@ -40,7 +40,7 @@ export const LoginForm: React.FC<{ showTopLockIcon?: boolean; className?: string
         setIsLoading(false);
         return;
       }
-      router.push("/dashboard");
+      router.push("/modules");
       router.refresh();
     } catch {
       setError("Gagal menghubungi server, coba lagi");

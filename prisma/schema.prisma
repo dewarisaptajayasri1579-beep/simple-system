@@ -23,6 +23,14 @@ model User {
   passwordHash String    @map("password_hash")
   phoneNumber  String?   @map("phone_number")
   role         String    @default("admin") // "owner" | "direktur" | "admin"
+  // Modul apa saja yang boleh diakses user ini — "internal" | "marketing" | "monitoring".
+  // INDEPENDEN dari `role` di atas: role cuma menentukan detail izin DI DALAM modul Internal
+  // (Kas Keluar saja, Buku Besar per-akun COA, dst — lihat diskusi role Admin), modules
+  // menentukan modul mana yang bisa dimasuki sama sekali. Owner SELALU bisa akses semua modul
+  // apa pun isi array ini (bypass, sama pola dengan isOwner check di tempat lain) — lihat
+  // requireModuleAccess di lib/current-user.ts. Default cuma "internal" karena user lama
+  // sebelum kolom ini ada semuanya staf Internal.
+  modules      String[] @default(["internal"])
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
 

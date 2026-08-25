@@ -47,7 +47,14 @@ export interface UserRow {
   email: string;
   role: string;
   phoneNumber: string | null;
+  modules: string[];
 }
+
+const MODULE_OPTIONS: { value: string; label: string }[] = [
+  { value: "internal", label: "Internal" },
+  { value: "marketing", label: "Marketing" },
+  { value: "monitoring", label: "Monitoring" },
+];
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Owner" },
@@ -149,6 +156,7 @@ export const PengaturanPanel: React.FC<{
   const [newPassword, setNewPassword] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newRole, setNewRole] = useState("admin");
+  const [newModules, setNewModules] = useState<string[]>(["internal"]);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [userMessage, setUserMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -198,7 +206,7 @@ export const PengaturanPanel: React.FC<{
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, email: newEmail, password: newPassword, role: newRole, phoneNumber: newPhone }),
+      body: JSON.stringify({ name: newName, email: newEmail, password: newPassword, role: newRole, phoneNumber: newPhone, modules: newModules }),
     });
     const data = await res.json();
     setIsSavingUser(false);
@@ -212,6 +220,7 @@ export const PengaturanPanel: React.FC<{
     setNewPassword("");
     setNewPhone("");
     setNewRole("admin");
+    setNewModules(["internal"]);
     setUserMessage({ type: "success", text: "User baru dibuat." });
   };
 
@@ -242,6 +251,20 @@ export const PengaturanPanel: React.FC<{
     });
     if (res.ok) {
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
+    }
+  };
+
+  const handleToggleModule = async (id: string, moduleValue: string, checked: boolean) => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return;
+    const modules = checked ? [...new Set([...target.modules, moduleValue])] : target.modules.filter((m) => m !== moduleValue);
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modules }),
+    });
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, modules } : u)));
     }
   };
 
@@ -456,6 +479,26 @@ export const PengaturanPanel: React.FC<{
                 filterOptions: ROLE_OPTIONS,
                 cell: (u) => <Select options={ROLE_OPTIONS} value={u.role} onChange={(role) => handleChangeRole(u.id, role)} searchable={false} />,
               },
+              {
+                key: "modules",
+                header: "Modul",
+                cellClassName: "min-w-[220px]",
+                cell: (u) => (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {MODULE_OPTIONS.map((m) => (
+                      <label key={m.value} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5"
+                          checked={u.modules.includes(m.value)}
+                          onChange={(e) => handleToggleModule(u.id, m.value, e.target.checked)}
+                        />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                ),
+              },
             ]}
             rows={users}
             rowKey={(u) => u.id}
@@ -469,6 +512,24 @@ export const PengaturanPanel: React.FC<{
           <Input label="Password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           <Input label="No. HP (opsional)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
           <Select label="Role" options={ROLE_OPTIONS} value={newRole} onChange={setNewRole} searchable={false} />
+        </div>
+        <div className="mt-4">
+          <span className="text-xs sm:text-sm font-bold text-slate-700 block mb-2">Modul</span>
+          <div className="flex flex-wrap gap-4">
+            {MODULE_OPTIONS.map((m) => (
+              <label key={m.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4"
+                  checked={newModules.includes(m.value)}
+                  onChange={(e) =>
+                    setNewModules((prev) => (e.target.checked ? [...new Set([...prev, m.value])] : prev.filter((v) => v !== m.value)))
+                  }
+                />
+                {m.label}
+              </label>
+            ))}
+          </div>
         </div>
         <div className="flex justify-end mt-4">
           <Button variant="primary" onClick={handleCreateUser} isLoading={isSavingUser}>

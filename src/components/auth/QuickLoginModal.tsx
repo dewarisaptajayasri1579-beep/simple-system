@@ -41,7 +41,7 @@ export const QuickLoginModal: React.FC<{ open: boolean; onManualLogin: () => voi
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Gagal login");
       }
-      router.push("/dashboard");
+      router.push("/modules");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login");

@@ -11,10 +11,12 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, createdAt: true },
   })
   return NextResponse.json(users)
 }
+
+const VALID_MODULES = ["internal", "marketing", "monitoring"]
 
 export async function POST(request: Request) {
   const user = await getApiUser()
@@ -26,6 +28,7 @@ export async function POST(request: Request) {
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
   const password = typeof body?.password === "string" ? body.password : ""
   const role = ["owner", "direktur", "admin"].includes(body?.role) ? body.role : "admin"
+  const modules: string[] = Array.isArray(body?.modules) ? body.modules.filter((m: unknown) => VALID_MODULES.includes(m as string)) : ["internal"]
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Nama, email, dan password wajib diisi" }, { status: 400 })
@@ -35,8 +38,8 @@ export async function POST(request: Request) {
   if (existing) return NextResponse.json({ error: "Email sudah terdaftar" }, { status: 400 })
 
   const created = await prisma.user.create({
-    data: { name, email, role, phoneNumber: body?.phoneNumber || null, passwordHash: hashPassword(password) },
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true, createdAt: true },
+    data: { name, email, role, phoneNumber: body?.phoneNumber || null, modules, passwordHash: hashPassword(password) },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, createdAt: true },
   })
 
   return NextResponse.json(created, { status: 201 })
