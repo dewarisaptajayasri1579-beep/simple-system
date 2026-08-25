@@ -15,6 +15,11 @@ export default async function PenjualanPage() {
       payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
     },
     orderBy: { invoiceNumber: "desc" },
+    // Batas aman — InvoiceListTable masih search/paginate di client (butuh dataset di memori
+    // browser buat itu), jadi bukan pagination server sungguhan, cuma jaga-jaga supaya
+    // pertumbuhan Invoice (salah satu tabel paling cepat nambah) tidak bikin query & payload
+    // JSON-nya makin berat tanpa batas.
+    take: 500,
   })
 
   return (

@@ -8,9 +8,13 @@ export default async function JurnalPage() {
   const user = await requirePageRole(["owner", "direktur"])
 
   const [entries, coaAccounts] = await Promise.all([
+    // 300 entri terbaru — bukan seluruh histori. JournalEntry salah satu tabel paling cepat
+    // nambah (1 dibuat tiap invoice/pembayaran/transaksi diposting), tanpa batas ini query-nya
+    // makin berat tiap bulan padahal yang benar-benar dilihat staf ya yang terbaru.
     prisma.journalEntry.findMany({
       include: { lines: { include: { account: true } } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 300,
     }),
     prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } }),
   ])

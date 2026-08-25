@@ -8,7 +8,10 @@ import { computeSlaStatus, evaluateClosedCycle, SLA_STAGE_LABEL, type BillingFol
 export default async function TindakLanjutTagihanPage() {
   const user = await getCurrentUser()
 
-  const followUps = await prisma.billingFollowUp.findMany({ orderBy: { createdAt: "desc" } })
+  // Batas aman — tabel ini nambah 1 baris tiap siklus tagihan (Domain/Server/Maintenance/Termin
+  // Project/Invoice manual), terus tumbuh dari waktu ke waktu. BillingFollowUpList masih
+  // search/filter di client, jadi ini bukan pagination sungguhan, cuma jaga-jaga.
+  const followUps = await prisma.billingFollowUp.findMany({ orderBy: { createdAt: "desc" }, take: 1000 })
 
   const idsByType: Record<BillingFollowUpRefType, string[]> = { domain: [], server: [], maintenance: [], project_termin: [], invoice: [] }
   const invoiceIds: string[] = []

@@ -51,14 +51,24 @@ function journalSourceFor(r: TransactionRow): JournalSource {
  *  Pembayaran sendiri. */
 export const DraftTransactionsPanel: React.FC = () => {
   const router = useRouter();
-  const [allRows, setAllRows] = useState<TransactionRow[] | null>(null);
+  // Draft & posted di-fetch TERPISAH (bukan 1 fetch semua transaksi lalu difilter/dipotong di
+  // JS) — draft-nya sendiri sudah alami kecil (langsung diposting/dibersihkan), tapi histori
+  // posted bisa jadi ribuan baris; ?take=10 di server memastikan cuma 10 baris terakhir yang
+  // benar-benar ditarik dari database, bukan "tarik semua lalu slice(0, 10)".
+  const [draftRows, setDraftRows] = useState<TransactionRow[] | null>(null);
+  const [recentPostedRows, setRecentPostedRows] = useState<TransactionRow[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = () => {
-    fetch("/api/transactions")
+    const params = "excludePaymentLinked=true";
+    fetch(`/api/transactions?postStatus=draft&${params}`)
       .then((r) => r.json())
-      .then((all: TransactionRow[]) => setAllRows(all.filter((t) => !t.paymentId && !t.invoicePayment)))
+      .then(setDraftRows)
+      .catch(() => setError("Gagal memuat transaksi"));
+    fetch(`/api/transactions?postStatus=posted&take=10&${params}`)
+      .then((r) => r.json())
+      .then(setRecentPostedRows)
       .catch(() => setError("Gagal memuat transaksi"));
   };
 
@@ -85,10 +95,7 @@ export const DraftTransactionsPanel: React.FC = () => {
     router.refresh();
   };
 
-  if (!allRows) return null;
-
-  const draftRows = allRows.filter((t) => t.postStatus === "draft");
-  const recentPostedRows = allRows.filter((t) => t.postStatus === "posted").slice(0, 10);
+  if (!draftRows || !recentPostedRows) return null;
 
   const baseColumns: FilterableColumn<TransactionRow>[] = [
     { key: "transactionNumber", header: "No. Bukti", cell: (r) => r.transactionNumber ?? "-" },
@@ -144,7 +151,7 @@ export const DraftTransactionsPanel: React.FC = () => {
           <VoidButton
             voidUrl={`/api/transactions/${r.id}/void`}
             itemLabel={r.description ?? "transaksi ini"}
-            onVoided={() => setAllRows((prev) => prev && prev.map((row) => (row.id === r.id ? { ...row, postStatus: "voided" } : row)))}
+            onVoided={() => setRecentPostedRows((prev) => prev && prev.filter((row) => row.id !== r.id))}
           />
         </div>
       ),

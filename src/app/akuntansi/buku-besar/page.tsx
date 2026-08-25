@@ -33,19 +33,28 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
   const accountId = params.accountId || accounts[0]?.id || ""
   const account = accounts.find((a) => a.id === accountId) ?? null
 
-  const lines = account
-    ? await prisma.journalLine.findMany({
-        where: { accountId, journalEntry: { is: { postStatus: "posted" } } },
-        include: { journalEntry: true },
-        orderBy: [{ journalEntry: { date: "asc" } }, { journalEntry: { createdAt: "asc" } }],
-      })
-    : []
-
   const movement = (debit: number, credit: number) => accountMovement(account?.type ?? "asset", debit, credit)
 
-  const saldoAwal = lines.filter((l) => l.journalEntry.date < from).reduce((s, l) => s + movement(l.debit, l.credit), 0)
+  // Dulu narik SELURUH histori mutasi akun ini (semua bulan sejak awal), baru filter saldo awal
+  // vs. mutasi bulan berjalan di JS — makin berat tiap bulan buat akun yang sering dipakai
+  // (Kas/Bank, Piutang). Sekarang: SUM(debit)/SUM(credit) di database buat saldo awal (movement()
+  // linear di debit/credit, jadi SUM-nya sah dipakai sekali di akhir), dan cuma ambil baris bulan
+  // ini buat tabel mutasi.
+  const [saldoAwalAgg, periodLines] = account
+    ? await Promise.all([
+        prisma.journalLine.aggregate({
+          where: { accountId, journalEntry: { is: { postStatus: "posted", date: { lt: from } } } },
+          _sum: { debit: true, credit: true },
+        }),
+        prisma.journalLine.findMany({
+          where: { accountId, journalEntry: { is: { postStatus: "posted", date: { gte: from, lte: to } } } },
+          include: { journalEntry: true },
+          orderBy: [{ journalEntry: { date: "asc" } }, { journalEntry: { createdAt: "asc" } }],
+        }),
+      ])
+    : [null, []]
 
-  const periodLines = lines.filter((l) => l.journalEntry.date >= from && l.journalEntry.date <= to)
+  const saldoAwal = saldoAwalAgg ? movement(saldoAwalAgg._sum.debit ?? 0, saldoAwalAgg._sum.credit ?? 0) : 0
 
   let running = saldoAwal
   const rows = periodLines.map((l) => {

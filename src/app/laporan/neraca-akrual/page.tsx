@@ -15,18 +15,28 @@ const BALANCE_EPSILON = 0.5 // toleransi pembulatan rupiah, sama dengan post-jou
 export default async function NeracaAkrualPage() {
   const user = await requirePageRole(["owner", "direktur"])
 
-  const accounts = await prisma.chartOfAccount.findMany({
-    include: { journalLines: { where: { journalEntry: { is: { postStatus: "posted" } } } } },
-    orderBy: { code: "asc" },
-  })
+  // Dulu include SEMUA JournalLine posted punya tiap akun (bertahun-tahun) lalu di-reduce di JS
+  // buat dapat SUM per akun — makin berat tiap ada jurnal baru. ChartOfAccount sendiri tabel
+  // kecil (~50 baris, aman di-findMany polos); yang berat itu journalLines-nya, jadi itu yang
+  // diganti groupBy (SUM+COUNT di database, satu baris teragregasi per akun).
+  const [accounts, lineGroups] = await Promise.all([
+    prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } }),
+    prisma.journalLine.groupBy({
+      by: ["accountId"],
+      where: { journalEntry: { is: { postStatus: "posted" } } },
+      _sum: { debit: true, credit: true },
+      _count: { _all: true },
+    }),
+  ])
+  const lineGroupByAccountId = new Map(lineGroups.map((g) => [g.accountId, g]))
 
   const balanceOf = (a: (typeof accounts)[number]) => {
-    const debit = a.journalLines.reduce((s, l) => s + l.debit, 0)
-    const credit = a.journalLines.reduce((s, l) => s + l.credit, 0)
-    return accountMovement(a.type, debit, credit)
+    const g = lineGroupByAccountId.get(a.id)
+    return accountMovement(a.type, g?._sum.debit ?? 0, g?._sum.credit ?? 0)
   }
+  const hasLines = (a: (typeof accounts)[number]) => (lineGroupByAccountId.get(a.id)?._count._all ?? 0) > 0
 
-  const byType = (type: string) => accounts.filter((a) => a.type === type && a.journalLines.length > 0)
+  const byType = (type: string) => accounts.filter((a) => a.type === type && hasLines(a))
 
   const asetRows = byType("asset")
   const liabilitasRows = byType("liability")
@@ -41,7 +51,7 @@ export default async function NeracaAkrualPage() {
   const ekuitasFormalTotal = ekuitasRows.reduce((s, a) => s + balanceOf(a), 0)
   const ekuitasTotal = ekuitasFormalTotal + labaBerjalan
 
-  const hasAnyJournal = accounts.some((a) => a.journalLines.length > 0)
+  const hasAnyJournal = lineGroups.length > 0
   const hutangVendorAccount = accounts.find((a) => a.code === COA_CODE.hutangUsahaVendor)
   const hutangVendorResidual = hutangVendorAccount ? balanceOf(hutangVendorAccount) : 0
 

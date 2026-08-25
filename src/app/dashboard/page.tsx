@@ -103,7 +103,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       },
       orderBy: { dueDate: "asc" },
     }),
-    prisma.followUp.findMany({ orderBy: { followUpDate: "desc" } }),
+    // Cuma yang terbaru — tabel ini catatan manual, terus nambah, tidak ada gunanya nge-load
+    // seluruh histori tiap kali Dashboard dibuka (lihat FollowUpPanel, cuma nampilin daftar
+    // pendek).
+    prisma.followUp.findMany({ orderBy: { followUpDate: "desc" }, take: 20 }),
     prisma.projectPaymentSchedule.findMany({
       // Reminder Dashboard: termin yang SUDAH ditagih tapi belum lunas, ATAU yang BELUM
       // ditagih sama sekali (invoiceId null) — dua-duanya tetap perlu diingatkan, difilter

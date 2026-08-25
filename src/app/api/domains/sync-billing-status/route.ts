@@ -23,28 +23,63 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
 
   const domains = await prisma.domain.findMany({ where: { active: true, clientId: { not: null } } })
+  const domainIds = domains.map((d) => d.id)
+
+  // Dulu: 2-4 query TERPISAH per domain di dalam loop (findFirst invoice, findFirst cycle,
+  // findFirst payment) — N domain = sampai 4N round-trip database. Sekarang: 3 query dibatch
+  // buat SEMUA domain sekaligus, lalu di-grouping di JS (ambil yang "terdepan" per domain sesuai
+  // orderBy yang sama seperti sebelumnya) — write-nya (update) tetap per-domain karena nilainya
+  // memang beda-beda per domain, tapi baca-nya sudah jauh lebih sedikit.
+  const [allInvoices, allActiveCycles] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { costLinkType: "domain", costLinkId: { in: domainIds }, postStatus: "posted" },
+      orderBy: { issuedAt: "desc" },
+    }),
+    prisma.billingFollowUp.findMany({
+      where: { refType: "domain", refId: { in: domainIds }, paidRecordedAt: null },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  // orderBy "desc" di atas + Map insertion order (item pertama per key menang) = sama persis
+  // semantik `findFirst({ orderBy: ... })` yang dulu dipanggil satu-satu.
+  const latestInvoiceByDomainId = new Map<string, (typeof allInvoices)[number]>()
+  for (const inv of allInvoices) {
+    if (inv.costLinkId && !latestInvoiceByDomainId.has(inv.costLinkId)) latestInvoiceByDomainId.set(inv.costLinkId, inv)
+  }
+  const activeCycleByDomainId = new Map<string, (typeof allActiveCycles)[number]>()
+  for (const cycle of allActiveCycles) {
+    if (!activeCycleByDomainId.has(cycle.refId)) activeCycleByDomainId.set(cycle.refId, cycle)
+  }
+
+  const paidInvoiceIds = domains
+    .map((d) => latestInvoiceByDomainId.get(d.id))
+    .filter((inv): inv is NonNullable<typeof inv> => Boolean(inv) && inv!.status === "paid")
+    .map((inv) => inv.id)
+  const allLatestPayments =
+    paidInvoiceIds.length > 0
+      ? await prisma.invoicePayment.findMany({
+          where: { invoiceId: { in: paidInvoiceIds }, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
+          orderBy: { paidAt: "desc" },
+        })
+      : []
+  const latestPaymentByInvoiceId = new Map<string, (typeof allLatestPayments)[number]>()
+  for (const p of allLatestPayments) {
+    if (!latestPaymentByInvoiceId.has(p.invoiceId)) latestPaymentByInvoiceId.set(p.invoiceId, p)
+  }
 
   let taggedCount = 0
   let paidCount = 0
   const fixed: { name: string; action: string }[] = []
 
   for (const domain of domains) {
-    const latestInvoice = await prisma.invoice.findFirst({
-      where: { costLinkType: "domain", costLinkId: domain.id, postStatus: "posted" },
-      orderBy: { issuedAt: "desc" },
-    })
+    const latestInvoice = latestInvoiceByDomainId.get(domain.id)
     if (!latestInvoice) continue
 
-    const activeCycle = await prisma.billingFollowUp.findFirst({
-      where: { refType: "domain", refId: domain.id, paidRecordedAt: null },
-      orderBy: { createdAt: "desc" },
-    })
+    const activeCycle = activeCycleByDomainId.get(domain.id) ?? null
 
     if (latestInvoice.status === "paid") {
-      const latestPayment = await prisma.invoicePayment.findFirst({
-        where: { invoiceId: latestInvoice.id, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
-        orderBy: { paidAt: "desc" },
-      })
+      const latestPayment = latestPaymentByInvoiceId.get(latestInvoice.id)
       const paidAt = latestPayment?.paidAt ?? latestInvoice.issuedAt
 
       const alreadySynced = domain.lastPaidAt && domain.lastPaidAt.getTime() >= paidAt.getTime()

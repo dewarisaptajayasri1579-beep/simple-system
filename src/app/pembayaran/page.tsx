@@ -14,6 +14,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
     prisma.payment.findMany({
       include: { client: true, invoicePayments: { include: { invoice: { select: { invoiceNumber: true } } } } },
       orderBy: { createdAt: "desc" },
+      take: 500, // batas aman — sama alasan dengan Invoice, lihat catatan di penjualan/page.tsx
     }),
   ])
 

@@ -19,6 +19,15 @@ export async function GET(request: Request) {
   const paymentId = searchParams.get("paymentId")
   const refType = searchParams.get("refType")
   const refId = searchParams.get("refId")
+  const postStatus = searchParams.get("postStatus")
+  // ?take= opsional — DraftTransactionsPanel (dan siapa pun yang cuma butuh N baris terbaru,
+  // bukan seluruh histori) kirim ini biar tidak nge-load semua Transaction yang pernah dibuat.
+  const take = Number(searchParams.get("take")) || undefined
+  // ?excludePaymentLinked=true — DraftTransactionsPanel juga tidak menampilkan baris yang jadi
+  // bagian dari 1 Payment (itu dikelola dari menu Pembayaran sendiri); dipush ke query di sini
+  // (bukan filter di JS setelah fetch) supaya `take` di atas tetap presisi N baris yang benar-
+  // benar ditampilkan, bukan N baris sebelum difilter.
+  const excludePaymentLinked = searchParams.get("excludePaymentLinked") === "true"
 
   const transactions = await prisma.transaction.findMany({
     where: {
@@ -26,10 +35,13 @@ export async function GET(request: Request) {
       paymentId: paymentId || undefined,
       refType: refType || undefined,
       refId: refId || undefined,
+      postStatus: postStatus || undefined,
       occurredAt: from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined,
+      ...(excludePaymentLinked ? { paymentId: null, invoicePayment: { is: null } } : {}),
     },
     include: { account: true, category: true, invoicePayment: { select: { id: true } } },
     orderBy: { createdAt: "desc" },
+    take,
   })
 
   return NextResponse.json(transactions)
