@@ -636,8 +636,27 @@ model ChartOfAccount {
   journalLines JournalLine[]
   accounts     Account[]
   categories   Category[]
+  roleAccess   RoleCoaAccess[]
 
   @@map("chart_of_accounts")
+  @@schema("simple_system")
+}
+
+/// Daftar akun COA yang boleh dilihat 1 role tertentu di Akuntansi > Buku Besar (lihat Pengaturan
+/// > Akses COA per Role) — cuma dipakai buat role yang DIBATASI (role "admin"), Owner/Direktur
+/// selalu bebas lihat semua akun tanpa perlu baris di tabel ini. Kalau role tidak punya baris
+/// sama sekali di sini, dianggap belum di-set (bukan berarti "boleh semua" atau "tidak boleh
+/// sama sekali") — lihat guard di app/akuntansi/buku-besar/page.tsx.
+model RoleCoaAccess {
+  id           String   @id @default(uuid())
+  role         String // "admin" — role lain (owner/direktur) tidak butuh baris di sini
+  coaAccountId String   @map("coa_account_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  coaAccount ChartOfAccount @relation(fields: [coaAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([role, coaAccountId])
+  @@map("role_coa_access")
   @@schema("simple_system")
 }
 

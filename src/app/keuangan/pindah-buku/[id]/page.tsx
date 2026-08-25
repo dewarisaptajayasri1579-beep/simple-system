@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { AccountTransferPostingBar } from "@/components/keuangan/AccountTransferPostingBar"
 import { AccountTransferDetailFields } from "@/components/keuangan/AccountTransferDetailFields"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
 
@@ -13,7 +13,7 @@ function formatDate(date: Date) {
 }
 
 export default async function AccountTransferDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser()
+  const user = await requirePageRole(["owner", "direktur"])
   const { id } = await params
 
   const transfer = await prisma.accountTransfer.findUnique({

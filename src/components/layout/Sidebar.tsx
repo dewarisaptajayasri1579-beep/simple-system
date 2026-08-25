@@ -30,6 +30,25 @@ export interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   className?: string;
+  userRole?: string;
+}
+
+// Role "admin" dibatasi ke menu ini saja (lihat diskusi role Admin) — Owner/Direktur tetap lihat
+// semua item di navItems tanpa filter. Keuangan/Akuntansi di-override langsung ke sub-halaman
+// yang boleh diakses (Kas Keluar / Buku Besar), bukan ke hub-nya (yang juga punya Kas Masuk/COA/
+// Jurnal yang admin tidak boleh lihat) — restriksi sebenarnya tetap di masing-masing page.tsx
+// (requirePageRole), ini cuma soal menu mana yang ditampilkan/kemana link-nya mengarah.
+const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Proyek", "Laporan", "Akuntansi", "Pengaturan"]);
+const ADMIN_HREF_OVERRIDE: Record<string, string> = {
+  Keuangan: "/keuangan/kas-keluar",
+  Akuntansi: "/akuntansi/buku-besar",
+};
+
+function navItemsForRole(role: string | undefined): NavItem[] {
+  if (role !== "admin") return navItems;
+  return navItems
+    .filter((item) => ADMIN_ALLOWED_LABELS.has(item.label))
+    .map((item) => (ADMIN_HREF_OVERRIDE[item.label] ? { ...item, href: ADMIN_HREF_OVERRIDE[item.label] } : item));
 }
 
 export const navItems: NavItem[] = [
@@ -45,8 +64,9 @@ export const navItems: NavItem[] = [
   { label: "Pengembangan Sistem", href: "/pengaturan/pengembangan-sistem", icon: <ListChecks className="w-5 h-5" /> },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse, className = "" }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse, className = "", userRole }) => {
   const pathname = usePathname() || "/dashboard";
+  const items = navItemsForRole(userRole);
 
   return (
     <aside
@@ -73,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse,
       </div>
 
       <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/") || (pathname === "/" && item.href === "/dashboard");
           return (
             <Link

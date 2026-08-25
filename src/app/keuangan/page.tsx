@@ -1,10 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { KeuanganPanel } from "@/components/keuangan/KeuanganPanel"
 import { DraftTransactionsPanel } from "@/components/keuangan/DraftTransactionsPanel"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 
 export default async function KeuanganPage() {
-  const user = await getCurrentUser()
+  // Hub ini bundling Kas Keluar & Kas Masuk sekaligus — admin dibatasi cuma boleh Kas Keluar
+  // (lihat /keuangan/kas-keluar terpisah), jadi hub-nya sendiri Owner+Direktur saja.
+  const user = await requirePageRole(["owner", "direktur"])
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>

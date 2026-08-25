@@ -22,7 +22,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, userName, userRo
       <div className="no-print fixed -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
 
       <div className="no-print contents">
-        <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed((p) => !p)} />
+        <Sidebar isCollapsed={isSidebarCollapsed} onToggleCollapse={() => setIsSidebarCollapsed((p) => !p)} userRole={userRole} />
       </div>
 
       <div
@@ -43,7 +43,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, userName, userRo
       </div>
 
       <div className="no-print contents">
-        <BottomBar />
+        <BottomBar userRole={userRole} />
       </div>
 
       <CommandPalette />

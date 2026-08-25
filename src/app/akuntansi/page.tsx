@@ -11,7 +11,10 @@ const PAGES = [
 ]
 
 export default async function AkuntansiHubPage() {
-  const user = await requirePageRole(["owner", "direktur"])
+  // Admin cuma boleh Buku Besar (lihat filter PAGES di bawah) — COA & Jurnal Umum tetap
+  // Owner+Direktur saja (halaman-nya sendiri masih requirePageRole(["owner","direktur"])).
+  const user = await requirePageRole(["owner", "direktur", "admin"])
+  const pages = user.role === "admin" ? PAGES.filter((p) => p.href === "/akuntansi/buku-besar") : PAGES
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -24,7 +27,7 @@ export default async function AkuntansiHubPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {PAGES.map(({ href, icon: Icon, title, desc }) => (
+          {pages.map(({ href, icon: Icon, title, desc }) => (
             <Link key={href} href={href}>
               <Card variant="feature" padding="lg" hoverable className="h-full">
                 <div className="flex items-start gap-4">

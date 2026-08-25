@@ -6,7 +6,11 @@ import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
 export default async function PengaturanPage() {
-  const user = await requirePageRole(["owner"])
+  // Admin cuma boleh sampai sini buat tab Master Data (lihat filter tab di PengaturanPanel) —
+  // data lain (Umum/User/Backup/Akses COA) tetap ikut di-fetch, sengaja tidak dipersempit per
+  // role di sini karena query-nya murah dan PengaturanPanel yang menyembunyikan tab-nya.
+  const user = await requirePageRole(["owner", "admin"])
+  const isOwner = user.role === "owner"
 
   const [
     settings,
@@ -47,7 +51,7 @@ export default async function PengaturanPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Pengaturan</h1>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Khusus Owner.</p>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">{isOwner ? "Khusus Owner." : "Master Data."}</p>
           </div>
           <div className="flex items-center gap-4">
             <Link
@@ -56,22 +60,27 @@ export default async function PengaturanPage() {
             >
               Pengembangan Sistem &rarr;
             </Link>
-            <Link
-              href="/pengaturan/cek-konsistensi-data"
-              className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
-            >
-              Cek Konsistensi Data &rarr;
-            </Link>
-            <Link
-              href="/pengaturan/log-nonaktif"
-              className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
-            >
-              Log Nonaktif &rarr;
-            </Link>
+            {isOwner && (
+              <>
+                <Link
+                  href="/pengaturan/cek-konsistensi-data"
+                  className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
+                >
+                  Cek Konsistensi Data &rarr;
+                </Link>
+                <Link
+                  href="/pengaturan/log-nonaktif"
+                  className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap"
+                >
+                  Log Nonaktif &rarr;
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
         <PengaturanPanel
+          userRole={user.role}
           settings={{
             operasionalPct: settings.operasionalPct,
             direksiPct: settings.direksiPct,

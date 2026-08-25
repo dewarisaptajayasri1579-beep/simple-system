@@ -16,12 +16,20 @@ function formatDate(d: Date) {
 }
 
 export default async function BukuBesarPage({ searchParams }: { searchParams: Promise<{ accountId?: string; month?: string }> }) {
-  const user = await requirePageRole(["owner", "direktur"])
+  // Admin dibatasi (lihat Pengaturan > Akses COA per Role) — Owner/Direktur selalu lihat semua
+  // akun tanpa filter, sama seperti sebelumnya.
+  const user = await requirePageRole(["owner", "direktur", "admin"])
   const params = await searchParams
   const month = params.month || jakartaTodayDateIso().slice(0, 7)
   const { from, to } = monthPeriod(month)
 
-  const accounts = await prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } })
+  const allAccounts = await prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } })
+  let accounts = allAccounts
+  if (user.role === "admin") {
+    const allowed = await prisma.roleCoaAccess.findMany({ where: { role: "admin" }, select: { coaAccountId: true } })
+    const allowedIds = new Set(allowed.map((a) => a.coaAccountId))
+    accounts = allAccounts.filter((a) => allowedIds.has(a.id))
+  }
   const accountId = params.accountId || accounts[0]?.id || ""
   const account = accounts.find((a) => a.id === accountId) ?? null
 
@@ -73,7 +81,11 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
 
         {!account ? (
           <Card variant="feature" padding="lg">
-            <p className="text-sm text-slate-500">Belum ada akun COA.</p>
+            <p className="text-sm text-slate-500">
+              {user.role === "admin" && accounts.length === 0
+                ? "Belum ada akun COA yang diizinkan untuk role Admin — hubungi Owner (Pengaturan > Akses COA per Role)."
+                : "Belum ada akun COA."}
+            </p>
           </Card>
         ) : (
           <>

@@ -1,9 +1,9 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { CategorySection } from "@/components/keuangan/CategorySection"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 
 export default async function AkunBiayaPage() {
-  const user = await getCurrentUser()
+  const user = await requirePageRole(["owner", "direktur"])
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>

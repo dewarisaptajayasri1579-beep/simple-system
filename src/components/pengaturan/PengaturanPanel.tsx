@@ -59,8 +59,20 @@ const TABS = [
   { value: "umum", label: "Umum" },
   { value: "user", label: "User" },
   { value: "master-data", label: "Master Data" },
+  { value: "akses-coa", label: "Akses COA" },
   { value: "backup", label: "Backup" },
 ] as const;
+
+// Role dibatasi (bukan owner) cuma boleh lihat tab ini — cocokkan sama restriksi halaman
+// /pengaturan (requirePageRole) & sidebar (Sidebar.tsx filterNavItemsByRole).
+const RESTRICTED_ROLE_TABS: (typeof TABS)[number]["value"][] = ["master-data"];
+
+export interface CoaAccountOption {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -69,6 +81,7 @@ function formatBytes(bytes: number) {
 }
 
 export const PengaturanPanel: React.FC<{
+  userRole: string;
   settings: SettingsData;
   users: UserRow[];
   domains: DomainRow[];
@@ -83,6 +96,7 @@ export const PengaturanPanel: React.FC<{
   maintenances: MaintenanceRow[];
   cpanelAccounts: CpanelAccountRow[];
 }> = ({
+  userRole,
   settings,
   users: initialUsers,
   domains,
@@ -98,13 +112,17 @@ export const PengaturanPanel: React.FC<{
   cpanelAccounts,
 }) => {
   const router = useRouter();
-  const [activeTab, setActiveTabState] = useState<(typeof TABS)[number]["value"]>("umum");
+  const isOwner = userRole === "owner";
+  const visibleTabs = isOwner ? TABS : TABS.filter((t) => RESTRICTED_ROLE_TABS.includes(t.value));
+  const [activeTab, setActiveTabState] = useState<(typeof TABS)[number]["value"]>(isOwner ? "umum" : "master-data");
 
   useEffect(() => {
+    if (!isOwner) return; // role dibatasi selalu di Master Data, tidak ada tab lain buat direstore
     const saved = window.localStorage.getItem("pengaturan:tab");
     if (saved && TABS.some((t) => t.value === saved)) {
       setActiveTabState(saved as (typeof TABS)[number]["value"]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setActiveTab = (value: (typeof TABS)[number]["value"]) => {
@@ -238,10 +256,59 @@ export const PengaturanPanel: React.FC<{
     }
   };
 
+  // Akses COA per Role — cuma dipakai owner, dan cuma buat role "admin" (Owner/Direktur selalu
+  // bebas lihat semua akun, lihat catatan RoleCoaAccess di schema.prisma). Data COA + akses yang
+  // sudah tersimpan baru di-fetch begitu tab-nya benar-benar dibuka (bukan langsung saat mount),
+  // biar tidak nambah query kalau owner tidak pernah buka tab ini.
+  const [coaAccounts, setCoaAccounts] = useState<CoaAccountOption[] | null>(null);
+  const [selectedCoaIds, setSelectedCoaIds] = useState<Set<string>>(new Set());
+  const [isLoadingCoaAccess, setIsLoadingCoaAccess] = useState(false);
+  const [isSavingCoaAccess, setIsSavingCoaAccess] = useState(false);
+  const [coaAccessMessage, setCoaAccessMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOwner || activeTab !== "akses-coa" || coaAccounts !== null) return;
+    setIsLoadingCoaAccess(true);
+    Promise.all([
+      fetch("/api/coa").then((r) => r.json()),
+      fetch("/api/settings/role-coa-access?role=admin").then((r) => r.json()),
+    ])
+      .then(([coa, access]: [CoaAccountOption[], { coaAccountIds: string[] }]) => {
+        setCoaAccounts(coa);
+        setSelectedCoaIds(new Set(access.coaAccountIds));
+      })
+      .finally(() => setIsLoadingCoaAccess(false));
+  }, [isOwner, activeTab, coaAccounts]);
+
+  const toggleCoaAccount = (id: string) => {
+    setSelectedCoaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSaveCoaAccess = async () => {
+    setIsSavingCoaAccess(true);
+    setCoaAccessMessage(null);
+    const res = await fetch("/api/settings/role-coa-access", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "admin", coaAccountIds: Array.from(selectedCoaIds) }),
+    });
+    setIsSavingCoaAccess(false);
+    if (!res.ok) {
+      setCoaAccessMessage({ type: "error", text: "Gagal menyimpan" });
+      return;
+    }
+    setCoaAccessMessage({ type: "success", text: "Akses COA untuk role Admin tersimpan." });
+  };
+
   return (
     <div className="space-y-6">
       <div className="p-1 rounded-2xl bg-white/90 border border-slate-200/90 shadow-2xs flex items-center gap-1 w-fit">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
@@ -408,6 +475,50 @@ export const PengaturanPanel: React.FC<{
             Tambah User
           </Button>
         </div>
+      </Card>
+      )}
+
+      {activeTab === "akses-coa" && (
+      <Card variant="panel" padding="lg">
+        <CardHeader>
+          <CardTitle>Akses COA per Role</CardTitle>
+          <CardDescription>
+            Pilih akun COA yang boleh dilihat role <strong>Admin</strong> di Akuntansi &gt; Buku Besar. Owner &amp; Direktur selalu
+            bisa lihat semua akun tanpa perlu di-set di sini.
+          </CardDescription>
+        </CardHeader>
+        {coaAccessMessage && (
+          <Alert variant={coaAccessMessage.type === "success" ? "success" : "error"} onClose={() => setCoaAccessMessage(null)}>
+            {coaAccessMessage.text}
+          </Alert>
+        )}
+        {isLoadingCoaAccess || coaAccounts === null ? (
+          <p className="text-sm text-slate-500 mt-4">Memuat daftar akun...</p>
+        ) : (
+          <>
+            <p className="text-xs font-semibold text-slate-500 mt-4">{selectedCoaIds.size} akun dipilih dari {coaAccounts.length} total.</p>
+            <div className="mt-3 max-h-[28rem] overflow-y-auto rounded-2xl border border-slate-200/80 divide-y divide-slate-100">
+              {coaAccounts.map((coa) => (
+                <label key={coa.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none hover:bg-slate-50/80">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 flex-shrink-0"
+                    checked={selectedCoaIds.has(coa.id)}
+                    onChange={() => toggleCoaAccount(coa.id)}
+                  />
+                  <span className="text-xs font-mono text-slate-400 w-16 flex-shrink-0">{coa.code}</span>
+                  <span className="text-sm font-semibold text-slate-800">{coa.name}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase ml-auto">{coa.type}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button variant="primary" onClick={handleSaveCoaAccess} isLoading={isSavingCoaAccess}>
+                Simpan Akses COA
+              </Button>
+            </div>
+          </>
+        )}
       </Card>
       )}
 

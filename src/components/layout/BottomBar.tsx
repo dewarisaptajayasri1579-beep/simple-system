@@ -19,13 +19,16 @@ export const bottomNavItems: BottomNavItem[] = [
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
 ];
 
-export const BottomBar: React.FC = () => {
+export const BottomBar: React.FC<{ userRole?: string }> = ({ userRole }) => {
   const pathname = usePathname() || "/dashboard";
+  // Sama restriksi dengan Sidebar (lihat navItemsForRole) — admin diarahkan ke Kas Keluar
+  // langsung, bukan hub Keuangan yang juga ada Kas Masuk.
+  const items = userRole === "admin" ? bottomNavItems.map((item) => (item.label === "Keuangan" ? { ...item, href: "/keuangan/kas-keluar" } : item)) : bottomNavItems;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 pt-1">
       <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-2 py-2">
-        {bottomNavItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/") || (pathname === "/" && item.href === "/dashboard");
           return (
             <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-3 py-1.5 min-w-[64px]">

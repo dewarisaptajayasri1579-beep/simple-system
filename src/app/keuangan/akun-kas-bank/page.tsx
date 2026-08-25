@@ -1,11 +1,11 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { AccountList } from "@/components/keuangan/AccountList"
 import { AddAccountButton } from "@/components/keuangan/AddAccountButton"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
 export default async function AkunKasBankPage() {
-  const user = await getCurrentUser()
+  const user = await requirePageRole(["owner", "direktur"])
   const accounts = await prisma.account.findMany({ include: { coaAccount: true }, orderBy: { name: "asc" } })
 
   return (
