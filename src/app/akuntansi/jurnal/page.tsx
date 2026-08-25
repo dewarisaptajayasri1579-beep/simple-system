@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { JurnalList } from "@/components/akuntansi/JurnalList"
 import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { resolveUserNames } from "@/lib/user-names"
 
 export default async function JurnalPage() {
   const user = await requirePageRole(["owner", "direktur"])
@@ -13,6 +14,7 @@ export default async function JurnalPage() {
     }),
     prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } }),
   ])
+  const userNames = await resolveUserNames(entries.map((e) => e.createdBy))
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -32,6 +34,7 @@ export default async function JurnalPage() {
             description: e.description,
             sourceType: e.sourceType,
             postStatus: e.postStatus as "draft" | "posted" | "voided",
+            createdByName: e.createdBy ? (userNames.get(e.createdBy) ?? null) : null,
             lines: e.lines.map((l) => ({
               id: l.id,
               accountCode: l.account.code,
@@ -43,6 +46,7 @@ export default async function JurnalPage() {
           }))}
           coaAccounts={coaAccounts.map((a) => ({ id: a.id, code: a.code, name: a.name }))}
           isOwner={user.role === "owner"}
+          currentUserName={user.name}
         />
       </div>
     </AppLayout>

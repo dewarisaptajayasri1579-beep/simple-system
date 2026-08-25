@@ -34,6 +34,7 @@ export async function markServerPaid(
       refType: "server",
       refId: server.id,
       paymentId: input.paymentId ?? null,
+      createdById: input.createdBy,
     },
   })
 
@@ -77,6 +78,7 @@ export async function markDomainPaid(
       refType: "domain",
       refId: domain.id,
       paymentId: input.paymentId ?? null,
+      createdById: input.createdBy,
     },
   })
 
@@ -120,6 +122,7 @@ export async function markMaintenancePaid(
       refType: "maintenance",
       refId: maintenance.id,
       paymentId: input.paymentId ?? null,
+      createdById: input.createdBy,
     },
   })
 
@@ -164,6 +167,7 @@ export async function markRecurringBillPaid(
       refType: "recurring_bill",
       refId: bill.id,
       paymentId: input.paymentId ?? null,
+      createdById: input.createdBy,
     },
   })
 

@@ -12,6 +12,8 @@ import { PaymentWhatsAppButton } from "@/components/pembayaran/PaymentWhatsAppBu
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { kwitansiVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
+import { resolveUserNames } from "@/lib/user-names"
+import { AuditTrail } from "@/components/shared/AuditTrail"
 import { ArrowLeft } from "lucide-react"
 
 function formatDate(date: Date) {
@@ -52,6 +54,8 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
   ])
 
   if (!payment) notFound()
+
+  const userNames = await resolveUserNames([payment.createdById, payment.postedById, payment.voidedById])
 
   // Sumber jurnal payment ini — pakai journalEntryId (link presisi ke jurnal yang dibuat
   // BARENGAN transaksi ini) kalau ada. Fallback ke sourceType+sourceId cuma buat baris lama
@@ -208,6 +212,17 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
               {payment.notes}
             </p>
           )}
+
+          <div className="mt-4 pt-4 border-t border-slate-200/60">
+            <AuditTrail
+              createdByName={payment.createdById ? (userNames.get(payment.createdById) ?? null) : null}
+              postedByName={payment.postedById ? (userNames.get(payment.postedById) ?? null) : null}
+              postedAt={payment.postedAt ? payment.postedAt.toISOString() : null}
+              voidedByName={payment.voidedById ? (userNames.get(payment.voidedById) ?? null) : null}
+              voidedAt={payment.voidedAt ? payment.voidedAt.toISOString() : null}
+              voidReason={payment.voidReason}
+            />
+          </div>
         </Card>
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format kwitansi sesuai

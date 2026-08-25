@@ -142,6 +142,7 @@ export async function POST(request: Request) {
           totalCost,
           notes: body?.notes || null,
           dpAmount,
+          createdById: user.id,
           revenueCoaCode: projectScheduleId ? COA_CODE.pendapatanProject : null,
           costLinkType,
           costLinkId,

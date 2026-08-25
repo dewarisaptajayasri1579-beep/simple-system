@@ -4,8 +4,10 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { TransactionPostingBar } from "@/components/keuangan/TransactionPostingBar"
 import { TransactionDetailFields } from "@/components/keuangan/TransactionDetailFields"
+import { AuditTrail } from "@/components/shared/AuditTrail"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { resolveUserNames } from "@/lib/user-names"
 import { ArrowLeft } from "lucide-react"
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal"
 
@@ -29,6 +31,8 @@ export default async function TransactionDetailPage({ params }: { params: Promis
     include: { account: true, category: true, invoicePayment: { select: { id: true } } },
   })
   if (!transaction) notFound()
+
+  const userNames = await resolveUserNames([transaction.createdById, transaction.postedById, transaction.voidedById])
 
   const backHref = transaction.type === "income" ? "/keuangan/kas-masuk" : "/keuangan/kas-keluar"
 
@@ -102,6 +106,17 @@ export default async function TransactionDetailPage({ params }: { params: Promis
             accountOptions={accounts.map((a) => ({ value: a.id, label: a.name }))}
             categoryOptions={categories.map((c) => ({ value: c.id, label: c.name }))}
           />
+
+          <div className="mt-4 pt-4 border-t border-slate-200/60">
+            <AuditTrail
+              createdByName={transaction.createdById ? (userNames.get(transaction.createdById) ?? null) : null}
+              postedByName={transaction.postedById ? (userNames.get(transaction.postedById) ?? null) : null}
+              postedAt={transaction.postedAt ? transaction.postedAt.toISOString() : null}
+              voidedByName={transaction.voidedById ? (userNames.get(transaction.voidedById) ?? null) : null}
+              voidedAt={transaction.voidedAt ? transaction.voidedAt.toISOString() : null}
+              voidReason={transaction.voidReason}
+            />
+          </div>
         </Card>
       </div>
     </AppLayout>

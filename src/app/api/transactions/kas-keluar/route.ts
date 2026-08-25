@@ -108,6 +108,7 @@ export async function POST(request: Request) {
             netAmount: line.amount,
             description: line.description || null,
             occurredAt,
+            createdById: user.id,
           },
         })
         const [kasBankCoaCode, expenseCoaCode] = await Promise.all([

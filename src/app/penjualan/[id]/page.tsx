@@ -15,6 +15,8 @@ import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
 import { invoiceCashDue } from "@/lib/invoice-due"
+import { resolveUserNames } from "@/lib/user-names"
+import { AuditTrail } from "@/components/shared/AuditTrail"
 import { ArrowLeft } from "lucide-react"
 
 function formatDate(date: Date | null) {
@@ -39,6 +41,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   ])
 
   if (!invoice) notFound()
+
+  const userNames = await resolveUserNames([invoice.createdById, invoice.postedById, invoice.voidedById])
 
   // Terbayar/Sisa hanya menghitung pembayaran yang efektif: legacy (tanpa Payment
   // induk) atau Payment induknya sudah posted. Riwayat pembayaran di bawah tetap
@@ -140,6 +144,17 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             dpAmount={invoice.dpAmount}
             lines={invoice.lines}
           />
+
+          <div className="mt-4 pt-4 border-t border-slate-200/60 no-print">
+            <AuditTrail
+              createdByName={invoice.createdById ? (userNames.get(invoice.createdById) ?? null) : null}
+              postedByName={invoice.postedById ? (userNames.get(invoice.postedById) ?? null) : null}
+              postedAt={invoice.postedAt ? invoice.postedAt.toISOString() : null}
+              voidedByName={invoice.voidedById ? (userNames.get(invoice.voidedById) ?? null) : null}
+              voidedAt={invoice.voidedAt ? invoice.voidedAt.toISOString() : null}
+              voidReason={invoice.voidReason}
+            />
+          </div>
         </Card>
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai

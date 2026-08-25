@@ -148,7 +148,7 @@ export async function POST(request: Request) {
 
   const result = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.create({
-      data: { paymentNumber, clientId, accountId, totalAmount, notes, paidAt },
+      data: { paymentNumber, clientId, accountId, totalAmount, notes, paidAt, createdById: user.id },
     })
 
     const kasBankCoaCode = await getAccountCoaCode(tx, accountId)
@@ -191,6 +191,7 @@ export async function POST(request: Request) {
           description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
           paymentId: payment.id,
           occurredAt: paidAt,
+          createdById: user.id,
         },
       })
 
@@ -290,6 +291,7 @@ export async function POST(request: Request) {
           description: `Setor PPN Keluaran - ${paymentNumber}`,
           paymentId: payment.id,
           occurredAt: paidAt,
+          createdById: user.id,
         },
       })
       const settlementJournal = await postJournalEntry(tx, {

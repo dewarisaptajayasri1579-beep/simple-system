@@ -66,6 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           description,
           occurredAt: payment.paidAt,
           paymentId,
+          createdById: user.id,
         },
       })
       const [kasBankCoaCode, expenseCoaCode] = await Promise.all([

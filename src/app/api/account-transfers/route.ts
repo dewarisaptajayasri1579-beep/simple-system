@@ -47,6 +47,7 @@ export async function POST(request: Request) {
           amount,
           description: description || null,
           occurredAt,
+          createdById: user.id,
         },
       })
 

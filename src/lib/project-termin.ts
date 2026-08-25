@@ -34,6 +34,7 @@ export async function generateTerminInvoice(
       totalAmount: schedule.amount,
       revenueCoaCode: COA_CODE.pendapatanProject,
       notes: description,
+      createdById: input.createdBy,
       postStatus: "posted",
       postedAt: new Date(),
       postedById: input.createdBy,

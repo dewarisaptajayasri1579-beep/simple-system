@@ -64,6 +64,7 @@ export async function POST(request: Request) {
           netAmount: grossAmount,
           description: body?.description || null,
           occurredAt: body?.occurredAt ? new Date(body.occurredAt) : undefined,
+          createdById: user.id,
         },
       })
 
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
         bonusAmount: split.bonusAmount,
         description: body?.description || null,
         occurredAt: body?.occurredAt ? new Date(body.occurredAt) : undefined,
+        createdById: user.id,
       },
     })
 

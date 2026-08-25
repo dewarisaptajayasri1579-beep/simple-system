@@ -36,6 +36,7 @@ export interface JurnalEntryRow {
   description: string;
   sourceType: string;
   postStatus: "draft" | "posted" | "voided";
+  createdByName: string | null;
   lines: JurnalLineRow[];
 }
 
@@ -73,10 +74,11 @@ interface DraftLine {
 
 const emptyLine = (): DraftLine => ({ accountId: "", debit: 0, credit: 0, memo: "" });
 
-export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaOption[]; isOwner: boolean }> = ({
+export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaOption[]; isOwner: boolean; currentUserName: string }> = ({
   entries: initialEntries,
   coaAccounts,
   isOwner,
+  currentUserName,
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -152,6 +154,7 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       description: data.description,
       sourceType: data.sourceType,
       postStatus: data.postStatus,
+      createdByName: currentUserName,
       lines: (data.lines as { id: string; accountId: string; debit: number; credit: number; memo: string | null }[]).map((l) => {
         const acc = coaAccounts.find((a) => a.id === l.accountId);
         return { id: l.id, accountCode: acc?.code ?? "", accountName: acc?.name ?? "", debit: l.debit, credit: l.credit, memo: l.memo };
@@ -198,6 +201,7 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       cell: (e) => formatRupiah(e.lines.reduce((s, l) => s + l.debit, 0)),
     },
     { key: "postStatus", header: "Posting", cell: (e) => <StatusBadge type={e.postStatus} size="sm" /> },
+    { key: "createdByName", header: "Dibuat oleh", cellClassName: "text-xs text-slate-500", cell: (e) => e.createdByName ?? "-" },
     {
       key: "aksi",
       header: "Aksi",

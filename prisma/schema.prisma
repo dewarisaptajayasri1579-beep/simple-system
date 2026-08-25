@@ -443,6 +443,11 @@ model Invoice {
   costLinkType String? @map("cost_link_type") // "domain" | "server"
   costLinkId   String? @map("cost_link_id")
 
+  // Siapa yang input invoice ini (beda dari postedById/voidedById di bawah — itu siapa yang
+  // posting/batalkan, bisa orang lain). Nullable karena baris lama (sebelum kolom ini ada) tidak
+  // di-backfill.
+  createdById String? @map("created_by_id")
+
   // Draft -> Posted -> (Voided): efek invoice (masuk Piutang, jurnal HPP kalau ada) baru
   // berlaku setelah posted. Terpisah dari `status` di atas (itu status pelunasan, bukan ini).
   // Voided = salah input setelah posting — dibatalkan (bukan dihapus), efeknya hilang dari
@@ -513,6 +518,9 @@ model Payment {
   notes         String?
   paidAt        DateTime @default(now()) @map("paid_at")
   createdAt     DateTime @default(now()) @map("created_at")
+
+  // Siapa yang input Payment ini — lihat catatan createdById di Invoice.
+  createdById String? @map("created_by_id")
 
   // Draft -> Posted -> (Voided): piutang belum berkurang & saldo kas belum bergerak sampai
   // posted. Voided = dibatalkan setelah posting karena salah input, lihat catatan di Invoice.
@@ -727,6 +735,9 @@ model Transaction {
   occurredAt          DateTime @default(now()) @map("occurred_at")
   createdAt           DateTime @default(now()) @map("created_at")
 
+  // Siapa yang input Transaction ini — lihat catatan createdById di Invoice.
+  createdById String? @map("created_by_id")
+
   // Draft -> Posted -> (Voided): saldo akun belum bergerak sampai posted (lihat
   // computeAccountBalance). Voided = dibatalkan setelah posting, lihat catatan di Invoice.
   postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
@@ -779,6 +790,9 @@ model AccountTransfer {
   description           String?
   occurredAt            DateTime @default(now()) @map("occurred_at")
   createdAt             DateTime @default(now()) @map("created_at")
+
+  // Siapa yang input Pindah Buku ini — lihat catatan createdById di Invoice.
+  createdById String? @map("created_by_id")
 
   postStatus String    @default("draft") @map("post_status") // "draft" | "posted" | "voided"
   postedAt   DateTime? @map("posted_at")
