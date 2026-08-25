@@ -65,6 +65,7 @@ model Session {
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
   @@schema("simple_system")
 }
@@ -212,6 +213,10 @@ model Server {
   period    BillingPeriod? @relation(fields: [periodId], references: [id])
   client    Client?        @relation(fields: [clientId], references: [id])
 
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([cloudTypeId])
+  @@index([periodId])
   @@map("servers")
   @@schema("simple_system")
 }
@@ -237,6 +242,8 @@ model Maintenance {
   client Client         @relation(fields: [clientId], references: [id])
   period BillingPeriod? @relation(fields: [periodId], references: [id])
 
+  @@index([clientId])
+  @@index([periodId])
   @@map("maintenances")
   @@schema("simple_system")
 }
@@ -273,6 +280,7 @@ model BillingFollowUp {
   responses BillingFollowUpResponse[]
 
   @@index([refType, refId])
+  @@index([invoiceId])
   @@map("billing_follow_ups")
   @@schema("simple_system")
 }
@@ -311,6 +319,8 @@ model CpanelAccount {
   package   HostingPackage? @relation(fields: [packageId], references: [id])
   domains   Domain[]
 
+  @@index([cloudTypeId])
+  @@index([packageId])
   @@map("cpanel_accounts")
   @@schema("simple_system")
 }
@@ -337,6 +347,8 @@ model Domain {
   cpanelAccount CpanelAccount? @relation(fields: [cpanelAccountId], references: [id])
   subdomains    Subdomain[]
 
+  @@index([clientId])
+  @@index([cpanelAccountId])
   @@map("domains")
   @@schema("simple_system")
 }
@@ -355,6 +367,8 @@ model Subdomain {
   domain Domain? @relation(fields: [domainId], references: [id])
   client Client? @relation(fields: [clientId], references: [id])
 
+  @@index([domainId])
+  @@index([clientId])
   @@map("subdomains")
   @@schema("simple_system")
 }
@@ -382,6 +396,8 @@ model RecurringBill {
   vendor Vendor?        @relation(fields: [vendorId], references: [id])
   period BillingPeriod? @relation(fields: [periodId], references: [id])
 
+  @@index([vendorId])
+  @@index([periodId])
   @@map("recurring_bills")
   @@schema("simple_system")
 }
@@ -472,6 +488,7 @@ model Invoice {
   payments InvoicePayment[]
   projectPaymentSchedule ProjectPaymentSchedule?
 
+  @@index([clientId])
   @@map("invoices")
   @@schema("simple_system")
 }
@@ -490,6 +507,8 @@ model InvoiceLine {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   item    Item?   @relation(fields: [itemId], references: [id])
 
+  @@index([invoiceId])
+  @@index([itemId])
   @@map("invoice_lines")
   @@schema("simple_system")
 }
@@ -511,6 +530,9 @@ model InvoicePayment {
   payment     Payment?     @relation(fields: [paymentId], references: [id])
   transaction Transaction? @relation(fields: [transactionId], references: [id])
 
+  @@index([invoiceId])
+  @@index([accountId])
+  @@index([paymentId])
   @@map("invoice_payments")
   @@schema("simple_system")
 }
@@ -543,6 +565,8 @@ model Payment {
   account         Account          @relation(fields: [accountId], references: [id])
   invoicePayments InvoicePayment[]
 
+  @@index([clientId])
+  @@index([accountId])
   @@map("payments")
   @@schema("simple_system")
 }
@@ -565,6 +589,7 @@ model Project {
   client    Client                   @relation(fields: [clientId], references: [id])
   schedules ProjectPaymentSchedule[]
 
+  @@index([clientId])
   @@map("projects")
   @@schema("simple_system")
 }
@@ -588,6 +613,7 @@ model ProjectPaymentSchedule {
   project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   invoice Invoice? @relation(fields: [invoiceId], references: [id])
 
+  @@index([projectId])
   @@map("project_payment_schedules")
   @@schema("simple_system")
 }
@@ -613,6 +639,7 @@ model Account {
   transfersOut       AccountTransfer[] @relation("AccountTransferSource")
   transfersIn        AccountTransfer[] @relation("AccountTransferDestination")
 
+  @@index([coaAccountId])
   @@map("accounts")
   @@schema("simple_system")
 }
@@ -626,6 +653,7 @@ model Category {
   transactions Transaction[]
   coaAccount   ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
 
+  @@index([coaAccountId])
   @@map("categories")
   @@schema("simple_system")
 }
@@ -654,6 +682,7 @@ model ChartOfAccount {
   categories   Category[]
   roleAccess   RoleCoaAccess[]
 
+  @@index([parentId])
   @@map("chart_of_accounts")
   @@schema("simple_system")
 }
@@ -701,6 +730,7 @@ model JournalEntry {
   transaction     Transaction?
   accountTransfer AccountTransfer?
 
+  @@index([sourceType, sourceId])
   @@map("journal_entries")
   @@schema("simple_system")
 }
@@ -716,6 +746,8 @@ model JournalLine {
   journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
   account      ChartOfAccount @relation(fields: [accountId], references: [id])
 
+  @@index([journalEntryId])
+  @@index([accountId])
   @@map("journal_lines")
   @@schema("simple_system")
 }
@@ -778,6 +810,10 @@ model Transaction {
   invoicePayment InvoicePayment?
   journalEntry   JournalEntry?   @relation(fields: [journalEntryId], references: [id])
 
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([paymentId])
+  @@index([refType, refId])
   @@map("transactions")
   @@schema("simple_system")
 }
@@ -817,6 +853,8 @@ model AccountTransfer {
   destinationAccount Account      @relation("AccountTransferDestination", fields: [destinationAccountId], references: [id])
   journalEntry       JournalEntry? @relation(fields: [journalEntryId], references: [id])
 
+  @@index([sourceAccountId])
+  @@index([destinationAccountId])
   @@map("account_transfers")
   @@schema("simple_system")
 }
@@ -869,6 +907,8 @@ model WhatsappThread {
 
   @@unique([senderType, userId])
   @@unique([senderType, clientId])
+  @@index([userId])
+  @@index([clientId])
   @@map("whatsapp_threads")
   @@schema("simple_system")
 }
