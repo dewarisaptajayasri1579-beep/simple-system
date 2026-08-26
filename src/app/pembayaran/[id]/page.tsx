@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, Table, TableContainer, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui"
 import { PrintButton } from "@/components/penjualan/PrintButton"
 import { PaymentPostingBar } from "@/components/pembayaran/PaymentPostingBar"
+import { SlottingStatusBar } from "@/components/pembayaran/SlottingStatusBar"
 import { EditablePaymentAccount } from "@/components/pembayaran/EditablePaymentAccount"
 import { EditableInvoicePaymentAmount } from "@/components/pembayaran/EditableInvoicePaymentAmount"
 import { PaymentCostSection } from "@/components/pembayaran/PaymentCostSection"
@@ -46,6 +47,7 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
             },
           },
         },
+        revenueSlot: true,
       },
     }),
     prisma.domain.findMany({ where: { sellPrice: { gt: 0 } }, include: { client: true }, orderBy: { name: "asc" } }),
@@ -109,6 +111,14 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
         </div>
 
         <PaymentPostingBar paymentId={payment.id} postStatus={payment.postStatus as "draft" | "posted" | "voided"} sources={journalSources} />
+
+        {payment.revenueSlot && (
+          <SlottingStatusBar
+            revenueSlotId={payment.revenueSlot.id}
+            status={payment.revenueSlot.status as "draft" | "processed" | "skipped"}
+            isOwner={user.role === "owner"}
+          />
+        )}
 
         {/* Tampilan layar — dilihat staf sehari-hari, tidak ikut tercetak (lihat KwitansiPrintable
            di bawah buat format yang benar-benar keluar di kertas). */}

@@ -12,7 +12,11 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
   const [clients, recentPayments] = await Promise.all([
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, isPemungutPpn: true } }),
     prisma.payment.findMany({
-      include: { client: true, invoicePayments: { include: { invoice: { select: { invoiceNumber: true } } } } },
+      include: {
+        client: true,
+        invoicePayments: { include: { invoice: { select: { invoiceNumber: true } } } },
+        revenueSlot: { select: { status: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 500, // batas aman — sama alasan dengan Invoice, lihat catatan di penjualan/page.tsx
     }),
@@ -43,6 +47,7 @@ export default async function PembayaranPage({ searchParams }: { searchParams: P
                 totalAmount: p.totalAmount,
                 postStatus: p.postStatus as "draft" | "posted" | "voided",
                 invoiceNumbers: p.invoicePayments.map((ip) => ip.invoice.invoiceNumber),
+                splitStatus: (p.revenueSlot?.status as "draft" | "processed" | "skipped" | undefined) ?? null,
               }))}
             />
           </Card>

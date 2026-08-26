@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { FilterableTable, type FilterableColumn } from "@/components/ui"
+import { Badge, FilterableTable, type FilterableColumn } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 
 export interface PaymentHistoryRow {
@@ -12,6 +12,13 @@ export interface PaymentHistoryRow {
   totalAmount: number
   postStatus: "draft" | "posted" | "voided"
   invoiceNumbers: string[]
+  splitStatus: "draft" | "processed" | "skipped" | null
+}
+
+const SPLIT_BADGE: Record<NonNullable<PaymentHistoryRow["splitStatus"]>, { label: string; variant: "warning" | "success" | "secondary" }> = {
+  draft: { label: "Belum Split", variant: "warning" },
+  processed: { label: "Sudah Split", variant: "success" },
+  skipped: { label: "Tidak Split", variant: "secondary" },
 }
 
 function formatRupiah(amount: number) {
@@ -57,6 +64,12 @@ export const PaymentHistoryTable: React.FC<{ rows: PaymentHistoryRow[] }> = ({ r
       filterValue: (p) => p.postStatus,
       filterOptions: POSTING_FILTER_OPTIONS,
       cell: (p) => <StatusBadge type={p.postStatus} size="sm" />,
+    },
+    {
+      key: "splitStatus",
+      header: "Split",
+      filterValue: (p) => (p.splitStatus ? SPLIT_BADGE[p.splitStatus].label : "-"),
+      cell: (p) => (p.splitStatus ? <Badge variant={SPLIT_BADGE[p.splitStatus].variant} size="sm">{SPLIT_BADGE[p.splitStatus].label}</Badge> : <span className="text-slate-400">-</span>),
     },
   ]
 

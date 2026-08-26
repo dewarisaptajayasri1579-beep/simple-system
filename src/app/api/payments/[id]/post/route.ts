@@ -36,6 +36,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       await finalizeTransactionPosting(tx, { transactionId: t.id, postedById: user.id })
     }
 
+    // "Slotting Omset" — draft otomatis begitu payment ini posted, supaya langsung antre di menu
+    // Keuangan > Slotting Omset untuk direview/diproses staf. initialCostAmount = SUM(cost) semua
+    // Transaction payment ini (HPP + proporsi PPN yang sudah dipotong saat pembayaran diinput,
+    // lihat computeSplit di payments/route.ts) — bukan cuma HPP murni, tapi basis yang sama
+    // dipakai netAmount Transaction, supaya konsisten dengan yang staf lihat di sana.
+    await tx.revenueSlot.create({
+      data: {
+        paymentId: id,
+        grossAmount: payment.totalAmount,
+        initialCostAmount: draftTransactions.reduce((sum, t) => sum + t.cost, 0),
+      },
+    })
+
     // Tandai payment lebih dulu agar query total pembayaran di bawah ikut menghitung
     // payment ini. Sebelumnya update ini dilakukan setelah perhitungan sehingga payment
     // yang baru diposting masih berstatus draft dan invoice keliru tetap "unpaid".

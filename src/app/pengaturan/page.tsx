@@ -26,6 +26,7 @@ export default async function PengaturanPage() {
     servers,
     maintenances,
     cpanelAccounts,
+    accounts,
   ] = await Promise.all([
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
@@ -43,6 +44,7 @@ export default async function PengaturanPage() {
     prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true, client: true }, orderBy: { name: "asc" } }),
     prisma.maintenance.findMany({ include: { client: true, period: true }, orderBy: { name: "asc" } }),
     prisma.cpanelAccount.findMany({ include: { cloudType: true, package: true }, orderBy: { name: "asc" } }),
+    prisma.account.findMany({ orderBy: { name: "asc" } }),
   ])
 
   return (
@@ -93,6 +95,15 @@ export default async function PengaturanPage() {
             paymentBankNameNonPpn: settings.paymentBankNameNonPpn,
             paymentAccountNameNonPpn: settings.paymentAccountNameNonPpn,
             paymentAccountNumberNonPpn: settings.paymentAccountNumberNonPpn,
+            slottingOperasionalPct: settings.slottingOperasionalPct,
+            slottingDireksiPct: settings.slottingDireksiPct,
+            slottingBonusPct: settings.slottingBonusPct,
+            slottingHppReservePct: settings.slottingHppReservePct,
+            slottingOperasionalAccountId: settings.slottingOperasionalAccountId,
+            slottingDireksiAccountId: settings.slottingDireksiAccountId,
+            slottingBonusAccountId: settings.slottingBonusAccountId,
+            slottingHppReserveAccountId: settings.slottingHppReserveAccountId,
+            slottingTransferFee: settings.slottingTransferFee,
           }}
           users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber, modules: u.modules }))}
           domains={domains.map((d) => ({
@@ -118,6 +129,7 @@ export default async function PengaturanPage() {
             subscriptionStart: m.subscriptionStart ? m.subscriptionStart.toISOString() : null,
           }))}
           cpanelAccounts={cpanelAccounts}
+          accounts={accounts}
         />
       </div>
     </AppLayout>

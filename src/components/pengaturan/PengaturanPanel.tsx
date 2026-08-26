@@ -39,6 +39,20 @@ export interface SettingsData {
   paymentBankNameNonPpn: string | null;
   paymentAccountNameNonPpn: string | null;
   paymentAccountNumberNonPpn: string | null;
+  slottingOperasionalPct: number;
+  slottingDireksiPct: number;
+  slottingBonusPct: number;
+  slottingHppReservePct: number;
+  slottingOperasionalAccountId: string | null;
+  slottingDireksiAccountId: string | null;
+  slottingBonusAccountId: string | null;
+  slottingHppReserveAccountId: string | null;
+  slottingTransferFee: number;
+}
+
+export interface AccountOption {
+  id: string;
+  name: string;
 }
 
 export interface UserRow {
@@ -102,6 +116,7 @@ export const PengaturanPanel: React.FC<{
   servers: ServerRow[];
   maintenances: MaintenanceRow[];
   cpanelAccounts: CpanelAccountRow[];
+  accounts: AccountOption[];
 }> = ({
   userRole,
   settings,
@@ -117,6 +132,7 @@ export const PengaturanPanel: React.FC<{
   servers,
   maintenances,
   cpanelAccounts,
+  accounts,
 }) => {
   const router = useRouter();
   const isOwner = userRole === "owner";
@@ -147,6 +163,15 @@ export const PengaturanPanel: React.FC<{
   const [paymentBankNameNonPpn, setPaymentBankNameNonPpn] = useState(settings.paymentBankNameNonPpn ?? "");
   const [paymentAccountNameNonPpn, setPaymentAccountNameNonPpn] = useState(settings.paymentAccountNameNonPpn ?? "");
   const [paymentAccountNumberNonPpn, setPaymentAccountNumberNonPpn] = useState(settings.paymentAccountNumberNonPpn ?? "");
+  const [slottingOperasionalPct, setSlottingOperasionalPct] = useState(settings.slottingOperasionalPct);
+  const [slottingDireksiPct, setSlottingDireksiPct] = useState(settings.slottingDireksiPct);
+  const [slottingBonusPct, setSlottingBonusPct] = useState(settings.slottingBonusPct);
+  const [slottingHppReservePct, setSlottingHppReservePct] = useState(settings.slottingHppReservePct);
+  const [slottingOperasionalAccountId, setSlottingOperasionalAccountId] = useState(settings.slottingOperasionalAccountId ?? "");
+  const [slottingDireksiAccountId, setSlottingDireksiAccountId] = useState(settings.slottingDireksiAccountId ?? "");
+  const [slottingBonusAccountId, setSlottingBonusAccountId] = useState(settings.slottingBonusAccountId ?? "");
+  const [slottingHppReserveAccountId, setSlottingHppReserveAccountId] = useState(settings.slottingHppReserveAccountId ?? "");
+  const [slottingTransferFee, setSlottingTransferFee] = useState(settings.slottingTransferFee);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -161,11 +186,16 @@ export const PengaturanPanel: React.FC<{
   const [userMessage, setUserMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const totalPct = operasionalPct + direksiPct + bonusPct;
+  const slottingTotalPct = slottingOperasionalPct + slottingDireksiPct + slottingBonusPct + slottingHppReservePct;
 
   const handleSaveSettings = async () => {
     setSettingsMessage(null);
     if (Math.abs(totalPct - 100) > 0.01) {
       setSettingsMessage({ type: "error", text: "Total persentase split harus 100%" });
+      return;
+    }
+    if (Math.abs(slottingTotalPct - 100) > 0.01) {
+      setSettingsMessage({ type: "error", text: "Total persentase Slotting Omset harus 100%" });
       return;
     }
     setIsSavingSettings(true);
@@ -184,6 +214,15 @@ export const PengaturanPanel: React.FC<{
         paymentBankNameNonPpn,
         paymentAccountNameNonPpn,
         paymentAccountNumberNonPpn,
+        slottingOperasionalPct,
+        slottingDireksiPct,
+        slottingBonusPct,
+        slottingHppReservePct,
+        slottingOperasionalAccountId,
+        slottingDireksiAccountId,
+        slottingBonusAccountId,
+        slottingHppReserveAccountId,
+        slottingTransferFee,
       }),
     });
     const data = await res.json();
@@ -425,6 +464,61 @@ export const PengaturanPanel: React.FC<{
                 placeholder="mis. 015 485 3711"
               />
             </div>
+          </div>
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-slate-200/60">
+          <p className="font-bold text-sm text-slate-800">Slotting Omset</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Pembagian Laba Bersih tiap Payment (Uang Masuk - HPP) ke 4 rekening lewat Pindah Buku otomatis — lihat menu Keuangan &gt; Slotting Omset.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+            <Input label="Operasional %" type="number" value={slottingOperasionalPct} onChange={(e) => setSlottingOperasionalPct(Number(e.target.value) || 0)} />
+            <Input label="Direksi %" type="number" value={slottingDireksiPct} onChange={(e) => setSlottingDireksiPct(Number(e.target.value) || 0)} />
+            <Input label="Bonus %" type="number" value={slottingBonusPct} onChange={(e) => setSlottingBonusPct(Number(e.target.value) || 0)} />
+            <Input label="Cadangan HPP %" type="number" value={slottingHppReservePct} onChange={(e) => setSlottingHppReservePct(Number(e.target.value) || 0)} />
+          </div>
+          <p className={`text-sm font-semibold mt-3 ${Math.abs(slottingTotalPct - 100) > 0.01 ? "text-rose-600" : "text-emerald-600"}`}>
+            Total: {slottingTotalPct}%
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            <Select
+              label="Rekening Operasional"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              value={slottingOperasionalAccountId}
+              onChange={setSlottingOperasionalAccountId}
+              placeholder="Pilih akun"
+            />
+            <Select
+              label="Rekening Direksi"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              value={slottingDireksiAccountId}
+              onChange={setSlottingDireksiAccountId}
+              placeholder="Pilih akun"
+            />
+            <Select
+              label="Rekening Bonus"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              value={slottingBonusAccountId}
+              onChange={setSlottingBonusAccountId}
+              placeholder="Pilih akun"
+            />
+            <Select
+              label="Rekening Cadangan HPP"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              value={slottingHppReserveAccountId}
+              onChange={setSlottingHppReserveAccountId}
+              placeholder="Pilih akun"
+            />
+          </div>
+          <div className="mt-4 max-w-xs">
+            <Input
+              label="Biaya Admin Transfer Antar Bank (Rp)"
+              type="number"
+              value={slottingTransferFee}
+              onChange={(e) => setSlottingTransferFee(Number(e.target.value) || 0)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Otomatis dipotong dari nominal transfer kalau rekening sumber & tujuan beda bank.</p>
           </div>
         </div>
 

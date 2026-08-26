@@ -586,6 +586,7 @@ model Payment {
   client          Client           @relation(fields: [clientId], references: [id])
   account         Account          @relation(fields: [accountId], references: [id])
   invoicePayments InvoicePayment[]
+  revenueSlot     RevenueSlot?
 
   @@index([clientId])
   @@index([accountId])
@@ -660,6 +661,13 @@ model Account {
   coaAccount         ChartOfAccount?   @relation(fields: [coaAccountId], references: [id])
   transfersOut       AccountTransfer[] @relation("AccountTransferSource")
   transfersIn        AccountTransfer[] @relation("AccountTransferDestination")
+
+  // Akun ini dipilih sebagai salah satu dari 4 tujuan Slotting Omset di Settings (0-1 baris
+  // masing-masing, karena Settings singleton) — lihat catatan di model Settings/RevenueSlot.
+  slottingOperasionalFor Settings? @relation("SlottingOperasionalAccount")
+  slottingDireksiFor     Settings? @relation("SlottingDireksiAccount")
+  slottingBonusFor       Settings? @relation("SlottingBonusAccount")
+  slottingHppReserveFor  Settings? @relation("SlottingHppReserveAccount")
 
   @@index([coaAccountId])
   @@map("accounts")
@@ -871,12 +879,19 @@ model AccountTransfer {
   // bareng record ini, bukan lookup by sourceType+sourceId.
   journalEntryId String? @unique @map("journal_entry_id")
 
+  // Terisi kalau AccountTransfer ini dibuat otomatis oleh proses "Slotting Omset" (bukan Pindah
+  // Buku manual biasa) — lihat model RevenueSlot. Nullable karena mayoritas AccountTransfer
+  // tetap manual.
+  revenueSlotId String? @map("revenue_slot_id")
+
   sourceAccount      Account      @relation("AccountTransferSource", fields: [sourceAccountId], references: [id])
   destinationAccount Account      @relation("AccountTransferDestination", fields: [destinationAccountId], references: [id])
   journalEntry       JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  revenueSlot        RevenueSlot? @relation(fields: [revenueSlotId], references: [id])
 
   @@index([sourceAccountId])
   @@index([destinationAccountId])
+  @@index([revenueSlotId])
   @@map("account_transfers")
   @@schema("simple_system")
 }
@@ -898,9 +913,98 @@ model Settings {
   paymentAccountNameNonPpn   String? @map("payment_account_name_non_ppn")
   paymentAccountNumberNonPpn String? @map("payment_account_number_non_ppn")
 
+  // ---- Slotting Omset — pembagian Laba Bersih Project (Uang Masuk - HPP) ke 4 rekening tujuan,
+  // TERPISAH dari operasionalPct/direksiPct/bonusPct di atas (itu split lama per-baris pembayaran,
+  // tanpa cadangan HPP, tidak pernah memindahkan uang beneran). Total 4 persentase di bawah harus
+  // 100 (divalidasi di PATCH /api/settings). Akun tujuan nullable — "Proses" di menu Slotting
+  // Omset ditolak kalau ada yang belum di-set.
+  slottingOperasionalPct       Float   @default(40) @map("slotting_operasional_pct")
+  slottingDireksiPct           Float   @default(40) @map("slotting_direksi_pct")
+  slottingBonusPct             Float   @default(5)  @map("slotting_bonus_pct")
+  slottingHppReservePct        Float   @default(15) @map("slotting_hpp_reserve_pct")
+  slottingOperasionalAccountId String? @unique @map("slotting_operasional_account_id")
+  slottingDireksiAccountId     String? @unique @map("slotting_direksi_account_id")
+  slottingBonusAccountId       String? @unique @map("slotting_bonus_account_id")
+  slottingHppReserveAccountId  String? @unique @map("slotting_hpp_reserve_account_id")
+  // Biaya admin bank otomatis kalau akun sumber & tujuan beda bank (dipotong dari nominal yang
+  // ditransfer, dicatat terpisah sebagai Transaction beban "Biaya Admin Bank" dari akun sumber).
+  slottingTransferFee          Float   @default(2500) @map("slotting_transfer_fee")
+
   updatedAt         DateTime @updatedAt @map("updated_at")
 
+  slottingOperasionalAccount Account? @relation("SlottingOperasionalAccount", fields: [slottingOperasionalAccountId], references: [id])
+  slottingDireksiAccount     Account? @relation("SlottingDireksiAccount", fields: [slottingDireksiAccountId], references: [id])
+  slottingBonusAccount       Account? @relation("SlottingBonusAccount", fields: [slottingBonusAccountId], references: [id])
+  slottingHppReserveAccount  Account? @relation("SlottingHppReserveAccount", fields: [slottingHppReserveAccountId], references: [id])
+
   @@map("settings")
+  @@schema("simple_system")
+}
+
+/// "Slotting Omset" — pembagian Laba Bersih 1 Payment (Uang Masuk - HPP yang sudah diinput -
+/// biaya tambahan) ke 4 rekening tujuan (Operasional/Direksi/Bonus/Cadangan HPP), dieksekusi
+/// lewat Pindah Buku (AccountTransfer) otomatis. Dibuat draft OTOMATIS begitu Payment
+/// diposting (lihat POST /api/payments/[id]/post) — staf review & boleh tambah baris biaya dulu
+/// (kalau ternyata ada biaya lain di luar yang sudah diinput saat pembayaran) sebelum klik
+/// "Proses". 1 Payment cuma boleh punya 1 RevenueSlot (unique paymentId).
+model RevenueSlot {
+  id                    String    @id @default(uuid())
+  paymentId             String    @unique @map("payment_id")
+  // Disalin dari Payment.totalAmount saat draft dibuat — sengaja disalin (bukan selalu
+  // dereference ulang ke Payment), sama pola dengan Transaction.grossAmount, supaya tetap akurat
+  // walau ada perubahan lain di kemudian hari.
+  grossAmount           Float     @map("gross_amount")
+  // SUM(Transaction.cost) dari semua Transaction terkait Payment ini — HPP (+ proporsi PPN) yang
+  // SUDAH dipotong saat pembayaran diinput (lihat computeSplit di payments/route.ts). Bukan cuma
+  // HPP murni, tapi itu juga basis yang sama dipakai netAmount Transaction, supaya konsisten.
+  initialCostAmount     Float     @map("initial_cost_amount")
+  // Cache SUM(costLines.amount) — dihitung ulang tiap baris biaya ditambah/dihapus, supaya list
+  // tidak perlu agregat ulang tiap render.
+  additionalCostAmount  Float     @default(0) @map("additional_cost_amount")
+  // netAmount & split amounts semuanya NULL sampai "Proses" (status masih draft) — dihitung FINAL
+  // saat itu juga (bukan live di draft), supaya kalau baris biaya masih berubah-ubah, angka lama
+  // tidak menyesatkan.
+  netAmount             Float?    @map("net_amount")
+  operasionalPct        Float?    @map("operasional_pct")
+  direksiPct            Float?    @map("direksi_pct")
+  bonusPct              Float?    @map("bonus_pct")
+  hppReservePct         Float?    @map("hpp_reserve_pct")
+  operasionalAmount     Float?    @map("operasional_amount")
+  direksiAmount         Float?    @map("direksi_amount")
+  bonusAmount           Float?    @map("bonus_amount")
+  hppReserveAmount      Float?    @map("hpp_reserve_amount")
+  transferFeeTotal      Float?    @map("transfer_fee_total")
+  status                String    @default("draft") @map("status") // "draft" | "processed" | "skipped"
+  createdAt             DateTime  @default(now()) @map("created_at")
+  // Kapan draft ini "selesai" — baik lewat Proses (status=processed, transfer beneran dibuat)
+  // maupun ditandai Tidak Split (status=skipped, sengaja tidak ada transfer sama sekali, mis.
+  // payment internal/non-project yang tidak perlu dibagi). Nama field tetap "processed" biar
+  // konsisten histori (bukan berarti proses split terjadi kalau statusnya skipped).
+  processedAt           DateTime? @map("processed_at")
+  processedById         String?   @map("processed_by_id")
+
+  payment   Payment               @relation(fields: [paymentId], references: [id])
+  costLines RevenueSlotCostLine[]
+  transfers AccountTransfer[]
+
+  @@index([status])
+  @@map("revenue_slots")
+  @@schema("simple_system")
+}
+
+/// Baris biaya TAMBAHAN yang ditemukan staf saat proses Slotting Omset (di luar biaya yang
+/// sudah diinput saat pembayaran) — bisa lebih dari 1 baris, bebas deskripsi bebas.
+model RevenueSlotCostLine {
+  id            String   @id @default(uuid())
+  revenueSlotId String   @map("revenue_slot_id")
+  description   String
+  amount        Float
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  revenueSlot RevenueSlot @relation(fields: [revenueSlotId], references: [id], onDelete: Cascade)
+
+  @@index([revenueSlotId])
+  @@map("revenue_slot_cost_lines")
   @@schema("simple_system")
 }
 

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription } from "@/components/ui";
-import { ArrowUpRight, ArrowDownLeft, Wallet, Tags, ArrowLeftRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Wallet, Tags, ArrowLeftRight, PieChart } from "lucide-react";
 
 /** Halaman induk Keuangan — tiap kartu navigasi ke halaman riwayat + tambah entri sendiri,
  *  bukan modal di tempat, supaya histori pembayaran per kategori langsung kelihatan. Bayar
@@ -49,6 +49,14 @@ export const KeuanganPanel: React.FC = () => {
       description: "Pindahkan saldo antar akun kas/bank sendiri",
       href: "/keuangan/pindah-buku",
       accent: "text-violet-600 bg-violet-50",
+    },
+    {
+      key: "slotting-omset",
+      icon: <PieChart className="w-6 h-6" />,
+      title: "Slotting Omset",
+      description: "Bagi Laba Bersih tiap pembayaran ke Operasional/Direksi/Bonus/Cadangan HPP",
+      href: "/keuangan/slotting-omset",
+      accent: "text-indigo-600 bg-indigo-50",
     },
   ];
 
