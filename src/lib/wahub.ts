@@ -1,6 +1,12 @@
 const WAHUB_BASE_URL = process.env.WAHUB_BASE_URL
 const WAHUB_API_KEY = process.env.WAHUB_API_KEY
 
+// Instance WAHUB TERPISAH khusus modul Marketing (backend-wahub-dewari, beda dari instance
+// WAHUB_BASE_URL/WAHUB_API_KEY di atas yang dipakai Director Assistant) — sengaja dedicated,
+// bukan numpang, supaya traffic per-Sales sama sekali tidak bersinggungan sama sesi AI Agent.
+const MARKETING_WAHUB_BASE_URL = process.env.MARKETING_WAHUB_BASE_URL
+const MARKETING_WAHUB_API_KEY = process.env.MARKETING_WAHUB_API_KEY
+
 /** Ubah nomor lokal (08...) jadi format internasional (62...) yang dipakai WAHUB. */
 export function normalizePhoneNumber(raw: string) {
   const digits = raw.replace(/[^0-9]/g, "")
@@ -55,23 +61,26 @@ export async function sendWhatsappImage(rawNumber: string, mediaUrl: string, cap
 }
 
 // ---------------------------------------------------------------------------
-// Session per-Sales (modul Marketing) — WAHUB TIDAK butuh API key terpisah per Sales, cukup
-// WAHUB_API_KEY yang sama di atas + `sessionId` lokal unik per Sales (mis. "sales-{userId}").
-// WAHUB auto-prefix jadi "{clientId}-{sessionId}" dan tiap session punya webhookUrl SENDIRI
-// (disimpan per-sessionId di WAHUB) — aman berdampingan dengan session "default" AI Agent di
-// atas. Lihat docs/01-project-overview.md §10.3 & docs/04-database.md §11.1.
+// Session per-Sales (modul Marketing) — pakai MARKETING_WAHUB_BASE_URL/MARKETING_WAHUB_API_KEY
+// (instance WAHUB terpisah, backend-wahub-dewari), BUKAN WAHUB_BASE_URL/WAHUB_API_KEY di atas
+// (itu tetap punya Director Assistant). Dalam SATU instance Marketing ini sendiri, 1 client key
+// bisa punya banyak session sekaligus, dibedakan `sessionId` lokal unik per Sales (mis.
+// "sales-{userId}") — WAHUB auto-prefix jadi "{clientId}-{sessionId}", tiap session punya
+// webhookUrl SENDIRI. Lihat docs/01-project-overview.md §10.3 & docs/04-database.md §11.1.
 // ---------------------------------------------------------------------------
 
-function requireWahubEnv() {
-  if (!WAHUB_BASE_URL || !WAHUB_API_KEY) throw new Error("WAHUB_BASE_URL / WAHUB_API_KEY belum di-set")
+function requireMarketingWahubEnv() {
+  if (!MARKETING_WAHUB_BASE_URL || !MARKETING_WAHUB_API_KEY) {
+    throw new Error("MARKETING_WAHUB_BASE_URL / MARKETING_WAHUB_API_KEY belum di-set")
+  }
 }
 
 /** Mulai (atau no-op kalau sudah jalan) session WAHUB baru untuk 1 Sales. */
 export async function startWahubSession(sessionId: string, webhookUrl: string) {
-  requireWahubEnv()
-  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/start`, {
+  requireMarketingWahubEnv()
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/sessions/start`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": WAHUB_API_KEY! },
+    headers: { "Content-Type": "application/json", "x-api-key": MARKETING_WAHUB_API_KEY! },
     body: JSON.stringify({ sessionId, webhookUrl }),
   })
   if (!res.ok) {
@@ -83,9 +92,9 @@ export async function startWahubSession(sessionId: string, webhookUrl: string) {
 
 /** Status koneksi session: "starting" | "qr_ready" | "ready" | "failed" (dari WAHUB). */
 export async function getWahubSessionStatus(sessionId: string) {
-  requireWahubEnv()
-  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/status/${encodeURIComponent(sessionId)}`, {
-    headers: { "x-api-key": WAHUB_API_KEY! },
+  requireMarketingWahubEnv()
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/sessions/status/${encodeURIComponent(sessionId)}`, {
+    headers: { "x-api-key": MARKETING_WAHUB_API_KEY! },
   })
   if (res.status === 404) return null
   if (!res.ok) {
@@ -99,9 +108,9 @@ export async function getWahubSessionStatus(sessionId: string) {
  *  polos supaya gampang dipakai langsung di <img src=...> React. Null kalau QR belum tersedia
  *  (mis. status belum "qr_ready"). */
 export async function getWahubSessionQrDataUrl(sessionId: string) {
-  requireWahubEnv()
-  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/qr/${encodeURIComponent(sessionId)}`, {
-    headers: { "x-api-key": WAHUB_API_KEY! },
+  requireMarketingWahubEnv()
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/sessions/qr/${encodeURIComponent(sessionId)}`, {
+    headers: { "x-api-key": MARKETING_WAHUB_API_KEY! },
   })
   if (res.status === 404) return null
   if (!res.ok) {
@@ -115,10 +124,10 @@ export async function getWahubSessionQrDataUrl(sessionId: string) {
 
 /** Logout — memutus koneksi WhatsApp session ini (Sales perlu scan ulang kalau mau connect lagi). */
 export async function logoutWahubSession(sessionId: string) {
-  requireWahubEnv()
-  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/logout/${encodeURIComponent(sessionId)}`, {
+  requireMarketingWahubEnv()
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/sessions/logout/${encodeURIComponent(sessionId)}`, {
     method: "POST",
-    headers: { "x-api-key": WAHUB_API_KEY! },
+    headers: { "x-api-key": MARKETING_WAHUB_API_KEY! },
   })
   if (!res.ok) {
     const text = await res.text().catch(() => "")
@@ -129,11 +138,11 @@ export async function logoutWahubSession(sessionId: string) {
 
 /** Kirim pesan teks dari session Sales tertentu (bukan session "default" AI Agent). */
 export async function sendWhatsappMessageFromSession(sessionId: string, rawNumber: string, message: string) {
-  requireWahubEnv()
+  requireMarketingWahubEnv()
   const number = rawNumber.includes("@") ? rawNumber : normalizePhoneNumber(rawNumber)
-  const res = await fetch(`${WAHUB_BASE_URL}/api/messages/send`, {
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/messages/send`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": WAHUB_API_KEY! },
+    headers: { "Content-Type": "application/json", "x-api-key": MARKETING_WAHUB_API_KEY! },
     body: JSON.stringify({ sessionId, number, message }),
   })
   if (!res.ok) {
