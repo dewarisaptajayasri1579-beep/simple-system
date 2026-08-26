@@ -54,6 +54,95 @@ export async function sendWhatsappImage(rawNumber: string, mediaUrl: string, cap
   return res.json() as Promise<{ success: boolean }>
 }
 
+// ---------------------------------------------------------------------------
+// Session per-Sales (modul Marketing) — WAHUB TIDAK butuh API key terpisah per Sales, cukup
+// WAHUB_API_KEY yang sama di atas + `sessionId` lokal unik per Sales (mis. "sales-{userId}").
+// WAHUB auto-prefix jadi "{clientId}-{sessionId}" dan tiap session punya webhookUrl SENDIRI
+// (disimpan per-sessionId di WAHUB) — aman berdampingan dengan session "default" AI Agent di
+// atas. Lihat docs/01-project-overview.md §10.3 & docs/04-database.md §11.1.
+// ---------------------------------------------------------------------------
+
+function requireWahubEnv() {
+  if (!WAHUB_BASE_URL || !WAHUB_API_KEY) throw new Error("WAHUB_BASE_URL / WAHUB_API_KEY belum di-set")
+}
+
+/** Mulai (atau no-op kalau sudah jalan) session WAHUB baru untuk 1 Sales. */
+export async function startWahubSession(sessionId: string, webhookUrl: string) {
+  requireWahubEnv()
+  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": WAHUB_API_KEY! },
+    body: JSON.stringify({ sessionId, webhookUrl }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal mulai session (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ message: string }>
+}
+
+/** Status koneksi session: "starting" | "qr_ready" | "ready" | "failed" (dari WAHUB). */
+export async function getWahubSessionStatus(sessionId: string) {
+  requireWahubEnv()
+  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/status/${encodeURIComponent(sessionId)}`, {
+    headers: { "x-api-key": WAHUB_API_KEY! },
+  })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal cek status (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ sessionId: string; status: string }>
+}
+
+/** QR code buat scan — WAHUB balikin HTML `<img src="data:...">`, di sini di-parse jadi data URL
+ *  polos supaya gampang dipakai langsung di <img src=...> React. Null kalau QR belum tersedia
+ *  (mis. status belum "qr_ready"). */
+export async function getWahubSessionQrDataUrl(sessionId: string) {
+  requireWahubEnv()
+  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/qr/${encodeURIComponent(sessionId)}`, {
+    headers: { "x-api-key": WAHUB_API_KEY! },
+  })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal ambil QR (${res.status}): ${text.slice(0, 200)}`)
+  }
+  const html = await res.text()
+  const match = html.match(/src="([^"]+)"/)
+  return match?.[1] ?? null
+}
+
+/** Logout — memutus koneksi WhatsApp session ini (Sales perlu scan ulang kalau mau connect lagi). */
+export async function logoutWahubSession(sessionId: string) {
+  requireWahubEnv()
+  const res = await fetch(`${WAHUB_BASE_URL}/api/sessions/logout/${encodeURIComponent(sessionId)}`, {
+    method: "POST",
+    headers: { "x-api-key": WAHUB_API_KEY! },
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal logout (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ success: boolean }>
+}
+
+/** Kirim pesan teks dari session Sales tertentu (bukan session "default" AI Agent). */
+export async function sendWhatsappMessageFromSession(sessionId: string, rawNumber: string, message: string) {
+  requireWahubEnv()
+  const number = rawNumber.includes("@") ? rawNumber : normalizePhoneNumber(rawNumber)
+  const res = await fetch(`${WAHUB_BASE_URL}/api/messages/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": WAHUB_API_KEY! },
+    body: JSON.stringify({ sessionId, number, message }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal kirim (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ success: boolean }>
+}
+
 /** Daftarkan ulang webhook sesi WAHUB milik simple-system — dipanggil tiap kali server start
  *  (lihat instrumentation.ts).
  *  PENTING: sesi WAHUB cuma bisa punya SATU webhookUrl aktif. Sejak simple-system ikut memakai

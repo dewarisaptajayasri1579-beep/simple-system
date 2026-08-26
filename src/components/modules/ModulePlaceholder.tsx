@@ -8,7 +8,11 @@ import { ModuleLogoutButton } from "@/components/modules/ModuleLogoutButton"
 /** Shell sementara buat modul baru (Marketing/Monitoring) yang belum ada fitur/isinya — dipakai
  *  sampai halaman-halaman asli modul itu dibangun. Begitu modul itu punya layout/sidebar sendiri,
  *  ganti pemakaian ini, jangan dikembangin jadi layout permanen. */
-export const ModulePlaceholder: React.FC<{ moduleTitle: string; description: string }> = ({ moduleTitle, description }) => {
+export const ModulePlaceholder: React.FC<{
+  moduleTitle: string
+  description: string
+  action?: { href: string; label: string }
+}> = ({ moduleTitle, description, action }) => {
   return (
     <div className="min-h-screen w-full bg-app-mesh flex flex-col p-4 sm:p-6 lg:p-8 font-sans">
       <div className="flex items-center justify-between">
@@ -28,6 +32,14 @@ export const ModulePlaceholder: React.FC<{ moduleTitle: string; description: str
           </div>
           <h1 className="text-xl font-black text-slate-900">{moduleTitle}</h1>
           <p className="text-sm text-slate-600 font-medium">{description}</p>
+          {action && (
+            <Link
+              href={action.href}
+              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-bold hover:bg-blue-800 transition-colors"
+            >
+              {action.label}
+            </Link>
+          )}
         </Card>
       </main>
     </div>

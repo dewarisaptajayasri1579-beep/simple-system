@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "migrate:legacy": "tsx scripts/migrate-legacy.ts",
     "migrate:legacy-sales": "tsx scripts/migrate-legacy-sales.ts",
-    "seed:owner": "tsx prisma/seed.ts"
+    "seed:owner": "tsx prisma/seed.ts",
+    "seed:marketing": "tsx scripts/seed-marketing.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
