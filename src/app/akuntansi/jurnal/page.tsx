@@ -16,7 +16,9 @@ export default async function JurnalPage() {
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: 300,
     }),
-    prisma.chartOfAccount.findMany({ orderBy: { code: "asc" } }),
+    // Cuma akun non-parent (leaf) & aktif yang boleh dipilih di baris jurnal — akun parent
+    // (mis. "1-0000 Aset") cuma wadah pengelompokan, tidak boleh nampung mutasi langsung.
+    prisma.chartOfAccount.findMany({ where: { isParent: false, isActive: true }, orderBy: { code: "asc" } }),
   ])
   const userNames = await resolveUserNames(entries.map((e) => e.createdBy))
 

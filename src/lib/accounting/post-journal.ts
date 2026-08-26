@@ -46,6 +46,12 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
   const accountByCode = new Map(accounts.map((a) => [a.code, a]))
   const accountById = new Map(accounts.map((a) => [a.id, a]))
 
+  // Akun parent cuma wadah pengelompokan (mis. "1-0000 Aset") — tidak boleh nampung mutasi
+  // langsung DARI PILIHAN MANUAL (form jurnal, accountId). Sengaja TIDAK divalidasi untuk jalur
+  // accountCode (rule auto-posting) — getAccountCoaCode() di coa-lookup.ts sengaja fallback ke
+  // COA_CODE.kasBankParent ("1-1000") kalau sebuah Account kas/bank belum dipetakan granular ke
+  // anak akunnya, supaya posting otomatis tetap jalan; melarangnya di sini akan bikin
+  // pembayaran/transaksi gagal posting untuk akun yang belum sempat dipetakan.
   const resolveAccountId = (line: JournalLineInput): string => {
     if (line.accountCode) {
       const account = accountByCode.get(line.accountCode)
@@ -55,6 +61,7 @@ export async function postJournalEntry(tx: TxClient, input: PostJournalInput) {
     if (line.accountId) {
       const account = accountById.get(line.accountId)
       if (!account) throw new Error(`Akun COA dengan id "${line.accountId}" tidak ditemukan`)
+      if (account.isParent) throw new Error(`Akun "${account.code} — ${account.name}" adalah akun parent, tidak bisa dipakai langsung di jurnal`)
       return account.id
     }
     throw new Error("Setiap baris jurnal wajib punya accountCode atau accountId")
