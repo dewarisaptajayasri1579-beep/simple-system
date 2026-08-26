@@ -54,13 +54,13 @@ export const SlottingStatusBar: React.FC<SlottingStatusBarProps> = ({ revenueSlo
             Tidak Split
           </Button>
           <Link href={`/keuangan/slotting-omset/${revenueSlotId}`}>
-            <Button size="sm" variant="outline">Proses Sekarang</Button>
+            <Button size="sm" variant="primary">Slotting Omset</Button>
           </Link>
         </div>
       )}
       {status === "processed" && (
-        <Link href={`/keuangan/slotting-omset/${revenueSlotId}`} className="text-xs font-bold text-blue-700 hover:underline">
-          Lihat Detail Split &rarr;
+        <Link href={`/keuangan/slotting-omset/${revenueSlotId}`}>
+          <Button size="sm" variant="outline">Slotting Omset</Button>
         </Link>
       )}
     </div>
