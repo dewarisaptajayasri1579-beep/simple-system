@@ -262,6 +262,45 @@ Index:
 
 ---
 
+# 11.1 whatsapp_connections
+
+**Addendum (menyimpang dari baseline "satu identitas bisnis" di 01-project-overview.md §10.1
+asli):** Project ini pakai **satu nomor WA per Sales** (scan QR sendiri-sendiri di aplikasi lewat
+WAHUB multi-session), bukan satu nomor bisnis bersama — lihat catatan implementasi di
+`01-project-overview.md` §10. Tabel ini menyimpan session WAHUB milik tiap Sales.
+
+**Penting soal WAHUB (backend self-hosted, source: `registrasi/backend-wahub`, berbasis
+`@whiskeysockets/baileys`):** TIDAK perlu API key/client terpisah per Sales. Satu client key
+(`WAHUB_API_KEY` yang sudah dipakai simple-system) bisa punya banyak session sekaligus, dibedakan
+lewat `sessionId` di body request — WAHUB auto-prefix jadi `{clientId}-{sessionId}`. Tiap session
+punya `webhookUrl` SENDIRI (disimpan per-sessionId di WAHUB, bukan global), jadi aman jalan
+berdampingan dengan session "default" milik Director Assistant tanpa saling menimpa webhook
+(constraint "1 sesi cuma 1 webhook aktif" di `.env.example` tetap berlaku, tapi itu per-sessionId,
+bukan per-client-key).
+
+| Field | Type | Keterangan |
+|---|---|---|
+| id | uuid PK | |
+| user_id | uuid FK users unique | 1 Sales = 1 koneksi WA (MVP) |
+| wahub_session_id | varchar unique | Bagian LOKAL sebelum prefix, mis. `sales-{userId}` |
+| phone_number | varchar nullable | Terisi setelah status ready |
+| status | enum | STARTING/QR_READY/READY/FAILED/DISCONNECTED |
+| webhook_registered_at | timestamptz nullable | Kapan webhook sukses didaftarkan ke WAHUB |
+| last_connected_at | timestamptz nullable | |
+| last_status_check_at | timestamptz nullable | |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+Index:
+
+- user_id
+- status
+
+QR code sendiri TIDAK disimpan di DB (ambil live dari `GET /api/sessions/qr/{sessionId}` WAHUB
+selama status `QR_READY`, bersifat transient/kadaluarsa cepat).
+
+---
+
 # 12. conversations
 
 Satu lead dapat memiliki lebih dari satu conversation/channel di masa depan.
@@ -270,6 +309,7 @@ Satu lead dapat memiliki lebih dari satu conversation/channel di masa depan.
 |---|---|
 | id | uuid PK |
 | lead_id | uuid FK |
+| whatsapp_connection_id | uuid FK whatsapp_connections | Koneksi WA Sales pemilik percakapan ini |
 | provider | varchar |
 | provider_conversation_id | varchar nullable |
 | channel | enum WHATSAPP |
@@ -280,6 +320,9 @@ Satu lead dapat memiliki lebih dari satu conversation/channel di masa depan.
 | updated_at | timestamptz |
 
 Unique provider ID bila ada.
+
+PIC lead (`lead_assignments` tipe PRIMARY) dibuat OTOMATIS = pemilik `whatsapp_connection_id` ini,
+saat conversation/lead baru pertama kali dibuat dari webhook — bukan proses assignment manual.
 
 ---
 

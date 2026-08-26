@@ -478,9 +478,26 @@ Kebutuhan bisnis:
 - ketika chat dibuka, pengguna langsung melihat percakapan,
 - profil lead dan AI suggestion tersedia pada layar percakapan.
 
+> **Catatan implementasi (menyimpang dari baseline §10.1 asli):** Setelah didiskusikan, project ini
+> pakai **satu nomor WA per Sales** (tiap Sales scan QR sendiri di aplikasi, lewat WAHUB — lihat
+> §10.3), BUKAN satu nomor bisnis bersama. Alasannya: customer di lapangan sudah kenal & percaya ke
+> nomor personal Sales masing-masing, jadi paksa migrasi ke 1 nomor bersama malah merusak trust yang
+> sudah terbangun. Efeknya:
+> - Masalah "siapa yang balas di 1 nomor bersama" (lihat §2, masalah #10) otomatis tidak relevan lagi
+>   — jadi §10.1 di bawah ini (Multi-Agent Reply / `sender_user_id` attribution) DIPERTAHANKAN
+>   apa adanya sebagai baseline (tetap dicatat siapa yang balas, berguna kalau nanti ada skenario
+>   SPV take-over pegang HP Sales), tapi bukan lagi mekanisme UTAMA buat tau siapa PIC.
+> - PIC lead sekarang default **implisit**: siapa pemilik nomor WA yang menerima pesan itu, dicatat
+>   otomatis sebagai `LeadAssignment` tipe PRIMARY saat lead/conversation baru dibuat dari webhook
+>   koneksi WA Sales tsb — bukan proses assignment manual dari awal.
+> - Reassign/takeover jadi lebih berat dari sekadar ganti field PIC: riwayat chat "nempel" secara
+>   fisik di nomor WA Sales lama (bukan di satu nomor bisnis yang bisa dioper). Lihat §10.3 untuk
+>   detail entity `WhatsappConnection`.
+
 ### 10.1 Multi-Agent Reply
 
-Customer melihat satu identitas bisnis.
+Customer melihat satu identitas bisnis **per Sales** (bukan satu identitas bisnis tunggal — lihat
+catatan implementasi di atas).
 
 Di internal, sistem harus mencatat:
 
@@ -505,6 +522,28 @@ MessagingProvider
 ```
 
 Implementasi provider dapat diganti tanpa mengubah module Lead/FollowUp.
+
+### 10.3 WhatsApp Session per Sales (WAHUB)
+
+Provider yang dipakai: **WAHUB** (self-hosted, source di `registrasi/backend-wahub`, berbasis
+`@whiskeysockets/baileys`), multi-session — 1 Sales = 1 session WAHUB. TIDAK perlu API key/client
+terpisah per Sales: 1 client key (`WAHUB_API_KEY` yang sudah dipakai simple-system) bisa punya
+banyak session sekaligus dibedakan dari `sessionId`, dan tiap session punya `webhookUrl` sendiri
+(lihat detail di `04-database.md` §11.1 `whatsapp_connections`).
+
+Flow onboarding Sales:
+
+1. Admin/Manager daftarkan akun Sales (User + TeamMembership).
+2. Sales (atau admin) buka halaman "Hubungkan WhatsApp", app minta WAHUB mulai session baru
+   khusus Sales ini — `POST /api/sessions/start` pakai `WAHUB_API_KEY` yang sama, body
+   `{ sessionId: "sales-{userId}", webhookUrl: ".../api/marketing/whatsapp/webhook?...&session=sales-{userId}" }`.
+3. App tampilkan QR Code (`GET /api/sessions/qr/sales-{userId}`) sampai status `ready`.
+4. Pesan masuk ke nomor Sales ini otomatis lewat webhook per-session di atas: cari/buat Lead by
+   `whatsapp_number`, cari/buat Conversation terhubung ke `WhatsappConnection` Sales ini, PIC =
+   Sales ini (LeadAssignment PRIMARY otomatis kalau lead baru).
+
+Ini berjalan berdampingan dengan session "default" milik Director Assistant tanpa saling
+mengganggu — beda `sessionId`, beda `webhookUrl`, sama-sama pakai `WAHUB_API_KEY` yang sama.
 
 ---
 

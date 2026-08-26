@@ -54,6 +54,7 @@ model User {
   pushSubscriptions        PushSubscription[]
   auditLogs                AuditLog[]
   leadSystemSettingsUpdated LeadSystemSetting[]
+  whatsappConnection       WhatsappConnection?
 
   @@map("users")
   @@schema("simple_system")
@@ -1189,12 +1190,50 @@ model LeadAssignment {
   @@schema("simple_system")
 }
 
+/// Session WAHUB per Sales — MENYIMPANG dari baseline "satu identitas bisnis" di
+/// docs/01-project-overview.md §10.1 asli: project ini pakai 1 nomor WA per Sales (scan QR
+/// sendiri-sendiri di app lewat WAHUB multi-session), bukan 1 nomor bisnis bersama. Alasan &
+/// detail flow onboarding ada di §10.3 doc yang sama.
+///
+/// PENTING: WAHUB TIDAK butuh client/API key terpisah per Sales — 1 client key (punya
+/// simple-system, `WAHUB_API_KEY` yang sudah ada) bisa punya banyak session sekaligus, dibedakan
+/// dari `sessionId` di body request (auto-prefix `{clientId}-{sessionId}` oleh WAHUB, lihat
+/// ensureSessionOwnership di source WAHUB). Tiap session punya `webhookUrl` SENDIRI-SENDIRI
+/// (disimpan per-sessionId di WAHUB, bukan global) — jadi aman dijalankan berdampingan dengan
+/// session "default" milik Director Assistant tanpa saling menimpa webhook. `wahubSessionId` di
+/// sini = bagian LOKAL sebelum prefix (mis. `sales-{userId}`), bukan sessionId penuh.
+///
+/// QR code sendiri sengaja TIDAK disimpan di sini (transient, ambil live dari WAHUB
+/// `GET /api/sessions/qr/{sessionId}` selama status QR_READY).
+model WhatsappConnection {
+  id                  String    @id @default(uuid())
+  userId              String    @unique @map("user_id") // 1 Sales = 1 koneksi WA (MVP)
+  wahubSessionId      String    @unique @map("wahub_session_id") // bagian lokal, mis. "sales-{userId}"
+  phoneNumber         String?   @map("phone_number")
+  status              String    @default("STARTING") @map("status") // "STARTING" | "QR_READY" | "READY" | "FAILED" | "DISCONNECTED"
+  webhookRegisteredAt DateTime? @map("webhook_registered_at")
+  lastConnectedAt     DateTime? @map("last_connected_at")
+  lastStatusCheckAt   DateTime? @map("last_status_check_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([status])
+  @@map("whatsapp_connections")
+  @@schema("simple_system")
+}
+
 /// Satu lead bisa punya lebih dari satu conversation/channel di masa depan (baseline cuma
 /// WhatsApp). `unreadCustomerCount` dihitung ulang tiap pesan masuk/dibaca, bukan derived saat
-/// query (biar list inbox tetap cepat).
+/// query (biar list inbox tetap cepat). `whatsappConnectionId` = koneksi WA Sales pemilik
+/// percakapan ini — PIC lead (LeadAssignment PRIMARY) dibuat otomatis dari pemilik koneksi ini
+/// saat conversation/lead baru pertama kali dibuat dari webhook (lihat komentar WhatsappConnection).
 model Conversation {
   id                     String    @id @default(uuid())
   leadId                 String    @map("lead_id")
+  whatsappConnectionId   String?   @map("whatsapp_connection_id")
   provider               String
   providerConversationId String?   @map("provider_conversation_id")
   channel                String    @default("WHATSAPP")
@@ -1204,12 +1243,14 @@ model Conversation {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  lead          Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  messages      Message[]
-  aiSuggestions LeadAiSuggestion[]
+  lead               Lead                @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  whatsappConnection WhatsappConnection? @relation(fields: [whatsappConnectionId], references: [id])
+  messages           Message[]
+  aiSuggestions      LeadAiSuggestion[]
 
   @@unique([provider, providerConversationId])
   @@index([leadId])
+  @@index([whatsappConnectionId])
   @@map("conversations")
   @@schema("simple_system")
 }
