@@ -28,6 +28,12 @@ export default async function SlottingOmsetDetailPage({ params }: { params: Prom
     settings.slottingHppReserveAccountId ? prisma.account.findUnique({ where: { id: settings.slottingHppReserveAccountId } }) : null,
   ])
 
+  // Default centang checkbox "Biaya Admin" per rekening tujuan — nyala kalau bank sumber &
+  // tujuan beda (transfer antar bank beneran), staf tetap bisa override manual sebelum Proses.
+  const sourceAccount = slot.payment.account
+  const defaultFeeApplies = (destAccount: { type: string; bankName: string | null } | null) =>
+    !!destAccount && sourceAccount.type === "bank" && destAccount.type === "bank" && sourceAccount.bankName !== destAccount.bankName
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -69,6 +75,12 @@ export default async function SlottingOmsetDetailPage({ params }: { params: Prom
             bonusAccountName: bonusAccount?.name ?? null,
             hppReserveAccountName: hppReserveAccount?.name ?? null,
             transferFee: settings.slottingTransferFee,
+            defaultFeeApplies: {
+              Operasional: defaultFeeApplies(operasionalAccount),
+              Direksi: defaultFeeApplies(direksiAccount),
+              Bonus: defaultFeeApplies(bonusAccount),
+              "Cadangan HPP": defaultFeeApplies(hppReserveAccount),
+            },
           }}
         />
       </div>

@@ -34,8 +34,12 @@ export interface SlottingOmsetDetailProps {
     bonusAccountName: string | null
     hppReserveAccountName: string | null
     transferFee: number
+    defaultFeeApplies: Record<BucketKey, boolean>
   }
 }
+
+type BucketKey = "Operasional" | "Direksi" | "Bonus" | "Cadangan HPP"
+const BUCKET_KEYS: BucketKey[] = ["Operasional", "Direksi", "Bonus", "Cadangan HPP"]
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
@@ -57,6 +61,7 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   const [isProcessing, setIsProcessing] = useState(false)
   const [isSkipping, setIsSkipping] = useState(false)
   const [error, setError] = useState("")
+  const [feeOverrides, setFeeOverrides] = useState<Record<BucketKey, boolean>>(settingsPreview.defaultFeeApplies)
 
   const totalCost = slot.initialCostAmount + costLines.reduce((s, l) => s + l.amount, 0)
   const netAmount = slot.status === "draft" ? slot.grossAmount - totalCost : (slot.netAmount ?? 0)
@@ -116,7 +121,11 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
     if (!confirm(`Proses Slotting Omset ${slot.payment.paymentNumber}? Laba Bersih ${formatRupiah(netAmount)} akan dipindah ke 4 rekening tujuan.`)) return
     setIsProcessing(true)
     setError("")
-    const res = await fetch(`/api/revenue-slots/${slot.id}/process`, { method: "POST" })
+    const res = await fetch(`/api/revenue-slots/${slot.id}/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feeOverrides }),
+    })
     const data = await res.json()
     setIsProcessing(false)
     if (!res.ok) {
@@ -220,11 +229,51 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
         </div>
 
         <div className="mt-4 pt-4 border-t border-slate-200/60 space-y-2">
-          <p className="text-xs font-bold text-slate-500 uppercase mb-1">{slot.status === "draft" ? "Preview Pembagian" : "Pembagian"}</p>
-          <SplitRow label="Operasional" pct={settingsPreview.operasionalPct} amount={preview.operasional} accountName={settingsPreview.operasionalAccountName} />
-          <SplitRow label="Direksi" pct={settingsPreview.direksiPct} amount={preview.direksi} accountName={settingsPreview.direksiAccountName} />
-          <SplitRow label="Bonus" pct={settingsPreview.bonusPct} amount={preview.bonus} accountName={settingsPreview.bonusAccountName} />
-          <SplitRow label="Cadangan HPP" pct={settingsPreview.hppReservePct} amount={preview.hppReserve} accountName={settingsPreview.hppReserveAccountName} />
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-bold text-slate-500 uppercase">{slot.status === "draft" ? "Preview Pembagian" : "Pembagian"}</p>
+            {slot.status === "draft" && <p className="text-xs font-bold text-slate-500 uppercase">Biaya Admin</p>}
+          </div>
+          <SplitRow
+            label="Operasional"
+            pct={settingsPreview.operasionalPct}
+            amount={preview.operasional}
+            accountName={settingsPreview.operasionalAccountName}
+            showFeeCheckbox={slot.status === "draft" && isOwner}
+            feeChecked={feeOverrides.Operasional}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, Operasional: checked }))}
+          />
+          <SplitRow
+            label="Direksi"
+            pct={settingsPreview.direksiPct}
+            amount={preview.direksi}
+            accountName={settingsPreview.direksiAccountName}
+            showFeeCheckbox={slot.status === "draft" && isOwner}
+            feeChecked={feeOverrides.Direksi}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, Direksi: checked }))}
+          />
+          <SplitRow
+            label="Bonus"
+            pct={settingsPreview.bonusPct}
+            amount={preview.bonus}
+            accountName={settingsPreview.bonusAccountName}
+            showFeeCheckbox={slot.status === "draft" && isOwner}
+            feeChecked={feeOverrides.Bonus}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, Bonus: checked }))}
+          />
+          <SplitRow
+            label="Cadangan HPP"
+            pct={settingsPreview.hppReservePct}
+            amount={preview.hppReserve}
+            accountName={settingsPreview.hppReserveAccountName}
+            showFeeCheckbox={slot.status === "draft" && isOwner}
+            feeChecked={feeOverrides["Cadangan HPP"]}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, "Cadangan HPP": checked }))}
+          />
+          {slot.status === "draft" && (
+            <p className="text-xs text-slate-500 pt-1">
+              Biaya admin (Rp{settingsPreview.transferFee.toLocaleString("id-ID")}) otomatis dipotong dari nominal transfer kalau dicentang.
+            </p>
+          )}
         </div>
 
         {slot.status === "processed" && slot.transfers.length > 0 && (
@@ -266,13 +315,40 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   )
 }
 
-function SplitRow({ label, pct, amount, accountName }: { label: string; pct: number; amount: number; accountName: string | null }) {
+function SplitRow({
+  label,
+  pct,
+  amount,
+  accountName,
+  showFeeCheckbox,
+  feeChecked,
+  onFeeChange,
+}: {
+  label: string
+  pct: number
+  amount: number
+  accountName: string | null
+  showFeeCheckbox?: boolean
+  feeChecked?: boolean
+  onFeeChange?: (checked: boolean) => void
+}) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-slate-600">
         {label} ({pct}%) {accountName ? <span className="text-slate-400">&middot; {accountName}</span> : <span className="text-rose-500">&middot; akun belum di-set</span>}
       </span>
-      <span className="font-semibold text-slate-900">{formatRupiah(amount)}</span>
+      <div className="flex items-center gap-3">
+        <span className="font-semibold text-slate-900">{formatRupiah(amount)}</span>
+        {showFeeCheckbox && (
+          <input
+            type="checkbox"
+            checked={feeChecked}
+            onChange={(e) => onFeeChange?.(e.target.checked)}
+            className="w-4 h-4 cursor-pointer"
+            title="Biaya admin transfer antar bank"
+          />
+        )}
+      </div>
     </div>
   )
 }

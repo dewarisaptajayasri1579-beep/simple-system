@@ -22,10 +22,18 @@ interface Bucket {
  *  sebagai Transaction beban "Biaya Admin Bank" dari akun sumber, biar kelihatan di Kas Keluar &
  *  Buku Besar). Owner-only — sama gate dengan Jurnal Manual, ini gerakan uang otomatis berbasis
  *  persentase, bukan input 1-1 yang gampang dikoreksi. */
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
   if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa proses Slotting Omset" }, { status: 403 })
+
+  // Checkbox "Biaya Admin" per rekening tujuan dari UI (default-nya sudah dihitung otomatis di
+  // halaman detail berdasarkan bank sumber/tujuan beda atau tidak, tapi staf bisa override
+  // manual) — kalau tidak dikirim sama sekali (mis. dipanggil langsung lewat API), fallback ke
+  // deteksi otomatis by bank name supaya tetap aman dipakai tanpa UI.
+  const body = await request.json().catch(() => null)
+  const feeOverrides: Record<string, boolean> | null =
+    body?.feeOverrides && typeof body.feeOverrides === "object" ? body.feeOverrides : null
 
   const { id } = await params
   const slot = await prisma.revenueSlot.findUnique({ where: { id }, include: { payment: true } })
@@ -71,9 +79,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         if (bucketAmount <= 0) continue
 
         const destinationAccount = await tx.account.findUniqueOrThrow({ where: { id: bucket.accountId! } })
-        // Biaya admin cuma relevan buat transfer ANTAR BANK beneran — Kas <-> Bank (setor/tarik
-        // tunai) bukan transfer bank, jadi tidak kena biaya ini walau "bank"-nya beda/kosong.
-        const feeApplies = sourceAccount.type === "bank" && destinationAccount.type === "bank" && sourceAccount.bankName !== destinationAccount.bankName
+        // Checkbox dari UI menang kalau dikirim. Fallback: biaya admin cuma relevan buat transfer
+        // ANTAR BANK beneran — Kas <-> Bank (setor/tarik tunai) bukan transfer bank, jadi tidak
+        // kena biaya ini walau "bank"-nya beda/kosong.
+        const feeApplies =
+          feeOverrides && bucket.label in feeOverrides
+            ? feeOverrides[bucket.label]
+            : sourceAccount.type === "bank" && destinationAccount.type === "bank" && sourceAccount.bankName !== destinationAccount.bankName
         const fee = feeApplies ? settings.slottingTransferFee : 0
         const transferAmount = bucketAmount - fee
         if (transferAmount <= 0) {
