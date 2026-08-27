@@ -230,7 +230,12 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     // begitu dibayar, INI yang dimajukan sesuai siklus periode (bukan lastPaidAt/tanggal bayar),
     // supaya telat bayar tidak menggeser siklus jatuh tempo berikutnya.
     const server = await tx.server.findUnique({ where: { id: transaction.refId }, include: { period: true } })
-    const previousAnchor = server?.expiryDate ?? server?.lastPaidAt ?? null
+    // Server BARU (belum pernah punya expiryDate/lastPaidAt) — computeNextDueDate(null, ...)
+    // balikin null, jadi fallback-nya HARUS tetap dianggurin lewat computeNextDueDate lagi
+    // (anchor = tanggal bayar ini), bukan dipakai mentah-mentah sebagai expiryDate. Kalau dipakai
+    // mentah, expiryDate == lastPaidAt (hari ini) dan langsung ke-anggap "expired" beberapa hari
+    // kemudian — bug yang sempat kejadian di Domain (lihat catatan sama di bawah).
+    const previousAnchor = server?.expiryDate ?? server?.lastPaidAt ?? transaction.occurredAt
     const nextExpiry = computeNextDueDate(previousAnchor, server?.period?.name, server?.periodCount) ?? transaction.occurredAt
     await tx.server.update({
       where: { id: transaction.refId },
@@ -243,7 +248,11 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     // lastPaidAt lama, atau tanggal bayar/aktivasi ini kalau benar-benar baru pertama kali.
     // lastPaidAt sendiri tetap murni "kapan terakhir dibayar" — dua field, dua arti beda.
     const domain = await tx.domain.findUnique({ where: { id: transaction.refId }, select: { expiryDate: true, lastPaidAt: true } })
-    const previousAnchor = domain?.expiryDate ?? domain?.lastPaidAt ?? null
+    // Domain BARU (belum pernah punya expiryDate/lastPaidAt) — computeDomainExpiryDate(null)
+    // balikin null, jadi anchor-nya jatuh ke tanggal bayar ini SUPAYA TETAP DITAMBAH 1 TAHUN lagi
+    // (bukan dipakai mentah sebagai expiryDate — itu bikin expiryDate == lastPaidAt hari ini,
+    // langsung ke-anggap "expired" beberapa hari kemudian walau baru saja dibayar/didaftarkan).
+    const previousAnchor = domain?.expiryDate ?? domain?.lastPaidAt ?? transaction.occurredAt
     const nextExpiry = computeDomainExpiryDate(previousAnchor) ?? transaction.occurredAt
     await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, expiryDate: nextExpiry } })
   } else if (transaction.refType === "recurring_bill" && transaction.refId) {
