@@ -11,6 +11,8 @@ export async function register() {
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
   const { runMarketingFollowupReminders } = await import("@/lib/cron/marketing-followup-reminders")
+  const { runMarketingEscalations } = await import("@/lib/marketing/escalation")
+  const { runMarketingAiReanalysis } = await import("@/lib/cron/marketing-ai-reanalysis")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
   const { registerWahubWebhook } = await import("@/lib/wahub")
@@ -63,13 +65,27 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
-  // Reminder follow up lead (modul Marketing) — bikin LeadNotification untuk PIC, tiap jam.
+  // Reminder follow up lead + escalation ke SPV/Manager (modul Marketing) — tiap jam :05.
   cron.schedule(
     "5 * * * *",
     () => {
       runMarketingFollowupReminders()
         .then((r) => r && r.created > 0 && console.log(`[cron] marketing-followup-reminders: ${r.created} notif baru`))
         .catch((e) => console.error("[cron] marketing-followup-reminders gagal:", e))
+      runMarketingEscalations()
+        .then((r) => r && r.created > 0 && console.log(`[cron] marketing-escalations: ${r.created} notif baru`))
+        .catch((e) => console.error("[cron] marketing-escalations gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
+  // AI auto-reanalysis lead (modul Marketing) — tiap 10 menit, model Haiku.
+  cron.schedule(
+    "*/10 * * * *",
+    () => {
+      runMarketingAiReanalysis()
+        .then((r) => r && "analyzed" in r && r.analyzed > 0 && console.log(`[cron] marketing-ai-reanalysis: ${r.analyzed} lead`))
+        .catch((e) => console.error("[cron] marketing-ai-reanalysis gagal:", e))
     },
     { timezone: "Asia/Jakarta" }
   )
