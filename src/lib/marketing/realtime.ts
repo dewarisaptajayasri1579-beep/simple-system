@@ -19,6 +19,10 @@ export type MarketingEvent =
       at: string
     }
   | { type: "notification"; userId: string; at: string }
+  // status delivery pesan keluar berubah (ack WAHUB): SENT / DELIVERED / READ / FAILED
+  | { type: "status"; conversationId: string; providerMessageId: string; status: string; at: string }
+  // customer sedang mengetik di WhatsApp (presence "composing" dari WAHUB)
+  | { type: "typing"; conversationId: string; at: string }
 
 // Simpan di globalThis biar selamat dari hot-reload dev (module re-eval) — pola sama dengan
 // singleton PrismaClient.

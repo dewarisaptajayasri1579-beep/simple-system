@@ -19,6 +19,10 @@ interface WahubIncomingMessage {
   body?: string
   /** Baileys ack: 1=pending 2=server(sent) 3=delivered 4=read 5=played */
   ack?: number
+  /** Presence customer: "composing" (mengetik) / "recording" / "available" / "paused" / dst.
+   *  WAHUB harus subscribe presence & forward event ini — kalau tidak, indikator "mengetik"
+   *  tidak akan muncul (tidak error, cuma tidak ada). */
+  presence?: string
   type?: string // "conversation" | "extendedTextMessage" | "image" | "senderKeyDistributionMessage" | ...
   mediaUrl?: string
   mimetype?: string
@@ -85,6 +89,27 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   const message = payload.message
   if (!message) return { skipped: "no message" }
 
+  // ---- Presence customer (sedang mengetik) — event ringan, tidak disimpan ke DB ----
+  const presence = (message.presence || (payload.event?.includes("presence") ? "composing" : "")).toLowerCase()
+  if (presence) {
+    if (presence === "composing" || presence === "recording") {
+      const pChatId = message.chatId || message.from || ""
+      if (pChatId && !pChatId.endsWith("@g.us")) {
+        const conv = await prisma.conversation.findUnique({
+          where: {
+            provider_providerConversationId: {
+              provider: "wahub",
+              providerConversationId: `${connection.wahubSessionId}:${pChatId}`,
+            },
+          },
+          select: { id: true },
+        })
+        if (conv) publishMarketingEvent({ type: "typing", conversationId: conv.id, at: new Date().toISOString() })
+      }
+    }
+    return { handled: true, presence }
+  }
+
   const digits = message.senderNumber || (message.from ? message.from.replace(/@.*$/, "") : "")
   const eventId = message.id ? `wahub:${message.id}` : `${localSessionId}:${digits}:${message.timestamp ?? Date.now()}:${message.ack ?? "m"}`
 
@@ -107,7 +132,18 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   if (message.ack != null && message.to !== "me") {
     const status = message.ack >= 4 ? "READ" : message.ack === 3 ? "DELIVERED" : message.ack === 2 ? "SENT" : null
     if (status && message.id) {
-      await prisma.message.updateMany({ where: { providerMessageId: `wahub:${message.id}` }, data: { deliveryStatus: status } })
+      const pmid = `wahub:${message.id}`
+      const hit = await prisma.message.findUnique({ where: { providerMessageId: pmid }, select: { conversationId: true } })
+      if (hit) {
+        await prisma.message.update({ where: { providerMessageId: pmid }, data: { deliveryStatus: status } })
+        publishMarketingEvent({
+          type: "status",
+          conversationId: hit.conversationId,
+          providerMessageId: pmid,
+          status,
+          at: new Date().toISOString(),
+        })
+      }
     }
     await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
     return { handled: true, statusUpdate: status }

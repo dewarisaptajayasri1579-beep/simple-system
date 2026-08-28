@@ -27,6 +27,8 @@ export function useVisibilityRefresh(fn: () => void) {
 export type MarketingStreamEvent =
   | { type: "message"; conversationId: string; leadId: string; direction: "INBOUND" | "OUTBOUND"; at: string }
   | { type: "notification"; userId: string; at: string }
+  | { type: "status"; conversationId: string; providerMessageId: string; status: string; at: string }
+  | { type: "typing"; conversationId: string; at: string }
 
 /** Buka koneksi SSE ke `/api/marketing/stream` dan panggil `onEvent` tiap ada event realtime
  *  (pesan masuk/keluar, notifikasi baru). `EventSource` auto-reconnect sendiri kalau putus.
@@ -44,11 +46,10 @@ export function useMarketingStream(onEvent: (evt: MarketingStreamEvent) => void)
         /* frame bukan JSON (ready/ping) — abaikan */
       }
     }
-    es.addEventListener("message", handler)
-    es.addEventListener("notification", handler)
+    const names = ["message", "notification", "status", "typing"]
+    names.forEach((n) => es.addEventListener(n, handler))
     return () => {
-      es.removeEventListener("message", handler)
-      es.removeEventListener("notification", handler)
+      names.forEach((n) => es.removeEventListener(n, handler))
       es.close()
     }
   }, [])

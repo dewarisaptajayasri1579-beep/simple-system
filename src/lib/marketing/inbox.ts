@@ -1,6 +1,7 @@
 /** Bentuk data pesan yang dikirim ke client — dipakai bareng oleh list & detail conversation. */
 export function messageDto(m: {
   id: string
+  providerMessageId: string | null
   direction: string
   messageType: string
   body: string | null
@@ -11,6 +12,7 @@ export function messageDto(m: {
 }) {
   return {
     id: m.id,
+    providerMessageId: m.providerMessageId,
     direction: m.direction,
     messageType: m.messageType,
     body: m.body,
@@ -23,6 +25,7 @@ export function messageDto(m: {
 
 export const MESSAGE_SELECT = {
   id: true,
+  providerMessageId: true,
   direction: true,
   messageType: true,
   body: true,

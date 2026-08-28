@@ -149,7 +149,23 @@ export async function sendWhatsappMessageFromSession(sessionId: string, rawNumbe
     const text = await res.text().catch(() => "")
     throw new Error(`WAHUB gagal kirim (${res.status}): ${text.slice(0, 200)}`)
   }
-  return res.json() as Promise<{ success: boolean }>
+  return res.json() as Promise<WahubSendResult>
+}
+
+/** Bentuk respons WAHUB saat kirim pesan — id pesan dipakai buat mencocokkan ack status
+ *  (SENT/DELIVERED/READ) yang datang lewat webhook. Nama field beda-beda antar versi wrapper,
+ *  jadi semua kemungkinan ditangkap. */
+export type WahubSendResult = {
+  success?: boolean
+  messageId?: string
+  id?: string
+  key?: { id?: string }
+  data?: { key?: { id?: string }; id?: string; messageId?: string }
+}
+
+/** Ambil id pesan dari respons WAHUB (atau null kalau wrapper-nya tidak mengembalikannya). */
+export function extractWahubMessageId(r: WahubSendResult | null | undefined): string | null {
+  return r?.messageId || r?.id || r?.key?.id || r?.data?.messageId || r?.data?.id || r?.data?.key?.id || null
 }
 
 /** Kirim media (gambar/dokumen via URL, WAHUB yang fetch) + caption dari session Sales tertentu. */
@@ -165,7 +181,7 @@ export async function sendWhatsappMediaFromSession(sessionId: string, rawNumber:
     const text = await res.text().catch(() => "")
     throw new Error(`WAHUB gagal kirim media (${res.status}): ${text.slice(0, 200)}`)
   }
-  return res.json() as Promise<{ success: boolean }>
+  return res.json() as Promise<WahubSendResult>
 }
 
 /** Daftarkan ulang webhook sesi WAHUB milik simple-system — dipanggil tiap kali server start

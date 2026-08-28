@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Paperclip, Send, Sparkles } from "lucide-react"
+import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Paperclip, Send, Sparkles } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
 
 interface Message {
   id: string
+  providerMessageId?: string | null
   direction: string
   messageType: string
   body: string | null
@@ -16,6 +17,16 @@ interface Message {
   senderUserId: string | null
   sentAt: string
   deliveryStatus: string
+}
+
+/** Tanda status pesan keluar ala WhatsApp: jam (antre) · ✓ (terkirim) · ✓✓ (diterima) ·
+ *  ✓✓ biru (dibaca) · ⚠ (gagal). */
+const MessageTicks: React.FC<{ status: string }> = ({ status }) => {
+  if (status === "FAILED") return <AlertCircle className="w-3.5 h-3.5 text-rose-200" />
+  if (status === "QUEUED" || status === "PENDING") return <Clock className="w-3 h-3 text-blue-100" />
+  if (status === "READ") return <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+  if (status === "DELIVERED") return <CheckCheck className="w-3.5 h-3.5 text-blue-100" />
+  return <Check className="w-3.5 h-3.5 text-blue-100" /> // SENT / lainnya
 }
 
 interface ConversationMeta {
@@ -56,8 +67,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [takingOver, setTakingOver] = useState(false)
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
+  const [typing, setTyping] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(
     async (silent = false) => {
@@ -109,8 +122,23 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   }, [load])
   useVisibilityRefresh(() => load(true))
   useMarketingStream((evt) => {
-    if (evt.type === "message" && evt.conversationId === conversationId) load(true)
+    if (evt.type === "notification" || evt.conversationId !== conversationId) return
+    if (evt.type === "message") {
+      setTyping(false)
+      load(true)
+    } else if (evt.type === "typing") {
+      setTyping(true)
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = setTimeout(() => setTyping(false), 8000)
+    } else if (evt.type === "status") {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.providerMessageId === evt.providerMessageId ? { ...m, deliveryStatus: evt.status } : m,
+        ),
+      )
+    }
   })
+  useEffect(() => () => { if (typingTimerRef.current) clearTimeout(typingTimerRef.current) }, [])
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
       lastCountRef.current = messages.length
@@ -174,22 +202,40 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     const media = mediaUrl.trim()
     if ((!text && !media) || sending) return
     setSending(true)
+    const tempId = `tmp-${Date.now()}`
+    const optimistic: Message = {
+      id: tempId,
+      providerMessageId: null,
+      direction: "OUTBOUND",
+      messageType: media ? "IMAGE" : "TEXT",
+      body: text || null,
+      mediaUrl: media || null,
+      senderUserId: null,
+      sentAt: new Date().toISOString(),
+      deliveryStatus: "QUEUED",
+    }
+    setMessages((prev) => [...prev, optimistic])
+    setError(null)
+    setDraft("")
+    setMediaUrl("")
+    const suggestionId = usedSuggestionId
+    setUsedSuggestionId(null)
     try {
       const res = await fetch(`/api/marketing/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text, mediaUrl: media || undefined, aiSuggestionId: usedSuggestionId }),
+        body: JSON.stringify({ body: text, mediaUrl: media || undefined, aiSuggestionId: suggestionId }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || "Gagal mengirim")
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, deliveryStatus: "FAILED" } : m)))
         return
       }
-      setError(null)
-      setDraft("")
-      setMediaUrl("")
-      setUsedSuggestionId(null)
-      setMessages((prev) => [...prev, data.message])
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? data.message : m)))
+    } catch {
+      setError("Gagal mengirim")
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, deliveryStatus: "FAILED" } : m)))
     } finally {
       setSending(false)
     }
@@ -256,14 +302,25 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
                   </a>
                 )}
                 {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
-                <p className={`text-[10px] mt-1 ${out ? "text-blue-100" : "text-slate-400"}`}>
-                  {clockTime(m.sentAt)}
-                  {out && m.deliveryStatus ? ` · ${m.deliveryStatus.toLowerCase()}` : ""}
+                <p className={`text-[10px] mt-1 flex items-center gap-1 ${out ? "text-blue-100 justify-end" : "text-slate-400"}`}>
+                  <span>{clockTime(m.sentAt)}</span>
+                  {out && m.deliveryStatus ? <MessageTicks status={m.deliveryStatus} /> : null}
                 </p>
               </div>
             </div>
           )
         })}
+        {typing && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-3.5 py-2.5">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
+              </span>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 

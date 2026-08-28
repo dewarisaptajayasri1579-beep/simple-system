@@ -7,7 +7,7 @@ import { canActOnLead } from "@/lib/marketing/permissions"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
-import { sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
+import { extractWahubMessageId, sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
 
 /**
  * GET  — timeline pesan 1 percakapan (boleh dibuka siapa pun anggota tim).
@@ -133,9 +133,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const sentAt = new Date()
   const session = conversation.whatsappConnection.wahubSessionId
   const number = conversation.lead.whatsappNumber
+  let wahubMessageId: string | null = null
   try {
-    if (mediaUrl) await sendWhatsappMediaFromSession(session, number, mediaUrl, text || undefined)
-    else await sendWhatsappMessageFromSession(session, number, text)
+    const result = mediaUrl
+      ? await sendWhatsappMediaFromSession(session, number, mediaUrl, text || undefined)
+      : await sendWhatsappMessageFromSession(session, number, text)
+    wahubMessageId = extractWahubMessageId(result)
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Gagal mengirim ke WhatsApp" },
@@ -152,6 +155,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       mediaUrl: mediaUrl ?? undefined,
       senderUserId: user.id,
       aiSuggestionId: aiSuggestionId ?? undefined,
+      // id dari WAHUB dipakai untuk mencocokkan ack status (SENT/DELIVERED/READ) dari webhook.
+      providerMessageId: wahubMessageId ? `wahub:${wahubMessageId}` : undefined,
       sentAt,
       deliveryStatus: "SENT",
     },
