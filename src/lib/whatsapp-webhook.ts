@@ -61,6 +61,16 @@ export async function handleWhatsappWebhook(payload: WahubWebhookPayload) {
   // WAHUB kirim webhook untuk pesan masuk MAUPUN keluar (termasuk balasan bot sendiri).
   // "to" cuma "me" kalau ini pesan yang benar-benar masuk dari orang lain.
   if (message.to !== "me") return { skipped: "outgoing message" }
+
+  // Diagnostik: cetak JID tiap grup yang nomor ini ikut di dalamnya, biar gampang ambil
+  // WAHUB_GROUP_JID buat grup baru (mis. grup Marketing) tanpa tool lain — cukup chat di grup
+  // lalu lihat log server.
+  if (message.chatId?.endsWith("@g.us")) {
+    console.log(
+      `[wa-group] pesan grup — JID=${message.chatId} pengirim=${message.senderName ?? message.senderNumber ?? "?"} isi="${(message.body ?? "").slice(0, 80)}"`,
+    )
+  }
+
   if (!message.body?.trim()) return { skipped: "empty body" }
 
   const command = message.body.trim()
