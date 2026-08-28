@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { analyzeLead } from "@/lib/marketing/ai"
 import { createNotification } from "@/lib/marketing/notify"
 import { findDuplicateLead } from "@/lib/marketing/duplicate"
+import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 
 interface WahubIncomingMessage {
@@ -177,6 +178,15 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   await prisma.conversation.update({
     where: { id: conversation.id },
     data: { lastMessageAt: sentAt, unreadCustomerCount: { increment: 1 } },
+  })
+
+  // Dorong ke koneksi SSE yang lagi ditahan browser tim — inbox/percakapan update seketika.
+  publishMarketingEvent({
+    type: "message",
+    conversationId: conversation.id,
+    leadId,
+    direction: "INBOUND",
+    at: sentAt.toISOString(),
   })
   await prisma.lead.update({
     where: { id: leadId },

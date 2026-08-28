@@ -1,6 +1,7 @@
 import webpush from "web-push"
 
 import { prisma } from "@/lib/prisma"
+import { publishMarketingEvent } from "@/lib/marketing/realtime"
 
 let vapidReady = false
 function ensureVapid(): boolean {
@@ -45,6 +46,7 @@ export async function createNotification(input: {
     skipDuplicates: true,
   })
   if (res.count > 0) {
+    publishMarketingEvent({ type: "notification", userId: input.userId, at: new Date().toISOString() })
     void sendWebPush(input.userId, input.title, input.body, input.deepLink).catch(() => {})
     await prisma.leadNotification.updateMany({
       where: { dedupeKey: input.dedupeKey, sentAt: null },

@@ -4,6 +4,7 @@ import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { MESSAGE_SELECT, messageDto } from "@/lib/marketing/inbox"
 import { canActOnLead } from "@/lib/marketing/permissions"
+import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 import { sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
@@ -164,6 +165,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   await prisma.conversation.update({ where: { id }, data: { lastMessageAt: sentAt } })
+  publishMarketingEvent({
+    type: "message",
+    conversationId: id,
+    leadId: conversation.leadId,
+    direction: "OUTBOUND",
+    at: sentAt.toISOString(),
+  })
   await prisma.lead.update({
     where: { id: conversation.leadId },
     data: { lastSalesMessageAt: sentAt, lastInteractionAt: sentAt },

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Bell } from "lucide-react"
 
-import { useVisibilityRefresh } from "./ui"
+import { useMarketingStream, useVisibilityRefresh } from "./ui"
 
 interface Notif {
   id: string
@@ -45,10 +45,14 @@ export const NotificationBell: React.FC = () => {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 20000)
+    // Fallback saja — jalur utama update-nya SSE di bawah.
+    const t = setInterval(load, 45000)
     return () => clearInterval(t)
   }, [load])
   useVisibilityRefresh(load)
+  useMarketingStream((evt) => {
+    if (evt.type === "notification") load()
+  })
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {

@@ -24,6 +24,36 @@ export function useVisibilityRefresh(fn: () => void) {
   }, [])
 }
 
+export type MarketingStreamEvent =
+  | { type: "message"; conversationId: string; leadId: string; direction: "INBOUND" | "OUTBOUND"; at: string }
+  | { type: "notification"; userId: string; at: string }
+
+/** Buka koneksi SSE ke `/api/marketing/stream` dan panggil `onEvent` tiap ada event realtime
+ *  (pesan masuk/keluar, notifikasi baru). `EventSource` auto-reconnect sendiri kalau putus.
+ *  Polling lambat di tiap komponen tetap dipertahankan sebagai jaring pengaman. */
+export function useMarketingStream(onEvent: (evt: MarketingStreamEvent) => void) {
+  const ref = React.useRef(onEvent)
+  ref.current = onEvent
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return
+    const es = new EventSource("/api/marketing/stream")
+    const handler = (e: MessageEvent) => {
+      try {
+        ref.current(JSON.parse(e.data) as MarketingStreamEvent)
+      } catch {
+        /* frame bukan JSON (ready/ping) — abaikan */
+      }
+    }
+    es.addEventListener("message", handler)
+    es.addEventListener("notification", handler)
+    return () => {
+      es.removeEventListener("message", handler)
+      es.removeEventListener("notification", handler)
+      es.close()
+    }
+  }, [])
+}
+
 /** Toggle "Punya Saya / Semua Tim" — dipakai di Beranda, Inbox, Lead, Follow Up. */
 export const ScopeToggle: React.FC<{
   value: "mine" | "all"

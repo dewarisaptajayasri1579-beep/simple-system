@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, SkeletonList } from "@/components/ui"
-import { FilterPills, MktHeader, ScopeToggle, useVisibilityRefresh } from "./ui"
+import { FilterPills, MktHeader, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 
 interface ConversationItem {
   id: string
@@ -89,10 +89,14 @@ export const InboxClient: React.FC = () => {
   }, [q])
 
   useEffect(() => {
-    const t = setInterval(() => load(true), 8000)
+    // Fallback saja — jalur utama update-nya SSE di bawah.
+    const t = setInterval(() => load(true), 20000)
     return () => clearInterval(t)
   }, [load])
   useVisibilityRefresh(() => load(true))
+  useMarketingStream((evt) => {
+    if (evt.type === "message") load(true)
+  })
 
   return (
     <div className="flex flex-col gap-4">
