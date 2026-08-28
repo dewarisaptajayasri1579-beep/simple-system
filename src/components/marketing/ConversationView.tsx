@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Paperclip, Send, Sparkles } from "lucide-react"
+import { AlertCircle, Check, CheckCheck, Clock, Paperclip, Send, Sparkles } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
@@ -247,12 +247,9 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const { lead } = meta
 
   return (
-    <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-8rem)]">
-      {/* header lead */}
+    <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-[calc(100vh-8rem)]">
+      {/* header lead — tombol kembali ada di header shell */}
       <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
-        <Link href="/marketing/inbox" className="mt-0.5 text-slate-400 hover:text-slate-700 lg:hidden">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>

@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  ArrowLeft,
   ArrowLeftRight,
   BarChart2,
   CalendarClock,
@@ -61,6 +62,9 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
   const pathname = usePathname() || "/marketing"
   const [menuOpen, setMenuOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "?"
+  // Halaman detail percakapan (/marketing/inbox/<id>) — mode fokus: bottom-nav disembunyikan,
+  // header dikasih tombol kembali ke Inbox.
+  const isConversationDetail = /^\/marketing\/inbox\/[^/]+$/.test(pathname)
 
   return (
     <div className="min-h-screen bg-app-mesh text-slate-800 font-sans flex relative overflow-x-clip">
@@ -118,11 +122,24 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
       {/* ---- Konten ---- */}
       <div className="flex-1 lg:pl-60 flex flex-col min-w-0">
         <header className="h-16 glass-header sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between border-b border-white/60">
-          <div className="flex flex-col">
-            <span className="text-sm font-extrabold text-slate-800 leading-tight">Marketing</span>
-            <span className="text-[11px] text-slate-500 font-semibold">
-              Halo, {userName} · {roleLabel}
-            </span>
+          <div className="flex items-center gap-2 min-w-0">
+            {isConversationDetail && (
+              <Link
+                href="/marketing/inbox"
+                aria-label="Kembali ke Inbox"
+                className="w-9 h-9 -ml-1.5 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-extrabold text-slate-800 leading-tight">
+                {isConversationDetail ? "Percakapan" : "Marketing"}
+              </span>
+              <span className="text-[11px] text-slate-500 font-semibold truncate">
+                Halo, {userName} · {roleLabel}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -185,11 +202,15 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 relative z-10 max-w-6xl w-full mx-auto">{children}</main>
+        <main
+          className={`flex-1 p-4 sm:p-6 lg:p-8 ${isConversationDetail ? "pb-4" : "pb-24"} lg:pb-8 relative z-10 max-w-6xl w-full mx-auto`}
+        >
+          {children}
+        </main>
       </div>
 
-      {/* ---- Bottom nav (mobile) ---- */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1">
+      {/* ---- Bottom nav (mobile) — disembunyikan di halaman detail percakapan ---- */}
+      <nav className={`${isConversationDetail ? "hidden" : "lg:hidden"} fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1`}>
         <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
           {NAV.filter((n) => n.mobile).map((item) => {
             const active = isActivePath(pathname, item.href)
