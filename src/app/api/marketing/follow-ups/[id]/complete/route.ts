@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
+import { ensureAutoFollowUp } from "@/lib/marketing/auto-follow-up"
 import { canActOnLead } from "@/lib/marketing/permissions"
 import { getFollowUpGraceMs } from "@/lib/marketing/settings"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
@@ -69,6 +70,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await tx.lead.update({ where: { id: fu.leadId }, data: { lastInteractionAt: now } })
     return nextId
   })
+
+  // PIC tidak mengisi "jadwal berikutnya" → sistem yang jadwalkan otomatis (guard: skip kalau
+  // ternyata lead sudah punya follow up OPEN lain, atau lead sudah WON/LOST).
+  if (!createdNextId) {
+    await ensureAutoFollowUp(fu.leadId, {
+      from: now,
+      purpose: "Tindak lanjut lanjutan",
+      reason: "follow up selesai tanpa jadwal berikutnya",
+      createdByUserId: user.id,
+    }).catch(() => null)
+  }
 
   await recalcLeadDerived(fu.leadId).catch(() => {})
   await logAudit({

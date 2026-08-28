@@ -8,6 +8,7 @@ import { findDuplicateLead } from "@/lib/marketing/duplicate"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { applyKeywordSegmentation } from "@/lib/marketing/segment-rules"
+import { ensureAutoFollowUp } from "@/lib/marketing/auto-follow-up"
 
 interface WahubIncomingMessage {
   id?: string
@@ -111,7 +112,15 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   }
 
   const digits = message.senderNumber || (message.from ? message.from.replace(/@.*$/, "") : "")
-  const eventId = message.id ? `wahub:${message.id}` : `${localSessionId}:${digits}:${message.timestamp ?? Date.now()}:${message.ack ?? "m"}`
+  // Untuk event STATUS/ack, satu pesan keluar memicu beberapa update (sent→delivered→read).
+  // Kalau eventId cuma `wahub:<id>`, ack ke-2 dst. kena P2002 dan ditolak sebagai "duplikat" —
+  // makanya di sini di-suffix dengan nilai ack-nya supaya tiap transisi bisa masuk.
+  const eventId =
+    message.ack != null && message.id
+      ? `wahub:${message.id}:ack${message.ack}`
+      : message.id
+        ? `wahub:${message.id}`
+        : `${localSessionId}:${digits}:${message.timestamp ?? Date.now()}:${message.ack ?? "m"}`
 
   // Raw log (best-effort, unik per event → retry provider tidak dobel proses).
   const logged = await prisma.leadWebhookEvent
@@ -133,8 +142,13 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     const status = message.ack >= 4 ? "READ" : message.ack === 3 ? "DELIVERED" : message.ack === 2 ? "SENT" : null
     if (status && message.id) {
       const pmid = `wahub:${message.id}`
-      const hit = await prisma.message.findUnique({ where: { providerMessageId: pmid }, select: { conversationId: true } })
-      if (hit) {
+      const hit = await prisma.message.findUnique({
+        where: { providerMessageId: pmid },
+        select: { conversationId: true, deliveryStatus: true },
+      })
+      // Jangan mundur: ack "delivered" yang telat datang setelah "read" tidak boleh menimpa.
+      const RANK: Record<string, number> = { QUEUED: 0, SENT: 1, DELIVERED: 2, READ: 3 }
+      if (hit && (RANK[status] ?? 0) > (RANK[hit.deliveryStatus] ?? 0)) {
         await prisma.message.update({ where: { providerMessageId: pmid }, data: { deliveryStatus: status } })
         publishMarketingEvent({
           type: "status",
@@ -395,6 +409,14 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   // Analisa AI untuk lead baru (docs §9.1) — fire-and-forget, non-blocking. Segmen sudah keburu
   // di-set keyword di atas → guard "belum bersegmen" di analyzeLead otomatis skip auto-apply segmen.
   if (isNewLead) void analyzeLead(leadId).catch(() => {})
+
+  // Auto-jadwal follow up (skip kalau sudah ada FU OPEN / fitur off / lead bukan OPEN).
+  await ensureAutoFollowUp(leadId, {
+    from: sentAt,
+    purpose: isNewLead ? "Follow up lead baru" : "Balas / tindak lanjut pesan customer",
+    reason: isNewLead ? "lead baru masuk" : "pesan customer belum ada follow up",
+    createdByUserId: connection.userId,
+  }).catch(() => null)
 
   const pic = await prisma.leadAssignment.findFirst({
     where: { leadId, isActive: true },

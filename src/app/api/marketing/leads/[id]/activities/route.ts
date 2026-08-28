@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
+import { ensureAutoFollowUp } from "@/lib/marketing/auto-follow-up"
 import { canActOnLead } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { advanceStage } from "@/lib/marketing/rules"
@@ -43,6 +44,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (Object.keys(leadData).length > 0) await prisma.lead.update({ where: { id }, data: leadData })
 
   await recalcLeadDerived(id).catch(() => {})
+
+  // Auto-jadwal follow up berikutnya kalau lead belum punya yang OPEN.
+  await ensureAutoFollowUp(id, {
+    from: occurredAt,
+    purpose: `Tindak lanjut setelah: ${activityType.code}`,
+    reason: "setelah aktivitas dicatat",
+    createdByUserId: user.id,
+  }).catch(() => null)
+
   await logAudit({
     actorUserId: user.id,
     action: "marketing.activity.create",

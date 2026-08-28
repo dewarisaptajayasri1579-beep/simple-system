@@ -28,6 +28,14 @@ const SETTING_META: Record<string, { label: string; help: string }> = {
     label: "Reminder ulang saat overdue (jam)",
     help: "Kalau follow up sudah lewat jadwal & belum dikerjakan, PIC di-ingatkan lagi tiap sekian jam (dedupe per hari).",
   },
+  "follow_up.auto_schedule": {
+    label: "Auto-jadwal follow up (1 = aktif)",
+    help: "Kalau aktif, sistem otomatis membuat follow up saat: lead baru masuk, pesan customer masuk, aktivitas dicatat, atau follow up diselesaikan tanpa jadwal berikutnya. Selalu dilewati kalau lead sudah punya follow up OPEN. 0 = matikan.",
+  },
+  "follow_up.default_hours": {
+    label: "Jarak auto-jadwal follow up (jam)",
+    help: "Berapa jam dari sekarang follow up otomatis dijadwalkan. Dipakai kalau segmen lead tidak punya 'Default Follow Up (jam)' sendiri. Default 24.",
+  },
   "ai.segment_auto_apply_confidence": {
     label: "Confidence minimum auto-apply segmentasi AI (0–1)",
     help: "AI hanya boleh menetapkan segmen otomatis kalau yakin ≥ nilai ini DAN lead belum bersegmen. Di bawah itu cuma jadi saran. Default 0.85.",
@@ -220,6 +228,7 @@ export const SettingsClient: React.FC = () => {
               { key: "aiContext", label: "Konteks AI", type: "text" },
               { key: "keywords", label: "Pesan awal mengandung (pisah koma)", type: "text" },
               { key: "keywordPriority", label: "Prioritas keyword", type: "number" },
+              { key: "defaultFollowUpHours", label: "Default Follow Up (jam)", type: "number" },
               { key: "leadCount", label: "Lead", type: "text", createOnly: true },
               { key: "isActive", label: "Aktif", type: "bool" },
             ]}

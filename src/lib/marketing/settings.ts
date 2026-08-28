@@ -7,6 +7,10 @@ export const MARKETING_SETTING_DEFAULTS = {
   "follow_up.grace_minutes": 15, // docs/06 §37
   "follow_up.reminder_before_minutes": 30,
   "follow_up.overdue_reminder_hours": 24,
+  // Auto-jadwal follow up: 1 = ON. Offset jam dari Segment.defaultFollowUpHours → fallback ke
+  // follow_up.default_hours. Selalu skip kalau lead sudah punya follow up OPEN.
+  "follow_up.auto_schedule": 1,
+  "follow_up.default_hours": 24,
   // AI
   "ai.segment_auto_apply_confidence": 0.85, // docs/06 §2.2, §37
   // priority weights (dinormalisasi ke total 1)

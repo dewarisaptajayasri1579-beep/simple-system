@@ -1483,6 +1483,7 @@ model LeadFollowUp {
   purpose         String
   note            String?
   status          String    @default("OPEN") // "OPEN" | "COMPLETED" | "CANCELLED"
+  source          String    @default("MANUAL") // "MANUAL" | "AUTO" (dijadwalkan sistem)
   resultTypeId    String?   @map("result_type_id")
   resultNote      String?   @map("result_note")
   completedAt     DateTime? @map("completed_at")
