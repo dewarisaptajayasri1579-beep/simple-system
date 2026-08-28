@@ -1,5 +1,5 @@
-import { MarketingComingSoon } from "@/components/marketing/MarketingComingSoon"
+import { TeamBoard } from "@/components/marketing/TeamBoard"
 
 export default function MarketingTimPage() {
-  return <MarketingComingSoon title="Tim" note="Monitoring per-Sales & KPI tim (SPV) — Fase 8." />
+  return <TeamBoard />
 }

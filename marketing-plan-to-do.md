@@ -246,21 +246,24 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 8 — SPV & Manager (view monitoring, bukan gerbang akses)
+## FASE 8 — SPV & Manager (view monitoring, bukan gerbang akses) — SELESAI
 
 > Karena semua data sudah terbuka untuk semua Tim, halaman-halaman di fase ini adalah **cara
 > pandang teragregasi** (per sales / per tim / funnel), bukan pembatas akses. Sales pun boleh
 > membukanya kalau mau lihat performa tim.
 
-41. API + halaman **SPV Team Dashboard** (`/marketing/tim`) — KPI tim (lead aktif, hot, overdue
-    follow up, chat belum dibalas, priority lead, won, follow up discipline, response time) +
-    Early Warning card actionable (contoh: "5 Hot Lead milik Adit belum di-follow up" + CTA).
-42. Halaman **SPV Sales Detail** — KPI per sales, lead list, follow up list, activity log, overdue,
-    trend.
-43. API + halaman **Manager Dashboard** (`/marketing/dashboard`) — KPI baseline (Total Lead, Cold,
-    Warm, Hot, Open, Won, Lost, Follow Up On Time, Overdue, Avg Response Time) + funnel + segment
-    performance + team performance + early warning + AI insight. Semua KPI drill-down.
-44. Halaman **Segment Performance** & **Team Performance** (metrik lengkap di `docs/03` §22–23).
+41. [x] `GET /api/marketing/team` + halaman `/marketing/tim` (`TeamBoard`) — KPI per Sales (lead
+    aktif, hot, FU hari ini/telat, chat belum dibalas, won bulan ini, on-time FU rate) via
+    `buildTeamAggregates` (semua `groupBy`/`count` di DB, tanpa loop). Early Warning: "N Hot Lead
+    milik X belum di-follow up" + "X punya N follow up terlambat" (≥3) + CTA.
+42. [x] Halaman `/marketing/tim/[userId]` (`MemberDetail`) — KPI card member + daftar lead-nya
+    (`?picUserId=`). (Trend/activity log detail = enhancement nanti.)
+43. [x] `GET /api/marketing/dashboard` + halaman `/marketing/dashboard` (`ManagerDashboard`) — KPI
+    (Total/Cold/Warm/Hot/Open/Won/Lost/FU Telat/On-Time FU rate) + funnel tahap (bar) + performa
+    segmen (lead/won/konversi) + performa tim. (Avg Response Time & AI insight menyusul.)
+44. [x] Performa Segmen & Performa Tim jadi section di `/marketing/dashboard`.
+
+### (rencana asli)
 
 ---
 
