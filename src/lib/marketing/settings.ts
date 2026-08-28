@@ -3,13 +3,29 @@ import { prisma } from "@/lib/prisma"
 /** Tunable modul Marketing di `LeadSystemSetting` (key-value JSON). Semua punya default —
  *  UI Settings (Fase 10) hanya meng-override. */
 export const MARKETING_SETTING_DEFAULTS = {
-  "follow_up.grace_minutes": 120,
-  "ai.segment_auto_apply_confidence": 0.7,
+  // follow up
+  "follow_up.grace_minutes": 15, // docs/06 §37
+  "follow_up.reminder_before_minutes": 30,
+  "follow_up.overdue_reminder_hours": 24,
+  // AI
+  "ai.segment_auto_apply_confidence": 0.85, // docs/06 §2.2, §37
+  // priority weights (dinormalisasi ke total 1)
   "priority.weight_temperature": 0.25,
   "priority.weight_activity": 0.3,
   "priority.weight_follow_up": 0.25,
   "priority.weight_recency": 0.1,
   "priority.weight_ai": 0.1,
+  // escalation ke SPV (docs/06 §18)
+  "escalation.hot_unreplied_hours": 2,
+  "escalation.followup_overdue_hours": 24,
+  "escalation.negotiation_idle_days": 3,
+  // temperature (docs/06 §6)
+  "temperature.override_lock_hours": 24,
+  // working hours (docs/06 §33) — Minggu selalu libur, Sen-Jum selalu kerja, Sabtu = toggle
+  "working_hours.enabled": 1,
+  "working_hours.start_hour": 8,
+  "working_hours.end_hour": 17,
+  "working_hours.saturday": 1,
 } as const
 
 export type MarketingSettingKey = keyof typeof MARKETING_SETTING_DEFAULTS

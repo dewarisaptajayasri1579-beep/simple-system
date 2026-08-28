@@ -1190,8 +1190,12 @@ model Lead {
   // outcome WON wajib wonAt terisi, outcome LOST wajib lostAt terisi — divalidasi di service
   // layer (endpoint Won/Lost, lihat docs/04-database.md §28), bukan DB constraint.
   wonAt                  DateTime? @map("won_at")
+  wonNote                String?   @map("won_note")
+  dealValue              Int?      @map("deal_value") // nilai deal (Rupiah), diisi saat Tandai Won
   lostAt                 DateTime? @map("lost_at")
   lostReasonId           String?   @map("lost_reason_id")
+  // AI tidak boleh auto-ubah temperatur selama lock ini aktif (docs/06 §6, manual override).
+  temperatureLockedUntil DateTime? @map("temperature_locked_until")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -1439,6 +1443,8 @@ model LeadFollowUpResultType {
   name                   String
   priorityScoreEffect    Int      @map("priority_score_effect")
   temperatureSignalScore Int      @map("temperature_signal_score")
+  // Skor 0-100 komponen "Hasil Follow Up" di Priority Engine (docs/06 §8). Bisa diubah di config.
+  normalizedScore        Int      @default(50) @map("normalized_score")
   isPositive             Boolean? @map("is_positive")
   isActive               Boolean  @default(true) @map("is_active")
 

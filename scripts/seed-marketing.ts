@@ -33,11 +33,12 @@ async function main() {
     console.log(`LeadSource ${s.code} - ${s.name}`)
   }
 
+  // score = normalized activity score (docs/06 §7): DISCUSSION 20, ZOOM_DEMO 55, PROPOSAL 75, NEGOTIATION 90.
   const activityTypes = [
-    { code: "DISCUSSION", name: "Diskusi", stageRank: 1, score: 10 },
-    { code: "ZOOM_DEMO", name: "Zoom/Demo", stageRank: 2, score: 25 },
-    { code: "PROPOSAL", name: "Kirim Penawaran", stageRank: 3, score: 40 },
-    { code: "NEGOTIATION", name: "Negosiasi", stageRank: 4, score: 60 },
+    { code: "DISCUSSION", name: "Diskusi", stageRank: 1, score: 20 },
+    { code: "ZOOM_DEMO", name: "Zoom/Demo", stageRank: 2, score: 55 },
+    { code: "PROPOSAL", name: "Kirim Penawaran", stageRank: 3, score: 75 },
+    { code: "NEGOTIATION", name: "Negosiasi", stageRank: 4, score: 90 },
   ]
   for (const a of activityTypes) {
     await prisma.leadActivityType.upsert({
@@ -48,14 +49,16 @@ async function main() {
     console.log(`LeadActivityType ${a.code} - ${a.name}`)
   }
 
+  // normalizedScore = skor 0-100 komponen Follow Up di Priority Engine (docs/06 §8).
   const followUpResultTypes = [
-    { code: "REQUEST_PROPOSAL", name: "Minta Penawaran", priorityScoreEffect: 20, temperatureSignalScore: 20, isPositive: true },
-    { code: "REQUEST_DEMO", name: "Minta Demo", priorityScoreEffect: 18, temperatureSignalScore: 18, isPositive: true },
-    { code: "INTERESTED", name: "Tertarik", priorityScoreEffect: 15, temperatureSignalScore: 15, isPositive: true },
-    { code: "CALL_LATER", name: "Hubungi Nanti", priorityScoreEffect: 8, temperatureSignalScore: 5, isPositive: true },
-    { code: "INTERNAL_DISCUSSION", name: "Diskusi Internal Customer", priorityScoreEffect: 5, temperatureSignalScore: 5, isPositive: true },
-    { code: "NO_RESPONSE", name: "Tidak Ada Respon", priorityScoreEffect: -5, temperatureSignalScore: -5, isPositive: false },
-    { code: "NOT_INTERESTED", name: "Tidak Tertarik", priorityScoreEffect: -25, temperatureSignalScore: -25, isPositive: false },
+    { code: "REQUEST_PROPOSAL", name: "Minta Penawaran", priorityScoreEffect: 20, temperatureSignalScore: 20, normalizedScore: 100, isPositive: true },
+    { code: "REQUEST_DEMO", name: "Minta Demo", priorityScoreEffect: 18, temperatureSignalScore: 18, normalizedScore: 90, isPositive: true },
+    { code: "INTERESTED", name: "Tertarik", priorityScoreEffect: 15, temperatureSignalScore: 15, normalizedScore: 80, isPositive: true },
+    { code: "CALL_LATER", name: "Hubungi Nanti", priorityScoreEffect: 8, temperatureSignalScore: 5, normalizedScore: 65, isPositive: true },
+    { code: "INTERNAL_DISCUSSION", name: "Diskusi Internal Customer", priorityScoreEffect: 5, temperatureSignalScore: 5, normalizedScore: 60, isPositive: true },
+    { code: "OTHER", name: "Lainnya", priorityScoreEffect: 0, temperatureSignalScore: 0, normalizedScore: 50, isPositive: null },
+    { code: "NO_RESPONSE", name: "Tidak Ada Respon", priorityScoreEffect: -5, temperatureSignalScore: -5, normalizedScore: 30, isPositive: false },
+    { code: "NOT_INTERESTED", name: "Tidak Tertarik", priorityScoreEffect: -25, temperatureSignalScore: -25, normalizedScore: 0, isPositive: false },
   ]
   for (const f of followUpResultTypes) {
     await prisma.leadFollowUpResultType.upsert({
@@ -64,6 +67,7 @@ async function main() {
         name: f.name,
         priorityScoreEffect: f.priorityScoreEffect,
         temperatureSignalScore: f.temperatureSignalScore,
+        normalizedScore: f.normalizedScore,
         isPositive: f.isPositive,
       },
       create: f,
