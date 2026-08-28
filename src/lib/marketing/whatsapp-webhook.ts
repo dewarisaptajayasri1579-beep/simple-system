@@ -40,6 +40,11 @@ const MEDIA_TYPE_MAP: Record<string, string> = {
   video: "OTHER",
   sticker: "OTHER",
 }
+const MEDIA_TYPES = new Set(Object.keys(MEDIA_TYPE_MAP))
+// `type` yang dihitung sebagai pesan teks biasa. Selain ini & MEDIA_TYPES → event protokol/sistem
+// (senderKeyDistributionMessage, protocolMessage, reactionMessage, pollUpdateMessage, dst) yang
+// TIDAK boleh disimpan sebagai pesan (dulu ketang­kap jadi bubble "OTHER" kosong).
+const TEXT_TYPES = new Set(["text", "chat", "conversation", "extendedTextMessage"])
 
 /** Idempotency key stabil untuk 1 pesan — pakai `id` dari WAHUB kalau ada, kalau tidak
  *  sintetik dari (pengirim + timestamp + hash isi). */
@@ -97,10 +102,19 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   const chatId = message.chatId || message.from
   if (chatId.endsWith("@g.us")) return { skipped: "group message" }
 
-  const isMedia = message.type && message.type !== "text" && message.type !== "chat"
+  // Whitelist tipe: teks / media dikenal. Selain itu = event protokol → abaikan total.
+  const isText = !message.type || TEXT_TYPES.has(message.type)
+  const isMedia = !!message.type && MEDIA_TYPES.has(message.type)
+  if (!isText && !isMedia) {
+    console.log(`[mkt-wa] abaikan event tipe "${message.type}" dari ${digits}`)
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+    return { skipped: `ignored type: ${message.type}` }
+  }
+
   const messageType = isMedia ? MEDIA_TYPE_MAP[message.type!] ?? "OTHER" : "TEXT"
   const bodyText = isMedia ? message.caption?.trim() || null : message.body?.trim() || null
   if (!isMedia && !bodyText) return { skipped: "empty body" }
+  if (isMedia && !message.mediaUrl && !bodyText) return { skipped: "empty media" }
 
   const whatsappNumber = normalizePhoneNumber(digits)
   const sentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
