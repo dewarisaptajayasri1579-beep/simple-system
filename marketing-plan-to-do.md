@@ -79,12 +79,16 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 1. [x] Skema Prisma modul Marketing (`prisma/schema.prisma:1081-1669`) sudah lengkap + ber-`@@index`
    (relasi & kolom filter: `temperature`, `outcome`, `priorityScore`, `lastInteractionAt`, dst).
    Diverifikasi — tidak ada yang kurang.
-2. [x] Seed master data — `scripts/seed-marketing.ts` **sudah ada & lengkap** (Segment, LeadSource,
-   LeadActivityType, LeadFollowUpResultType, LeadLostReason; idempotent upsert by code).
-   → **Sisa: jalankan `npx tsx scripts/seed-marketing.ts` sekali ke DB** (tugas ONY / saat deploy).
-3. [ ] Buat layout modul Marketing sendiri — sidebar/bottom-nav khusus (bukan pakai `Sidebar.tsx`
-   Internal). Item nav baseline: Beranda, Inbox, Lead, Follow Up, Tim, Dashboard (semua role lihat
-   semua menu — bedanya cuma data agregat, bukan gerbang akses).
+2. [x] Seed master data — `scripts/seed-marketing.ts` lengkap **& sudah dijalankan ke DB**
+   (Segment, LeadSource, LeadActivityType, LeadFollowUpResultType, LeadLostReason).
+   → Sisa: jalankan lagi di DB production saat deploy.
+3. [x] Layout modul Marketing:
+   - `src/components/marketing/MarketingShell.tsx` — sidebar (desktop) + bottom-nav (mobile) +
+     header; nav: Beranda, Inbox, Lead, Follow Up, Tim, Dashboard + Hubungkan WhatsApp / Ganti
+     Modul / Keluar. Semua role lihat semua menu.
+   - `src/app/marketing/(shell)/layout.tsx` — gate `getCurrentUser("marketing")` + resolve role
+     (Manager/SPV/Sales) untuk label. `/marketing/whatsapp` sengaja di luar grup (tetap chrome-less).
+   - Stub page `MarketingComingSoon` untuk 6 route biar nav tidak 404. Build hijau.
 4. [x] Helper izin server-side → `src/lib/marketing/permissions.ts`:
    - `canViewMarketing(user)` → semua anggota Tim `true` (operasi baca TIDAK difilter).
    - `resolveMarketingRole(userId, role)` → `MANAGER | SPV | SALES` (owner/manajer team = MANAGER).
