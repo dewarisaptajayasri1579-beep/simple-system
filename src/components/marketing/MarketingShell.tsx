@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   BarChart2,
   CalendarClock,
+  Gauge,
   LayoutGrid,
   LogOut,
   MessagesSquare,
@@ -33,6 +34,7 @@ const NAV: NavItem[] = [
   { label: "Lead", href: "/marketing/leads", icon: <Users className="w-5 h-5" />, mobile: true },
   { label: "Follow Up", href: "/marketing/follow-up", icon: <CalendarClock className="w-5 h-5" />, mobile: true },
   { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
+  { label: "KPI", href: "/marketing/kpi", icon: <Gauge className="w-5 h-5" /> },
   { label: "Dashboard", href: "/marketing/dashboard", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/marketing/settings", icon: <Settings className="w-5 h-5" /> },
 ]
@@ -146,6 +148,12 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                   >
                     <QrCode className="w-4 h-4 text-slate-500" /> Hubungkan WhatsApp
+                  </Link>
+                  <Link
+                    href="/marketing/kpi"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    <Gauge className="w-4 h-4 text-slate-500" /> KPI
                   </Link>
                   <Link
                     href="/marketing/dashboard"

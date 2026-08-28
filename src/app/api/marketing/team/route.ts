@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { buildTeamAggregates } from "@/lib/marketing/analytics"
+import { avgResponseTimeByUser } from "@/lib/marketing/kpi"
 import { prisma } from "@/lib/prisma"
 
 /** GET /api/marketing/team — KPI per Sales + early warning. Terbuka untuk semua anggota tim
@@ -10,13 +11,19 @@ export async function GET() {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
-  const [members, hotNoFollowUp] = await Promise.all([
+  const [membersRaw, hotNoFollowUp] = await Promise.all([
     buildTeamAggregates(),
     prisma.lead.findMany({
       where: { outcome: "OPEN", temperature: "HOT", followUps: { none: { status: "OPEN" } } },
       select: { assignments: { where: { isActive: true }, select: { assignedUser: { select: { id: true, name: true } } } } },
     }),
   ])
+
+  const respByUser = await avgResponseTimeByUser(membersRaw.map((m) => m.userId), 30)
+  const members = membersRaw.map((m) => {
+    const r = respByUser.get(m.userId)
+    return { ...m, avgResponseMinutes: r?.avgMs != null ? Math.round(r.avgMs / 60000) : null }
+  })
 
   const hotByUser = new Map<string, { name: string; count: number }>()
   for (const l of hotNoFollowUp) {

@@ -1355,6 +1355,10 @@ model Conversation {
   whatsappConnectionId   String?   @map("whatsapp_connection_id")
   provider               String
   providerConversationId String?   @map("provider_conversation_id")
+  // JID "LID" (privacy alias WhatsApp, "xxxx@lid") untuk chat ini — direkam saat pertama kali
+  // terlihat barengan nomor asli. Dipakai sebagai jalur cocok cadangan kalau payload WAHUB suatu
+  // saat cuma kirim @lid tanpa senderNumber/from nomor asli.
+  lidJid                 String?   @map("lid_jid")
   channel                String    @default("WHATSAPP")
   status                 String    @default("OPEN") // "OPEN" | "ARCHIVED"
   lastMessageAt          DateTime? @map("last_message_at")
@@ -1370,6 +1374,7 @@ model Conversation {
   @@unique([provider, providerConversationId])
   @@index([leadId])
   @@index([whatsappConnectionId])
+  @@index([lidJid])
   @@map("conversations")
   @@schema("simple_system")
 }

@@ -29,6 +29,7 @@ interface Member {
   wonThisMonth: number
   followUpCompletedThisMonth: number
   followUpOnTimeThisMonth: number
+  avgResponseMinutes: number | null
 }
 
 interface Warning {
@@ -96,6 +97,7 @@ export const TeamBoard: React.FC = () => {
               <TableHead className="text-right">Chat Blm Dibalas</TableHead>
               <TableHead className="text-right">Won (bln ini)</TableHead>
               <TableHead className="text-right">On-Time FU</TableHead>
+              <TableHead className="text-right">Avg Balas</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -120,6 +122,13 @@ export const TeamBoard: React.FC = () => {
                   <TableCell className="text-right">{m.unrepliedChats || ""}</TableCell>
                   <TableCell className="text-right font-bold text-emerald-600">{m.wonThisMonth || ""}</TableCell>
                   <TableCell className="text-right">{rate == null ? "—" : `${rate}%`}</TableCell>
+                  <TableCell className="text-right">
+                    {m.avgResponseMinutes == null
+                      ? "—"
+                      : m.avgResponseMinutes < 60
+                        ? `${m.avgResponseMinutes}m`
+                        : `${Math.floor(m.avgResponseMinutes / 60)}j ${m.avgResponseMinutes % 60}m`}
+                  </TableCell>
                 </TableRow>
               )
             })}

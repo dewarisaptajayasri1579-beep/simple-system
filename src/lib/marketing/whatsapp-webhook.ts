@@ -131,19 +131,15 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     }
     const outBody = clsOut.body
 
-    // Nomor lawan bicara (customer) = `senderNumber` / `from` — konsisten di KEDUA arah.
-    // `to` untuk pesan KELUAR sering berupa "xxxxx@lid" (alias privasi), bukan nomor asli.
+    // Nomor lawan bicara (customer) = `senderNumber` / `from` (nomor asli, konsisten kedua arah).
+    // `to`/`chatId` untuk pesan KELUAR sering "xxxx@lid" (alias privasi WhatsApp), bukan nomor.
     const remoteDigits = (message.senderNumber || message.from || "").replace(/@.*$/, "")
-    if (!/^\d{6,}$/.test(remoteDigits)) return { skipped: "outgoing tanpa nomor lawan" }
-
-    const outNumber = normalizePhoneNumber(remoteDigits)
-    const outLead = await prisma.lead.findFirst({ where: { whatsappNumber: outNumber }, select: { id: true } })
-    if (!outLead) {
-      // Nomor yang belum pernah jadi lead dari sisi inbound — jangan auto-bikin lead dari pesan
-      // keluar (hindari kontak pribadi Sales kebuat jadi lead).
-      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
-      return { skipped: "outgoing ke non-lead" }
-    }
+    const hasRealNumber = /^\d{6,}$/.test(remoteDigits)
+    const lidJid = message.chatId?.endsWith("@lid")
+      ? message.chatId
+      : message.to?.endsWith("@lid")
+        ? message.to
+        : null
 
     const outMsgId = messageKey(message, remoteDigits)
     const dupOut = await prisma.message.findUnique({ where: { providerMessageId: outMsgId }, select: { id: true } })
@@ -154,18 +150,46 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
 
     const outSentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
     const outConvKey = `${connection.wahubSessionId}:${message.chatId || message.from || remoteDigits}`
+    const convSelect = { id: true, leadId: true, lidJid: true } as const
+
+    // Cari conversation: (1) key provider, (2) lidJid yang pernah direkam, (3) via lead dari nomor asli.
     let outConv =
       (await prisma.conversation.findUnique({
         where: { provider_providerConversationId: { provider: "wahub", providerConversationId: outConvKey } },
+        select: convSelect,
       })) ||
-      (await prisma.conversation.findFirst({
-        where: { leadId: outLead.id, whatsappConnectionId: connection.id },
-        orderBy: { createdAt: "desc" },
-      }))
+      (lidJid
+        ? await prisma.conversation.findFirst({
+            where: { provider: "wahub", lidJid, whatsappConnectionId: connection.id },
+            select: convSelect,
+          })
+        : null)
+
+    let outLeadId = outConv?.leadId ?? null
+    if (!outLeadId && hasRealNumber) {
+      const l = await prisma.lead.findFirst({ where: { whatsappNumber: normalizePhoneNumber(remoteDigits) }, select: { id: true } })
+      outLeadId = l?.id ?? null
+      if (outLeadId && !outConv) {
+        outConv = await prisma.conversation.findFirst({
+          where: { leadId: outLeadId, whatsappConnectionId: connection.id },
+          orderBy: { createdAt: "desc" },
+          select: convSelect,
+        })
+      }
+    }
+    if (!outLeadId) {
+      // Bukan lead dikenal & tidak ada jejak lidJid → jangan auto-bikin lead dari pesan keluar.
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+      return { skipped: "outgoing ke non-lead" }
+    }
+
     if (!outConv) {
       outConv = await prisma.conversation.create({
-        data: { leadId: outLead.id, whatsappConnectionId: connection.id, provider: "wahub", providerConversationId: outConvKey, channel: "WHATSAPP" },
+        data: { leadId: outLeadId, whatsappConnectionId: connection.id, provider: "wahub", providerConversationId: outConvKey, channel: "WHATSAPP", lidJid },
+        select: convSelect,
       })
+    } else if (lidJid && !outConv.lidJid) {
+      await prisma.conversation.update({ where: { id: outConv.id }, data: { lidJid } })
     }
 
     // Pesan yang dikirim lewat app ini (< 2 menit lalu, providerMessageId masih null) → backfill
@@ -206,14 +230,14 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     })
     await prisma.conversation.update({ where: { id: outConv.id }, data: { lastMessageAt: outSentAt } })
     await prisma.lead.update({
-      where: { id: outLead.id },
+      where: { id: outLeadId },
       data: { lastSalesMessageAt: outSentAt, lastInteractionAt: outSentAt, waGroupAlertedAt: null },
     })
-    publishMarketingEvent({ type: "message", conversationId: outConv.id, leadId: outLead.id, direction: "OUTBOUND", at: outSentAt.toISOString() })
-    await recalcLeadDerived(outLead.id).catch(() => {})
+    publishMarketingEvent({ type: "message", conversationId: outConv.id, leadId: outLeadId, direction: "OUTBOUND", at: outSentAt.toISOString() })
+    await recalcLeadDerived(outLeadId).catch(() => {})
     await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
-    console.log(`[mkt-wa] balasan Sales dari HP tercatat → lead ${outLead.id}`)
-    return { handled: true, outbound: true, conversationId: outConv.id, leadId: outLead.id }
+    console.log(`[mkt-wa] balasan Sales dari HP tercatat → lead ${outLeadId}`)
+    return { handled: true, outbound: true, conversationId: outConv.id, leadId: outLeadId }
   }
 
   // ---- Pesan masuk ----
@@ -274,6 +298,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   }
 
   const providerConversationId = `${connection.wahubSessionId}:${chatId}`
+  const inLidJid = chatId.endsWith("@lid") ? chatId : null
   let conversation = await prisma.conversation.findUnique({
     where: { provider_providerConversationId: { provider: "wahub", providerConversationId } },
   })
@@ -285,8 +310,11 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
         provider: "wahub",
         providerConversationId,
         channel: "WHATSAPP",
+        lidJid: inLidJid,
       },
     })
+  } else if (inLidJid && !conversation.lidJid) {
+    conversation = await prisma.conversation.update({ where: { id: conversation.id }, data: { lidJid: inLidJid } })
   }
 
   await prisma.message.create({
