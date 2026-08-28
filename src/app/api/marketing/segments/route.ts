@@ -29,6 +29,7 @@ export async function GET() {
       defaultFollowUpHours: s.defaultFollowUpHours,
       aiContext: s.aiContext,
       leadCount: leadCount.get(s.id) ?? 0,
+      usageCount: leadCount.get(s.id) ?? 0,
     })),
     canEdit: role === "MANAGER",
   })

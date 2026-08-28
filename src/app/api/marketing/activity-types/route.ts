@@ -8,9 +8,15 @@ import { prisma } from "@/lib/prisma"
 export async function GET() {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
-  const [activityTypes, role] = await Promise.all([
+  const [activityTypes, counts, role] = await Promise.all([
     prisma.leadActivityType.findMany({ orderBy: { stageRank: "asc" } }),
+    prisma.leadActivity.groupBy({ by: ["activityTypeId"], _count: true }),
     resolveMarketingRole(user.id, user.role),
   ])
-  return NextResponse.json({ activityTypes, canEdit: role === "MANAGER" })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const used = new Map((counts as any[]).map((c) => [c.activityTypeId, c._count as number]))
+  return NextResponse.json({
+    activityTypes: activityTypes.map((r) => ({ ...r, usageCount: used.get(r.id) ?? 0 })),
+    canEdit: role === "MANAGER",
+  })
 }

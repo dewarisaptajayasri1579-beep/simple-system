@@ -9,6 +9,7 @@ export * from "./Modal";
 export * from "./Spinner";
 export * from "./Skeleton";
 export * from "./StatTile";
+export * from "./Switch";
 export * from "./Tabs";
 export * from "./Alert";
 export * from "./Avatar";
