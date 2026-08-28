@@ -100,8 +100,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const { id } = await params
-  const payload = (await request.json().catch(() => null)) as { body?: unknown } | null
+  const payload = (await request.json().catch(() => null)) as { body?: unknown; aiSuggestionId?: unknown } | null
   const text = typeof payload?.body === "string" ? payload.body.trim() : ""
+  const aiSuggestionId = typeof payload?.aiSuggestionId === "string" ? payload.aiSuggestionId : null
   if (!text) return NextResponse.json({ error: "Pesan tidak boleh kosong" }, { status: 400 })
 
   const conversation = await prisma.conversation.findUnique({
@@ -146,11 +147,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       messageType: "TEXT",
       body: text,
       senderUserId: user.id,
+      aiSuggestionId: aiSuggestionId ?? undefined,
       sentAt,
       deliveryStatus: "SENT",
     },
     select: MESSAGE_SELECT,
   })
+
+  if (aiSuggestionId) {
+    await prisma.leadAiSuggestion
+      .updateMany({ where: { id: aiSuggestionId, usedAt: null }, data: { usedAt: sentAt, usedByUserId: user.id } })
+      .catch(() => {})
+  }
 
   await prisma.conversation.update({ where: { id }, data: { lastMessageAt: sentAt } })
   await prisma.lead.update({

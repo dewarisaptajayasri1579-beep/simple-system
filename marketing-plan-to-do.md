@@ -203,22 +203,26 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 6 — AI Analysis (async, tidak blocking chat)
+## FASE 6 — AI Analysis (async, tidak blocking chat) — SELESAI
 
-31. Service `analyzeLead(leadId)` (pola sama `src/lib/agent.ts`, Claude) — jalan async, hasil ke
-    `LeadAiAnalysis` (versioned, simpan `source_message_until_id`, model/version, confidence).
-32. **Auto Segmentation** — baca beberapa pesan awal, pilih `segment_id` + confidence + reason.
-    Kalau confidence < threshold → tampil sebagai rekomendasi, tidak auto-apply.
-33. **Lead Profiling** — company_size, buying_power, buying_interest, need, closing_probability,
-    buying_signal, summary, evidence. UI kasih label "Perkiraan dari AI".
-34. **Conversation Summary** — customer context, need, pain point, produk diminati, objection,
-    commitment, stage, next action. Bisa di-refresh, tidak hapus versi lama.
-35. **Suggested Reply** (`LeadAiSuggestion`) — 3 mode (Profesional, Santai, Closing). Tidak
-    auto-send; user tekan Gunakan → boleh edit → kirim. Lacak suggestion yang dipakai.
-36. **Next Best Action** — CONTINUE_DISCUSSION / SCHEDULE_DEMO / SEND_PROPOSAL / FOLLOW_UP /
-    NEGOTIATE / ESCALATE / WAIT_UNTIL_DATE + reason + confidence.
-37. Integrasi AI card ke halaman percakapan (poin 11) + tombol regenerate. Gagal AI = card kosong,
-    chat tetap jalan.
+31. [x] `analyzeLead(leadId)` (`src/lib/marketing/ai.ts`, `@anthropic-ai/sdk`, `claude-haiku-4-5`,
+    `promptVersion "mkt-v1"`) — 1 call → 5 `LeadAiAnalysis` (versioned, `nextVersion` per tipe,
+    status SUCCESS/FAILED). Endpoint `GET/POST /api/marketing/leads/[id]/ai` (POST gagal → 422, tidak
+    fatal).
+32. [x] Auto Segmentation — pilih `segmentCode` + confidence + reason. Auto-apply hanya kalau
+    `confidence ≥ 0.7` DAN lead belum bersegmen (tulis `LeadSegmentHistory` source AI); selain itu
+    tampil sebagai rekomendasi di section "AI Insight".
+33. [x] Lead Profiling — companySize, buyingPower, buyingInterest, need, closingProbability, summary.
+    UI dilabeli "AI Insight — Perkiraan".
+34. [x] Conversation Summary — customerContext, needs, painPoints, objections, lastCommitment,
+    nextAction. Versioned (tidak overwrite), tombol "Analisa ulang".
+35. [x] Suggested Reply — `GET/POST /api/marketing/conversations/[id]/ai-suggestions` → 3
+    `LeadAiSuggestion` (PROFESSIONAL/CASUAL/CLOSING). UI di `ConversationView`: "Saran AI" → pilih →
+    isi composer (editable) → kirim dengan `aiSuggestionId` → `usedAt`/`usedByUserId` keset +
+    `Message.aiSuggestionId`. Tidak auto-send.
+36. [x] Next Best Action — action (7 enum) + reason + confidence, tampil di AI Insight.
+37. [x] Panel "Saran AI" di percakapan + tombol "Buat ulang"; gagal AI = pesan error, chat tetap
+    jalan. BUYING_SIGNAL feed ke Priority Engine (Fase 4).
 
 ---
 

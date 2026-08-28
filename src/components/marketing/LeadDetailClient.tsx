@@ -127,6 +127,10 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [reassignTo, setReassignTo] = useState("")
   const [reassignReason, setReassignReason] = useState("")
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ai, setAi] = useState<Record<string, any>>({})
+  const [aiBusy, setAiBusy] = useState(false)
+
   const [actOpen, setActOpen] = useState(false)
   const [actForm, setActForm] = useState({ activityTypeId: "", occurredAt: "", note: "" })
   const [fuOpen, setFuOpen] = useState(false)
@@ -164,9 +168,36 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
     }
   }, [leadId])
 
+  const loadAi = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/ai`, { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setAi(d.analyses ?? {})
+    } catch {
+      /* ignore */
+    }
+  }, [leadId])
+
+  const runAi = async () => {
+    setAiBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/ai`, { method: "POST" })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Analisa AI gagal")
+        return
+      }
+      await Promise.all([loadAi(), load()])
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
   useEffect(() => {
     load()
-  }, [load])
+    loadAi()
+  }, [load, loadAi])
 
   useEffect(() => {
     fetch("/api/marketing/meta")
@@ -375,6 +406,67 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         )}
         {!lead.latestPriority && (
           <p className="text-xs text-slate-400 mt-1">Belum pernah dihitung ulang — akan terisi saat ada interaksi berikutnya.</p>
+        )}
+      </Section>
+
+      {/* AI Insight */}
+      <Section
+        title="AI Insight — Perkiraan"
+        right={
+          <button onClick={runAi} disabled={aiBusy} className="text-xs font-bold text-blue-700 disabled:opacity-50">
+            {aiBusy ? "Menganalisa…" : Object.keys(ai).length ? "Analisa ulang" : "Analisa AI"}
+          </button>
+        }
+      >
+        {Object.keys(ai).length === 0 ? (
+          <p className="text-sm text-slate-400">Belum ada analisa. Klik &quot;Analisa AI&quot; (butuh minimal 1 pesan di percakapan).</p>
+        ) : (
+          <div className="flex flex-col gap-2.5 text-sm">
+            {ai.SEGMENTATION && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Segmentasi</p>
+                <p className="text-slate-700">
+                  {ai.SEGMENTATION.output?.segmentCode}{" "}
+                  <span className="text-slate-400">({Math.round((ai.SEGMENTATION.confidence ?? 0) * 100)}% yakin)</span>
+                </p>
+                <p className="text-xs text-slate-500">{ai.SEGMENTATION.output?.reason}</p>
+              </div>
+            )}
+            {ai.SUMMARY && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Ringkasan</p>
+                <p className="text-slate-700">{ai.SUMMARY.output?.customerContext}</p>
+                {ai.SUMMARY.output?.needs && <p className="text-xs text-slate-500">Kebutuhan: {ai.SUMMARY.output.needs}</p>}
+                {ai.SUMMARY.output?.objections && <p className="text-xs text-slate-500">Keberatan: {ai.SUMMARY.output.objections}</p>}
+                {ai.SUMMARY.output?.nextAction && <p className="text-xs text-slate-500">Next: {ai.SUMMARY.output.nextAction}</p>}
+              </div>
+            )}
+            {ai.PROFILING && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Profil</p>
+                <p className="text-xs text-slate-600">
+                  Ukuran: {ai.PROFILING.output?.companySize} · Minat: {ai.PROFILING.output?.buyingInterest} · Daya beli:{" "}
+                  {ai.PROFILING.output?.buyingPower} · Peluang closing: {ai.PROFILING.output?.closingProbability}
+                </p>
+                {ai.PROFILING.output?.summary && <p className="text-xs text-slate-500 mt-0.5">{ai.PROFILING.output.summary}</p>}
+              </div>
+            )}
+            {ai.NEXT_BEST_ACTION && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Next Best Action</p>
+                <p className="text-slate-700">{ai.NEXT_BEST_ACTION.output?.action}</p>
+                <p className="text-xs text-slate-500">{ai.NEXT_BEST_ACTION.output?.reason}</p>
+              </div>
+            )}
+            {ai.BUYING_SIGNAL && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Buying Signal</p>
+                <p className="text-slate-700">
+                  {ai.BUYING_SIGNAL.output?.score}/100 <span className="text-xs text-slate-500">— {ai.BUYING_SIGNAL.output?.reason}</span>
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </Section>
 

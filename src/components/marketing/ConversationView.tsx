@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Send } from "lucide-react"
+import { ArrowLeft, Send, Sparkles } from "lucide-react"
 
 interface Message {
   id: string
@@ -51,6 +51,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
+  const [usedSuggestionId, setUsedSuggestionId] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<{ id: string; style: string; text: string }[]>([])
+  const [aiBusy, setAiBusy] = useState(false)
+  const [showAi, setShowAi] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
 
@@ -113,6 +117,33 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     }
   }
 
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/marketing/conversations/${conversationId}/ai-suggestions`, { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setSuggestions(d.suggestions ?? [])
+    } catch {
+      /* ignore */
+    }
+  }, [conversationId])
+
+  const genSuggestions = async () => {
+    setAiBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/marketing/conversations/${conversationId}/ai-suggestions`, { method: "POST" })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Gagal membuat saran")
+        return
+      }
+      setSuggestions(d.suggestions ?? [])
+      setShowAi(true)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
   const send = async () => {
     const text = draft.trim()
     if (!text || sending) return
@@ -121,7 +152,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       const res = await fetch(`/api/marketing/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text }),
+        body: JSON.stringify({ body: text, aiSuggestionId: usedSuggestionId }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -130,11 +161,16 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       }
       setError(null)
       setDraft("")
+      setUsedSuggestionId(null)
       setMessages((prev) => [...prev, data.message])
     } finally {
       setSending(false)
     }
   }
+
+  useEffect(() => {
+    loadSuggestions()
+  }, [loadSuggestions])
 
   if (loading) return <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
   if (!meta) return <p className="text-sm font-semibold text-rose-600 py-10 text-center">{error ?? "Percakapan tidak ditemukan"}</p>
@@ -201,6 +237,45 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
 
       {/* composer / banner */}
       {error && <p className="text-xs font-semibold text-rose-600 pb-2">{error}</p>}
+
+      {meta.canAct && (
+        <div className="pb-2">
+          <button
+            onClick={() => (showAi ? setShowAi(false) : suggestions.length ? setShowAi(true) : genSuggestions())}
+            disabled={aiBusy}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> {aiBusy ? "Membuat saran…" : showAi ? "Sembunyikan Saran AI" : "Saran AI"}
+          </button>
+          {showAi && suggestions.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-400">Perkiraan AI — edit sebelum kirim</span>
+                <button onClick={genSuggestions} disabled={aiBusy} className="text-[11px] font-bold text-blue-700">
+                  Buat ulang
+                </button>
+              </div>
+              {suggestions.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setDraft(s.text)
+                    setUsedSuggestionId(s.id)
+                    setShowAi(false)
+                  }}
+                  className="text-left text-xs p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300"
+                >
+                  <span className="font-bold text-slate-400 mr-1">
+                    {s.style === "PROFESSIONAL" ? "Profesional" : s.style === "CASUAL" ? "Santai" : "Closing"}:
+                  </span>
+                  <span className="text-slate-700">{s.text}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {meta.canAct ? (
         <div className="flex items-end gap-2 pt-2 border-t border-slate-200">
           <textarea
