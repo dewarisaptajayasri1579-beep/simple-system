@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { prisma } from "@/lib/prisma"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { getMarketingSetting } from "@/lib/marketing/settings"
+import { shouldAutoApplySegment } from "@/lib/marketing/rules"
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 /** Default: Haiku (murah, dipakai cron auto-reanalysis & saran balasan). Tombol "Analisa AI"
@@ -118,7 +119,7 @@ Kalau info kurang, tetap beri estimasi terbaik dengan confidence rendah.`
   // Auto-apply segmentasi bila yakin & lead belum bersegmen
   const segCode: string | undefined = parsed.segmentation?.segmentCode
   const segConf = num(parsed.segmentation?.confidence) ?? 0
-  if (!lead.segmentId && segCode && segConf >= autoApplyConfidence) {
+  if (segCode && shouldAutoApplySegment(segConf, autoApplyConfidence, lead.segmentId)) {
     const seg = await prisma.segment.findUnique({ where: { code: segCode }, select: { id: true } })
     if (seg) {
       await prisma.$transaction([

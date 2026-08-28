@@ -4,11 +4,8 @@ import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
+import { advanceStage } from "@/lib/marketing/rules"
 import { prisma } from "@/lib/prisma"
-
-/** Rank tahap aktivitas — dipakai untuk menggeser `Lead.currentActivityStage` maju (tidak
- *  pernah mundur otomatis). Sinkron dengan LeadActivityType.stageRank hasil seed. */
-const STAGE_RANK: Record<string, number> = { NONE: 0, DISCUSSION: 1, ZOOM_DEMO: 2, PROPOSAL: 3, NEGOTIATION: 4 }
 
 /** POST /api/marketing/leads/[id]/activities — catat aktivitas (PIC/SPV/Manager).
  *  Bisa menggeser activity stage + trigger recalc priority. */
@@ -38,11 +35,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     data: { leadId: id, activityTypeId, actorUserId: user.id, occurredAt, note, result, source: "MANUAL" },
   })
 
-  // geser stage maju kalau aktivitas ini tahap yang lebih tinggi
-  const newRank = STAGE_RANK[activityType.code]
-  const curRank = STAGE_RANK[lead.currentActivityStage] ?? 0
+  // geser stage maju kalau aktivitas ini tahap yang lebih tinggi (docs/06 §7)
+  const nextStage = advanceStage(lead.currentActivityStage, activityType.code)
   const leadData: Record<string, unknown> = {}
-  if (newRank != null && newRank > curRank) leadData.currentActivityStage = activityType.code
+  if (nextStage !== lead.currentActivityStage) leadData.currentActivityStage = nextStage
   if (!lead.lastInteractionAt || occurredAt > lead.lastInteractionAt) leadData.lastInteractionAt = occurredAt
   if (Object.keys(leadData).length > 0) await prisma.lead.update({ where: { id }, data: leadData })
 
