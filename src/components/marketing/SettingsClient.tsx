@@ -128,6 +128,31 @@ export const SettingsClient: React.FC = () => {
     }
   }
 
+  const [newSales, setNewSales] = useState({ name: "", email: "", password: "", phoneNumber: "", teamId: "", membershipRole: "SALES" })
+  const [salesMsg, setSalesMsg] = useState<string | null>(null)
+  const [salesBusy, setSalesBusy] = useState(false)
+  const createSales = async () => {
+    setSalesMsg(null)
+    setSalesBusy(true)
+    try {
+      const res = await fetch("/api/marketing/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSales),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setSalesMsg(d.error || "Gagal membuat akun")
+        return
+      }
+      setNewSales({ name: "", email: "", password: "", phoneNumber: "", teamId: "", membershipRole: "SALES" })
+      setSalesMsg(`Akun "${d.user.name}" dibuat — kasih tahu email & password-nya ke yang bersangkutan.`)
+      loadAll()
+    } finally {
+      setSalesBusy(false)
+    }
+  }
+
   const [newTeam, setNewTeam] = useState({ name: "", code: "", managerUserId: "" })
   const createTeam = async () => {
     setError(null)
@@ -301,6 +326,57 @@ export const SettingsClient: React.FC = () => {
 
       {tab === "tim" && (
         <div className="flex flex-col gap-3">
+          {canEdit && (
+            <Card variant="feature" padding="md" className="flex flex-col gap-2">
+              <p className="text-xs font-black uppercase text-slate-500">Tambah Anggota Baru (Sales / SPV)</p>
+              <p className="text-[11px] text-slate-400">
+                Bikin akun yang cuma bisa masuk modul Marketing — tidak diberi akses Internal. Peran (SALES/SPV) berlaku di tim yang dipilih.
+              </p>
+              {salesMsg && <Alert variant={salesMsg.startsWith("Akun") ? "success" : "error"}>{salesMsg}</Alert>}
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="w-40">
+                  <Input placeholder="Nama" value={newSales.name} onChange={(e) => setNewSales((s) => ({ ...s, name: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-52">
+                  <Input placeholder="Email" type="email" value={newSales.email} onChange={(e) => setNewSales((s) => ({ ...s, email: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-36">
+                  <Input placeholder="Password" value={newSales.password} onChange={(e) => setNewSales((s) => ({ ...s, password: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-36">
+                  <Input placeholder="No. WA (opsional)" value={newSales.phoneNumber} onChange={(e) => setNewSales((s) => ({ ...s, phoneNumber: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-40">
+                  <Select
+                    options={[{ value: "", label: "Tanpa tim dulu" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+                    value={newSales.teamId}
+                    onChange={(v) => setNewSales((s) => ({ ...s, teamId: v }))}
+                    sizeVariant="sm"
+                  />
+                </div>
+                <div className="w-32">
+                  <Select
+                    options={[
+                      { value: "SALES", label: "SALES" },
+                      { value: "SPV", label: "SPV" },
+                      { value: "MEMBER", label: "MEMBER" },
+                    ]}
+                    value={newSales.membershipRole}
+                    onChange={(v) => setNewSales((s) => ({ ...s, membershipRole: v }))}
+                    sizeVariant="sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={createSales}
+                  disabled={salesBusy || !newSales.name.trim() || !newSales.email.trim() || newSales.password.length < 6}
+                >
+                  {salesBusy ? "Membuat…" : "Buat Akun"}
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {canEdit && (
             <Card variant="feature" padding="md" className="flex flex-col gap-2">
               <p className="text-xs font-black uppercase text-slate-500">Buat Tim</p>
