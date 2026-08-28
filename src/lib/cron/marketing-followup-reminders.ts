@@ -1,20 +1,18 @@
 import { prisma } from "@/lib/prisma"
 import { startOfToday } from "@/lib/marketing/follow-up"
+import { getMarketingSetting } from "@/lib/marketing/settings"
 
 /**
  * Reminder follow up lead → bikin baris `LeadNotification` untuk PIC (assignedUser) tiap follow up
- * OPEN yang sudah/hampir jatuh tempo. Dedupe lewat `dedupeKey` unik per (followUp, kind, tanggal),
- * jadi overdue nge-remind sekali per hari, bukan tiap jam.
- *
- * Pengiriman nyata (push / WA) menyusul di Fase 9 (Notification Center + Web Push) — untuk sekarang
- * baris notifikasi cukup tersimpan + `LeadFollowUp.reminderSentAt` ditandai.
+ * OPEN yang sudah/hampir jatuh tempo. Ambang "sebentar lagi" = `follow_up.reminder_before_minutes`
+ * (docs/06 §17, §37, configurable). Dedupe per (followUp, kind, tanggal) → overdue nge-remind
+ * 1×/hari, bukan tiap jam. Web Push server-side menyusul (butuh VAPID).
  */
-const DUE_SOON_MS = 3 * 60 * 60 * 1000
-
 export async function runMarketingFollowupReminders() {
   const now = new Date()
   const sot = startOfToday(now)
-  const horizon = new Date(now.getTime() + DUE_SOON_MS)
+  const beforeMinutes = await getMarketingSetting("follow_up.reminder_before_minutes")
+  const horizon = new Date(now.getTime() + Math.max(1, beforeMinutes) * 60 * 1000)
   const dateTag = sot.toISOString().slice(0, 10)
 
   const followUps = await prisma.leadFollowUp.findMany({

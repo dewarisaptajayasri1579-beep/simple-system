@@ -343,7 +343,58 @@ Tambahan setelah UAT pertama — hal yang belum punya UI:
 
 ---
 
-## Status — SEMUA FASE (0–12) SELESAI ✅
+## FASE 13 — Penyelarasan penuh `docs/06` + UI kit + keputusan ONY — SELESAI
+
+Setelah audit `docs/01`–`06` vs implementasi. Keputusan ONY: SUGGEST_ONLY · AI auto-reanalysis
+cron 10 mnt · model Haiku (Sonnet untuk "Analisa AI" manual) · SLA 2j/24j/3h · working hours
+Sen–Sab 08–17 WIB · Won catat nilai deal · vitest · override lock 24j · polling.
+
+63. [x] **Priority Engine sesuai spec** — komponen 30/60/90 (temp) & 20/55/75/90 (aktivitas),
+    Follow Up `normalizedScore` 0–100 (kolom baru, editable di Master Data), AI signal default **50**,
+    recency step-table + exception (follow up terjadwal menahan idle penalty), **modifier** §12
+    (follow-up due +5/+10/+15, customer waiting +5/+10), `ruleVersion` `priority-v1`(+`-custom`).
+64. [x] **Temperature Signal Score** (`src/lib/marketing/temperature.ts`, docs §4-§6) — komponen
+    AI interest 30 / need 20 / activity 25 / follow up 15 / recency 10; strong-signal → HOT;
+    disimpan sebagai `LeadAiAnalysis` TEMPERATURE_RECOMMENDATION. Mode **SUGGEST_ONLY** (tidak
+    pernah auto-ubah). Manual override lock `Lead.temperatureLockedUntil` (24 jam). UI: saran +
+    tombol "Terapkan" di detail lead. `recalcLeadDerived` (priority + temp) di semua trigger §15/§19.
+65. [x] **Won/Lost** — form Won (tanggal deal / nilai deal Rp / catatan → `Lead.dealValue`,
+    `wonNote`), auto-cancel follow up OPEN saat WON/LOST (§25/§26), **Buka Kembali** (reopen §27).
+66. [x] **Escalation ke SPV/Manager** (`src/lib/marketing/escalation.ts`, cron tiap jam :05) —
+    hot lead belum dibalas > SLA, follow up overdue > SLA, negosiasi idle > SLA → `LeadNotification`
+    ke PIC + supervisor + manager tim (dedupe harian). Semua ambang di Settings.
+67. [x] **Working Hours** (`src/lib/marketing/working-hours.ts`) — Sen–Jum + Sabtu(toggle),
+    08–17 WIB; `workingMsBetween` untuk KPI response time. Nonaktif → wall clock.
+68. [x] **AI auto-reanalysis** (`src/lib/cron/marketing-ai-reanalysis.ts`, tiap 10 mnt) — lead
+    OPEN dgn interaksi baru sejak analisa terakhir, batch 12, model Haiku. Tombol manual "Analisa
+    AI" → Sonnet 5. `ai.segment_auto_apply_confidence` default **0.85** dari Settings.
+69. [x] **KPI** — Avg Response Time (working-hours aware, `src/lib/marketing/kpi.ts`), Conversion
+    (Lead→Hot / Proposal / Negotiation / Win rate), performa segmen (hot/won/lost/win-rate),
+    **filter Dashboard** (periode + segmen). SPV Sales Detail: tab Ringkasan/Leads/Follow Up/
+    Aktivitas (`GET /api/marketing/activities`).
+70. [x] **vitest + 25 acceptance test** (`src/lib/marketing/__tests__/business-rules.test.ts`,
+    docs §40) — Priority Engine, temperature signal, `advanceStage`, `shouldAutoApplySegment`
+    (`rules.ts`), follow-up bucket. `npm test`.
+71. [x] **UI kit** — port `Tabs`/`StatTile`/`Skeleton`/`Textarea` dari `os-template` ke
+    `src/components/ui`; semua komponen Marketing pakai `Card`/`Button`/`Badge`/`Input`/`Select`/
+    `Table`/`Modal`/`StatTile`/`Tabs`/`Skeleton` + `src/components/marketing/ui.tsx` (ScopeToggle/
+    FilterPills/MktHeader).
+72. [x] **Master Data / Bobot Priority / Tambah Lead manual** (dari sesi sebelumnya) — CRUD
+    Segmentasi/Sumber/Jenis Aktivitas/Hasil Follow Up/Alasan LOST + 5 bobot priority di Settings.
+
+### Masih terbuka (sengaja)
+
+- Web Push **server-side** (`npm i web-push` + `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`, isi
+  `sendWebPush`). Client (SW + subscribe) sudah siap.
+- Webhook idempotency per-pesan (`Message.providerMessageId`) — begitu bentuk payload WAHUB
+  dewari dipastikan. Delivery status DELIVERED/READ juga.
+- `docs/06 §28` duplicate-detection service terpisah (sekarang: cek nomor + 409 manual).
+- Skeleton loading sudah; banner offline & "versi baru tersedia" belum.
+- `AUTO_WITH_GUARDRAIL` temperature mode (cuma SUGGEST_ONLY yang jalan).
+
+---
+
+## Status — SEMUA FASE (0–13) SELESAI ✅
 
 Fase 0 Fondasi · 1 Inbox · 2 Lead · 3 Aktivitas/Follow Up · 4 Priority Engine · 5 Beranda ·
 6 AI Analysis · 7 Ambil Alih/Reassign · 8 SPV/Manager · 9 Notifikasi/Audit · 10 PWA/Settings/Tim ·
