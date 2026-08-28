@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 
 import { prisma } from "@/lib/prisma"
-import { recalcLeadPriority } from "@/lib/marketing/priority"
+import { recalcLeadDerived } from "@/lib/marketing/recalc"
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = "claude-haiku-4-5"
@@ -125,7 +125,7 @@ Kalau info kurang, tetap beri estimasi terbaik dengan confidence rendah.`
     }
   }
 
-  await recalcLeadPriority(leadId).catch(() => {})
+  await recalcLeadDerived(leadId).catch(() => {})
   return { ok: true }
 }
 

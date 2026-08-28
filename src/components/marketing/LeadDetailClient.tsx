@@ -114,6 +114,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [viewerRole, setViewerRole] = useState<"MANAGER" | "SPV" | "SALES">("SALES")
   const [isCurrentPic, setIsCurrentPic] = useState(false)
   const [auditTrail, setAuditTrail] = useState<{ id: string; action: string; actor: string; at: string }[]>([])
+  const [tempSuggestion, setTempSuggestion] = useState<
+    { score?: number; suggestedLevel?: string; reasons?: string[]; lockedUntil?: string | null } | null
+  >(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -157,6 +160,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       setViewerRole(data.viewerRole ?? "SALES")
       setIsCurrentPic(Boolean(data.isCurrentPic))
       setAuditTrail(data.auditTrail ?? [])
+      setTempSuggestion(data.temperatureSuggestion ?? null)
       setForm({
         displayName: data.lead.displayName ?? "",
         companyName: data.lead.companyName ?? "",
@@ -366,6 +370,30 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
             </button>
           ))}
         </div>
+        {tempSuggestion?.suggestedLevel && tempSuggestion.suggestedLevel !== lead.temperature && (
+          <div className="mt-2 text-xs bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+            <span className="text-slate-600">
+              Saran: <span className="font-bold text-blue-700">{tempSuggestion.suggestedLevel}</span>
+              {typeof tempSuggestion.score === "number" ? ` (${tempSuggestion.score})` : ""}
+              {tempSuggestion.reasons?.length ? ` — ${tempSuggestion.reasons.join(", ")}` : ""}
+            </span>
+            {tempSuggestion.lockedUntil ? (
+              <span className="text-[10px] text-slate-400 flex-shrink-0">
+                lock manual s/d {fmt(tempSuggestion.lockedUntil)}
+              </span>
+            ) : canAct ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                isLoading={busy}
+                onClick={() => call(`/api/marketing/leads/${leadId}/temperature`, { temperature: tempSuggestion.suggestedLevel, reason: "Terapkan saran sistem" })}
+                className="flex-shrink-0"
+              >
+                Terapkan
+              </Button>
+            ) : null}
+          </div>
+        )}
       </Section>
 
       {/* Outcome */}

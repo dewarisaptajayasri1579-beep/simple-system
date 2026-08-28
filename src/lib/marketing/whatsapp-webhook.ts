@@ -1,7 +1,7 @@
 import { normalizePhoneNumber } from "@/lib/wahub"
 import { prisma } from "@/lib/prisma"
 import { createNotification } from "@/lib/marketing/notify"
-import { recalcLeadPriority } from "@/lib/marketing/priority"
+import { recalcLeadDerived } from "@/lib/marketing/recalc"
 
 interface WahubIncomingMessage {
   from?: string
@@ -101,7 +101,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     data: { lastCustomerMessageAt: sentAt, lastInteractionAt: sentAt },
   })
 
-  await recalcLeadPriority(lead.id).catch(() => {})
+  await recalcLeadDerived(lead.id).catch(() => {})
 
   // Notifikasi ke PIC lead (dedupe per menit supaya burst chat tidak spam).
   const pic = await prisma.leadAssignment.findFirst({

@@ -4,7 +4,7 @@ import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead } from "@/lib/marketing/permissions"
 import { getFollowUpGraceMs } from "@/lib/marketing/settings"
-import { recalcLeadPriority } from "@/lib/marketing/priority"
+import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -70,7 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return nextId
   })
 
-  await recalcLeadPriority(fu.leadId)
+  await recalcLeadDerived(fu.leadId).catch(() => {})
   await logAudit({
     actorUserId: user.id,
     action: "marketing.followup.complete",

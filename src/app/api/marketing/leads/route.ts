@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { actableLeadIds } from "@/lib/marketing/permissions"
-import { recalcLeadPriority } from "@/lib/marketing/priority"
+import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 import { normalizePhoneNumber } from "@/lib/wahub"
 
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
   await prisma.leadAssignment.create({
     data: { leadId: lead.id, assignedUserId: user.id, assignedByUserId: user.id, assignmentType: "PRIMARY" },
   })
-  await recalcLeadPriority(lead.id).catch(() => {})
+  await recalcLeadDerived(lead.id).catch(() => {})
   await logAudit({
     actorUserId: user.id,
     action: "marketing.lead.create",

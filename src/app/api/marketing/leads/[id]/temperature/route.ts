@@ -3,13 +3,14 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead } from "@/lib/marketing/permissions"
-import { recalcLeadPriority } from "@/lib/marketing/priority"
+import { recalcLeadDerived } from "@/lib/marketing/recalc"
+import { getMarketingSetting } from "@/lib/marketing/settings"
 import { prisma } from "@/lib/prisma"
 
 const VALID = ["COLD", "WARM", "HOT"]
 
 /** POST /api/marketing/leads/[id]/temperature — ubah temperatur manual (PIC/SPV/Manager).
- *  Tulis LeadTemperatureHistory + trigger recalc priority (stub Fase 4). */
+ *  Tulis LeadTemperatureHistory + set manual-override lock (docs/06 §6) + recalc priority. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
@@ -28,8 +29,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (lead.temperature === temperature) return NextResponse.json({ ok: true, unchanged: true })
 
+  const lockHours = await getMarketingSetting("temperature.override_lock_hours")
+  const lockedUntil = new Date(Date.now() + lockHours * 3600000)
+
   await prisma.$transaction([
-    prisma.lead.update({ where: { id }, data: { temperature, temperatureSource: "MANUAL" } }),
+    prisma.lead.update({
+      where: { id },
+      data: { temperature, temperatureSource: "MANUAL", temperatureLockedUntil: lockedUntil },
+    }),
     prisma.leadTemperatureHistory.create({
       data: {
         leadId: id,
@@ -42,7 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }),
   ])
 
-  await recalcLeadPriority(id)
+  await recalcLeadDerived(id).catch(() => {})
   await logAudit({
     actorUserId: user.id,
     action: "marketing.lead.temperature",

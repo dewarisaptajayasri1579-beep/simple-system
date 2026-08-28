@@ -54,7 +54,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
 
   const convIds = lead.conversations.map((c) => c.id)
-  const [canAct, viewerRole, auditRows] = await Promise.all([
+  const [canAct, viewerRole, auditRows, tempRec] = await Promise.all([
     canActOnLead(user, id),
     resolveMarketingRole(user.id, user.role),
     prisma.auditLog.findMany({
@@ -68,9 +68,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       take: 40,
       select: { id: true, action: true, createdAt: true, actorUser: { select: { name: true } } },
     }),
+    prisma.leadAiAnalysis.findFirst({
+      where: { leadId: id, analysisType: "TEMPERATURE_RECOMMENDATION", status: "SUCCESS" },
+      orderBy: { createdAt: "desc" },
+      select: { outputJson: true, createdAt: true },
+    }),
   ])
   const activePic = lead.assignments.find((a) => a.isActive)?.assignedUser ?? null
   const isCurrentPic = activePic?.id === user.id
+  const lockActive = lead.temperatureLockedUntil != null && lead.temperatureLockedUntil.getTime() > Date.now()
 
   return NextResponse.json({
     lead: serializeLead(lead),
@@ -78,6 +84,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     canAct,
     viewerRole,
     isCurrentPic,
+    temperatureSuggestion: tempRec
+      ? { ...(tempRec.outputJson as Record<string, unknown>), at: tempRec.createdAt.toISOString(), lockedUntil: lockActive ? lead.temperatureLockedUntil!.toISOString() : null }
+      : null,
     auditTrail: auditRows.map((a) => ({
       id: a.id,
       action: a.action,
