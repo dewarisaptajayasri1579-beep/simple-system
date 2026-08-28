@@ -5,6 +5,25 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Plus, Search } from "lucide-react"
 
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Modal,
+  Select,
+  SkeletonList,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui"
+import { MktHeader, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+
 interface LeadRow {
   id: string
   displayName: string
@@ -27,19 +46,6 @@ interface LeadRow {
 interface MetaOption {
   id: string
   name: string
-}
-
-const TEMP_BADGE: Record<string, string> = {
-  HOT: "bg-rose-100 text-rose-700",
-  WARM: "bg-amber-100 text-amber-700",
-  COLD: "bg-slate-100 text-slate-600",
-}
-const STAGE_LABEL: Record<string, string> = {
-  NONE: "—",
-  DISCUSSION: "Diskusi",
-  ZOOM_DEMO: "Zoom/Demo",
-  PROPOSAL: "Penawaran",
-  NEGOTIATION: "Negosiasi",
 }
 
 function fmtDate(iso: string | null) {
@@ -67,6 +73,7 @@ export const LeadListClient: React.FC = () => {
   const [users, setUsers] = useState<MetaOption[]>([])
   const [sources, setSources] = useState<MetaOption[]>([])
   const router = useRouter()
+  const qDebounced = useRef(q)
 
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ displayName: "", whatsappNumber: "", companyName: "", contactName: "", segmentId: "", sourceId: "" })
@@ -92,7 +99,6 @@ export const LeadListClient: React.FC = () => {
       setAdding(false)
     }
   }
-  const qDebounced = useRef(q)
 
   useEffect(() => {
     fetch("/api/marketing/meta")
@@ -143,215 +149,223 @@ export const LeadListClient: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
-  const selectCls = "px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold outline-none focus:border-blue-400"
+  const opt = (arr: MetaOption[]) => arr.map((s) => ({ value: s.id, label: s.name }))
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-black text-slate-900">
-          Lead <span className="text-sm font-bold text-slate-400">({total})</span>
-        </h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setShowAdd(true); setAddErr(null) }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-700 text-white text-xs font-bold"
-          >
-            <Plus className="w-3.5 h-3.5" /> Tambah Lead
-          </button>
-          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-bold">
-            {(["all", "mine"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setScope(s)}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${scope === s ? "bg-blue-700 text-white" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                {s === "all" ? "Semua Tim" : "Punya Saya"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <MktHeader
+        title={
+          <>
+            Lead <span className="text-sm font-bold text-slate-400">({total})</span>
+          </>
+        }
+      >
+        <Button size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setShowAdd(true); setAddErr(null) }}>
+          Tambah Lead
+        </Button>
+        <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />
+      </MktHeader>
 
-      {showAdd && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
-          <div className="bg-white rounded-2xl p-5 w-full max-w-md flex flex-col gap-2.5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-sm font-black text-slate-800">Tambah Lead Manual</h2>
-            <p className="text-xs text-slate-400">Lead dari luar WhatsApp (pameran, referral, dsb). Kamu otomatis jadi PIC.</p>
-            {addErr && <p className="text-xs font-semibold text-rose-600">{addErr}</p>}
-            {(
-              [
-                ["displayName", "Nama lead *"],
-                ["whatsappNumber", "No. WhatsApp * (08… / 62…)"],
-                ["companyName", "Perusahaan"],
-                ["contactName", "Nama kontak"],
-              ] as const
-            ).map(([k, label]) => (
-              <input
-                key={k}
-                placeholder={label}
-                value={addForm[k]}
-                onChange={(e) => setAddForm((f) => ({ ...f, [k]: e.target.value }))}
-                className={`${selectCls} w-full`}
-              />
-            ))}
-            <select value={addForm.segmentId} onChange={(e) => setAddForm((f) => ({ ...f, segmentId: e.target.value }))} className={`${selectCls} w-full`}>
-              <option value="">Segmen (opsional)</option>
-              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <select value={addForm.sourceId} onChange={(e) => setAddForm((f) => ({ ...f, sourceId: e.target.value }))} className={`${selectCls} w-full`}>
-              <option value="">Sumber (opsional)</option>
-              {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <div className="flex gap-2 mt-1">
-              <button
-                onClick={submitAdd}
-                disabled={adding || !addForm.displayName.trim() || !addForm.whatsappNumber.trim()}
-                className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
-              >
-                Simpan
-              </button>
-              <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold">
-                Batal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Cari nama, perusahaan, kontak, nomor…"
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium outline-none focus:border-blue-400"
-        />
-      </div>
+      <Input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Cari nama, perusahaan, kontak, nomor…"
+        leftIcon={<Search className="w-4 h-4" />}
+        sizeVariant="md"
+      />
 
       <div className="flex flex-wrap gap-2">
-        <select value={segmentId} onChange={(e) => setSegmentId(e.target.value)} className={selectCls}>
-          <option value="">Semua Segmen</option>
-          {segments.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
-        <select value={temperature} onChange={(e) => setTemperature(e.target.value)} className={selectCls}>
-          <option value="">Semua Temperatur</option>
-          <option value="HOT">Hot</option>
-          <option value="WARM">Warm</option>
-          <option value="COLD">Cold</option>
-        </select>
-        <select value={stage} onChange={(e) => setStage(e.target.value)} className={selectCls}>
-          <option value="">Semua Tahap</option>
-          <option value="NONE">Belum</option>
-          <option value="DISCUSSION">Diskusi</option>
-          <option value="ZOOM_DEMO">Zoom/Demo</option>
-          <option value="PROPOSAL">Penawaran</option>
-          <option value="NEGOTIATION">Negosiasi</option>
-        </select>
-        <select value={outcome} onChange={(e) => setOutcome(e.target.value)} className={selectCls}>
-          <option value="">Semua Outcome</option>
-          <option value="OPEN">Open</option>
-          <option value="WON">Won</option>
-          <option value="LOST">Lost</option>
-        </select>
-        <select value={priorityLevel} onChange={(e) => setPriorityLevel(e.target.value)} className={selectCls}>
-          <option value="">Semua Prioritas</option>
-          <option value="TOP">Utama</option>
-          <option value="HIGH">Tinggi</option>
-          <option value="MONITOR">Pantau</option>
-          <option value="LOW">Rendah</option>
-        </select>
-        <select value={picUserId} onChange={(e) => setPicUserId(e.target.value)} className={selectCls}>
-          <option value="">Semua PIC</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className={selectCls}>
-          <option value="priority">Urut: Prioritas</option>
-          <option value="recent">Urut: Interaksi Terbaru</option>
-          <option value="created">Urut: Terbaru Dibuat</option>
-        </select>
+        <div className="w-40">
+          <Select options={[{ value: "", label: "Semua Segmen" }, ...opt(segments)]} value={segmentId} onChange={setSegmentId} sizeVariant="sm" />
+        </div>
+        <div className="w-36">
+          <Select
+            options={[
+              { value: "", label: "Semua Temperatur" },
+              { value: "HOT", label: "Hot" },
+              { value: "WARM", label: "Warm" },
+              { value: "COLD", label: "Cold" },
+            ]}
+            value={temperature}
+            onChange={setTemperature}
+            sizeVariant="sm"
+          />
+        </div>
+        <div className="w-36">
+          <Select
+            options={[
+              { value: "", label: "Semua Tahap" },
+              { value: "NONE", label: "Belum" },
+              { value: "DISCUSSION", label: "Diskusi" },
+              { value: "ZOOM_DEMO", label: "Zoom/Demo" },
+              { value: "PROPOSAL", label: "Penawaran" },
+              { value: "NEGOTIATION", label: "Negosiasi" },
+            ]}
+            value={stage}
+            onChange={setStage}
+            sizeVariant="sm"
+          />
+        </div>
+        <div className="w-36">
+          <Select
+            options={[
+              { value: "", label: "Semua Outcome" },
+              { value: "OPEN", label: "Open" },
+              { value: "WON", label: "Won" },
+              { value: "LOST", label: "Lost" },
+            ]}
+            value={outcome}
+            onChange={setOutcome}
+            sizeVariant="sm"
+          />
+        </div>
+        <div className="w-36">
+          <Select
+            options={[
+              { value: "", label: "Semua Prioritas" },
+              { value: "TOP", label: "Utama" },
+              { value: "HIGH", label: "Tinggi" },
+              { value: "MONITOR", label: "Pantau" },
+              { value: "LOW", label: "Rendah" },
+            ]}
+            value={priorityLevel}
+            onChange={setPriorityLevel}
+            sizeVariant="sm"
+          />
+        </div>
+        <div className="w-40">
+          <Select options={[{ value: "", label: "Semua PIC" }, ...opt(users)]} value={picUserId} onChange={setPicUserId} sizeVariant="sm" />
+        </div>
+        <div className="w-48">
+          <Select
+            options={[
+              { value: "priority", label: "Urut: Prioritas" },
+              { value: "recent", label: "Urut: Interaksi Terbaru" },
+              { value: "created", label: "Urut: Terbaru Dibuat" },
+            ]}
+            value={sort}
+            onChange={setSort}
+            sizeVariant="sm"
+          />
+        </div>
       </div>
 
-      {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {loading ? (
-        <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
+        <SkeletonList rows={6} />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500 font-medium py-10 text-center">Tidak ada lead.</p>
+        <Card variant="feature" padding="lg" className="text-center text-sm text-slate-500 font-medium">
+          Tidak ada lead.
+        </Card>
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden lg:block overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 font-bold">
-                <tr>
-                  <th className="text-left px-3 py-2.5">Lead</th>
-                  <th className="text-left px-3 py-2.5">Segmen</th>
-                  <th className="text-left px-3 py-2.5">Temp</th>
-                  <th className="text-left px-3 py-2.5">Tahap</th>
-                  <th className="text-right px-3 py-2.5">Skor</th>
-                  <th className="text-left px-3 py-2.5">PIC</th>
-                  <th className="text-left px-3 py-2.5">Idle</th>
-                  <th className="text-left px-3 py-2.5">Follow Up</th>
-                  <th className="text-left px-3 py-2.5">Outcome</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((l) => (
-                  <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-3 py-2.5">
-                      <Link href={`/marketing/leads/${l.id}`} className="font-bold text-slate-800 hover:text-blue-700">
-                        {l.displayName}
-                      </Link>
-                      <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-600">{l.segmentName ?? "—"}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TEMP_BADGE[l.temperature]}`}>{l.temperature}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-600">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-slate-700">{Math.round(l.priorityScore)}</td>
-                    <td className="px-3 py-2.5 text-slate-600">{l.pic?.name ?? "—"}</td>
-                    <td className="px-3 py-2.5 text-slate-500">{l.idleDays != null ? `${l.idleDays}h` : "—"}</td>
-                    <td className="px-3 py-2.5 text-slate-500">{fmtDate(l.nextFollowUpAt)}</td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{l.outcome}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="hidden lg:block">
+            <TableContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Lead</TableHead>
+                    <TableHead>Segmen</TableHead>
+                    <TableHead>Temp</TableHead>
+                    <TableHead>Tahap</TableHead>
+                    <TableHead className="text-right">Skor</TableHead>
+                    <TableHead>PIC</TableHead>
+                    <TableHead>Idle</TableHead>
+                    <TableHead>Follow Up</TableHead>
+                    <TableHead>Outcome</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell>
+                        <Link href={`/marketing/leads/${l.id}`} className="font-bold text-slate-800 hover:text-blue-700">
+                          {l.displayName}
+                        </Link>
+                        <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
+                      </TableCell>
+                      <TableCell className="text-slate-600">{l.segmentName ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
+                      </TableCell>
+                      <TableCell className="text-slate-600">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</TableCell>
+                      <TableCell className="text-right font-bold text-slate-700">{Math.round(l.priorityScore)}</TableCell>
+                      <TableCell className="text-slate-600">{l.pic?.name ?? "—"}</TableCell>
+                      <TableCell className="text-slate-500">{l.idleDays != null ? `${l.idleDays}h` : "—"}</TableCell>
+                      <TableCell className="text-slate-500">{fmtDate(l.nextFollowUpAt)}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" size="sm">{l.outcome}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </div>
 
           {/* Mobile cards */}
           <ul className="lg:hidden flex flex-col gap-1.5">
             {rows.map((l) => (
               <li key={l.id}>
-                <Link
-                  href={`/marketing/leads/${l.id}`}
-                  className="block p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-slate-800 truncate">{l.displayName}</p>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TEMP_BADGE[l.temperature]}`}>{l.temperature}</span>
-                  </div>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-[10px] font-bold">
-                    {l.segmentName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{l.segmentName}</span>}
-                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</span>
-                    <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Skor {Math.round(l.priorityScore)}</span>
-                    {l.outcome !== "OPEN" && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{l.outcome}</span>}
-                    {l.pic && <span className="text-slate-400">PIC: {l.pic.name}</span>}
-                  </div>
+                <Link href={`/marketing/leads/${l.id}`}>
+                  <Card variant="solid" padding="sm" hoverable className="!rounded-2xl">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-800 truncate">{l.displayName}</p>
+                      <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {l.segmentName && <Badge variant="secondary" size="sm">{l.segmentName}</Badge>}
+                      <Badge variant="secondary" size="sm">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</Badge>
+                      <Badge variant="info" size="sm">Skor {Math.round(l.priorityScore)}</Badge>
+                      {l.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{l.outcome}</Badge>}
+                      {l.pic && <span className="text-[10px] font-semibold text-slate-400">PIC: {l.pic.name}</span>}
+                    </div>
+                  </Card>
                 </Link>
               </li>
             ))}
           </ul>
         </>
       )}
+
+      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Tambah Lead Manual" size="sm">
+        <div className="flex flex-col gap-2.5">
+          <p className="text-xs text-slate-400">Lead dari luar WhatsApp (pameran, referral, dsb). Kamu otomatis jadi PIC.</p>
+          {addErr && <Alert variant="error">{addErr}</Alert>}
+          <Input placeholder="Nama lead *" value={addForm.displayName} onChange={(e) => setAddForm((f) => ({ ...f, displayName: e.target.value }))} sizeVariant="sm" />
+          <Input
+            placeholder="No. WhatsApp * (08… / 62…)"
+            value={addForm.whatsappNumber}
+            onChange={(e) => setAddForm((f) => ({ ...f, whatsappNumber: e.target.value }))}
+            sizeVariant="sm"
+          />
+          <Input placeholder="Perusahaan" value={addForm.companyName} onChange={(e) => setAddForm((f) => ({ ...f, companyName: e.target.value }))} sizeVariant="sm" />
+          <Input placeholder="Nama kontak" value={addForm.contactName} onChange={(e) => setAddForm((f) => ({ ...f, contactName: e.target.value }))} sizeVariant="sm" />
+          <Select
+            options={[{ value: "", label: "Segmen (opsional)" }, ...opt(segments)]}
+            value={addForm.segmentId}
+            onChange={(v) => setAddForm((f) => ({ ...f, segmentId: v }))}
+            sizeVariant="sm"
+          />
+          <Select
+            options={[{ value: "", label: "Sumber (opsional)" }, ...opt(sources)]}
+            value={addForm.sourceId}
+            onChange={(v) => setAddForm((f) => ({ ...f, sourceId: v }))}
+            sizeVariant="sm"
+          />
+          <div className="flex gap-2 mt-1">
+            <Button size="sm" onClick={submitAdd} isLoading={adding} disabled={!addForm.displayName.trim() || !addForm.whatsappNumber.trim()}>
+              Simpan
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setShowAdd(false)}>
+              Batal
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

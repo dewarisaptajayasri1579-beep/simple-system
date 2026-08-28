@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, MessageSquare } from "lucide-react"
 
+import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+import { tempBadgeVariant } from "./ui"
 
 interface Opt {
   id: string
@@ -229,17 +231,29 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
-  if (!lead) return <p className="text-sm font-semibold text-rose-600 py-10 text-center">{error ?? "Lead tidak ditemukan"}</p>
+  if (loading) return <SkeletonList rows={6} />
+  if (!lead) return <Alert variant="error">{error ?? "Lead tidak ditemukan"}</Alert>
+
+  // reasonJson bisa berbentuk lama (array) atau baru ({ reasons, modifiers })
+  const rj = lead.latestPriority?.reasonJson
+  const priorityReasons: string[] = Array.isArray(rj)
+    ? (rj as string[])
+    : rj && typeof rj === "object" && Array.isArray((rj as Record<string, unknown>).reasons)
+      ? ((rj as Record<string, unknown>).reasons as string[])
+      : []
+  const priorityModifiers: string[] =
+    rj && typeof rj === "object" && Array.isArray((rj as Record<string, unknown>).modifiers)
+      ? ((rj as Record<string, unknown>).modifiers as string[])
+      : []
 
   const Section: React.FC<{ title: string; children: React.ReactNode; right?: React.ReactNode }> = ({ title, children, right }) => (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <Card variant="feature" padding="md">
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">{title}</h2>
         {right}
       </div>
       {children}
-    </div>
+    </Card>
   )
 
   return (
@@ -248,14 +262,19 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         <ArrowLeft className="w-4 h-4" /> Semua Lead
       </Link>
 
-      {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <Card variant="feature" padding="md">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-black text-slate-900">{lead.displayName}</h1>
-            <p className="text-sm text-slate-500">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h1 className="text-lg font-black text-slate-900">{lead.displayName}</h1>
+              <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
+              {lead.segment && <Badge variant="secondary" size="sm">{lead.segment.name}</Badge>}
+              {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">
               {lead.companyName ? `${lead.companyName} · ` : ""}
               {lead.whatsappNumber}
             </p>
@@ -264,52 +283,51 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
             </p>
           </div>
           {lead.conversations[0] && (
-            <Link
-              href={`/marketing/inbox/${lead.conversations[0].id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-700 text-white text-xs font-bold flex-shrink-0"
-            >
-              <MessageSquare className="w-3.5 h-3.5" /> Chat
+            <Link href={`/marketing/inbox/${lead.conversations[0].id}`} className="flex-shrink-0">
+              <Button size="sm" leftIcon={<MessageSquare className="w-3.5 h-3.5" />}>Chat</Button>
             </Link>
           )}
         </div>
         {!canAct && (
           <div className="mt-3 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
             <span>Kamu memantau lead ini. Hanya PIC / SPV / Manager yang bisa mengubah.</span>
-            <button
-              disabled={busy}
+            <Button
+              size="sm"
+              isLoading={busy}
               onClick={() => call(`/api/marketing/leads/${leadId}/assignments`, { action: "takeover", reason: "Ambil alih dari detail lead" })}
-              className="px-2.5 py-1 rounded-lg bg-blue-700 text-white font-bold flex-shrink-0 disabled:opacity-40"
+              className="flex-shrink-0"
             >
               Ambil Alih
-            </button>
+            </Button>
           </div>
         )}
 
-        {(canAct && (viewerRole !== "SALES" || isCurrentPic)) && (
+        {canAct && (viewerRole !== "SALES" || isCurrentPic) && (
           <div className="mt-3">
             <button onClick={() => setReassignOpen((v) => !v)} className="text-xs font-bold text-blue-700">
               {reassignOpen ? "Tutup reassign" : "Reassign PIC"}
             </button>
             {reassignOpen && (
               <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
-                <select
+                <Select
+                  options={[
+                    { value: "", label: "Pindah ke…" },
+                    ...users.filter((u) => u.id !== pic?.id).map((u) => ({ value: u.id, label: u.name })),
+                  ]}
                   value={reassignTo}
-                  onChange={(e) => setReassignTo(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
-                >
-                  <option value="">Pindah ke…</option>
-                  {users.filter((u) => u.id !== pic?.id).map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-                <input
+                  onChange={setReassignTo}
+                  sizeVariant="sm"
+                />
+                <Input
                   value={reassignReason}
                   onChange={(e) => setReassignReason(e.target.value)}
                   placeholder="Alasan reassign (wajib)"
-                  className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+                  sizeVariant="sm"
                 />
-                <button
-                  disabled={busy || !reassignTo || !reassignReason.trim()}
+                <Button
+                  size="sm"
+                  isLoading={busy}
+                  disabled={!reassignTo || !reassignReason.trim()}
                   onClick={async () => {
                     const ok = await call(`/api/marketing/leads/${leadId}/assignments`, {
                       action: "reassign",
@@ -322,15 +340,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                       setReassignReason("")
                     }
                   }}
-                  className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
+                  className="self-start"
                 >
                   Pindahkan PIC
-                </button>
+                </Button>
               </div>
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Temperatur */}
       <Section title="Temperatur">
@@ -397,12 +415,13 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
       {/* Priority */}
       <Section title="Prioritas">
-        <p className="text-sm font-bold text-slate-800">
-          {Math.round(lead.latestPriority?.score ?? lead.priorityScore)}{" "}
-          <span className="text-slate-400 font-semibold">/ {lead.latestPriority?.level ?? lead.priorityLevel}</span>
+        <p className="text-lg font-black text-slate-800">
+          {Math.round(lead.latestPriority?.score ?? lead.priorityScore)}
+          <span className="text-slate-400 font-semibold text-sm"> / {lead.latestPriority?.level ?? lead.priorityLevel}</span>
         </p>
-        {Array.isArray(lead.latestPriority?.reasonJson) && (lead.latestPriority!.reasonJson as unknown[]).length > 0 && (
-          <p className="text-xs text-slate-500 mt-1">{(lead.latestPriority!.reasonJson as string[]).join(" · ")}</p>
+        {priorityReasons.length > 0 && <p className="text-xs text-slate-500 mt-1">{priorityReasons.join(" · ")}</p>}
+        {priorityModifiers.length > 0 && (
+          <p className="text-[11px] text-amber-600 mt-0.5">{priorityModifiers.join(" · ")}</p>
         )}
         {!lead.latestPriority && (
           <p className="text-xs text-slate-400 mt-1">Belum pernah dihitung ulang — akan terisi saat ada interaksi berikutnya.</p>
@@ -475,8 +494,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         title="Identitas & Segmen"
         right={
           canAct ? (
-            <button
-              disabled={busy}
+            <Button
+              size="sm"
+              isLoading={busy}
               onClick={() =>
                 call(
                   `/api/marketing/leads/${leadId}`,
@@ -491,14 +511,13 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                   "PATCH",
                 )
               }
-              className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
             >
               Simpan
-            </button>
+            </Button>
           ) : null
         }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {(
             [
               ["displayName", "Nama"],
@@ -508,30 +527,27 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               ["city", "Kota"],
             ] as const
           ).map(([key, label]) => (
-            <label key={key} className="text-xs font-semibold text-slate-500">
-              {label}
-              <input
-                value={form[key]}
-                disabled={!canAct}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="mt-1 w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none focus:border-blue-400 disabled:bg-slate-50"
-              />
-            </label>
-          ))}
-          <label className="text-xs font-semibold text-slate-500">
-            Segmen
-            <select
-              value={form.segmentId}
+            <Input
+              key={key}
+              label={label}
+              value={form[key]}
               disabled={!canAct}
-              onChange={(e) => setForm((f) => ({ ...f, segmentId: e.target.value }))}
-              className="mt-1 w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 outline-none focus:border-blue-400 disabled:bg-slate-50"
-            >
-              <option value="">— belum —</option>
-              {segments.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </label>
+              onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+              sizeVariant="sm"
+            />
+          ))}
+          <div>
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Segmen</label>
+            <div className="mt-1.5">
+              <Select
+                options={[{ value: "", label: "— belum —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
+                value={form.segmentId}
+                disabled={!canAct}
+                onChange={(v) => setForm((f) => ({ ...f, segmentId: v }))}
+                sizeVariant="sm"
+              />
+            </div>
+          </div>
         </div>
       </Section>
 
@@ -547,32 +563,31 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         }
       >
         {actOpen && canAct && (
-          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
-            <select
+          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
+            <Select
+              options={[{ value: "", label: "Jenis aktivitas…" }, ...activityTypes.map((t) => ({ value: t.id, label: t.name }))]}
               value={actForm.activityTypeId}
-              onChange={(e) => setActForm((f) => ({ ...f, activityTypeId: e.target.value }))}
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
-            >
-              <option value="">Jenis aktivitas…</option>
-              {activityTypes.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-            <input
+              onChange={(v) => setActForm((f) => ({ ...f, activityTypeId: v }))}
+              sizeVariant="sm"
+            />
+            <Input
               type="datetime-local"
               value={actForm.occurredAt}
               onChange={(e) => setActForm((f) => ({ ...f, occurredAt: e.target.value }))}
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+              sizeVariant="sm"
             />
-            <textarea
+            <Textarea
               value={actForm.note}
               onChange={(e) => setActForm((f) => ({ ...f, note: e.target.value }))}
               rows={2}
               placeholder="Catatan (opsional)"
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400 resize-none"
+              sizeVariant="sm"
             />
-            <button
-              disabled={busy || !actForm.activityTypeId}
+            <Button
+              size="sm"
+              isLoading={busy}
+              disabled={!actForm.activityTypeId}
+              className="self-start"
               onClick={async () => {
                 const ok = await call(`/api/marketing/leads/${leadId}/activities`, {
                   activityTypeId: actForm.activityTypeId,
@@ -584,10 +599,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                   setActOpen(false)
                 }
               }}
-              className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
             >
               Simpan Aktivitas
-            </button>
+            </Button>
           </div>
         )}
         {lead.activities.length === 0 ? (
@@ -617,28 +631,31 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         }
       >
         {fuOpen && canAct && (
-          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
-            <input
+          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
+            <Input
               type="datetime-local"
               value={fuForm.scheduledAt}
               onChange={(e) => setFuForm((f) => ({ ...f, scheduledAt: e.target.value }))}
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+              sizeVariant="sm"
             />
-            <input
+            <Input
               value={fuForm.purpose}
               onChange={(e) => setFuForm((f) => ({ ...f, purpose: e.target.value }))}
               placeholder="Tujuan follow up"
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+              sizeVariant="sm"
             />
-            <textarea
+            <Textarea
               value={fuForm.note}
               onChange={(e) => setFuForm((f) => ({ ...f, note: e.target.value }))}
               rows={2}
               placeholder="Catatan (opsional)"
-              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400 resize-none"
+              sizeVariant="sm"
             />
-            <button
-              disabled={busy || !fuForm.scheduledAt || !fuForm.purpose.trim()}
+            <Button
+              size="sm"
+              isLoading={busy}
+              disabled={!fuForm.scheduledAt || !fuForm.purpose.trim()}
+              className="self-start"
               onClick={async () => {
                 const ok = await call(`/api/marketing/leads/${leadId}/follow-ups`, {
                   scheduledAt: new Date(fuForm.scheduledAt).toISOString(),
@@ -650,10 +667,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                   setFuOpen(false)
                 }
               }}
-              className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
             >
               Simpan Follow Up
-            </button>
+            </Button>
           </div>
         )}
         {lead.followUps.length === 0 ? (

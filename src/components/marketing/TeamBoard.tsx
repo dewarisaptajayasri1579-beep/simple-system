@@ -4,6 +4,20 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { TriangleAlert } from "lucide-react"
 
+import {
+  Alert,
+  Card,
+  SkeletonList,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui"
+import { MktHeader } from "./ui"
+
 interface Member {
   userId: string
   name: string
@@ -44,77 +58,80 @@ export const TeamBoard: React.FC = () => {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
-  if (error) return <p className="text-sm font-semibold text-rose-600 py-10 text-center">{error}</p>
+  if (loading) return <SkeletonList rows={6} />
+  if (error) return <Alert variant="error">{error}</Alert>
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-black text-slate-900">Tim</h1>
+      <MktHeader title="Tim" />
 
       {warnings.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">Early Warning</h2>
           {warnings.map((w, i) => (
-            <div
-              key={i}
-              className={`flex items-center justify-between gap-3 p-3 rounded-2xl border ${
-                w.severity === "high" ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"
-              }`}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <TriangleAlert className={`w-4 h-4 flex-shrink-0 ${w.severity === "high" ? "text-rose-600" : "text-amber-600"}`} />
-                <p className="text-sm font-semibold text-slate-700 truncate">{w.text}</p>
+            <Alert key={i} variant={w.severity === "high" ? "error" : "warning"}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 min-w-0">
+                  <TriangleAlert className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate font-semibold">{w.text}</span>
+                </span>
+                <Link href={w.cta.href} className="text-xs font-bold text-blue-700 flex-shrink-0">
+                  {w.cta.label}
+                </Link>
               </div>
-              <Link href={w.cta.href} className="text-xs font-bold text-blue-700 flex-shrink-0">
-                {w.cta.label}
-              </Link>
-            </div>
+            </Alert>
           ))}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 font-bold">
-            <tr>
-              <th className="text-left px-3 py-2.5">Sales</th>
-              <th className="text-right px-3 py-2.5">Lead Aktif</th>
-              <th className="text-right px-3 py-2.5">Hot</th>
-              <th className="text-right px-3 py-2.5">FU Hari Ini</th>
-              <th className="text-right px-3 py-2.5">FU Telat</th>
-              <th className="text-right px-3 py-2.5">Chat Blm Dibalas</th>
-              <th className="text-right px-3 py-2.5">Won (bln ini)</th>
-              <th className="text-right px-3 py-2.5">On-Time FU</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Sales</TableHead>
+              <TableHead className="text-right">Lead Aktif</TableHead>
+              <TableHead className="text-right">Hot</TableHead>
+              <TableHead className="text-right">FU Hari Ini</TableHead>
+              <TableHead className="text-right">FU Telat</TableHead>
+              <TableHead className="text-right">Chat Blm Dibalas</TableHead>
+              <TableHead className="text-right">Won (bln ini)</TableHead>
+              <TableHead className="text-right">On-Time FU</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {members.map((m) => {
               const rate =
                 m.followUpCompletedThisMonth > 0
                   ? Math.round((m.followUpOnTimeThisMonth / m.followUpCompletedThisMonth) * 100)
                   : null
               return (
-                <tr key={m.userId} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-3 py-2.5">
+                <TableRow key={m.userId}>
+                  <TableCell>
                     <Link href={`/marketing/tim/${m.userId}`} className="font-bold text-slate-800 hover:text-blue-700">
                       {m.name}
                     </Link>
-                  </td>
-                  <td className="px-3 py-2.5 text-right">{m.activeLeads}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-rose-600">{m.hotLeads || ""}</td>
-                  <td className="px-3 py-2.5 text-right">{m.followUpToday || ""}</td>
-                  <td className={`px-3 py-2.5 text-right font-bold ${m.followUpOverdue > 0 ? "text-amber-600" : "text-slate-400"}`}>
+                  </TableCell>
+                  <TableCell className="text-right">{m.activeLeads}</TableCell>
+                  <TableCell className="text-right font-bold text-rose-600">{m.hotLeads || ""}</TableCell>
+                  <TableCell className="text-right">{m.followUpToday || ""}</TableCell>
+                  <TableCell className={`text-right font-bold ${m.followUpOverdue > 0 ? "text-amber-600" : "text-slate-400"}`}>
                     {m.followUpOverdue || ""}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">{m.unrepliedChats || ""}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-emerald-600">{m.wonThisMonth || ""}</td>
-                  <td className="px-3 py-2.5 text-right">{rate == null ? "—" : `${rate}%`}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right">{m.unrepliedChats || ""}</TableCell>
+                  <TableCell className="text-right font-bold text-emerald-600">{m.wonThisMonth || ""}</TableCell>
+                  <TableCell className="text-right">{rate == null ? "—" : `${rate}%`}</TableCell>
+                </TableRow>
               )
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {members.length === 0 && (
+        <Card variant="feature" padding="lg" className="text-center text-sm text-slate-500 font-medium">
+          Belum ada anggota tim.
+        </Card>
+      )}
     </div>
   )
 }

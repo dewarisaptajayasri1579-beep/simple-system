@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { CalendarClock, Flame, MessagesSquare, TriangleAlert } from "lucide-react"
 
+import { Alert, Badge, Card, SkeletonList, StatTile } from "@/components/ui"
+import { MktHeader, ScopeToggle, tempBadgeVariant } from "./ui"
+
 interface WorkItem {
   id: string
   displayName: string
@@ -25,12 +28,6 @@ interface HomeData {
   scope: "mine" | "all"
   kpi: { hotLeads: number; followUpToday: number; followUpOverdue: number; unrepliedChats: number }
   workOn: WorkItem[]
-}
-
-const TEMP_BADGE: Record<string, string> = {
-  HOT: "bg-rose-100 text-rose-700",
-  WARM: "bg-amber-100 text-amber-700",
-  COLD: "bg-slate-100 text-slate-600",
 }
 
 export const HomeClient: React.FC = () => {
@@ -61,7 +58,6 @@ export const HomeClient: React.FC = () => {
   useEffect(() => {
     load()
   }, [load])
-
   useEffect(() => {
     const t = setInterval(() => load(true), 20000)
     return () => clearInterval(t)
@@ -69,37 +65,24 @@ export const HomeClient: React.FC = () => {
 
   const kpi = data?.kpi
   const cards = [
-    { key: "hot", label: "Lead Hot", value: kpi?.hotLeads ?? 0, icon: <Flame className="w-4 h-4" />, tone: "text-rose-600 bg-rose-50", href: "/marketing/leads?temperature=HOT" },
-    { key: "today", label: "Follow Up Hari Ini", value: kpi?.followUpToday ?? 0, icon: <CalendarClock className="w-4 h-4" />, tone: "text-blue-600 bg-blue-50", href: "/marketing/follow-up" },
-    { key: "overdue", label: "Terlambat", value: kpi?.followUpOverdue ?? 0, icon: <TriangleAlert className="w-4 h-4" />, tone: "text-amber-600 bg-amber-50", href: "/marketing/follow-up" },
-    { key: "unreplied", label: "Chat Belum Dibalas", value: kpi?.unrepliedChats ?? 0, icon: <MessagesSquare className="w-4 h-4" />, tone: "text-indigo-600 bg-indigo-50", href: "/marketing/inbox" },
+    { label: "Lead Hot", value: kpi?.hotLeads ?? 0, icon: Flame, color: "rose" as const, href: "/marketing/leads?temperature=HOT" },
+    { label: "Follow Up Hari Ini", value: kpi?.followUpToday ?? 0, icon: CalendarClock, color: "blue" as const, href: "/marketing/follow-up" },
+    { label: "Terlambat", value: kpi?.followUpOverdue ?? 0, icon: TriangleAlert, color: "amber" as const, href: "/marketing/follow-up" },
+    { label: "Chat Belum Dibalas", value: kpi?.unrepliedChats ?? 0, icon: MessagesSquare, color: "indigo" as const, href: "/marketing/inbox" },
   ]
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-black text-slate-900">Beranda</h1>
-        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-bold">
-          {(["mine", "all"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setScope(s)}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${scope === s ? "bg-blue-700 text-white" : "text-slate-500 hover:text-slate-800"}`}
-            >
-              {s === "mine" ? "Punya Saya" : "Semua Tim"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <MktHeader title="Beranda">
+        <ScopeToggle value={scope} onChange={setScope} />
+      </MktHeader>
 
-      {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
+      {error && <Alert variant="error">{error}</Alert>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {cards.map((c) => (
-          <Link key={c.key} href={c.href} className="rounded-2xl border border-slate-200 bg-white p-3.5 hover:border-blue-300 transition-colors">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${c.tone}`}>{c.icon}</div>
-            <p className="text-2xl font-black text-slate-900 mt-2">{c.value}</p>
-            <p className="text-[11px] font-bold text-slate-500 mt-0.5">{c.label}</p>
+          <Link key={c.label} href={c.href}>
+            <StatTile label={c.label} value={c.value} icon={c.icon} color={c.color} className="hover:-translate-y-0.5 transition-transform" />
           </Link>
         ))}
       </div>
@@ -107,35 +90,36 @@ export const HomeClient: React.FC = () => {
       <div>
         <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Kerjakan Dulu</h2>
         {loading ? (
-          <p className="text-sm text-slate-500 font-medium py-8 text-center">Memuat…</p>
+          <SkeletonList rows={4} />
         ) : !data || data.workOn.length === 0 ? (
-          <p className="text-sm text-slate-500 font-medium py-8 text-center">Tidak ada lead prioritas. 🎉</p>
+          <Card variant="feature" padding="lg" className="text-center text-sm text-slate-500 font-medium">
+            Tidak ada lead prioritas. 🎉
+          </Card>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {data.workOn.map((w) => (
-              <li key={w.id} className="p-3 rounded-2xl bg-white border border-slate-200/80">
-                <div className="flex items-start justify-between gap-2">
-                  <Link href={`/marketing/leads/${w.id}`} className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate">
-                    {w.displayName}
-                    {w.companyName ? <span className="font-medium text-slate-400"> · {w.companyName}</span> : null}
-                  </Link>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TEMP_BADGE[w.temperature]}`}>{w.temperature}</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">Skor {Math.round(w.priorityScore)}</span>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">{w.reason}</p>
-                <div className="flex items-center justify-between gap-2 mt-2">
-                  <p className="text-xs font-bold text-slate-700">→ {w.nextAction}</p>
-                  {w.conversationId && (
-                    <Link
-                      href={`/marketing/inbox/${w.conversationId}`}
-                      className="text-[11px] font-bold text-blue-700 flex-shrink-0"
-                    >
-                      Buka Chat{w.unread > 0 ? ` (${w.unread})` : ""}
+              <li key={w.id}>
+                <Card variant="solid" padding="sm" hoverable className="!rounded-2xl">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/marketing/leads/${w.id}`} className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate">
+                      {w.displayName}
+                      {w.companyName ? <span className="font-medium text-slate-400"> · {w.companyName}</span> : null}
                     </Link>
-                  )}
-                </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Badge variant={tempBadgeVariant(w.temperature)} size="sm">{w.temperature}</Badge>
+                      <Badge variant="info" size="sm">Skor {Math.round(w.priorityScore)}</Badge>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">{w.reason}</p>
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <p className="text-xs font-bold text-slate-700">→ {w.nextAction}</p>
+                    {w.conversationId && (
+                      <Link href={`/marketing/inbox/${w.conversationId}`} className="text-[11px] font-bold text-blue-700 flex-shrink-0">
+                        Buka Chat{w.unread > 0 ? ` (${w.unread})` : ""}
+                      </Link>
+                    )}
+                  </div>
+                </Card>
               </li>
             ))}
           </ul>

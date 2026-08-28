@@ -3,6 +3,21 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 
+import {
+  Alert,
+  Card,
+  SkeletonList,
+  StatTile,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui"
+import { MktHeader } from "./ui"
+
 interface DashData {
   kpi: {
     totalLeads: number
@@ -40,39 +55,36 @@ export const ManagerDashboard: React.FC = () => {
       .catch(() => setError("Gagal memuat"))
   }, [])
 
-  if (error) return <p className="text-sm font-semibold text-rose-600 py-10 text-center">{error}</p>
-  if (!data) return <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
+  if (error) return <Alert variant="error">{error}</Alert>
+  if (!data) return <SkeletonList rows={6} />
 
   const { kpi } = data
-  const kpiCards = [
-    { label: "Total Lead", value: kpi.totalLeads },
-    { label: "Cold", value: kpi.cold },
-    { label: "Warm", value: kpi.warm },
-    { label: "Hot", value: kpi.hot },
-    { label: "Open", value: kpi.open },
-    { label: "Won", value: kpi.won },
-    { label: "Lost", value: kpi.lost },
-    { label: "FU Telat", value: kpi.followUpOverdue },
-    { label: "On-Time FU", value: kpi.followUpOnTimeRate == null ? "—" : `${kpi.followUpOnTimeRate}%` },
+  const kpiCards: { label: string; value: string | number; color?: React.ComponentProps<typeof StatTile>["color"] }[] = [
+    { label: "Total Lead", value: kpi.totalLeads, color: "blue" },
+    { label: "Cold", value: kpi.cold, color: "slate" },
+    { label: "Warm", value: kpi.warm, color: "amber" },
+    { label: "Hot", value: kpi.hot, color: "rose" },
+    { label: "Open", value: kpi.open, color: "blue" },
+    { label: "Won", value: kpi.won, color: "emerald" },
+    { label: "Lost", value: kpi.lost, color: "slate" },
+    { label: "FU Telat", value: kpi.followUpOverdue, color: "amber" },
+    { label: "On-Time FU", value: kpi.followUpOnTimeRate == null ? "—" : `${kpi.followUpOnTimeRate}%`, color: "emerald" },
   ]
   const funnelMax = Math.max(1, ...data.funnel.map((f) => f.count))
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-black text-slate-900">Dashboard</h1>
+      <MktHeader title="Dashboard" />
 
       <div className="grid grid-cols-3 lg:grid-cols-5 gap-2.5">
         {kpiCards.map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-3">
-            <p className="text-xl font-black text-slate-900">{c.value}</p>
-            <p className="text-[11px] font-bold text-slate-500 mt-0.5">{c.label}</p>
-          </div>
+          <StatTile key={c.label} label={c.label} value={c.value} color={c.color} />
         ))}
       </div>
 
       <div>
         <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Funnel Tahap (lead OPEN)</h2>
-        <div className="flex flex-col gap-1.5">
+        <Card variant="feature" padding="md" className="flex flex-col gap-1.5">
           {data.funnel.map((f) => (
             <div key={f.stage} className="flex items-center gap-3">
               <span className="text-xs font-bold text-slate-500 w-24 flex-shrink-0">{f.label}</span>
@@ -85,33 +97,33 @@ export const ManagerDashboard: React.FC = () => {
               <span className="text-xs font-bold text-slate-700 w-8 text-right">{f.count}</span>
             </div>
           ))}
-        </div>
+        </Card>
       </div>
 
       <div>
         <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Performa Segmen</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 font-bold">
-              <tr>
-                <th className="text-left px-3 py-2.5">Segmen</th>
-                <th className="text-right px-3 py-2.5">Lead</th>
-                <th className="text-right px-3 py-2.5">Won</th>
-                <th className="text-right px-3 py-2.5">Konversi</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Segmen</TableHead>
+                <TableHead className="text-right">Lead</TableHead>
+                <TableHead className="text-right">Won</TableHead>
+                <TableHead className="text-right">Konversi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.segmentPerformance.map((s) => (
-                <tr key={s.segmentId ?? "none"} className="border-t border-slate-100">
-                  <td className="px-3 py-2.5 font-bold text-slate-800">{s.name}</td>
-                  <td className="px-3 py-2.5 text-right">{s.leads}</td>
-                  <td className="px-3 py-2.5 text-right text-emerald-600 font-bold">{s.won || ""}</td>
-                  <td className="px-3 py-2.5 text-right">{s.leads > 0 ? `${Math.round((s.won / s.leads) * 100)}%` : "—"}</td>
-                </tr>
+                <TableRow key={s.segmentId ?? "none"}>
+                  <TableCell className="font-bold text-slate-800">{s.name}</TableCell>
+                  <TableCell className="text-right">{s.leads}</TableCell>
+                  <TableCell className="text-right text-emerald-600 font-bold">{s.won || ""}</TableCell>
+                  <TableCell className="text-right">{s.leads > 0 ? `${Math.round((s.won / s.leads) * 100)}%` : "—"}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       </div>
 
       <div>
@@ -119,32 +131,32 @@ export const ManagerDashboard: React.FC = () => {
           <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">Performa Tim</h2>
           <Link href="/marketing/tim" className="text-xs font-bold text-blue-700">Detail Tim</Link>
         </div>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 font-bold">
-              <tr>
-                <th className="text-left px-3 py-2.5">Sales</th>
-                <th className="text-right px-3 py-2.5">Lead Aktif</th>
-                <th className="text-right px-3 py-2.5">Hot</th>
-                <th className="text-right px-3 py-2.5">FU Telat</th>
-                <th className="text-right px-3 py-2.5">Won (bln)</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sales</TableHead>
+                <TableHead className="text-right">Lead Aktif</TableHead>
+                <TableHead className="text-right">Hot</TableHead>
+                <TableHead className="text-right">FU Telat</TableHead>
+                <TableHead className="text-right">Won (bln)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.team.map((m) => (
-                <tr key={m.userId} className="border-t border-slate-100">
-                  <td className="px-3 py-2.5">
+                <TableRow key={m.userId}>
+                  <TableCell>
                     <Link href={`/marketing/tim/${m.userId}`} className="font-bold text-slate-800 hover:text-blue-700">{m.name}</Link>
-                  </td>
-                  <td className="px-3 py-2.5 text-right">{m.activeLeads}</td>
-                  <td className="px-3 py-2.5 text-right text-rose-600 font-bold">{m.hotLeads || ""}</td>
-                  <td className="px-3 py-2.5 text-right text-amber-600 font-bold">{m.followUpOverdue || ""}</td>
-                  <td className="px-3 py-2.5 text-right text-emerald-600 font-bold">{m.wonThisMonth || ""}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right">{m.activeLeads}</TableCell>
+                  <TableCell className="text-right text-rose-600 font-bold">{m.hotLeads || ""}</TableCell>
+                  <TableCell className="text-right text-amber-600 font-bold">{m.followUpOverdue || ""}</TableCell>
+                  <TableCell className="text-right text-emerald-600 font-bold">{m.wonThisMonth || ""}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       </div>
     </div>
   )

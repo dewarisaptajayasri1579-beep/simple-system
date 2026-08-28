@@ -2,18 +2,31 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui"
+
 export interface FieldSpec {
   key: string
   label: string
   type: "text" | "number" | "bool"
-  /** hanya untuk form "buat baru" */
+  /** hanya tampil (read-only) + jadi input saat "buat baru" */
   createOnly?: boolean
   width?: string
 }
 
 /** Editor generik untuk tabel master modul Marketing (Segment, LeadSource, LostReason,
- *  ActivityType, ResultType). List dari `GET {endpoint}`, buat via `POST {endpoint}`,
- *  edit via `PATCH {endpoint}/{id}`, hapus via `DELETE {endpoint}/{id}` (opsional). */
+ *  ActivityType, ResultType). */
 export const MarketingMasterList: React.FC<{
   title: string
   endpoint: string
@@ -76,10 +89,8 @@ export const MarketingMasterList: React.FC<{
     else load()
   }
 
-  const inputCls = "px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs outline-none focus:border-blue-400"
-
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white">
+    <Card variant="feature" padding="none">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-3 text-sm font-black text-slate-700"
@@ -90,22 +101,22 @@ export const MarketingMasterList: React.FC<{
 
       {open && (
         <div className="px-4 pb-4">
-          {error && <p className="text-xs font-semibold text-rose-600 mb-2">{error}</p>}
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">
-                <tr>
-                  {fields.filter((f) => !f.createOnly || true).map((f) => (
-                    <th key={f.key} className="text-left px-1.5 py-1">{f.label}</th>
+          {error && <div className="mb-2"><Alert variant="error">{error}</Alert></div>}
+          <TableContainer className="!rounded-xl">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {fields.map((f) => (
+                    <TableHead key={f.key}>{f.label}</TableHead>
                   ))}
-                  {canDelete && canEdit && <th />}
-                </tr>
-              </thead>
-              <tbody>
+                  {canDelete && canEdit && <TableHead />}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-slate-100">
+                  <TableRow key={r.id}>
                     {fields.map((f) => (
-                      <td key={f.key} className="px-1.5 py-1" style={{ width: f.width }}>
+                      <TableCell key={f.key} style={{ width: f.width }}>
                         {f.type === "bool" ? (
                           <input
                             type="checkbox"
@@ -114,7 +125,7 @@ export const MarketingMasterList: React.FC<{
                             onChange={(e) => saveField(r.id, f.key, e.target.checked)}
                           />
                         ) : f.createOnly ? (
-                          <span className="font-mono text-slate-500">{r[f.key] ?? "—"}</span>
+                          <span className="font-mono text-slate-500 text-xs">{r[f.key] ?? "—"}</span>
                         ) : (
                           <input
                             type={f.type === "number" ? "number" : "text"}
@@ -125,44 +136,45 @@ export const MarketingMasterList: React.FC<{
                               const v = f.type === "number" ? Number(e.target.value) : e.target.value
                               if (String(r[f.key] ?? "") !== String(e.target.value)) saveField(r.id, f.key, v)
                             }}
-                            className={`${inputCls} w-full disabled:bg-transparent disabled:border-transparent`}
+                            className="w-full px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 focus:border-blue-400 bg-transparent text-xs outline-none disabled:cursor-default"
                           />
                         )}
-                      </td>
+                      </TableCell>
                     ))}
                     {canDelete && canEdit && (
-                      <td className="px-1.5 py-1 text-right">
+                      <TableCell className="text-right">
                         <button onClick={() => del(r.id)} className="text-[10px] font-bold text-rose-600">
                           hapus
                         </button>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
 
           {canCreate && canEdit && (
             <div className="mt-3 flex flex-wrap items-end gap-2">
               {fields
                 .filter((f) => f.type !== "bool" && (f.createOnly || f.key === "name" || f.key === "code"))
                 .map((f) => (
-                  <input
-                    key={f.key}
-                    placeholder={f.label}
-                    value={creating[f.key] ?? ""}
-                    onChange={(e) => setCreating((c) => ({ ...c, [f.key]: e.target.value }))}
-                    className={inputCls}
-                  />
+                  <div key={f.key} className="w-40">
+                    <Input
+                      placeholder={f.label}
+                      value={creating[f.key] ?? ""}
+                      onChange={(e) => setCreating((c) => ({ ...c, [f.key]: e.target.value }))}
+                      sizeVariant="sm"
+                    />
+                  </div>
                 ))}
-              <button onClick={create} className="px-2.5 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold">
+              <Button size="sm" onClick={create}>
                 Tambah
-              </button>
+              </Button>
             </div>
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }

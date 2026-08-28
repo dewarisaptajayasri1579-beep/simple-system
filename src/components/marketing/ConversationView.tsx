@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Send, Sparkles } from "lucide-react"
 
+import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
+import { tempBadgeVariant } from "./ui"
+
 interface Message {
   id: string
   direction: string
@@ -34,12 +37,6 @@ interface ConversationMeta {
   hasWhatsappConnection: boolean
 }
 
-const TEMP_BADGE: Record<string, string> = {
-  HOT: "bg-rose-100 text-rose-700",
-  WARM: "bg-amber-100 text-amber-700",
-  COLD: "bg-slate-100 text-slate-600",
-}
-
 function clockTime(iso: string) {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
 }
@@ -55,6 +52,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [suggestions, setSuggestions] = useState<{ id: string; style: string; text: string }[]>([])
   const [aiBusy, setAiBusy] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  const [takingOver, setTakingOver] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
 
@@ -81,13 +79,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   useEffect(() => {
     load()
   }, [load])
-
   useEffect(() => {
     const t = setInterval(() => load(true), 10000)
     return () => clearInterval(t)
   }, [load])
-
-  // auto-scroll saat jumlah pesan bertambah
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
       lastCountRef.current = messages.length
@@ -95,7 +90,19 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     }
   }, [messages])
 
-  const [takingOver, setTakingOver] = useState(false)
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/marketing/conversations/${conversationId}/ai-suggestions`, { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setSuggestions(d.suggestions ?? [])
+    } catch {
+      /* ignore */
+    }
+  }, [conversationId])
+  useEffect(() => {
+    loadSuggestions()
+  }, [loadSuggestions])
+
   const takeOver = async () => {
     if (!meta) return
     setTakingOver(true)
@@ -116,16 +123,6 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       setTakingOver(false)
     }
   }
-
-  const loadSuggestions = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/marketing/conversations/${conversationId}/ai-suggestions`, { cache: "no-store" })
-      const d = await res.json()
-      if (res.ok) setSuggestions(d.suggestions ?? [])
-    } catch {
-      /* ignore */
-    }
-  }, [conversationId])
 
   const genSuggestions = async () => {
     setAiBusy(true)
@@ -168,12 +165,8 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     }
   }
 
-  useEffect(() => {
-    loadSuggestions()
-  }, [loadSuggestions])
-
-  if (loading) return <p className="text-sm text-slate-500 font-medium py-10 text-center">Memuat…</p>
-  if (!meta) return <p className="text-sm font-semibold text-rose-600 py-10 text-center">{error ?? "Percakapan tidak ditemukan"}</p>
+  if (loading) return <SkeletonList rows={6} />
+  if (!meta) return <Alert variant="error">{error ?? "Percakapan tidak ditemukan"}</Alert>
 
   const { lead } = meta
 
@@ -185,17 +178,11 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${TEMP_BADGE[lead.temperature] ?? "bg-slate-100 text-slate-600"}`}>
-              {lead.temperature}
-            </span>
-            {lead.segmentName && (
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{lead.segmentName}</span>
-            )}
-            {lead.outcome !== "OPEN" && (
-              <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{lead.outcome}</span>
-            )}
+            <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
+            {lead.segmentName && <Badge variant="secondary" size="sm">{lead.segmentName}</Badge>}
+            {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {lead.companyName ? `${lead.companyName} · ` : ""}
@@ -203,10 +190,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             {meta.pic ? ` · PIC: ${meta.pic.name}` : " · belum ada PIC"}
           </p>
         </div>
-        <Link
-          href={`/marketing/leads/${lead.id}`}
-          className="text-xs font-bold text-blue-700 hover:underline flex-shrink-0 mt-0.5"
-        >
+        <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline flex-shrink-0 mt-0.5">
           Detail
         </Link>
       </div>
@@ -236,7 +220,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       </div>
 
       {/* composer / banner */}
-      {error && <p className="text-xs font-semibold text-rose-600 pb-2">{error}</p>}
+      {error && <div className="pb-2"><Alert variant="error">{error}</Alert></div>}
 
       {meta.canAct && (
         <div className="pb-2">
@@ -290,28 +274,26 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             rows={1}
             placeholder={meta.hasWhatsappConnection ? "Ketik balasan…" : "Lead belum terhubung ke koneksi WhatsApp"}
             disabled={!meta.hasWhatsappConnection}
-            className="flex-1 resize-none max-h-32 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
+            className="flex-1 resize-none max-h-32 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400"
           />
-          <button
+          <Button
             onClick={send}
             disabled={sending || !draft.trim() || !meta.hasWhatsappConnection}
-            className="w-11 h-11 rounded-2xl bg-blue-700 text-white flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+            isLoading={sending}
+            className="!w-11 !h-11 !p-0 !rounded-2xl flex-shrink-0"
+            aria-label="Kirim"
           >
-            <Send className="w-4 h-4" />
-          </button>
+            {!sending && <Send className="w-4 h-4" />}
+          </Button>
         </div>
       ) : (
         <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
           <p className="text-xs font-medium text-slate-500">
             Kamu memantau lead ini{meta.pic ? ` (PIC: ${meta.pic.name})` : ""}. Untuk membalas, ambil alih dulu.
           </p>
-          <button
-            onClick={takeOver}
-            disabled={takingOver}
-            className="px-3 py-1.5 rounded-xl bg-blue-700 text-white text-xs font-bold flex-shrink-0 disabled:opacity-50"
-          >
-            {takingOver ? "…" : "Ambil Alih"}
-          </button>
+          <Button size="sm" onClick={takeOver} isLoading={takingOver} className="flex-shrink-0">
+            Ambil Alih
+          </Button>
         </div>
       )}
     </div>

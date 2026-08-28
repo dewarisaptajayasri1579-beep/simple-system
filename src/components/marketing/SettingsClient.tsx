@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { Alert, Button, Card, Input, Select, Tab, TabList, Tabs } from "@/components/ui"
 import { MarketingMasterList } from "./MarketingMasterList"
+import { MktHeader } from "./ui"
 
 interface Team {
   id: string
@@ -15,23 +17,33 @@ interface Team {
 
 const SETTING_LABEL: Record<string, string> = {
   "follow_up.grace_minutes": "Grace follow up (menit) — batas 'tepat waktu' setelah jadwal",
+  "follow_up.reminder_before_minutes": "Reminder sebelum jatuh tempo (menit)",
+  "follow_up.overdue_reminder_hours": "Reminder ulang saat overdue (jam)",
   "ai.segment_auto_apply_confidence": "Confidence minimum auto-apply segmentasi AI (0–1)",
   "priority.weight_temperature": "Bobot: Temperatur",
   "priority.weight_activity": "Bobot: Aktivitas / Tahap",
   "priority.weight_follow_up": "Bobot: Hasil Follow Up",
   "priority.weight_recency": "Bobot: Recency / Idle",
   "priority.weight_ai": "Bobot: AI Buying Signal",
+  "escalation.hot_unreplied_hours": "Escalation: Hot lead belum dibalas (jam)",
+  "escalation.followup_overdue_hours": "Escalation: Follow up overdue (jam)",
+  "escalation.negotiation_idle_days": "Escalation: Negosiasi idle (hari)",
+  "temperature.override_lock_hours": "Lock manual temperatur (jam)",
+  "working_hours.enabled": "Working hours aktif (1 = ya, 0 = 24/7)",
+  "working_hours.start_hour": "Jam mulai kerja",
+  "working_hours.end_hour": "Jam selesai kerja",
+  "working_hours.saturday": "Sabtu hari kerja (1/0)",
 }
-const WEIGHT_KEYS = new Set([
+const WEIGHT_KEYS = [
   "priority.weight_temperature",
   "priority.weight_activity",
   "priority.weight_follow_up",
   "priority.weight_recency",
   "priority.weight_ai",
-])
+]
 
 export const SettingsClient: React.FC = () => {
-  const [tab, setTab] = useState<"umum" | "master" | "tim">("umum")
+  const [tab, setTab] = useState("umum")
   const [settings, setSettings] = useState<Record<string, number>>({})
   const [canEdit, setCanEdit] = useState(false)
   const [teams, setTeams] = useState<Team[]>([])
@@ -82,11 +94,9 @@ export const SettingsClient: React.FC = () => {
       body: JSON.stringify(newTeam),
     })
     const d = await res.json()
-    if (!res.ok) setError(d.error || "Gagal")
-    else {
-      setNewTeam({ name: "", code: "", managerUserId: "" })
-      loadAll()
-    }
+    if (!res.ok) return setError(d.error || "Gagal")
+    setNewTeam({ name: "", code: "", managerUserId: "" })
+    loadAll()
   }
 
   const addMember = async (teamId: string, userId: string, membershipRole: string) => {
@@ -104,78 +114,55 @@ export const SettingsClient: React.FC = () => {
     if (res.ok) loadAll()
   }
 
-  const inputCls = "px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+  const numField = (k: string) => (
+    <Input
+      key={k}
+      type="number"
+      step="any"
+      label={SETTING_LABEL[k] ?? k}
+      value={settings[k] ?? 0}
+      disabled={!canEdit}
+      onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
+      sizeVariant="sm"
+    />
+  )
 
   return (
-    <div className="flex flex-col gap-5 max-w-2xl">
-      <h1 className="text-xl font-black text-slate-900">Pengaturan Marketing</h1>
-      {!canEdit && (
-        <p className="text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-          Hanya Manager / Owner yang bisa mengubah. Kamu bisa lihat saja.
-        </p>
-      )}
-      {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
-      {msg && <p className="text-sm font-semibold text-emerald-600">{msg}</p>}
+    <div className="flex flex-col gap-5 max-w-3xl">
+      <MktHeader title="Pengaturan Marketing" />
+      {!canEdit && <Alert variant="info">Hanya Manager / Owner yang bisa mengubah. Kamu bisa lihat saja.</Alert>}
+      {error && <Alert variant="error">{error}</Alert>}
+      {msg && <Alert variant="success">{msg}</Alert>}
 
-      <div className="flex gap-1.5">
-        {(["umum", "master", "tim"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold ${tab === t ? "bg-blue-700 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
-          >
-            {t === "umum" ? "Umum" : t === "master" ? "Master Data" : "Tim"}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onChange={setTab}>
+        <TabList>
+          <Tab value="umum">Umum</Tab>
+          <Tab value="master">Master Data</Tab>
+          <Tab value="tim">Tim</Tab>
+        </TabList>
+      </Tabs>
 
       {tab === "umum" && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col gap-3">
+        <Card variant="feature" padding="md" className="flex flex-col gap-3">
           {Object.keys(settings)
-            .filter((k) => !WEIGHT_KEYS.has(k))
-            .map((k) => (
-              <label key={k} className="text-xs font-semibold text-slate-600">
-                {SETTING_LABEL[k] ?? k}
-                <input
-                  type="number"
-                  step="any"
-                  value={settings[k]}
-                  disabled={!canEdit}
-                  onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
-                  className={`${inputCls} mt-1 w-full disabled:bg-slate-50`}
-                />
-              </label>
-            ))}
+            .filter((k) => !WEIGHT_KEYS.includes(k))
+            .map((k) => numField(k))}
 
           <div className="mt-1 pt-3 border-t border-slate-100">
             <p className="text-xs font-black uppercase text-slate-500">Bobot Priority Score</p>
             <p className="text-[11px] text-slate-400 mb-2">
-              Total otomatis dinormalisasi ke 1. Setelah ubah, skor lama ikut kehitung ulang saat lead
-              berikutnya ada interaksi (atau jalankan `scripts/recalc-marketing-priority.ts`).
+              Total otomatis dinormalisasi ke 1. Setelah ubah, skor lama kehitung ulang saat lead berikutnya ada interaksi
+              (atau jalankan <code>scripts/recalc-marketing-priority.ts</code>).
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {[...WEIGHT_KEYS].map((k) => (
-                <label key={k} className="text-xs font-semibold text-slate-600">
-                  {SETTING_LABEL[k]}
-                  <input
-                    type="number"
-                    step="any"
-                    value={settings[k] ?? 0}
-                    disabled={!canEdit}
-                    onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
-                    className={`${inputCls} mt-1 w-full disabled:bg-slate-50`}
-                  />
-                </label>
-              ))}
-            </div>
+            <div className="grid grid-cols-2 gap-2">{WEIGHT_KEYS.map((k) => numField(k))}</div>
           </div>
 
           {canEdit && (
-            <button onClick={saveSettings} className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold">
+            <Button size="sm" onClick={saveSettings} className="self-start">
               Simpan
-            </button>
+            </Button>
           )}
-        </div>
+        </Card>
       )}
 
       {tab === "master" && (
@@ -219,15 +206,15 @@ export const SettingsClient: React.FC = () => {
             ]}
           />
           <MarketingMasterList
-            title="Hasil Follow Up (priorityScoreEffect → komponen skor)"
+            title="Hasil Follow Up (normalizedScore → komponen skor)"
             endpoint="/api/marketing/result-types"
             listKey="resultTypes"
             canCreate={false}
             fields={[
               { key: "code", label: "Kode", type: "text", createOnly: true },
               { key: "name", label: "Nama", type: "text" },
-              { key: "priorityScoreEffect", label: "Efek Skor", type: "number", width: "80px" },
-              { key: "temperatureSignalScore", label: "Sinyal Temp", type: "number", width: "80px" },
+              { key: "normalizedScore", label: "Skor 0-100", type: "number", width: "90px" },
+              { key: "priorityScoreEffect", label: "Efek", type: "number", width: "70px" },
               { key: "isActive", label: "Aktif", type: "bool" },
             ]}
           />
@@ -248,26 +235,32 @@ export const SettingsClient: React.FC = () => {
       {tab === "tim" && (
         <div className="flex flex-col gap-3">
           {canEdit && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col gap-2">
+            <Card variant="feature" padding="md" className="flex flex-col gap-2">
               <p className="text-xs font-black uppercase text-slate-500">Buat Tim</p>
-              <div className="flex flex-wrap gap-2">
-                <input placeholder="Nama tim" value={newTeam.name} onChange={(e) => setNewTeam((t) => ({ ...t, name: e.target.value }))} className={inputCls} />
-                <input placeholder="Kode (mis. TIM-A)" value={newTeam.code} onChange={(e) => setNewTeam((t) => ({ ...t, code: e.target.value }))} className={inputCls} />
-                <select value={newTeam.managerUserId} onChange={(e) => setNewTeam((t) => ({ ...t, managerUserId: e.target.value }))} className={inputCls}>
-                  <option value="">Manager…</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-                <button onClick={createTeam} disabled={!newTeam.name || !newTeam.code} className="px-3 py-2 rounded-xl bg-blue-700 text-white text-xs font-bold disabled:opacity-40">
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="w-40">
+                  <Input placeholder="Nama tim" value={newTeam.name} onChange={(e) => setNewTeam((t) => ({ ...t, name: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-36">
+                  <Input placeholder="Kode (mis. TIM-A)" value={newTeam.code} onChange={(e) => setNewTeam((t) => ({ ...t, code: e.target.value }))} sizeVariant="sm" />
+                </div>
+                <div className="w-44">
+                  <Select
+                    options={[{ value: "", label: "Manager…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
+                    value={newTeam.managerUserId}
+                    onChange={(v) => setNewTeam((t) => ({ ...t, managerUserId: v }))}
+                    sizeVariant="sm"
+                  />
+                </div>
+                <Button size="sm" onClick={createTeam} disabled={!newTeam.name || !newTeam.code}>
                   Buat
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
           )}
 
           {teams.map((team) => (
-            <div key={team.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <Card key={team.id} variant="feature" padding="md">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-black text-slate-800">
                   {team.name} <span className="text-slate-400 font-semibold">· {team.code}</span>
@@ -290,9 +283,13 @@ export const SettingsClient: React.FC = () => {
                 {team.memberships.length === 0 && <li className="text-xs text-slate-400">Belum ada anggota.</li>}
               </ul>
               {canEdit && <AddMember users={users} onAdd={(uid, role) => addMember(team.id, uid, role)} />}
-            </div>
+            </Card>
           ))}
-          {teams.length === 0 && <p className="text-sm text-slate-400">Belum ada tim.</p>}
+          {teams.length === 0 && (
+            <Card variant="feature" padding="lg" className="text-center text-sm text-slate-400">
+              Belum ada tim.
+            </Card>
+          )}
         </div>
       )}
     </div>
@@ -303,25 +300,30 @@ const AddMember: React.FC<{ users: { id: string; name: string }[]; onAdd: (userI
   const [uid, setUid] = useState("")
   const [role, setRole] = useState("SALES")
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <select value={uid} onChange={(e) => setUid(e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs">
-        <option value="">Tambah anggota…</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>{u.name}</option>
-        ))}
-      </select>
-      <select value={role} onChange={(e) => setRole(e.target.value)} className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs">
-        <option value="SALES">SALES</option>
-        <option value="SPV">SPV</option>
-        <option value="MEMBER">MEMBER</option>
-      </select>
-      <button
-        onClick={() => uid && onAdd(uid, role)}
-        disabled={!uid}
-        className="px-2.5 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-bold disabled:opacity-40"
-      >
+    <div className="mt-2 flex flex-wrap gap-2 items-end">
+      <div className="w-44">
+        <Select
+          options={[{ value: "", label: "Tambah anggota…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
+          value={uid}
+          onChange={setUid}
+          sizeVariant="sm"
+        />
+      </div>
+      <div className="w-32">
+        <Select
+          options={[
+            { value: "SALES", label: "SALES" },
+            { value: "SPV", label: "SPV" },
+            { value: "MEMBER", label: "MEMBER" },
+          ]}
+          value={role}
+          onChange={setRole}
+          sizeVariant="sm"
+        />
+      </div>
+      <Button size="sm" variant="secondary" onClick={() => uid && onAdd(uid, role)} disabled={!uid}>
         Tambah
-      </button>
+      </Button>
     </div>
   )
 }

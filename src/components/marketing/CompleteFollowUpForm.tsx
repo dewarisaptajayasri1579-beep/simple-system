@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 
+import { Alert, Button, Input, Select, Textarea } from "@/components/ui"
+
 interface Opt {
   id: string
   name: string
 }
 
-/** Form kecil untuk menyelesaikan 1 follow up — dipakai di FollowUpBoard & LeadDetailClient.
- *  Wajib pilih hasil; opsional langsung jadwalkan follow up lanjutan. */
+/** Form kecil untuk menyelesaikan 1 follow up — dipakai di FollowUpBoard & LeadDetailClient. */
 export const CompleteFollowUpForm: React.FC<{
   followUpId: string
   resultTypes: Opt[]
@@ -51,23 +52,22 @@ export const CompleteFollowUpForm: React.FC<{
     }
   }
 
-  const inputCls = "w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
-
   return (
-    <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
-      {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
-      <select value={resultTypeId} onChange={(e) => setResultTypeId(e.target.value)} className={inputCls}>
-        <option value="">Hasil follow up…</option>
-        {resultTypes.map((r) => (
-          <option key={r.id} value={r.id}>{r.name}</option>
-        ))}
-      </select>
-      <textarea
+    <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
+      {error && <Alert variant="error">{error}</Alert>}
+      <Select
+        options={resultTypes.map((r) => ({ value: r.id, label: r.name }))}
+        value={resultTypeId}
+        onChange={setResultTypeId}
+        placeholder="Hasil follow up…"
+        sizeVariant="sm"
+      />
+      <Textarea
         value={resultNote}
         onChange={(e) => setResultNote(e.target.value)}
         rows={2}
         placeholder="Catatan hasil (opsional)"
-        className={`${inputCls} resize-none`}
+        sizeVariant="sm"
       />
       <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
         <input type="checkbox" checked={withNext} onChange={(e) => setWithNext(e.target.checked)} />
@@ -75,22 +75,22 @@ export const CompleteFollowUpForm: React.FC<{
       </label>
       {withNext && (
         <div className="flex flex-col gap-2">
-          <input type="datetime-local" value={nextAt} onChange={(e) => setNextAt(e.target.value)} className={inputCls} />
-          <input
+          <Input type="datetime-local" value={nextAt} onChange={(e) => setNextAt(e.target.value)} sizeVariant="sm" />
+          <Input
             value={nextPurpose}
             onChange={(e) => setNextPurpose(e.target.value)}
             placeholder="Tujuan follow up lanjutan"
-            className={inputCls}
+            sizeVariant="sm"
           />
         </div>
       )}
       <div className="flex gap-2">
-        <button onClick={submit} disabled={busy} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40">
+        <Button size="sm" onClick={submit} isLoading={busy}>
           Selesaikan
-        </button>
-        <button onClick={onCancel} disabled={busy} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold">
+        </Button>
+        <Button size="sm" variant="secondary" onClick={onCancel} disabled={busy}>
           Batal
-        </button>
+        </Button>
       </div>
     </div>
   )
