@@ -6,6 +6,7 @@ import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, SkeletonList } from "@/components/ui"
 import { FilterPills, MktHeader, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface ConversationItem {
   id: string
@@ -113,6 +114,8 @@ export const InboxClient: React.FC = () => {
       />
 
       <FilterPills options={FILTERS} value={filter} onChange={setFilter} />
+
+      <WhatsappStatusBanner />
 
       {error && <Alert variant="error">{error}</Alert>}
 

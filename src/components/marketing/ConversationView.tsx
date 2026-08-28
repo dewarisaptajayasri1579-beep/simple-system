@@ -6,6 +6,7 @@ import { AlertCircle, Check, CheckCheck, Clock, Paperclip, Send, Sparkles } from
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface Message {
   id: string
@@ -46,6 +47,8 @@ interface ConversationMeta {
   pic: { id: string; name: string } | null
   canAct: boolean
   hasWhatsappConnection: boolean
+  whatsappStatus: string | null
+  whatsappConnected: boolean
 }
 
 function clockTime(iso: string) {
@@ -245,6 +248,13 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   if (!meta) return <Alert variant="error">{error ?? "Percakapan tidak ditemukan"}</Alert>
 
   const { lead } = meta
+  // Bisa kirim hanya kalau percakapan tertaut ke koneksi WA DAN koneksi itu sedang aktif (READY).
+  const canSend = meta.hasWhatsappConnection && meta.whatsappConnected
+  const composerPlaceholder = !meta.hasWhatsappConnection
+    ? "Lead belum tertaut ke koneksi WhatsApp"
+    : !meta.whatsappConnected
+      ? "WhatsApp sedang tidak terhubung — hubungkan dulu di atas"
+      : "Ketik balasan…"
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-[calc(100vh-8rem)]">
@@ -322,6 +332,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       </div>
 
       {/* composer / banner */}
+      {meta.canAct && <WhatsappStatusBanner className="pb-2" />}
       {error && <div className="pb-2"><Alert variant="error">{error}</Alert></div>}
 
       {meta.canAct && (
@@ -377,7 +388,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
               const u = window.prompt("URL gambar/dokumen (https://…):")
               if (u && /^https?:\/\//.test(u)) setMediaUrl(u.trim())
             }}
-            disabled={!meta.hasWhatsappConnection}
+            disabled={!canSend}
             className="w-11 h-11 rounded-2xl border border-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0 disabled:opacity-40"
           >
             <Paperclip className="w-4 h-4" />
@@ -392,13 +403,13 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
               }
             }}
             rows={1}
-            placeholder={meta.hasWhatsappConnection ? "Ketik balasan…" : "Lead belum terhubung ke koneksi WhatsApp"}
-            disabled={!meta.hasWhatsappConnection}
+            placeholder={composerPlaceholder}
+            disabled={!canSend}
             className="flex-1 resize-none max-h-32 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400"
           />
           <Button
             onClick={send}
-            disabled={sending || !draft.trim() || !meta.hasWhatsappConnection}
+            disabled={sending || !draft.trim() || !canSend}
             isLoading={sending}
             className="!w-11 !h-11 !p-0 !rounded-2xl flex-shrink-0"
             aria-label="Kirim"

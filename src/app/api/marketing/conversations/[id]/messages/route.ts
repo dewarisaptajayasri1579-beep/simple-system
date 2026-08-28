@@ -27,6 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       leadId: true,
       unreadCustomerCount: true,
       whatsappConnectionId: true,
+      whatsappConnection: { select: { status: true } },
       lead: {
         select: {
           id: true,
@@ -100,6 +101,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       pic: activeAssignment?.assignedUser ?? null,
       canAct,
       hasWhatsappConnection: conversation.whatsappConnectionId != null,
+      // Status koneksi WA yang dipakai percakapan ini (null = belum tertaut ke koneksi mana pun).
+      whatsappStatus: conversation.whatsappConnection?.status ?? null,
+      whatsappConnected: conversation.whatsappConnection?.status === "READY",
     },
     messages: desc.reverse().map(messageDto),
     hasMoreOlder: desc.length === limit,
