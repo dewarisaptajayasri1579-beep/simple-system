@@ -33,35 +33,31 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 
 Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
-1. **Deploy / pastikan hidup instance WAHUB `backend-wahub-dewari`** (source `registrasi/backend-wahub`)
-   — VPS/host-nya, `pm2`/service-nya, domain + HTTPS-nya. Ini server Baileys-nya, harus jalan 24/7
-   dan bisa reconnect sendiri.
-2. **Buat client key di WAHUB dewari**: `POST /api/admin/login` (user/pass admin instance) →
-   `POST /api/admin/clients {"name":"simple-system-marketing"}` → salin API key.
-3. **Isi `.env`** simple-system (production & lokal):
-   - `MARKETING_WAHUB_BASE_URL` = URL publik WAHUB dewari
-   - `MARKETING_WAHUB_API_KEY` = key dari poin 2
-   - `APP_BASE_URL` = URL publik simple-system (dipakai bikin `webhookUrl`)
-   - `WAHUB_WEBHOOK_SECRET` = string rahasia bebas (dicek di route webhook)
-   - `ANTHROPIC_API_KEY` = untuk Fase 6 (AI) — boleh nyusul
-4. **Pastikan `APP_BASE_URL` bisa diakses dari luar** (WAHUB dewari harus bisa `POST` ke
-   `/api/marketing/whatsapp/webhook`). Kalau tes lokal: pakai tunnel (ngrok/cloudflared) dan set
-   `APP_BASE_URL` ke URL tunnel.
-5. **Daftarkan user Sales/SPV/Manager** di sistem (lewat Pengaturan → Users yang sudah ada) +
-   set `User.modules` mengandung `"marketing"`. Owner otomatis bypass.
-6. **Tentukan struktur Tim**: siapa Manager, SPV mana bawahannya siapa → nanti diisi lewat UI
-   Team (poin 51) atau kamu kasih daftarnya, aku seed.
-7. **Siapkan HP tiap Sales** untuk scan QR (nomor WA yang dipakai jualan) — 1 Sales 1 nomor.
-   WA Web/Baileys butuh HP utama tetap online.
-8. **Konfirmasi keputusan produk** yang masih perlu kamu putuskan saat jalan:
+1. [x] **Instance WAHUB `backend-wahub-dewari` sudah hidup** — `https://backend-wahub-dewari.onyseven.com`
+   (source `registrasi/backend-wahub`). Harus jalan 24/7 + reconnect sendiri.
+2. [x] **Client key di WAHUB dewari sudah dibuat** — sudah terpasang di `.env`, dites
+   `GET /api/sessions` → HTTP 200. Cara bikin (kalau butuh baru): `POST /api/admin/login`
+   (user `admin` / pass = env `ADMIN_PASSWORD` di deploy dewari, atau default `admin123`) →
+   `POST /api/admin/clients {"name":"..."}` → ambil `apiKey`.
+3. [x] **`.env` lokal sudah lengkap**: `MARKETING_WAHUB_BASE_URL`, `MARKETING_WAHUB_API_KEY`,
+   `APP_BASE_URL` (`https://simple.onyseven.com`), `WAHUB_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`.
+   → **Sisa: pastikan env yang sama sudah ada di deploy PRODUCTION `simple.onyseven.com`.**
+4. [ ] **Verifikasi webhook tembus dari luar** — `POST https://simple.onyseven.com/api/marketing/whatsapp/webhook?secret=...&session=x`
+   harus sampai (dites beneran saat Fase 1).
+5. [ ] **Volume persisten di deploy dewari** untuk `data/` (SQLite: client key + daftar sesi) &
+   auth dir Baileys — kalau tidak, redeploy = key & sesi hilang, Sales scan ulang.
+6. [ ] **Daftarkan user Sales/SPV/Manager** (Pengaturan → Users) + set `User.modules` mengandung
+   `"marketing"`. Owner otomatis bypass.
+7. [ ] **Tentukan struktur Tim** (Manager → SPV → Sales) — isi lewat UI Team (poin 51) atau kasih
+   daftarnya, aku seed.
+8. [ ] **Siapkan HP + nomor WA tiap Sales** untuk scan QR — 1 Sales 1 nomor, HP utama tetap online.
+9. [ ] **Konfirmasi keputusan produk** (bisa nyusul saat jalan):
    - Daftar Segment final (SevenRent, SAP, Absensi, Bengkel, Gym, Custom App, + lainnya?)
-   - Bobot Priority Score (default sudah ada di `docs/06`, poin 25) — pakai default dulu?
+   - Bobot Priority Score — pakai default `docs/06` (poin 25) dulu?
    - Grace period follow up & jam kerja (poin 50)
-9. **Sediakan akses ke `docs/04-database.md` §11.1** kalau ada detail WAHUB dewari yang beda dari
-   asumsi (mis. nama field payload webhook) — biar poin 0a cepat.
 
-> Minimum biar aku bisa mulai Fase 1: poin 1–4 beres (WAHUB dewari hidup + env terisi + webhook
-> tembus). Poin 5–8 bisa jalan paralel.
+> Minimum biar aku mulai Fase 1: poin 1–3 beres (SUDAH). Poin 4–5 diverifikasi saat Fase 1,
+> poin 6–9 jalan paralel.
 
 ---
 
@@ -80,21 +76,22 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
       konvensi `to === "me"` untuk INBOUND (dipakai `handleMarketingWhatsappWebhook`).
     - Cek apakah WAHUB kirim **delivery status callback** (SENT/DELIVERED/READ). Kalau tidak →
       poin 9 disederhanakan (status berhenti di `SENT`).
-1. Cek ulang skema Prisma modul Marketing (`prisma/schema.prisma:1081+`) — pastikan semua `@@index`
-   untuk kolom relasi (`leadId`, `assignedUserId`, `conversationId`, `teamId`, dst) dan kolom
-   filter (`temperature`, `outcome`, `lastInteractionAt`, `priorityScore`) sudah ada.
-2. Seed master data awal: `LeadSource` (WHATSAPP, MANUAL, REFERRAL), `Segment` (SevenRent, SAP,
-   Absensi, Bengkel, Gym, Custom App), `LeadActivityType` (DISCUSSION, ZOOM_DEMO, PROPOSAL,
-   NEGOTIATION, CALL, OFFLINE_MEETING), `LeadFollowUpResultType` (8 hasil baseline di `docs/03` §10),
-   `LeadLostReason`. Buat script `scripts/seed-marketing.ts` (idempotent, upsert by code).
-3. Buat layout modul Marketing sendiri — sidebar/bottom-nav khusus (bukan pakai `Sidebar.tsx`
-   Internal). Item nav baseline: Beranda, Inbox, Lead, Follow Up, (SPV: Tim), (Manager: Dashboard).
-4. Helper izin server-side (bukan scope baca — lihat "Model Visibilitas" di atas):
+1. [x] Skema Prisma modul Marketing (`prisma/schema.prisma:1081-1669`) sudah lengkap + ber-`@@index`
+   (relasi & kolom filter: `temperature`, `outcome`, `priorityScore`, `lastInteractionAt`, dst).
+   Diverifikasi — tidak ada yang kurang.
+2. [x] Seed master data — `scripts/seed-marketing.ts` **sudah ada & lengkap** (Segment, LeadSource,
+   LeadActivityType, LeadFollowUpResultType, LeadLostReason; idempotent upsert by code).
+   → **Sisa: jalankan `npx tsx scripts/seed-marketing.ts` sekali ke DB** (tugas ONY / saat deploy).
+3. [ ] Buat layout modul Marketing sendiri — sidebar/bottom-nav khusus (bukan pakai `Sidebar.tsx`
+   Internal). Item nav baseline: Beranda, Inbox, Lead, Follow Up, Tim, Dashboard (semua role lihat
+   semua menu — bedanya cuma data agregat, bukan gerbang akses).
+4. [x] Helper izin server-side → `src/lib/marketing/permissions.ts`:
    - `canViewMarketing(user)` → semua anggota Tim `true` (operasi baca TIDAK difilter).
-   - `canActOnLead(user, lead)` → `true` kalau user = PIC PRIMARY lead itu, ATAU role SPV/Manager.
-     Semua endpoint mutasi (balas chat, temperatur, aktivitas, follow up, outcome) WAJIB cek ini
-     dan tolak 403 kalau `false`.
-5. Helper `logAudit(...)` untuk `AuditLog` (append-only) — dipakai di semua mutasi penting.
+   - `resolveMarketingRole(userId, role)` → `MANAGER | SPV | SALES` (owner/manajer team = MANAGER).
+   - `canActOnLead(user, leadId)` → `true` kalau MANAGER/SPV, atau SALES yang jadi PIC lead itu.
+   - `actableLeadIds(user, leadIds)` → versi batch untuk list (anti N+1).
+   Semua endpoint mutasi WAJIB cek `canActOnLead` → 403 kalau `false`.
+5. [x] Helper `logAudit(...)` → `src/lib/marketing/audit.ts` (tulis `AuditLog` append-only).
 
 ---
 
