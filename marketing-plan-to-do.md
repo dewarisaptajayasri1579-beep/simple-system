@@ -174,17 +174,20 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 4 — Priority Engine
+## FASE 4 — Priority Engine — SELESAI
 
-25. Fungsi `computeLeadPriority(lead)` — skor 0–100, bobot baseline: Temperatur 25%, Aktivitas/
-    Tahap 30%, Hasil Follow Up 25%, Recency/Idle 10%, AI Buying Signal 10% (rumus detail di
-    `docs/06`). Deterministic, simpan `rule_version`.
-26. Simpan hasil ke `LeadPrioritySnapshot` (`priority_score`, `priority_level`, `priority_reason[]`,
-    `calculated_at`, `rule_version`). Level: 80–100 Utama, 60–79 Tinggi, 40–59 Pantau, 0–39 Rendah.
-27. Trigger recalculate di event penting: pesan masuk, temperatur berubah, aktivitas baru, follow
-    up selesai, AI analysis update.
-28. Tampilkan di UI sebagai **alasan singkat**, bukan cuma angka: contoh `Hot + Negosiasi +
-    Follow Up Hari Ini`.
+25. [x] `computeLeadPriority(input)` (`src/lib/marketing/priority.ts`) — deterministik, bobot
+    Temperatur 25% / Aktivitas 30% / Hasil Follow Up 25% / Recency 10% / AI Signal 10%.
+    `PRIORITY_RULE_VERSION = "v1"`. Lead non-OPEN → skor 0 / LOW. AI signal dibaca dari
+    `LeadAiAnalysis` type BUYING_SIGNAL (default 0 sampai Fase 6).
+26. [x] `recalcLeadPriority(leadId)` (dulu stub) — hitung, update `Lead.priorityScore`/`priorityLevel`,
+    insert `LeadPrioritySnapshot` (5 komponen + `reasonJson` string[] + `ruleVersion`). Level
+    TOP≥80 / HIGH≥60 / MONITOR≥40 / LOW.
+27. [x] Trigger: ubah temperatur, aktivitas baru, follow up selesai, **ubah outcome**, **pesan
+    masuk (webhook)**, **pesan keluar (POST messages)**. Script `scripts/recalc-marketing-priority.ts`
+    untuk backfill semua lead.
+28. [x] UI alasan: `LeadDetailClient` section Prioritas render `reasonJson` ("Hot · Negosiasi ·
+    Idle 6 hari"). Beranda "Kerjakan Dulu" & list lead pakai skor/level terbaru.
 
 ---
 

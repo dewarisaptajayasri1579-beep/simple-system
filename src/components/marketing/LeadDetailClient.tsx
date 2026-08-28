@@ -76,7 +76,7 @@ interface LeadDetail {
     changedByUser: Opt | null
     createdAt: string
   }[]
-  latestPriority: { score: number; level: string; calculatedAt: string } | null
+  latestPriority: { score: number; level: string; reasonJson: unknown; calculatedAt: string } | null
 }
 
 const TEMPS = ["COLD", "WARM", "HOT"] as const
@@ -288,15 +288,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
       {/* Priority */}
       <Section title="Prioritas">
-        {lead.latestPriority ? (
-          <p className="text-sm font-bold text-slate-800">
-            {Math.round(lead.latestPriority.score)} <span className="text-slate-400 font-semibold">/ {lead.latestPriority.level}</span>
-          </p>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Skor tersimpan: {Math.round(lead.priorityScore)} / {lead.priorityLevel}.{" "}
-            <span className="text-slate-400">Perhitungan ulang otomatis menyusul (Fase 4).</span>
-          </p>
+        <p className="text-sm font-bold text-slate-800">
+          {Math.round(lead.latestPriority?.score ?? lead.priorityScore)}{" "}
+          <span className="text-slate-400 font-semibold">/ {lead.latestPriority?.level ?? lead.priorityLevel}</span>
+        </p>
+        {Array.isArray(lead.latestPriority?.reasonJson) && (lead.latestPriority!.reasonJson as unknown[]).length > 0 && (
+          <p className="text-xs text-slate-500 mt-1">{(lead.latestPriority!.reasonJson as string[]).join(" · ")}</p>
+        )}
+        {!lead.latestPriority && (
+          <p className="text-xs text-slate-400 mt-1">Belum pernah dihitung ulang — akan terisi saat ada interaksi berikutnya.</p>
         )}
       </Section>
 

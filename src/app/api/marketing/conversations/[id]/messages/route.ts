@@ -4,6 +4,7 @@ import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { MESSAGE_SELECT, messageDto } from "@/lib/marketing/inbox"
 import { canActOnLead } from "@/lib/marketing/permissions"
+import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
 import { sendWhatsappMessageFromSession } from "@/lib/wahub"
 
@@ -156,6 +157,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     where: { id: conversation.leadId },
     data: { lastSalesMessageAt: sentAt, lastInteractionAt: sentAt },
   })
+  await recalcLeadPriority(conversation.leadId).catch(() => {})
   await logAudit({
     actorUserId: user.id,
     action: "marketing.message.send",

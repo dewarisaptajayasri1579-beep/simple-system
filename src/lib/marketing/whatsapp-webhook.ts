@@ -1,5 +1,6 @@
 import { normalizePhoneNumber } from "@/lib/wahub"
 import { prisma } from "@/lib/prisma"
+import { recalcLeadPriority } from "@/lib/marketing/priority"
 
 interface WahubIncomingMessage {
   from?: string
@@ -98,6 +99,8 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     where: { id: lead.id },
     data: { lastCustomerMessageAt: sentAt, lastInteractionAt: sentAt },
   })
+
+  await recalcLeadPriority(lead.id).catch(() => {})
 
   return { handled: true, leadId: lead.id, conversationId: conversation.id }
 }

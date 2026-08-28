@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead } from "@/lib/marketing/permissions"
+import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
 
 const VALID = ["OPEN", "WON", "LOST"]
@@ -35,6 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : { outcome, wonAt: null, lostAt: null, lostReasonId: null }
 
   await prisma.lead.update({ where: { id }, data })
+  await recalcLeadPriority(id)
   await logAudit({
     actorUserId: user.id,
     action: "marketing.lead.outcome",
