@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription } from "@/components/ui";
-import { ArrowUpRight, ArrowDownLeft, Wallet, Tags, ArrowLeftRight, PieChart } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Wallet, Tags, ArrowLeftRight, PieChart, History } from "lucide-react";
 
 /** Halaman induk Keuangan — tiap kartu navigasi ke halaman riwayat + tambah entri sendiri,
  *  bukan modal di tempat, supaya histori pembayaran per kategori langsung kelihatan. Bayar
@@ -24,6 +24,14 @@ export const KeuanganPanel: React.FC = () => {
       title: "Kas Masuk",
       description: "Catat pemasukan kas/bank manual",
       href: "/keuangan/kas-masuk",
+      accent: "text-emerald-600 bg-emerald-50",
+    },
+    {
+      key: "histori-uang-masuk",
+      icon: <History className="w-6 h-6" />,
+      title: "Histori Uang Masuk",
+      description: "Uang masuk dari penjualan (pelunasan invoice) + rekap per minggu",
+      href: "/keuangan/histori-uang-masuk",
       accent: "text-emerald-600 bg-emerald-50",
     },
     {

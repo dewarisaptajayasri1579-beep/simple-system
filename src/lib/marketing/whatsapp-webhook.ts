@@ -19,10 +19,12 @@ interface WahubIncomingMessage {
   body?: string
   /** Baileys ack: 1=pending 2=server(sent) 3=delivered 4=read 5=played */
   ack?: number
-  type?: string // "text" | "image" | "document" | "audio" | "video" | ...
+  type?: string // "conversation" | "extendedTextMessage" | "image" | "senderKeyDistributionMessage" | ...
   mediaUrl?: string
   mimetype?: string
   caption?: string
+  hasMedia?: boolean
+  isGroup?: boolean
   timestamp?: number
 }
 
@@ -41,10 +43,26 @@ const MEDIA_TYPE_MAP: Record<string, string> = {
   sticker: "OTHER",
 }
 const MEDIA_TYPES = new Set(Object.keys(MEDIA_TYPE_MAP))
-// `type` yang dihitung sebagai pesan teks biasa. Selain ini & MEDIA_TYPES → event protokol/sistem
-// (senderKeyDistributionMessage, protocolMessage, reactionMessage, pollUpdateMessage, dst) yang
-// TIDAK boleh disimpan sebagai pesan (dulu ketang­kap jadi bubble "OTHER" kosong).
-const TEXT_TYPES = new Set(["text", "chat", "conversation", "extendedTextMessage"])
+
+/**
+ * Klasifikasi 1 event WAHUB berdasarkan ISI-nya, bukan label `type` (WAHUB kadang kasih
+ * `type: "senderKeyDistributionMessage"` padahal ada teks nyata; sebaliknya event protokol
+ * murni tidak punya isi apa pun). `skip` = event sistem → jangan disimpan sebagai pesan.
+ */
+function classifyMessage(m: WahubIncomingMessage): {
+  kind: "text" | "media" | "skip"
+  messageType: string
+  body: string | null
+} {
+  const body = m.body?.trim() || null
+  const caption = m.caption?.trim() || null
+  const isMedia = (!!m.type && MEDIA_TYPES.has(m.type)) || m.hasMedia === true || !!m.mediaUrl
+  if (isMedia) {
+    return { kind: "media", messageType: (m.type && MEDIA_TYPE_MAP[m.type]) || "OTHER", body: caption ?? body }
+  }
+  if (body) return { kind: "text", messageType: "TEXT", body }
+  return { kind: "skip", messageType: "TEXT", body: null }
+}
 
 /** Idempotency key stabil untuk 1 pesan — pakai `id` dari WAHUB kalau ada, kalau tidak
  *  sintetik dari (pengirim + timestamp + hash isi). */
@@ -103,22 +121,22 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   // Kalau Sales balas dari HP-nya sendiri, baris itu belum ada → dibuat sekarang supaya tetap
   // tercatat di percakapan & KPI (lastSalesMessageAt).
   if (message.to !== "me") {
-    const isTextO = !message.type || TEXT_TYPES.has(message.type)
-    const isMediaO = !!message.type && MEDIA_TYPES.has(message.type)
-    if (!isTextO && !isMediaO) {
-      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
-      return { skipped: `ignored outgoing type: ${message.type}` }
+    if (message.isGroup || message.chatId?.endsWith("@g.us") || message.from?.endsWith("@g.us")) {
+      return { skipped: "outgoing group message" }
     }
+    const clsOut = classifyMessage(message)
+    if (clsOut.kind === "skip") {
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+      return { skipped: `outgoing tanpa isi (type: ${message.type})` }
+    }
+    const outBody = clsOut.body
 
-    const rawTo = message.to && message.to !== "me" ? message.to : message.chatId || ""
-    const toDigits = rawTo.replace(/@.*$/, "")
-    if (!toDigits) return { skipped: "outgoing tanpa penerima" }
-    if (rawTo.endsWith("@g.us")) return { skipped: "outgoing group message" }
+    // Nomor lawan bicara (customer) = `senderNumber` / `from` — konsisten di KEDUA arah.
+    // `to` untuk pesan KELUAR sering berupa "xxxxx@lid" (alias privasi), bukan nomor asli.
+    const remoteDigits = (message.senderNumber || message.from || "").replace(/@.*$/, "")
+    if (!/^\d{6,}$/.test(remoteDigits)) return { skipped: "outgoing tanpa nomor lawan" }
 
-    const outBody = isMediaO ? message.caption?.trim() || null : message.body?.trim() || null
-    if (!isMediaO && !outBody) return { skipped: "outgoing empty body" }
-
-    const outNumber = normalizePhoneNumber(toDigits)
+    const outNumber = normalizePhoneNumber(remoteDigits)
     const outLead = await prisma.lead.findFirst({ where: { whatsappNumber: outNumber }, select: { id: true } })
     if (!outLead) {
       // Nomor yang belum pernah jadi lead dari sisi inbound — jangan auto-bikin lead dari pesan
@@ -127,7 +145,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
       return { skipped: "outgoing ke non-lead" }
     }
 
-    const outMsgId = messageKey(message, toDigits)
+    const outMsgId = messageKey(message, remoteDigits)
     const dupOut = await prisma.message.findUnique({ where: { providerMessageId: outMsgId }, select: { id: true } })
     if (dupOut) {
       await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
@@ -135,7 +153,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     }
 
     const outSentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
-    const outConvKey = `${connection.wahubSessionId}:${message.chatId || rawTo}`
+    const outConvKey = `${connection.wahubSessionId}:${message.chatId || message.from || remoteDigits}`
     let outConv =
       (await prisma.conversation.findUnique({
         where: { provider_providerConversationId: { provider: "wahub", providerConversationId: outConvKey } },
@@ -177,7 +195,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
         conversationId: outConv.id,
         providerMessageId: outMsgId,
         direction: "OUTBOUND",
-        messageType: isMediaO ? MEDIA_TYPE_MAP[message.type!] ?? "OTHER" : "TEXT",
+        messageType: clsOut.messageType,
         body: outBody,
         mediaUrl: message.mediaUrl ?? null,
         senderUserId: connection.userId, // dikirim dari HP Sales pemilik sesi
@@ -202,19 +220,15 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   const chatId = message.chatId || message.from
   if (chatId.endsWith("@g.us")) return { skipped: "group message" }
 
-  // Whitelist tipe: teks / media dikenal. Selain itu = event protokol → abaikan total.
-  const isText = !message.type || TEXT_TYPES.has(message.type)
-  const isMedia = !!message.type && MEDIA_TYPES.has(message.type)
-  if (!isText && !isMedia) {
-    console.log(`[mkt-wa] abaikan event tipe "${message.type}" dari ${digits}`)
+  // Klasifikasi by ISI, bukan label `type` — event protokol tanpa isi diabaikan.
+  const cls = classifyMessage(message)
+  if (cls.kind === "skip") {
     await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
-    return { skipped: `ignored type: ${message.type}` }
+    return { skipped: `tanpa isi (type: ${message.type})` }
   }
-
-  const messageType = isMedia ? MEDIA_TYPE_MAP[message.type!] ?? "OTHER" : "TEXT"
-  const bodyText = isMedia ? message.caption?.trim() || null : message.body?.trim() || null
-  if (!isMedia && !bodyText) return { skipped: "empty body" }
-  if (isMedia && !message.mediaUrl && !bodyText) return { skipped: "empty media" }
+  const messageType = cls.messageType
+  const bodyText = cls.body
+  if (cls.kind === "media" && !message.mediaUrl && !bodyText) return { skipped: "empty media" }
 
   const whatsappNumber = normalizePhoneNumber(digits)
   const sentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
