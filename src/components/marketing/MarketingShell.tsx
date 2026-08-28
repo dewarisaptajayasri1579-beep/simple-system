@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -66,6 +66,53 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
   // header dikasih tombol kembali ke Inbox.
   const isConversationDetail = /^\/marketing\/inbox\/[^/]+$/.test(pathname)
 
+  // Status koneksi WhatsApp Sales yang login — null = belum tahu, true = READY.
+  const [waReady, setWaReady] = useState<boolean | null>(null)
+  const checkWa = useCallback(async () => {
+    try {
+      const res = await fetch("/api/marketing/whatsapp/status", { cache: "no-store" })
+      if (res.status === 502) return // WAHUB tak merespons — pertahankan status terakhir
+      if (!res.ok) {
+        setWaReady(false)
+        return
+      }
+      const d = await res.json()
+      setWaReady(d.connection?.status === "READY")
+    } catch {
+      /* jaringan bermasalah — pertahankan status terakhir */
+    }
+  }, [])
+  useEffect(() => {
+    checkWa()
+    const t = setInterval(checkWa, 60000)
+    const onVis = () => document.visibilityState === "visible" && checkWa()
+    document.addEventListener("visibilitychange", onVis)
+    window.addEventListener("focus", onVis)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener("visibilitychange", onVis)
+      window.removeEventListener("focus", onVis)
+    }
+  }, [checkWa])
+
+  const waLabel = waReady ? "WhatsApp Terhubung" : "Hubungkan WhatsApp"
+  const waBadge = (light: boolean) =>
+    waReady === null ? null : (
+      <span
+        className={`ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+          waReady
+            ? light
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-emerald-500/20 text-emerald-300"
+            : light
+              ? "bg-rose-100 text-rose-700"
+              : "bg-rose-500/20 text-rose-300"
+        }`}
+      >
+        {waReady ? "Terhubung" : "Putus"}
+      </span>
+    )
+
   return (
     <div className="min-h-screen bg-app-mesh text-slate-800 font-sans flex relative overflow-x-clip">
       <PushRegister />
@@ -102,7 +149,9 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
             href="/marketing/whatsapp"
             className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
           >
-            <QrCode className="w-4 h-4 flex-shrink-0" /> Hubungkan WhatsApp
+            <QrCode className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{waLabel}</span>
+            {waBadge(false)}
           </Link>
           <Link
             href="/modules"
@@ -164,7 +213,9 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
                     href="/marketing/whatsapp"
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                   >
-                    <QrCode className="w-4 h-4 text-slate-500" /> Hubungkan WhatsApp
+                    <QrCode className="w-4 h-4 text-slate-500" />
+                    <span className="truncate">{waLabel}</span>
+                    {waBadge(true)}
                   </Link>
                   <Link
                     href="/marketing/kpi"

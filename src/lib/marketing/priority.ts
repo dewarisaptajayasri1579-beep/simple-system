@@ -55,6 +55,7 @@ interface PriorityInput {
   firstContactAt: Date
   followUpNormalizedScore: number | null // LeadFollowUpResultType.normalizedScore dari FU selesai terakhir
   aiBuyingSignal: number | null // 0..100
+  buyingPowerEffect?: number | null // LeadBuyingPowerTier.priorityScoreEffect (modifier flat, opsional)
   nextOpenFollowUpAt: Date | null
   customerWaiting: boolean // pesan terakhir INBOUND & belum dibalas
   customerWaitingOverSla: boolean
@@ -126,6 +127,12 @@ export function computeLeadPriority(input: PriorityInput, weights: PriorityWeigh
       modifiers.push("Customer menunggu dibalas (+5)")
     }
   }
+  // Kemampuan beli — modifier flat dari LeadBuyingPowerTier.priorityScoreEffect (bisa +/-, 0 = netral).
+  if (input.buyingPowerEffect) {
+    const e = Math.round(input.buyingPowerEffect)
+    mod += e
+    modifiers.push(`Kemampuan beli (${e > 0 ? "+" : ""}${e})`)
+  }
 
   const score = clamp(Math.round(base + mod)) // §12.4
 
@@ -167,6 +174,7 @@ export async function recalcLeadPriority(leadId: string): Promise<PriorityResult
       outcome: true,
       lastInteractionAt: true,
       firstContactAt: true,
+      buyingPowerTier: { select: { priorityScoreEffect: true } },
     },
   })
   if (!lead) return null
@@ -219,6 +227,7 @@ export async function recalcLeadPriority(leadId: string): Promise<PriorityResult
       firstContactAt: lead.firstContactAt,
       followUpNormalizedScore: lastCompleted?.resultType?.normalizedScore ?? null,
       aiBuyingSignal,
+      buyingPowerEffect: lead.buyingPowerTier?.priorityScoreEffect ?? null,
       nextOpenFollowUpAt: nextFu?.scheduledAt ?? null,
       customerWaiting,
       customerWaitingOverSla,

@@ -75,6 +75,22 @@ async function main() {
     console.log(`LeadFollowUpResultType ${f.code} - ${f.name}`)
   }
 
+  // Kemampuan beli — band rupiah. priorityScoreEffect = modifier flat ke Priority Score.
+  const buyingPowerTiers = [
+    { code: "HEMAT", name: "Hemat · < Rp5 jt", description: "Budget kecil / cari paket termurah", sortOrder: 1, normalizedScore: 20, priorityScoreEffect: -3 },
+    { code: "STANDAR", name: "Standar · Rp5–20 jt", description: "UMKM / perorangan dengan anggaran wajar", sortOrder: 2, normalizedScore: 45, priorityScoreEffect: 0 },
+    { code: "MENENGAH", name: "Menengah · Rp20–50 jt", description: "Perusahaan menengah / proyek serius", sortOrder: 3, normalizedScore: 70, priorityScoreEffect: 3 },
+    { code: "BESAR", name: "Besar · > Rp50 jt", description: "Korporat / instansi, anggaran besar", sortOrder: 4, normalizedScore: 92, priorityScoreEffect: 6 },
+  ]
+  for (const b of buyingPowerTiers) {
+    await prisma.leadBuyingPowerTier.upsert({
+      where: { code: b.code },
+      update: { name: b.name, description: b.description, sortOrder: b.sortOrder, normalizedScore: b.normalizedScore, priorityScoreEffect: b.priorityScoreEffect },
+      create: b,
+    })
+    console.log(`LeadBuyingPowerTier ${b.code} - ${b.name}`)
+  }
+
   const lostReasons = [
     { code: "PRICE", name: "Harga" },
     { code: "BUDGET", name: "Budget" },

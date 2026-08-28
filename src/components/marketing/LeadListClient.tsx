@@ -35,6 +35,7 @@ interface LeadRow {
   priorityLevel: string
   outcome: string
   segmentName: string | null
+  buyingPowerTierName: string | null
   note: string | null
   pic: { id: string; name: string } | null
   lastInteractionAt: string | null
@@ -80,6 +81,7 @@ export const LeadListClient: React.FC = () => {
   const [scope, setScope] = useState<"all" | "mine">("all")
   const [q, setQ] = useState("")
   const [segmentId, setSegmentId] = useState("")
+  const [buyingPowerTierId, setBuyingPowerTierId] = useState("")
   const [temperature, setTemperature] = useState("")
   const [stage, setStage] = useState("")
   const [outcome, setOutcome] = useState("")
@@ -88,6 +90,7 @@ export const LeadListClient: React.FC = () => {
   const [sort, setSort] = useState("priority")
 
   const [segments, setSegments] = useState<MetaOption[]>([])
+  const [buyingPowerTiers, setBuyingPowerTiers] = useState<MetaOption[]>([])
   const [users, setUsers] = useState<MetaOption[]>([])
   const [sources, setSources] = useState<MetaOption[]>([])
   const router = useRouter()
@@ -123,6 +126,7 @@ export const LeadListClient: React.FC = () => {
       .then((r) => r.json())
       .then((d) => {
         if (d.segments) setSegments(d.segments)
+        if (d.buyingPowerTiers) setBuyingPowerTiers(d.buyingPowerTiers)
         if (d.sources) setSources(d.sources)
         if (d.users) setUsers(d.users)
       })
@@ -137,6 +141,7 @@ export const LeadListClient: React.FC = () => {
         const p = new URLSearchParams({ scope, sort, limit: "50", page: String(page) })
         if (qDebounced.current.trim()) p.set("q", qDebounced.current.trim())
         if (segmentId) p.set("segmentId", segmentId)
+        if (buyingPowerTierId) p.set("buyingPowerTierId", buyingPowerTierId)
         if (temperature) p.set("temperature", temperature)
         if (stage) p.set("stage", stage)
         if (outcome) p.set("outcome", outcome)
@@ -158,7 +163,7 @@ export const LeadListClient: React.FC = () => {
         setLoadingMore(false)
       }
     },
-    [scope, sort, segmentId, temperature, stage, outcome, priorityLevel, picUserId],
+    [scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId],
   )
 
   useEffect(() => {
@@ -202,6 +207,14 @@ export const LeadListClient: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         <div className="w-40">
           <Select options={[{ value: "", label: "Semua Segmen" }, ...opt(segments)]} value={segmentId} onChange={setSegmentId} sizeVariant="sm" />
+        </div>
+        <div className="w-44">
+          <Select
+            options={[{ value: "", label: "Semua Kemampuan Beli" }, ...opt(buyingPowerTiers)]}
+            value={buyingPowerTierId}
+            onChange={setBuyingPowerTierId}
+            sizeVariant="sm"
+          />
         </div>
         <div className="w-36">
           <Select
@@ -314,7 +327,12 @@ export const LeadListClient: React.FC = () => {
                         <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
                         {l.note && <div className="text-xs text-amber-700 italic truncate max-w-[220px] mt-0.5">📌 {l.note}</div>}
                       </TableCell>
-                      <TableCell className="text-slate-600">{l.segmentName ?? "—"}</TableCell>
+                      <TableCell className="text-slate-600">
+                        {l.segmentName ?? "—"}
+                        {l.buyingPowerTierName && (
+                          <div className="text-[11px] font-semibold text-emerald-700">💰 {l.buyingPowerTierName}</div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
                       </TableCell>
@@ -357,6 +375,7 @@ export const LeadListClient: React.FC = () => {
                     {l.note && <p className="text-xs text-amber-700 italic truncate mt-0.5">📌 {l.note}</p>}
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {l.segmentName && <Badge variant="secondary" size="sm">{l.segmentName}</Badge>}
+                      {l.buyingPowerTierName && <Badge variant="success" size="sm">💰 {l.buyingPowerTierName}</Badge>}
                       <Badge variant="secondary" size="sm">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</Badge>
                       <Badge variant="info" size="sm">Skor {Math.round(l.priorityScore)}</Badge>
                       {l.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{l.outcome}</Badge>}

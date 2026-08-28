@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   const picUserId = sp.get("picUserId")
   if (picUserId) where.assignments = { some: { assignedUserId: picUserId, isActive: true } }
   if (sp.get("segmentId")) where.segmentId = sp.get("segmentId")
+  if (sp.get("buyingPowerTierId")) where.buyingPowerTierId = sp.get("buyingPowerTierId")
   if (sp.get("temperature")) where.temperature = sp.get("temperature")!
   if (sp.get("stage")) where.currentActivityStage = sp.get("stage")!
   if (sp.get("outcome")) where.outcome = sp.get("outcome")!
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
         createdAt: true,
         note: true,
         segment: { select: { name: true } },
+        buyingPowerTier: { select: { name: true } },
       },
     }),
   ])
@@ -117,6 +119,7 @@ export async function GET(request: Request) {
       priorityLevel: r.priorityLevel,
       outcome: r.outcome,
       segmentName: r.segment?.name ?? null,
+      buyingPowerTierName: r.buyingPowerTier?.name ?? null,
       note: r.note ?? null,
       pic: picByLead.get(r.id) ?? null,
       lastInteractionAt: r.lastInteractionAt?.toISOString() ?? null,

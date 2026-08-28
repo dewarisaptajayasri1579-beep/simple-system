@@ -1170,6 +1170,27 @@ model LeadLostReason {
   @@schema("simple_system")
 }
 
+/// Profiling kemampuan beli calon lead — sumbu TERPISAH dari `Segment` (jenis kebutuhan) dan
+/// `temperature` (minat). Master data, bisa ditambah/nonaktifkan di Pengaturan Marketing →
+/// Master Data. `priorityScoreEffect` = modifier flat (+/-) ke Priority Score (pola sama dengan
+/// LeadFollowUpResultType.priorityScoreEffect, diterapkan sebagai modifier di priority.ts, BUKAN
+/// komponen berbobot). `normalizedScore` disimpan buat dipakai nanti (mis. matriks minat×kapasitas).
+model LeadBuyingPowerTier {
+  id                  String  @id @default(uuid())
+  code                String  @unique
+  name                String
+  description         String?
+  sortOrder           Int     @default(0) @map("sort_order")
+  normalizedScore     Int     @default(50) @map("normalized_score") // 0-100
+  priorityScoreEffect Int     @default(0) @map("priority_score_effect")
+  isActive            Boolean @default(true) @map("is_active")
+
+  leads Lead[]
+
+  @@map("lead_buying_power_tiers")
+  @@schema("simple_system")
+}
+
 /// Core entity. `temperature`/`currentActivityStage`/`outcome` sengaja field terpisah (lihat
 /// docs/04-database.md §1 & §7) — jangan pernah dipakai gantian satu sama lain (mis. "Closing"
 /// bukan temperatur).
@@ -1183,6 +1204,11 @@ model Lead {
   city                   String?
   segmentId              String?   @map("segment_id")
   sourceId               String?   @map("source_id")
+  // Profiling kemampuan beli (opsional, diisi manual Sales / saran AI nanti) — sumbu terpisah
+  // dari segmen & temperatur. Lihat model LeadBuyingPowerTier.
+  buyingPowerTierId      String?   @map("buying_power_tier_id")
+  buyingPowerNote        String?   @map("buying_power_note")
+  buyingPowerSource      String    @default("MANUAL") @map("buying_power_source") // "MANUAL" | "AI"
   temperature            String    @default("COLD") @map("temperature") // "COLD" | "WARM" | "HOT"
   temperatureSource      String    @default("MANUAL") @map("temperature_source") // "MANUAL" | "AI" | "RULE"
   outcome                String    @default("OPEN") // "OPEN" | "WON" | "LOST"
@@ -1214,9 +1240,10 @@ model Lead {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  segment    Segment?        @relation(fields: [segmentId], references: [id])
-  source     LeadSource?     @relation(fields: [sourceId], references: [id])
-  lostReason LeadLostReason? @relation(fields: [lostReasonId], references: [id])
+  segment        Segment?             @relation(fields: [segmentId], references: [id])
+  source         LeadSource?          @relation(fields: [sourceId], references: [id])
+  lostReason     LeadLostReason?      @relation(fields: [lostReasonId], references: [id])
+  buyingPowerTier LeadBuyingPowerTier? @relation(fields: [buyingPowerTierId], references: [id])
 
   segmentHistory     LeadSegmentHistory[]
   temperatureHistory LeadTemperatureHistory[]
@@ -1231,6 +1258,7 @@ model Lead {
   @@index([whatsappNumber])
   @@index([segmentId])
   @@index([sourceId])
+  @@index([buyingPowerTierId])
   @@index([temperature])
   @@index([outcome])
   @@index([priorityScore])

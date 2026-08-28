@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
+import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
 
 /** GET — detail lengkap 1 lead (boleh dibuka siapa pun anggota tim). PATCH — edit field identitas
@@ -18,6 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       segment: { select: { id: true, name: true } },
       source: { select: { id: true, name: true } },
       lostReason: { select: { id: true, name: true } },
+      buyingPowerTier: { select: { id: true, name: true } },
       assignments: {
         orderBy: { startedAt: "desc" },
         take: 20,
@@ -112,6 +114,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       city: true,
       segmentId: true,
       sourceId: true,
+      buyingPowerTierId: true,
     },
   })
   if (!existing) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
@@ -131,11 +134,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("city" in body) data.city = str(body.city) || null
   if ("sourceId" in body) data.sourceId = str(body.sourceId) || null
   if ("segmentId" in body) data.segmentId = str(body.segmentId) || null
+  if ("buyingPowerTierId" in body) {
+    data.buyingPowerTierId = str(body.buyingPowerTierId) || null
+    data.buyingPowerSource = "MANUAL"
+  }
+  if ("buyingPowerNote" in body) data.buyingPowerNote = str(body.buyingPowerNote) || null
   if ("note" in body) data.note = str(body.note) || null
 
   if (Object.keys(data).length === 0) return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 })
 
   const segmentChanged = "segmentId" in data && data.segmentId !== existing.segmentId
+  const buyingPowerChanged = "buyingPowerTierId" in data && data.buyingPowerTierId !== existing.buyingPowerTierId
 
   const updated = await prisma.$transaction(async (tx) => {
     const lead = await tx.lead.update({ where: { id }, data })
@@ -162,6 +171,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     after: data,
   })
 
+  // Kemampuan beli ikut jadi modifier Priority Score → hitung ulang kalau berubah.
+  if (buyingPowerChanged) {
+    await recalcLeadPriority(id).catch(() => {})
+  }
+
   return NextResponse.json({ lead: { id: updated.id } })
 }
 
@@ -185,6 +199,9 @@ function serializeLead(lead: any) {
     segment: lead.segment,
     source: lead.source,
     lostReason: lead.lostReason,
+    buyingPowerTier: lead.buyingPowerTier,
+    buyingPowerNote: lead.buyingPowerNote ?? null,
+    buyingPowerSource: lead.buyingPowerSource,
     firstContactAt: lead.firstContactAt?.toISOString() ?? null,
     lastInteractionAt: lead.lastInteractionAt?.toISOString() ?? null,
     lastChatAt: lead.lastChatAt?.toISOString() ?? null,

@@ -271,6 +271,21 @@ export const SettingsClient: React.FC = () => {
             ]}
           />
           <MarketingMasterList
+            title="Kemampuan Beli (profiling kapasitas bayar — modifier Priority Score)"
+            endpoint="/api/marketing/buying-power-tiers"
+            listKey="buyingPowerTiers"
+            canDelete
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "description", label: "Keterangan", type: "text" },
+              { key: "sortOrder", label: "Urut", type: "number", width: "60px" },
+              { key: "normalizedScore", label: "Skor 0-100", type: "number", width: "90px" },
+              { key: "priorityScoreEffect", label: "Efek", type: "number", width: "70px" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
             title="Alasan LOST"
             endpoint="/api/marketing/lost-reasons"
             listKey="lostReasons"

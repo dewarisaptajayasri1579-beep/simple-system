@@ -36,6 +36,9 @@ interface LeadDetail {
   segment: Opt | null
   source: Opt | null
   lostReason: Opt | null
+  buyingPowerTier: Opt | null
+  buyingPowerNote: string | null
+  buyingPowerSource: string
   dealValue: number | null
   wonNote: string | null
   firstContactAt: string | null
@@ -126,6 +129,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [busy, setBusy] = useState(false)
 
   const [segments, setSegments] = useState<Opt[]>([])
+  const [buyingPowerTiers, setBuyingPowerTiers] = useState<Opt[]>([])
   const [lostReasons, setLostReasons] = useState<Opt[]>([])
   const [activityTypes, setActivityTypes] = useState<ActivityTypeOpt[]>([])
   const [resultTypes, setResultTypes] = useState<Opt[]>([])
@@ -148,7 +152,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [fuForm, setFuForm] = useState({ scheduledAt: "", purpose: "", note: "" })
   const [completingFu, setCompletingFu] = useState<string | null>(null)
 
-  const [form, setForm] = useState({ displayName: "", companyName: "", contactName: "", email: "", city: "", segmentId: "", note: "" })
+  const [form, setForm] = useState({ displayName: "", companyName: "", contactName: "", email: "", city: "", segmentId: "", buyingPowerNote: "", note: "" })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -174,6 +178,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         email: data.lead.email ?? "",
         city: data.lead.city ?? "",
         segmentId: data.lead.segment?.id ?? "",
+        buyingPowerNote: data.lead.buyingPowerNote ?? "",
         note: data.lead.note ?? "",
       })
     } finally {
@@ -217,6 +222,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       .then((r) => r.json())
       .then((d) => {
         if (d.segments) setSegments(d.segments)
+        if (d.buyingPowerTiers) setBuyingPowerTiers(d.buyingPowerTiers)
         if (d.lostReasons) setLostReasons(d.lostReasons)
         if (d.activityTypes) setActivityTypes(d.activityTypes)
         if (d.followUpResultTypes) setResultTypes(d.followUpResultTypes)
@@ -596,6 +602,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                     email: form.email,
                     city: form.city,
                     segmentId: form.segmentId,
+                    buyingPowerNote: form.buyingPowerNote,
                     note: form.note,
                   },
                   "PATCH",
@@ -652,6 +659,40 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               })}
             </div>
             <p className="mt-1 text-[11px] text-slate-400">Klik untuk langsung ganti — tersimpan otomatis.</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Kemampuan Beli</label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {[{ id: "", name: "— belum —" }, ...buyingPowerTiers].map((t) => {
+                const active = (lead.buyingPowerTier?.id || "") === t.id
+                return (
+                  <button
+                    key={t.id || "none"}
+                    type="button"
+                    disabled={!canAct || busy || active}
+                    onClick={() => call(`/api/marketing/leads/${leadId}`, { buyingPowerTierId: t.id || null }, "PATCH")}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${
+                      active
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50"
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                )
+              })}
+            </div>
+            <Input
+              className="mt-1.5"
+              placeholder="Catatan kemampuan beli (opsional) — mis. punya 3 cabang, instansi ada DIPA"
+              value={form.buyingPowerNote}
+              disabled={!canAct}
+              onChange={(e) => setForm((f) => ({ ...f, buyingPowerNote: e.target.value }))}
+              sizeVariant="sm"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Sumbu terpisah dari Segmen &amp; Temperatur. Ikut jadi modifier Priority Score{lead.buyingPowerSource === "AI" ? " · terisi dari saran AI" : ""}.
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs sm:text-sm font-bold text-slate-700">Catatan</label>

@@ -10,7 +10,7 @@ export async function GET() {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
-  const [segments, sources, lostReasons, users, activityTypes, followUpResultTypes] = await Promise.all([
+  const [segments, sources, lostReasons, users, activityTypes, followUpResultTypes, buyingPowerTiers] = await Promise.all([
     prisma.segment.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.leadSource.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.leadLostReason.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -28,7 +28,12 @@ export async function GET() {
       where: { isActive: true },
       select: { id: true, code: true, name: true, isPositive: true },
     }),
+    prisma.leadBuyingPowerTier.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
   ])
 
-  return NextResponse.json({ segments, sources, lostReasons, users, activityTypes, followUpResultTypes })
+  return NextResponse.json({ segments, sources, lostReasons, users, activityTypes, followUpResultTypes, buyingPowerTiers })
 }
