@@ -319,15 +319,27 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## Catatan urutan pengerjaan
+## Status — SEMUA FASE (0–11) SELESAI ✅
 
-- **MVP minimum = Fase 0 → 1 → 2 → 3 → 5 → SELESAI ✅** (Sales bisa kerja penuh dari HP tanpa AI &
-  tanpa dashboard atasan). Toggle "Punya Saya / Semua" + full transparansi chat ikut sejak Fase 1–2,
-  jadi "saling pantau semua lead" sudah tercapai.
-- **Berikutnya:** Fase 4 (Priority Engine — sekarang `recalcLeadPriority` masih stub, skor manual),
-  lalu Fase 6 (AI) & Fase 7 (Ambil Alih/Reassign) & Fase 8 (SPV/Manager) & Fase 9 (Notif/Push).
-- Setiap fase: `npx tsc --noEmit` + `npm run build` bersih sebelum commit; auto commit & push per
-  aturan `CLAUDE.md`.
+Fase 0 Fondasi · 1 Inbox · 2 Lead · 3 Aktivitas/Follow Up · 4 Priority Engine · 5 Beranda ·
+6 AI Analysis · 7 Ambil Alih/Reassign · 8 SPV/Manager · 9 Notifikasi/Audit · 10 PWA/Settings/Tim ·
+11 Uji & Dokumentasi — semua `[x]`. `npm run build` hijau, `scripts/marketing-smoke.ts` lulus.
+
+### Sisa (bukan blocker fitur — butuh env/dep/traffic nyata)
+
+- **Web Push server-side:** `npm i web-push` + `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`, isi
+  `sendWebPush` di `src/lib/marketing/notify.ts`. Client (SW + subscribe) sudah siap.
+- **Webhook idempotency di level pesan** — begitu bentuk payload WAHUB dewari dipastikan, isi
+  `Message.providerMessageId` di `whatsapp-webhook.ts`.
+- **Delivery status DELIVERED/READ** — wire callback WAHUB kalau ada.
+- **UAT end-to-end** dengan traffic WA nyata (skenario `docs/03` §30).
+- Enhancement: profil-ringkas panel di percakapan, lazy-load pesan lama, escalation notif ke SPV,
+  Avg Response Time di dashboard, integrasi menu Dokumentasi in-app.
+- **Tugas ONY (non-coding):** lihat checklist "YANG HARUS KAMU KERJAKAN" di atas — env production,
+  `seed-marketing.ts` di DB prod, daftarkan user + `modules:["marketing"]`, susun Tim, Sales scan QR.
+
+- Tiap fase dikerjakan dengan `npx tsc --noEmit` + `npm run build` bersih, auto commit & push per
+  `CLAUDE.md`.
 
 ## Sisa tugas non-coding sebelum benar-benar dipakai (lihat juga checklist "YANG HARUS KAMU KERJAKAN")
 
