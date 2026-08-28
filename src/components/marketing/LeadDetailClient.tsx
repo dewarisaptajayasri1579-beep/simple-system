@@ -4,9 +4,18 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, MessageSquare } from "lucide-react"
 
+import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+
 interface Opt {
   id: string
   name: string
+}
+
+interface ActivityTypeOpt {
+  id: string
+  code: string
+  name: string
+  stageRank: number
 }
 
 interface LeadDetail {
@@ -93,7 +102,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
   const [segments, setSegments] = useState<Opt[]>([])
   const [lostReasons, setLostReasons] = useState<Opt[]>([])
+  const [activityTypes, setActivityTypes] = useState<ActivityTypeOpt[]>([])
+  const [resultTypes, setResultTypes] = useState<Opt[]>([])
   const [lostPick, setLostPick] = useState("")
+
+  const [actOpen, setActOpen] = useState(false)
+  const [actForm, setActForm] = useState({ activityTypeId: "", occurredAt: "", note: "" })
+  const [fuOpen, setFuOpen] = useState(false)
+  const [fuForm, setFuForm] = useState({ scheduledAt: "", purpose: "", note: "" })
+  const [completingFu, setCompletingFu] = useState<string | null>(null)
 
   const [form, setForm] = useState({ displayName: "", companyName: "", contactName: "", email: "", city: "", segmentId: "" })
 
@@ -133,6 +150,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       .then((d) => {
         if (d.segments) setSegments(d.segments)
         if (d.lostReasons) setLostReasons(d.lostReasons)
+        if (d.activityTypes) setActivityTypes(d.activityTypes)
+        if (d.followUpResultTypes) setResultTypes(d.followUpResultTypes)
       })
       .catch(() => {})
   }, [])
@@ -347,9 +366,62 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       </Section>
 
       {/* Aktivitas */}
-      <Section title={`Aktivitas (${lead.activities.length})`}>
+      <Section
+        title={`Aktivitas (${lead.activities.length})`}
+        right={
+          canAct ? (
+            <button onClick={() => setActOpen((v) => !v)} className="text-xs font-bold text-blue-700">
+              {actOpen ? "Tutup" : "+ Tambah"}
+            </button>
+          ) : null
+        }
+      >
+        {actOpen && canAct && (
+          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+            <select
+              value={actForm.activityTypeId}
+              onChange={(e) => setActForm((f) => ({ ...f, activityTypeId: e.target.value }))}
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+            >
+              <option value="">Jenis aktivitas…</option>
+              {activityTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <input
+              type="datetime-local"
+              value={actForm.occurredAt}
+              onChange={(e) => setActForm((f) => ({ ...f, occurredAt: e.target.value }))}
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+            />
+            <textarea
+              value={actForm.note}
+              onChange={(e) => setActForm((f) => ({ ...f, note: e.target.value }))}
+              rows={2}
+              placeholder="Catatan (opsional)"
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400 resize-none"
+            />
+            <button
+              disabled={busy || !actForm.activityTypeId}
+              onClick={async () => {
+                const ok = await call(`/api/marketing/leads/${leadId}/activities`, {
+                  activityTypeId: actForm.activityTypeId,
+                  occurredAt: actForm.occurredAt ? new Date(actForm.occurredAt).toISOString() : undefined,
+                  note: actForm.note.trim() || undefined,
+                })
+                if (ok) {
+                  setActForm({ activityTypeId: "", occurredAt: "", note: "" })
+                  setActOpen(false)
+                }
+              }}
+              className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
+            >
+              Simpan Aktivitas
+            </button>
+          </div>
+        )}
         {lead.activities.length === 0 ? (
-          <p className="text-sm text-slate-400">Belum ada aktivitas. Input aktivitas menyusul (Fase 3).</p>
+          <p className="text-sm text-slate-400">Belum ada aktivitas.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {lead.activities.map((a) => (
@@ -364,9 +436,58 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       </Section>
 
       {/* Follow Up */}
-      <Section title={`Follow Up (${lead.followUps.length})`}>
+      <Section
+        title={`Follow Up (${lead.followUps.length})`}
+        right={
+          canAct ? (
+            <button onClick={() => setFuOpen((v) => !v)} className="text-xs font-bold text-blue-700">
+              {fuOpen ? "Tutup" : "+ Tambah"}
+            </button>
+          ) : null
+        }
+      >
+        {fuOpen && canAct && (
+          <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+            <input
+              type="datetime-local"
+              value={fuForm.scheduledAt}
+              onChange={(e) => setFuForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+            />
+            <input
+              value={fuForm.purpose}
+              onChange={(e) => setFuForm((f) => ({ ...f, purpose: e.target.value }))}
+              placeholder="Tujuan follow up"
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+            />
+            <textarea
+              value={fuForm.note}
+              onChange={(e) => setFuForm((f) => ({ ...f, note: e.target.value }))}
+              rows={2}
+              placeholder="Catatan (opsional)"
+              className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400 resize-none"
+            />
+            <button
+              disabled={busy || !fuForm.scheduledAt || !fuForm.purpose.trim()}
+              onClick={async () => {
+                const ok = await call(`/api/marketing/leads/${leadId}/follow-ups`, {
+                  scheduledAt: new Date(fuForm.scheduledAt).toISOString(),
+                  purpose: fuForm.purpose.trim(),
+                  note: fuForm.note.trim() || undefined,
+                })
+                if (ok) {
+                  setFuForm({ scheduledAt: "", purpose: "", note: "" })
+                  setFuOpen(false)
+                }
+              }}
+              className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
+            >
+              Simpan Follow Up
+            </button>
+          </div>
+        )}
         {lead.followUps.length === 0 ? (
-          <p className="text-sm text-slate-400">Belum ada follow up. Buat follow up menyusul (Fase 3).</p>
+          <p className="text-sm text-slate-400">Belum ada follow up.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {lead.followUps.map((f) => (
@@ -377,6 +498,25 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                   {f.status}
                 </span>
                 {f.resultType && <span className="text-xs text-slate-500"> → {f.resultType.name}</span>}
+                {f.status === "OPEN" && canAct && (
+                  <button
+                    onClick={() => setCompletingFu(completingFu === f.id ? null : f.id)}
+                    className="ml-2 text-[11px] font-bold text-blue-700"
+                  >
+                    Selesaikan
+                  </button>
+                )}
+                {completingFu === f.id && (
+                  <CompleteFollowUpForm
+                    followUpId={f.id}
+                    resultTypes={resultTypes}
+                    onDone={() => {
+                      setCompletingFu(null)
+                      load()
+                    }}
+                    onCancel={() => setCompletingFu(null)}
+                  />
+                )}
               </li>
             ))}
           </ul>

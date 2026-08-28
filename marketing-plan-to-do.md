@@ -151,21 +151,26 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 3 — Aktivitas & Follow Up
+## FASE 3 — Aktivitas & Follow Up — SELESAI
 
-20. API + UI **Aktivitas**: `POST /api/marketing/leads/[id]/activities` (type, occurred_at, note,
-    result, attachment, source) — cek `canActOnLead`. Timeline aktivitas boleh DILIHAT semua Tim.
-    Menambah aktivitas bisa menggeser activity stage bila rule terpenuhi + recalculate priority +
-    audit.
-21. API + UI **Follow Up**: buat follow up (schedule date/time, tujuan, PIC, note) — cek
-    `canActOnLead`. Status OPEN/COMPLETED/CANCELLED. Overdue = derived (bukan enum).
-22. Flow **selesaikan follow up** (PIC/SPV/Manager) — wajib isi `result` (8 hasil baseline),
-    `completed_at`, opsi langsung buat "next follow up" dari layar completion.
-23. Halaman `/marketing/follow-up` — default daftar follow up **milik saya** (Hari Ini, Akan
-    Datang, Terlambat) + toggle "Semua Tim" untuk pantau follow up semua orang. KPI on-time
-    dihitung per orang.
-24. Cron reminder follow up (`src/lib/cron/`): Scheduled (sebelum jatuh tempo), Due (saat jatuh
-    tempo), Overdue (lewat batas). Simpan dedupe key di `LeadNotification` — 1 event tidak spam.
+20. [x] `POST /api/marketing/leads/[id]/activities` — `canActOnLead`; geser `currentActivityStage`
+    maju (rank NONE<DISCUSSION<ZOOM_DEMO<PROPOSAL<NEGOTIATION, tidak pernah mundur); update
+    `lastInteractionAt`; `recalcLeadPriority` (stub); audit. UI: form inline di `LeadDetailClient`
+    (jenis + waktu + catatan).
+21. [x] `POST /api/marketing/leads/[id]/follow-ups` — `canActOnLead`; `assignedUserId` default ke
+    PIC lead; status OPEN. UI: form inline di `LeadDetailClient` (waktu + tujuan + catatan).
+22. [x] `POST /api/marketing/follow-ups/[id]/complete` — wajib `resultTypeId`; hitung `isOnTime`
+    (grace 2 jam, `FOLLOW_UP_GRACE_MS`); opsi `next` → buat follow up lanjutan + link
+    `nextFollowUpId` (transaction). `.../cancel` untuk batal. Komponen `CompleteFollowUpForm`
+    dipakai di board & detail lead.
+23. [x] Halaman `/marketing/follow-up` (`FollowUpBoard`) — tab Terlambat / Hari Ini / Akan Datang /
+    Selesai (badge count scope-aware) + toggle Punya Saya / Semua Tim. `GET /api/marketing/follow-ups`
+    (bucket derived dari status+scheduledAt, bukan kolom). Poll 30 dtk.
+24. [x] Cron `runMarketingFollowupReminders` (`src/lib/cron/marketing-followup-reminders.ts`,
+    tiap jam :05 di `instrumentation.ts`) — untuk tiap follow up OPEN yang ≤ now+3 jam, bikin
+    `LeadNotification` ke PIC dengan `dedupeKey = followup:{id}:{DUE_SOON|DUE|OVERDUE}:{tanggal}`
+    (`createMany skipDuplicates` → overdue nge-remind 1×/hari), set `reminderSentAt`.
+    Pengiriman nyata (push/WA) = Fase 9.
 
 ---
 

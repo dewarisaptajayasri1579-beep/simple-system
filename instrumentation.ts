@@ -10,6 +10,7 @@ export async function register() {
   const { runWeeklyReport } = await import("@/lib/cron/weekly-report")
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
+  const { runMarketingFollowupReminders } = await import("@/lib/cron/marketing-followup-reminders")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
   const { registerWahubWebhook } = await import("@/lib/wahub")
@@ -62,6 +63,17 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
+  // Reminder follow up lead (modul Marketing) — bikin LeadNotification untuk PIC, tiap jam.
+  cron.schedule(
+    "5 * * * *",
+    () => {
+      runMarketingFollowupReminders()
+        .then((r) => r && r.created > 0 && console.log(`[cron] marketing-followup-reminders: ${r.created} notif baru`))
+        .catch((e) => console.error("[cron] marketing-followup-reminders gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
   // Auto-generate invoice termin Project yang jatuh tempo H-3, jam 06:00 WIB (sebelum laporan pagi).
   cron.schedule(
     "0 6 * * *",
@@ -83,6 +95,6 @@ export async function register() {
   )
 
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), backup database (20:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database (20:00) WIB"
   )
 }

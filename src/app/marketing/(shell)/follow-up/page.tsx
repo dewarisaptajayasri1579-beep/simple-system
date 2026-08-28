@@ -1,5 +1,5 @@
-import { MarketingComingSoon } from "@/components/marketing/MarketingComingSoon"
+import { FollowUpBoard } from "@/components/marketing/FollowUpBoard"
 
 export default function MarketingFollowUpPage() {
-  return <MarketingComingSoon title="Follow Up" note="Follow up Hari Ini / Akan Datang / Terlambat — Fase 3." />
+  return <FollowUpBoard />
 }
