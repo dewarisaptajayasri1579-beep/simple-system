@@ -1,10 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { Trash2, UserPlus, Users } from "lucide-react"
 
-import { Alert, Button, Card, Input, Select, Tab, TabList, Tabs } from "@/components/ui"
+import { Alert, Badge, Button, Card, Input, Select, Tab, TabList, Tabs } from "@/components/ui"
 import { MarketingMasterList } from "./MarketingMasterList"
 import { MktHeader } from "./ui"
+
+const ROLE_BADGE: Record<string, "info" | "warning" | "secondary"> = { SPV: "warning", SALES: "info", MEMBER: "secondary" }
 
 interface Team {
   id: string
@@ -177,9 +180,12 @@ export const SettingsClient: React.FC = () => {
     else setError((await res.json()).error || "Gagal")
   }
 
+  const [confirmMember, setConfirmMember] = useState<string | null>(null)
   const removeMember = async (teamId: string, membershipId: string) => {
     const res = await fetch(`/api/marketing/teams/${teamId}/members?membershipId=${membershipId}`, { method: "DELETE" })
+    setConfirmMember(null)
     if (res.ok) loadAll()
+    else setError((await res.json().catch(() => ({}))).error || "Gagal mengeluarkan anggota")
   }
 
   const numField = (k: string) => {
@@ -325,112 +331,162 @@ export const SettingsClient: React.FC = () => {
       )}
 
       {tab === "tim" && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {canEdit && (
-            <Card variant="feature" padding="md" className="flex flex-col gap-2">
-              <p className="text-xs font-black uppercase text-slate-500">Tambah Anggota Baru (Sales / SPV)</p>
-              <p className="text-[11px] text-slate-400">
-                Bikin akun yang cuma bisa masuk modul Marketing — tidak diberi akses Internal. Peran (SALES/SPV) berlaku di tim yang dipilih.
-              </p>
+            <Card variant="feature" padding="md" className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                  <UserPlus className="w-4 h-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-black text-slate-800">Tambah Anggota Baru</p>
+                  <p className="text-[11px] text-slate-400">
+                    Akun ini cuma bisa masuk modul Marketing — tidak diberi akses Internal.
+                  </p>
+                </div>
+              </div>
               {salesMsg && <Alert variant={salesMsg.startsWith("Akun") ? "success" : "error"}>{salesMsg}</Alert>}
-              <div className="flex flex-wrap gap-2 items-end">
-                <div className="w-40">
-                  <Input placeholder="Nama" value={newSales.name} onChange={(e) => setNewSales((s) => ({ ...s, name: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-52">
-                  <Input placeholder="Email" type="email" value={newSales.email} onChange={(e) => setNewSales((s) => ({ ...s, email: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-36">
-                  <Input placeholder="Password" value={newSales.password} onChange={(e) => setNewSales((s) => ({ ...s, password: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-36">
-                  <Input placeholder="No. WA (opsional)" value={newSales.phoneNumber} onChange={(e) => setNewSales((s) => ({ ...s, phoneNumber: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-40">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Nama">
+                  <Input placeholder="Nama lengkap" value={newSales.name} onChange={(e) => setNewSales((s) => ({ ...s, name: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="Email">
+                  <Input placeholder="email@contoh.com" type="email" value={newSales.email} onChange={(e) => setNewSales((s) => ({ ...s, email: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="Password" hint="minimal 6 karakter">
+                  <Input placeholder="Password awal" value={newSales.password} onChange={(e) => setNewSales((s) => ({ ...s, password: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="No. WhatsApp" hint="opsional">
+                  <Input placeholder="08…" value={newSales.phoneNumber} onChange={(e) => setNewSales((s) => ({ ...s, phoneNumber: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="Tim">
                   <Select
                     options={[{ value: "", label: "Tanpa tim dulu" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
                     value={newSales.teamId}
                     onChange={(v) => setNewSales((s) => ({ ...s, teamId: v }))}
                     sizeVariant="sm"
                   />
-                </div>
-                <div className="w-32">
+                </Field>
+                <Field label="Peran di tim">
                   <Select
                     options={[
-                      { value: "SALES", label: "SALES" },
-                      { value: "SPV", label: "SPV" },
-                      { value: "MEMBER", label: "MEMBER" },
+                      { value: "SALES", label: "Sales" },
+                      { value: "SPV", label: "Supervisor" },
+                      { value: "MEMBER", label: "Member" },
                     ]}
                     value={newSales.membershipRole}
                     onChange={(v) => setNewSales((s) => ({ ...s, membershipRole: v }))}
                     sizeVariant="sm"
                   />
-                </div>
+                </Field>
+              </div>
+              <div className="flex justify-end">
                 <Button
                   size="sm"
+                  isLoading={salesBusy}
                   onClick={createSales}
                   disabled={salesBusy || !newSales.name.trim() || !newSales.email.trim() || newSales.password.length < 6}
                 >
-                  {salesBusy ? "Membuat…" : "Buat Akun"}
+                  Buat Akun
                 </Button>
               </div>
             </Card>
           )}
 
           {canEdit && (
-            <Card variant="feature" padding="md" className="flex flex-col gap-2">
-              <p className="text-xs font-black uppercase text-slate-500">Buat Tim</p>
-              <div className="flex flex-wrap gap-2 items-end">
-                <div className="w-40">
-                  <Input placeholder="Nama tim" value={newTeam.name} onChange={(e) => setNewTeam((t) => ({ ...t, name: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-36">
-                  <Input placeholder="Kode (mis. TIM-A)" value={newTeam.code} onChange={(e) => setNewTeam((t) => ({ ...t, code: e.target.value }))} sizeVariant="sm" />
-                </div>
-                <div className="w-44">
+            <Card variant="feature" padding="md" className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4" />
+                </span>
+                <p className="text-sm font-black text-slate-800">Buat Tim</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="Nama tim">
+                  <Input placeholder="mis. Tim Jakarta" value={newTeam.name} onChange={(e) => setNewTeam((t) => ({ ...t, name: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="Kode">
+                  <Input placeholder="mis. TIM-A" value={newTeam.code} onChange={(e) => setNewTeam((t) => ({ ...t, code: e.target.value }))} sizeVariant="sm" />
+                </Field>
+                <Field label="Manager">
                   <Select
-                    options={[{ value: "", label: "Manager…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
+                    options={[{ value: "", label: "Pilih manager…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
                     value={newTeam.managerUserId}
                     onChange={(v) => setNewTeam((t) => ({ ...t, managerUserId: v }))}
                     sizeVariant="sm"
                   />
-                </div>
+                </Field>
+              </div>
+              <div className="flex justify-end">
                 <Button size="sm" onClick={createTeam} disabled={!newTeam.name || !newTeam.code}>
-                  Buat
+                  Buat Tim
                 </Button>
               </div>
             </Card>
           )}
 
           {teams.map((team) => (
-            <Card key={team.id} variant="feature" padding="md">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-800">
-                  {team.name} <span className="text-slate-400 font-semibold">· {team.code}</span>
-                </p>
-                <span className="text-xs text-slate-400">Manager: {team.managerUser?.name ?? "—"}</span>
+            <Card key={team.id} variant="feature" padding="md" className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm font-black text-slate-800 truncate">{team.name}</p>
+                  <Badge variant="secondary" size="sm">{team.code}</Badge>
+                </div>
+                <span className="text-xs text-slate-400 flex-shrink-0">
+                  Manager: <span className="font-semibold text-slate-600">{team.managerUser?.name ?? "—"}</span>
+                </span>
               </div>
-              <ul className="mt-2 flex flex-col gap-1">
+
+              <div className="flex flex-col gap-1.5">
                 {team.memberships.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700">
-                      {m.user.name} <span className="text-[10px] font-bold text-slate-400">{m.membershipRole}</span>
-                    </span>
-                    {canEdit && (
-                      <button onClick={() => removeMember(team.id, m.id)} className="text-[11px] font-bold text-rose-600">
-                        Keluarkan
-                      </button>
+                  <div key={m.id}>
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/70">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 text-xs font-black flex items-center justify-center flex-shrink-0">
+                          {m.user.name.trim().charAt(0).toUpperCase() || "?"}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-700 truncate">{m.user.name}</span>
+                        <Badge variant={ROLE_BADGE[m.membershipRole] ?? "secondary"} size="sm">{m.membershipRole}</Badge>
+                        {m.supervisorUser && (
+                          <span className="text-[11px] text-slate-400 truncate hidden sm:inline">SPV: {m.supervisorUser.name}</span>
+                        )}
+                      </div>
+                      {canEdit && confirmMember !== m.id && (
+                        <button
+                          onClick={() => setConfirmMember(m.id)}
+                          title="Keluarkan dari tim"
+                          className="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center transition-colors flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {confirmMember === m.id && (
+                      <div className="flex items-center justify-end gap-2 px-3 py-2 mt-1 rounded-xl bg-rose-50 border border-rose-200">
+                        <span className="text-xs font-semibold text-rose-700 mr-auto">
+                          Keluarkan <strong>{m.user.name}</strong> dari {team.name}?
+                        </span>
+                        <Button size="sm" variant="danger" onClick={() => removeMember(team.id, m.id)}>
+                          Ya, keluarkan
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setConfirmMember(null)}>
+                          Batal
+                        </Button>
+                      </div>
                     )}
-                  </li>
+                  </div>
                 ))}
-                {team.memberships.length === 0 && <li className="text-xs text-slate-400">Belum ada anggota.</li>}
-              </ul>
+                {team.memberships.length === 0 && (
+                  <p className="text-xs text-slate-400 px-1 py-2">Belum ada anggota.</p>
+                )}
+              </div>
+
               {canEdit && <AddMember users={users} onAdd={(uid, role) => addMember(team.id, uid, role)} />}
             </Card>
           ))}
           {teams.length === 0 && (
             <Card variant="feature" padding="lg" className="text-center text-sm text-slate-400">
-              Belum ada tim.
+              Belum ada tim. Buat tim dulu di atas.
             </Card>
           )}
         </div>
@@ -439,14 +495,24 @@ export const SettingsClient: React.FC = () => {
   )
 }
 
+const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+      {label}
+      {hint ? <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">· {hint}</span> : null}
+    </label>
+    {children}
+  </div>
+)
+
 const AddMember: React.FC<{ users: { id: string; name: string }[]; onAdd: (userId: string, role: string) => void }> = ({ users, onAdd }) => {
   const [uid, setUid] = useState("")
   const [role, setRole] = useState("SALES")
   return (
-    <div className="mt-2 flex flex-wrap gap-2 items-end">
+    <div className="flex flex-wrap gap-2 items-end pt-1 border-t border-slate-200/70">
       <div className="w-44">
         <Select
-          options={[{ value: "", label: "Tambah anggota…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
+          options={[{ value: "", label: "Masukkan anggota lain…" }, ...users.map((u) => ({ value: u.id, label: u.name }))]}
           value={uid}
           onChange={setUid}
           sizeVariant="sm"
@@ -455,9 +521,9 @@ const AddMember: React.FC<{ users: { id: string; name: string }[]; onAdd: (userI
       <div className="w-32">
         <Select
           options={[
-            { value: "SALES", label: "SALES" },
-            { value: "SPV", label: "SPV" },
-            { value: "MEMBER", label: "MEMBER" },
+            { value: "SALES", label: "Sales" },
+            { value: "SPV", label: "Supervisor" },
+            { value: "MEMBER", label: "Member" },
           ]}
           value={role}
           onChange={setRole}
