@@ -13,6 +13,7 @@ export async function register() {
   const { runMarketingFollowupReminders } = await import("@/lib/cron/marketing-followup-reminders")
   const { runMarketingEscalations } = await import("@/lib/marketing/escalation")
   const { runMarketingAiReanalysis } = await import("@/lib/cron/marketing-ai-reanalysis")
+  const { runMarketingUnrepliedWaGroupAlert } = await import("@/lib/cron/marketing-unreplied-wa-group")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
   const { registerWahubWebhook } = await import("@/lib/wahub")
@@ -75,6 +76,18 @@ export async function register() {
       runMarketingEscalations()
         .then((r) => r && r.created > 0 && console.log(`[cron] marketing-escalations: ${r.created} notif baru`))
         .catch((e) => console.error("[cron] marketing-escalations gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
+  // Alert grup WA Marketing untuk lead yang pesan customernya belum dibalas > ambang (Settings) —
+  // tiap 5 menit. No-op kalau setting 0 / env JID kosong / di luar jam kerja.
+  cron.schedule(
+    "*/5 * * * *",
+    () => {
+      runMarketingUnrepliedWaGroupAlert()
+        .then((r) => r && "alerted" in r && r.alerted && r.alerted > 0 && console.log(`[cron] marketing-unreplied-wa-group: ${r.alerted} lead di-alert ke grup`))
+        .catch((e) => console.error("[cron] marketing-unreplied-wa-group gagal:", e))
     },
     { timezone: "Asia/Jakarta" }
   )

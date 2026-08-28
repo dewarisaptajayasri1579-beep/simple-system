@@ -1202,6 +1202,9 @@ model Lead {
   lostReasonId           String?   @map("lost_reason_id")
   // AI tidak boleh auto-ubah temperatur selama lock ini aktif (docs/06 §6, manual override).
   temperatureLockedUntil DateTime? @map("temperature_locked_until")
+  // Diisi saat lead ini sudah di-alert ke grup WA Marketing karena pesan customer belum dibalas;
+  // di-reset null begitu Sales membalas → 1 alert per "episode belum dibalas" (anti-spam).
+  waGroupAlertedAt       DateTime? @map("wa_group_alerted_at")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -1228,6 +1231,8 @@ model Lead {
   @@index([lastInteractionAt])
   @@index([createdAt])
   @@index([lostReasonId])
+  // Scan cron alert "lead belum direspon" (outcome OPEN + belum di-alert + pesan customer lama).
+  @@index([outcome, waGroupAlertedAt, lastCustomerMessageAt])
   @@map("leads")
   @@schema("simple_system")
 }

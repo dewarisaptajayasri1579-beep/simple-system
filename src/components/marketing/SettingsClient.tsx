@@ -45,6 +45,10 @@ const SETTING_META: Record<string, { label: string; help: string }> = {
     label: "Escalation: Follow up overdue (jam)",
     help: "Follow up yang overdue lebih dari sekian jam → di-eskalasi ke atasan PIC.",
   },
+  "escalation.wa_group_unreplied_minutes": {
+    label: "Alert grup WA: lead belum direspon (menit)",
+    help: "Kalau ada lead OPEN yang pesan customernya belum dibalas Sales lebih dari sekian menit, sistem kirim rekap ke grup WA Marketing (cek tiap 5 menit, hormati jam kerja, 1 alert per lead sampai dibalas). 0 = matikan fitur ini.",
+  },
   "escalation.negotiation_idle_days": {
     label: "Escalation: Negosiasi idle (hari)",
     help: "Lead di tahap Negosiasi tanpa interaksi lebih dari sekian hari → di-eskalasi ke atasan.",

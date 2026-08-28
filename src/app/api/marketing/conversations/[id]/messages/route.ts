@@ -174,7 +174,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   })
   await prisma.lead.update({
     where: { id: conversation.leadId },
-    data: { lastSalesMessageAt: sentAt, lastInteractionAt: sentAt },
+    // waGroupAlertedAt di-reset: kalau nanti customer chat lagi & didiamkan, boleh di-alert ulang.
+    data: { lastSalesMessageAt: sentAt, lastInteractionAt: sentAt, waGroupAlertedAt: null },
   })
   await recalcLeadDerived(conversation.leadId).catch(() => {})
   await logAudit({

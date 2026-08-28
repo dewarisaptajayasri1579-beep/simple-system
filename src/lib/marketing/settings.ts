@@ -19,6 +19,8 @@ export const MARKETING_SETTING_DEFAULTS = {
   "escalation.hot_unreplied_hours": 2,
   "escalation.followup_overdue_hours": 24,
   "escalation.negotiation_idle_days": 3,
+  // Alert ke grup WA Marketing kalau pesan customer belum dibalas > sekian menit. 0 = mati.
+  "escalation.wa_group_unreplied_minutes": 0,
   // temperature (docs/06 §6, §4.1) — automation_mode: 0 = SUGGEST_ONLY, 1 = AUTO_WITH_GUARDRAIL
   "temperature.override_lock_hours": 24,
   "temperature.automation_mode": 0,

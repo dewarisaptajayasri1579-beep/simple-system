@@ -23,6 +23,15 @@ function wibParts(d: Date) {
   return { dow: w.getUTCDay(), hour: w.getUTCHours(), min: w.getUTCMinutes(), sec: w.getUTCSeconds() }
 }
 
+/** True kalau `at` (default sekarang) jatuh di dalam jam kerja. Working hours nonaktif → selalu true. */
+export async function isWithinWorkingHours(at: Date = new Date()): Promise<boolean> {
+  const cfg = await getWorkingHoursConfig()
+  if (!cfg.enabled) return true
+  const { dow, hour } = wibParts(at)
+  const isWorkday = dow >= 1 && dow <= 5 ? true : dow === 6 ? cfg.saturday : false
+  return isWorkday && hour >= cfg.startHour && hour < cfg.endHour
+}
+
 /**
  * Milidetik "jam kerja" antara `from` dan `to`. Kalau working hours nonaktif → selisih wall-clock.
  * Iterasi per menit (cukup akurat untuk response-time KPI, jendela biasanya < beberapa hari).
