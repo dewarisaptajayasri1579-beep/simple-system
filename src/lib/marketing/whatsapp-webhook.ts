@@ -95,10 +95,110 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     return { handled: true, statusUpdate: status }
   }
 
-  // ---- Pesan masuk ----
   if (!message.from) return { skipped: "no from" }
-  if (message.to !== "me") return { skipped: "outgoing message" }
 
+  // ---- Balasan Sales yang dikirim LANGSUNG dari WhatsApp-nya (bukan lewat app ini) ----
+  // WAHUB tetap kirim webhook untuk pesan KELUAR sesi ini. Kalau app yang mengirim, baris Message
+  // OUTBOUND sudah dibuat di route kirim → di sini cukup backfill `providerMessageId` (anti-dobel).
+  // Kalau Sales balas dari HP-nya sendiri, baris itu belum ada → dibuat sekarang supaya tetap
+  // tercatat di percakapan & KPI (lastSalesMessageAt).
+  if (message.to !== "me") {
+    const isTextO = !message.type || TEXT_TYPES.has(message.type)
+    const isMediaO = !!message.type && MEDIA_TYPES.has(message.type)
+    if (!isTextO && !isMediaO) {
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+      return { skipped: `ignored outgoing type: ${message.type}` }
+    }
+
+    const rawTo = message.to && message.to !== "me" ? message.to : message.chatId || ""
+    const toDigits = rawTo.replace(/@.*$/, "")
+    if (!toDigits) return { skipped: "outgoing tanpa penerima" }
+    if (rawTo.endsWith("@g.us")) return { skipped: "outgoing group message" }
+
+    const outBody = isMediaO ? message.caption?.trim() || null : message.body?.trim() || null
+    if (!isMediaO && !outBody) return { skipped: "outgoing empty body" }
+
+    const outNumber = normalizePhoneNumber(toDigits)
+    const outLead = await prisma.lead.findFirst({ where: { whatsappNumber: outNumber }, select: { id: true } })
+    if (!outLead) {
+      // Nomor yang belum pernah jadi lead dari sisi inbound — jangan auto-bikin lead dari pesan
+      // keluar (hindari kontak pribadi Sales kebuat jadi lead).
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+      return { skipped: "outgoing ke non-lead" }
+    }
+
+    const outMsgId = messageKey(message, toDigits)
+    const dupOut = await prisma.message.findUnique({ where: { providerMessageId: outMsgId }, select: { id: true } })
+    if (dupOut) {
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+      return { skipped: "duplicate outgoing message" }
+    }
+
+    const outSentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
+    const outConvKey = `${connection.wahubSessionId}:${message.chatId || rawTo}`
+    let outConv =
+      (await prisma.conversation.findUnique({
+        where: { provider_providerConversationId: { provider: "wahub", providerConversationId: outConvKey } },
+      })) ||
+      (await prisma.conversation.findFirst({
+        where: { leadId: outLead.id, whatsappConnectionId: connection.id },
+        orderBy: { createdAt: "desc" },
+      }))
+    if (!outConv) {
+      outConv = await prisma.conversation.create({
+        data: { leadId: outLead.id, whatsappConnectionId: connection.id, provider: "wahub", providerConversationId: outConvKey, channel: "WHATSAPP" },
+      })
+    }
+
+    // Pesan yang dikirim lewat app ini (< 2 menit lalu, providerMessageId masih null) → backfill
+    // id-nya, jangan bikin baris baru.
+    let appSent: { id: string } | null = null
+    if (outBody || message.mediaUrl) {
+      appSent = await prisma.message.findFirst({
+        where: {
+          conversationId: outConv.id,
+          direction: "OUTBOUND",
+          providerMessageId: null,
+          sentAt: { gte: new Date(outSentAt.getTime() - 120_000) },
+          ...(outBody ? { body: outBody } : { mediaUrl: message.mediaUrl }),
+        },
+        orderBy: { sentAt: "desc" },
+        select: { id: true },
+      })
+    }
+    if (appSent) {
+      await prisma.message.update({ where: { id: appSent.id }, data: { providerMessageId: outMsgId } })
+      await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+      return { skipped: "outgoing sudah dicatat app", backfilled: appSent.id }
+    }
+
+    await prisma.message.create({
+      data: {
+        conversationId: outConv.id,
+        providerMessageId: outMsgId,
+        direction: "OUTBOUND",
+        messageType: isMediaO ? MEDIA_TYPE_MAP[message.type!] ?? "OTHER" : "TEXT",
+        body: outBody,
+        mediaUrl: message.mediaUrl ?? null,
+        senderUserId: connection.userId, // dikirim dari HP Sales pemilik sesi
+        sentAt: outSentAt,
+        deliveryStatus: "SENT",
+        rawProviderPayload: message as object,
+      },
+    })
+    await prisma.conversation.update({ where: { id: outConv.id }, data: { lastMessageAt: outSentAt } })
+    await prisma.lead.update({
+      where: { id: outLead.id },
+      data: { lastSalesMessageAt: outSentAt, lastInteractionAt: outSentAt, waGroupAlertedAt: null },
+    })
+    publishMarketingEvent({ type: "message", conversationId: outConv.id, leadId: outLead.id, direction: "OUTBOUND", at: outSentAt.toISOString() })
+    await recalcLeadDerived(outLead.id).catch(() => {})
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    console.log(`[mkt-wa] balasan Sales dari HP tercatat → lead ${outLead.id}`)
+    return { handled: true, outbound: true, conversationId: outConv.id, leadId: outLead.id }
+  }
+
+  // ---- Pesan masuk ----
   const chatId = message.chatId || message.from
   if (chatId.endsWith("@g.us")) return { skipped: "group message" }
 
