@@ -1129,6 +1129,12 @@ model Segment {
   isActive             Boolean  @default(true) @map("is_active")
   defaultFollowUpHours Int?     @map("default_follow_up_hours")
   aiContext            String?  @map("ai_context")
+  // Auto-segmentasi deterministik: kalau pesan masuk dari lead yang BELUM bersegmen mengandung
+  // salah satu kata/frasa ini (whole-word, case-insensitive), lead langsung dimasukkan ke segmen
+  // ini — dicek sebelum AI, jadi selalu menang atas tebakan AI. `keywordPriority` menentukan
+  // pemenang kalau >1 segmen cocok (angka lebih besar = diprioritaskan).
+  keywords             String[] @default([])
+  keywordPriority      Int      @default(0) @map("keyword_priority")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 

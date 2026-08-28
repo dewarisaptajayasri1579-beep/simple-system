@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/marketing/notify"
 import { findDuplicateLead } from "@/lib/marketing/duplicate"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
+import { applyKeywordSegmentation } from "@/lib/marketing/segment-rules"
 
 interface WahubIncomingMessage {
   id?: string
@@ -195,7 +196,12 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
 
   await recalcLeadDerived(leadId).catch(() => {})
 
-  // Auto-segmentasi/analisa AI untuk lead baru (docs §9.1) — fire-and-forget, non-blocking.
+  // Auto-segmentasi deterministik dari keyword pesan — dijalankan SEBELUM AI supaya menang.
+  // Berlaku untuk lead baru maupun lead lama yang belum punya segmen; tidak menimpa yang sudah ada.
+  await applyKeywordSegmentation(leadId, bodyText).catch(() => null)
+
+  // Analisa AI untuk lead baru (docs §9.1) — fire-and-forget, non-blocking. Segmen sudah keburu
+  // di-set keyword di atas → guard "belum bersegmen" di analyzeLead otomatis skip auto-apply segmen.
   if (isNewLead) void analyzeLead(leadId).catch(() => {})
 
   const pic = await prisma.leadAssignment.findFirst({

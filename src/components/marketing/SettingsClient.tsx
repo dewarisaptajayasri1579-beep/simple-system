@@ -15,25 +15,55 @@ interface Team {
   memberships: { id: string; membershipRole: string; user: { id: string; name: string }; supervisorUser: { id: string; name: string } | null }[]
 }
 
-const SETTING_LABEL: Record<string, string> = {
-  "follow_up.grace_minutes": "Grace follow up (menit) — batas 'tepat waktu' setelah jadwal",
-  "follow_up.reminder_before_minutes": "Reminder sebelum jatuh tempo (menit)",
-  "follow_up.overdue_reminder_hours": "Reminder ulang saat overdue (jam)",
-  "ai.segment_auto_apply_confidence": "Confidence minimum auto-apply segmentasi AI (0–1)",
-  "priority.weight_temperature": "Bobot: Temperatur",
-  "priority.weight_activity": "Bobot: Aktivitas / Tahap",
-  "priority.weight_follow_up": "Bobot: Hasil Follow Up",
-  "priority.weight_recency": "Bobot: Recency / Idle",
-  "priority.weight_ai": "Bobot: AI Buying Signal",
-  "escalation.hot_unreplied_hours": "Escalation: Hot lead belum dibalas (jam)",
-  "escalation.followup_overdue_hours": "Escalation: Follow up overdue (jam)",
-  "escalation.negotiation_idle_days": "Escalation: Negosiasi idle (hari)",
-  "temperature.override_lock_hours": "Lock manual temperatur (jam)",
-  "temperature.automation_mode": "Mode temperatur: 0 = SUGGEST_ONLY, 1 = AUTO (guardrail)",
-  "working_hours.enabled": "Working hours aktif (1 = ya, 0 = 24/7)",
-  "working_hours.start_hour": "Jam mulai kerja",
-  "working_hours.end_hour": "Jam selesai kerja",
-  "working_hours.saturday": "Sabtu hari kerja (1/0)",
+const SETTING_META: Record<string, { label: string; help: string }> = {
+  "follow_up.grace_minutes": {
+    label: "Grace follow up (menit)",
+    help: "Follow up yang diselesaikan sampai sekian menit setelah jadwalnya masih dihitung 'tepat waktu'. Lewat dari itu → 'telat' di KPI on-time.",
+  },
+  "follow_up.reminder_before_minutes": {
+    label: "Reminder sebelum jatuh tempo (menit)",
+    help: "Berapa menit sebelum jadwal follow up, PIC mulai dapat notifikasi pengingat.",
+  },
+  "follow_up.overdue_reminder_hours": {
+    label: "Reminder ulang saat overdue (jam)",
+    help: "Kalau follow up sudah lewat jadwal & belum dikerjakan, PIC di-ingatkan lagi tiap sekian jam (dedupe per hari).",
+  },
+  "ai.segment_auto_apply_confidence": {
+    label: "Confidence minimum auto-apply segmentasi AI (0–1)",
+    help: "AI hanya boleh menetapkan segmen otomatis kalau yakin ≥ nilai ini DAN lead belum bersegmen. Di bawah itu cuma jadi saran. Default 0.85.",
+  },
+  "priority.weight_temperature": { label: "Bobot: Temperatur", help: "Porsi komponen Temperatur (Cold/Warm/Hot) di skor prioritas." },
+  "priority.weight_activity": { label: "Bobot: Aktivitas / Tahap", help: "Porsi tahap proses (Diskusi→Negosiasi) di skor prioritas." },
+  "priority.weight_follow_up": { label: "Bobot: Hasil Follow Up", help: "Porsi hasil follow up terakhir (Minta Penawaran … Tidak Tertarik) di skor." },
+  "priority.weight_recency": { label: "Bobot: Recency / Idle", help: "Porsi seberapa baru interaksi terakhir. Lead yang lama diam turun skornya." },
+  "priority.weight_ai": { label: "Bobot: AI Buying Signal", help: "Porsi sinyal beli dari analisa AI (0–100)." },
+  "escalation.hot_unreplied_hours": {
+    label: "Escalation: Hot lead belum dibalas (jam)",
+    help: "Lead HOT yang pesan customernya belum dibalas lebih dari sekian jam → notifikasi ke PIC + SPV + Manager.",
+  },
+  "escalation.followup_overdue_hours": {
+    label: "Escalation: Follow up overdue (jam)",
+    help: "Follow up yang overdue lebih dari sekian jam → di-eskalasi ke atasan PIC.",
+  },
+  "escalation.negotiation_idle_days": {
+    label: "Escalation: Negosiasi idle (hari)",
+    help: "Lead di tahap Negosiasi tanpa interaksi lebih dari sekian hari → di-eskalasi ke atasan.",
+  },
+  "temperature.override_lock_hours": {
+    label: "Lock manual temperatur (jam)",
+    help: "Setelah Sales mengubah temperatur manual, AI/rule tidak boleh menimpanya selama sekian jam.",
+  },
+  "temperature.automation_mode": {
+    label: "Mode temperatur otomatis",
+    help: "0 = SUGGEST_ONLY: sistem hanya menyarankan, Sales yang menerapkan. 1 = AUTO (guardrail): sistem ubah sendiri, maks 1 tingkat per kejadian kecuali strong signal, dan menghormati lock manual.",
+  },
+  "working_hours.enabled": {
+    label: "Working hours aktif",
+    help: "1 = KPI response time & SLA dihitung hanya dalam jam kerja. 0 = pakai jam berjalan 24/7.",
+  },
+  "working_hours.start_hour": { label: "Jam mulai kerja", help: "Jam (0–23) mulai dihitung sebagai jam kerja. Contoh: 8 = 08:00 WIB." },
+  "working_hours.end_hour": { label: "Jam selesai kerja", help: "Jam (0–23) berakhirnya jam kerja. Contoh: 17 = 17:00 WIB." },
+  "working_hours.saturday": { label: "Sabtu hari kerja", help: "1 = Sabtu dihitung hari kerja. 0 = Sabtu libur. Minggu selalu libur, Senin–Jumat selalu kerja." },
 }
 const WEIGHT_KEYS = [
   "priority.weight_temperature",
@@ -115,18 +145,24 @@ export const SettingsClient: React.FC = () => {
     if (res.ok) loadAll()
   }
 
-  const numField = (k: string) => (
-    <Input
-      key={k}
-      type="number"
-      step="any"
-      label={SETTING_LABEL[k] ?? k}
-      value={settings[k] ?? 0}
-      disabled={!canEdit}
-      onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
-      sizeVariant="sm"
-    />
-  )
+  const numField = (k: string) => {
+    const meta = SETTING_META[k]
+    return (
+      <div key={k} className="flex flex-col gap-1">
+        <label className="text-sm font-bold text-slate-700">{meta?.label ?? k}</label>
+        {meta?.help && <p className="text-xs font-medium text-slate-500 leading-snug">{meta.help}</p>}
+        <Input
+          type="number"
+          step="any"
+          value={settings[k] ?? 0}
+          disabled={!canEdit}
+          onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
+          sizeVariant="sm"
+          className="mt-0.5"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
@@ -178,6 +214,8 @@ export const SettingsClient: React.FC = () => {
               { key: "name", label: "Nama", type: "text" },
               { key: "description", label: "Deskripsi", type: "text" },
               { key: "aiContext", label: "Konteks AI", type: "text" },
+              { key: "keywords", label: "Pesan awal mengandung (pisah koma)", type: "text" },
+              { key: "keywordPriority", label: "Prioritas keyword", type: "number" },
               { key: "leadCount", label: "Lead", type: "text", createOnly: true },
               { key: "isActive", label: "Aktif", type: "bool" },
             ]}

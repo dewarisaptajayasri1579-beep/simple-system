@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { resolveMarketingRole } from "@/lib/marketing/permissions"
+import { parseKeywordInput } from "@/lib/marketing/segment-rules"
 import { prisma } from "@/lib/prisma"
 
 /** GET — semua segmen (termasuk nonaktif) + jumlah lead per segmen. POST — buat segmen
@@ -28,6 +29,8 @@ export async function GET() {
       isActive: s.isActive,
       defaultFollowUpHours: s.defaultFollowUpHours,
       aiContext: s.aiContext,
+      keywords: s.keywords.join(", "),
+      keywordPriority: s.keywordPriority,
       leadCount: leadCount.get(s.id) ?? 0,
       usageCount: leadCount.get(s.id) ?? 0,
     })),
@@ -43,7 +46,15 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { code?: unknown; name?: unknown; description?: unknown; aiContext?: unknown; defaultFollowUpHours?: unknown }
+    | {
+        code?: unknown
+        name?: unknown
+        description?: unknown
+        aiContext?: unknown
+        defaultFollowUpHours?: unknown
+        keywords?: unknown
+        keywordPriority?: unknown
+      }
     | null
   const code = typeof body?.code === "string" ? body.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_") : ""
   const name = typeof body?.name === "string" ? body.name.trim() : ""
@@ -62,6 +73,8 @@ export async function POST(request: Request) {
         body?.defaultFollowUpHours != null && Number.isFinite(Number(body.defaultFollowUpHours))
           ? Number(body.defaultFollowUpHours)
           : null,
+      keywords: parseKeywordInput(body?.keywords),
+      keywordPriority: Number.isFinite(Number(body?.keywordPriority)) ? Number(body?.keywordPriority) : 0,
     },
   })
   await logAudit({ actorUserId: user.id, action: "marketing.segment.create", entityType: "segment", entityId: seg.id, after: { code, name } })

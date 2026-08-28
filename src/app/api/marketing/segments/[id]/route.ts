@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { resolveMarketingRole } from "@/lib/marketing/permissions"
+import { parseKeywordInput } from "@/lib/marketing/segment-rules"
 import { prisma } from "@/lib/prisma"
 
 /** PATCH — edit segmen (name/description/aiContext/defaultFollowUpHours/isActive). Kode TIDAK bisa
@@ -27,6 +28,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("aiContext" in body) data.aiContext = typeof body.aiContext === "string" ? body.aiContext.trim() || null : null
   if ("defaultFollowUpHours" in body)
     data.defaultFollowUpHours = Number.isFinite(Number(body.defaultFollowUpHours)) ? Number(body.defaultFollowUpHours) : null
+  if ("keywords" in body) data.keywords = parseKeywordInput(body.keywords)
+  if ("keywordPriority" in body)
+    data.keywordPriority = Number.isFinite(Number(body.keywordPriority)) ? Number(body.keywordPriority) : 0
   if (typeof body.isActive === "boolean") data.isActive = body.isActive
   if (Object.keys(data).length === 0) return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 })
 
