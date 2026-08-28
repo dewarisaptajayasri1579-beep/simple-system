@@ -188,6 +188,8 @@ function serializeLead(lead: any) {
     lastCustomerMessageAt: lead.lastCustomerMessageAt?.toISOString() ?? null,
     lastSalesMessageAt: lead.lastSalesMessageAt?.toISOString() ?? null,
     wonAt: lead.wonAt?.toISOString() ?? null,
+    wonNote: lead.wonNote ?? null,
+    dealValue: lead.dealValue ?? null,
     lostAt: lead.lostAt?.toISOString() ?? null,
     createdAt: lead.createdAt.toISOString(),
     assignments: lead.assignments.map((a: any) => ({

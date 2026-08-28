@@ -36,6 +36,8 @@ interface LeadDetail {
   segment: Opt | null
   source: Opt | null
   lostReason: Opt | null
+  dealValue: number | null
+  wonNote: string | null
   firstContactAt: string | null
   lastInteractionAt: string | null
   createdAt: string
@@ -95,7 +97,9 @@ const AUDIT_LABEL: Record<string, string> = {
 }
 
 const TEMPS = ["COLD", "WARM", "HOT"] as const
-const OUTCOMES = ["OPEN", "WON", "LOST"] as const
+function rupiah(n: number) {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
+}
 const TEMP_BTN: Record<string, string> = {
   HOT: "bg-rose-600 text-white border-rose-600",
   WARM: "bg-amber-500 text-white border-amber-500",
@@ -127,6 +131,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [resultTypes, setResultTypes] = useState<Opt[]>([])
   const [users, setUsers] = useState<Opt[]>([])
   const [lostPick, setLostPick] = useState("")
+  const [wonOpen, setWonOpen] = useState(false)
+  const [wonForm, setWonForm] = useState({ at: "", value: "", note: "" })
 
   const [reassignOpen, setReassignOpen] = useState(false)
   const [reassignTo, setReassignTo] = useState("")
@@ -398,46 +404,100 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
       {/* Outcome */}
       <Section title="Outcome">
-        <div className="flex gap-2">
-          {OUTCOMES.map((o) => (
-            <button
-              key={o}
-              disabled={!canAct || busy}
-              onClick={() => {
-                if (o === "LOST") return
-                call(`/api/marketing/leads/${leadId}/outcome`, { outcome: o })
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors disabled:opacity-50 ${
-                lead.outcome === o ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              {o}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={lead.outcome === "WON" ? "success" : lead.outcome === "LOST" ? "danger" : "secondary"}>
+            {lead.outcome}
+          </Badge>
+          {lead.outcome === "WON" && lead.dealValue != null && (
+            <span className="text-xs text-slate-500">Nilai: {rupiah(lead.dealValue)}</span>
+          )}
+          {lead.outcome === "LOST" && lead.lostReason && (
+            <span className="text-xs text-slate-500">Alasan: {lead.lostReason.name}</span>
+          )}
         </div>
-        {canAct && (
-          <div className="mt-2 flex gap-2">
-            <select
-              value={lostPick}
-              onChange={(e) => setLostPick(e.target.value)}
-              className="flex-1 px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold outline-none focus:border-blue-400"
-            >
-              <option value="">Alasan LOST…</option>
-              {lostReasons.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-            <button
-              disabled={!lostPick || busy}
-              onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "LOST", lostReasonId: lostPick })}
-              className="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-40"
-            >
-              Set LOST
-            </button>
+
+        {canAct && lead.outcome === "OPEN" && (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant="success" onClick={() => setWonOpen((v) => !v)}>
+                Tandai WON
+              </Button>
+            </div>
+            {wonOpen && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
+                <Input
+                  type="date"
+                  label="Tanggal deal"
+                  value={wonForm.at}
+                  onChange={(e) => setWonForm((f) => ({ ...f, at: e.target.value }))}
+                  sizeVariant="sm"
+                />
+                <Input
+                  type="number"
+                  label="Nilai deal (Rp, opsional)"
+                  value={wonForm.value}
+                  onChange={(e) => setWonForm((f) => ({ ...f, value: e.target.value }))}
+                  sizeVariant="sm"
+                />
+                <Textarea
+                  label="Catatan"
+                  value={wonForm.note}
+                  onChange={(e) => setWonForm((f) => ({ ...f, note: e.target.value }))}
+                  rows={2}
+                  sizeVariant="sm"
+                />
+                <Button
+                  size="sm"
+                  variant="success"
+                  isLoading={busy}
+                  className="self-start"
+                  onClick={async () => {
+                    const ok = await call(`/api/marketing/leads/${leadId}/outcome`, {
+                      outcome: "WON",
+                      wonAt: wonForm.at ? new Date(wonForm.at).toISOString() : undefined,
+                      dealValue: wonForm.value ? Number(wonForm.value) : undefined,
+                      wonNote: wonForm.note.trim() || undefined,
+                    })
+                    if (ok) setWonOpen(false)
+                  }}
+                >
+                  Simpan WON
+                </Button>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  options={[{ value: "", label: "Alasan LOST…" }, ...lostReasons.map((r) => ({ value: r.id, label: r.name }))]}
+                  value={lostPick}
+                  onChange={setLostPick}
+                  sizeVariant="sm"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="danger"
+                isLoading={busy}
+                disabled={!lostPick}
+                onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "LOST", lostReasonId: lostPick })}
+              >
+                Set LOST
+              </Button>
+            </div>
           </div>
         )}
-        {lead.outcome === "LOST" && lead.lostReason && (
-          <p className="text-xs text-slate-500 mt-2">Alasan: {lead.lostReason.name}</p>
+
+        {canAct && lead.outcome !== "OPEN" && (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              isLoading={busy}
+              onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "OPEN" })}
+            >
+              Buka Kembali
+            </Button>
+          </div>
         )}
       </Section>
 
