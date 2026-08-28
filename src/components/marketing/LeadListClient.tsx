@@ -56,6 +56,9 @@ function fmtDate(iso: string | null) {
 export const LeadListClient: React.FC = () => {
   const [rows, setRows] = useState<LeadRow[]>([])
   const [total, setTotal] = useState(0)
+  const [pageNo, setPageNo] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -111,30 +114,37 @@ export const LeadListClient: React.FC = () => {
       .catch(() => {})
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const p = new URLSearchParams({ scope, sort, limit: "60" })
-      if (qDebounced.current.trim()) p.set("q", qDebounced.current.trim())
-      if (segmentId) p.set("segmentId", segmentId)
-      if (temperature) p.set("temperature", temperature)
-      if (stage) p.set("stage", stage)
-      if (outcome) p.set("outcome", outcome)
-      if (priorityLevel) p.set("priorityLevel", priorityLevel)
-      if (picUserId) p.set("picUserId", picUserId)
-      const res = await fetch(`/api/marketing/leads?${p}`, { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || "Gagal memuat")
-        return
+  const load = useCallback(
+    async (page = 1) => {
+      if (page === 1) setLoading(true)
+      else setLoadingMore(true)
+      try {
+        const p = new URLSearchParams({ scope, sort, limit: "50", page: String(page) })
+        if (qDebounced.current.trim()) p.set("q", qDebounced.current.trim())
+        if (segmentId) p.set("segmentId", segmentId)
+        if (temperature) p.set("temperature", temperature)
+        if (stage) p.set("stage", stage)
+        if (outcome) p.set("outcome", outcome)
+        if (priorityLevel) p.set("priorityLevel", priorityLevel)
+        if (picUserId) p.set("picUserId", picUserId)
+        const res = await fetch(`/api/marketing/leads?${p}`, { cache: "no-store" })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || "Gagal memuat")
+          return
+        }
+        setError(null)
+        setRows((prev) => (page === 1 ? data.leads : [...prev, ...data.leads]))
+        setTotal(data.total)
+        setPageNo(data.page)
+        setHasMore(data.hasMore)
+      } finally {
+        setLoading(false)
+        setLoadingMore(false)
       }
-      setError(null)
-      setRows(data.leads)
-      setTotal(data.total)
-    } finally {
-      setLoading(false)
-    }
-  }, [scope, sort, segmentId, temperature, stage, outcome, priorityLevel, picUserId])
+    },
+    [scope, sort, segmentId, temperature, stage, outcome, priorityLevel, picUserId],
+  )
 
   useEffect(() => {
     load()
@@ -328,6 +338,11 @@ export const LeadListClient: React.FC = () => {
               </li>
             ))}
           </ul>
+          {hasMore && (
+            <Button variant="secondary" fullWidth isLoading={loadingMore} onClick={() => load(pageNo + 1)}>
+              Muat lebih banyak ({rows.length}/{total})
+            </Button>
+          )}
         </>
       )}
 

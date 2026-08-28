@@ -54,6 +54,8 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [aiBusy, setAiBusy] = useState(false)
   const [showAi, setShowAi] = useState(false)
   const [takingOver, setTakingOver] = useState(false)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
 
@@ -70,12 +72,32 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
         setError(null)
         setMeta(data.conversation)
         setMessages(data.messages)
+        setHasMoreOlder(Boolean(data.hasMoreOlder))
       } finally {
         if (!silent) setLoading(false)
       }
     },
     [conversationId],
   )
+
+  const loadOlder = async () => {
+    if (loadingOlder || messages.length === 0) return
+    setLoadingOlder(true)
+    try {
+      const res = await fetch(
+        `/api/marketing/conversations/${conversationId}/messages?limit=100&beforeId=${messages[0].id}`,
+        { cache: "no-store" },
+      )
+      const data = await res.json()
+      if (res.ok) {
+        setMessages((prev) => [...data.messages, ...prev])
+        setHasMoreOlder(Boolean(data.hasMoreOlder))
+        lastCountRef.current = messages.length + data.messages.length // cegah auto-scroll ke bawah
+      }
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -200,6 +222,15 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
 
       {/* timeline */}
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
+        {hasMoreOlder && (
+          <button
+            onClick={loadOlder}
+            disabled={loadingOlder}
+            className="self-center text-xs font-bold text-blue-700 py-1 disabled:opacity-50"
+          >
+            {loadingOlder ? "Memuat…" : "Muat pesan lama"}
+          </button>
+        )}
         {messages.length === 0 && <p className="text-sm text-slate-400 text-center py-6">Belum ada pesan.</p>}
         {messages.map((m) => {
           const out = m.direction === "OUTBOUND"

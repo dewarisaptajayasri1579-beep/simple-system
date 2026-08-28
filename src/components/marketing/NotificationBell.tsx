@@ -93,11 +93,16 @@ export const NotificationBell: React.FC = () => {
         <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] glass-dropdown rounded-2xl shadow-xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200/60">
             <p className="text-xs font-black text-slate-700">Notifikasi</p>
-            {unread > 0 && (
-              <button onClick={markAll} className="text-[11px] font-bold text-blue-700">
-                Tandai semua dibaca
-              </button>
-            )}
+            <div className="flex items-center gap-2.5">
+              {unread > 0 && (
+                <button onClick={markAll} className="text-[11px] font-bold text-blue-700">
+                  Tandai semua dibaca
+                </button>
+              )}
+              <Link href="/marketing/notifications" onClick={() => setOpen(false)} className="text-[11px] font-bold text-slate-500">
+                Lihat semua
+              </Link>
+            </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (

@@ -3,20 +3,26 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { prisma } from "@/lib/prisma"
 
-/** GET — 50 notifikasi terbaru milik user + `unreadCount`.
+/** GET — notifikasi milik user + `unreadCount`. `?page=` & `?limit=` (default 50, maks 100).
  *  POST — tandai dibaca: body `{ id }` atau `{ all: true }`. */
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
-  const [rows, unreadCount] = await Promise.all([
+  const sp = new URL(request.url).searchParams
+  const page = Math.max(1, Number(sp.get("page")) || 1)
+  const limit = Math.min(100, Math.max(1, Number(sp.get("limit")) || 50))
+
+  const [rows, unreadCount, total] = await Promise.all([
     prisma.leadNotification.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      skip: (page - 1) * limit,
+      take: limit,
       select: { id: true, type: true, title: true, body: true, deepLink: true, readAt: true, createdAt: true },
     }),
     prisma.leadNotification.count({ where: { userId: user.id, readAt: null } }),
+    prisma.leadNotification.count({ where: { userId: user.id } }),
   ])
 
   return NextResponse.json({
@@ -30,6 +36,8 @@ export async function GET() {
       createdAt: n.createdAt.toISOString(),
     })),
     unreadCount,
+    page,
+    hasMore: page * limit < total,
   })
 }
 
