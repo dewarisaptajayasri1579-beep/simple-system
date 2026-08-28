@@ -4,6 +4,26 @@ import React from "react"
 
 import type { BadgeProps } from "@/components/ui"
 
+/** Panggil `fn` setiap tab kembali fokus / online — biar polling terasa instan saat user
+ *  balik ke halaman, tanpa perlu SSE. */
+export function useVisibilityRefresh(fn: () => void) {
+  const ref = React.useRef(fn)
+  ref.current = fn
+  React.useEffect(() => {
+    const run = () => {
+      if (document.visibilityState === "visible") ref.current()
+    }
+    document.addEventListener("visibilitychange", run)
+    window.addEventListener("focus", run)
+    window.addEventListener("online", run)
+    return () => {
+      document.removeEventListener("visibilitychange", run)
+      window.removeEventListener("focus", run)
+      window.removeEventListener("online", run)
+    }
+  }, [])
+}
+
 /** Toggle "Punya Saya / Semua Tim" — dipakai di Beranda, Inbox, Lead, Follow Up. */
 export const ScopeToggle: React.FC<{
   value: "mine" | "all"

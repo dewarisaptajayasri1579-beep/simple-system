@@ -38,6 +38,7 @@ interface DashData {
   segmentPerformance: {
     segmentId: string | null
     name: string
+    topLostReasons: string[]
     leads: number
     hot: number
     won: number
@@ -196,6 +197,7 @@ export const ManagerDashboard: React.FC = () => {
                 <TableHead className="text-right">Won</TableHead>
                 <TableHead className="text-right">Lost</TableHead>
                 <TableHead className="text-right">Win Rate</TableHead>
+                <TableHead>Alasan LOST teratas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -207,6 +209,7 @@ export const ManagerDashboard: React.FC = () => {
                   <TableCell className="text-right text-emerald-600 font-bold">{s.won || ""}</TableCell>
                   <TableCell className="text-right text-slate-500">{s.lost || ""}</TableCell>
                   <TableCell className="text-right">{s.winRate == null ? "—" : `${s.winRate}%`}</TableCell>
+                  <TableCell className="text-xs text-slate-500">{s.topLostReasons.join(" · ") || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

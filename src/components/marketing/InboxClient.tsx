@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, SkeletonList } from "@/components/ui"
-import { FilterPills, MktHeader, ScopeToggle } from "./ui"
+import { FilterPills, MktHeader, ScopeToggle, useVisibilityRefresh } from "./ui"
 
 interface ConversationItem {
   id: string
@@ -89,9 +89,10 @@ export const InboxClient: React.FC = () => {
   }, [q])
 
   useEffect(() => {
-    const t = setInterval(() => load(true), 15000)
+    const t = setInterval(() => load(true), 8000)
     return () => clearInterval(t)
   }, [load])
+  useVisibilityRefresh(() => load(true))
 
   return (
     <div className="flex flex-col gap-4">

@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import { recencyScore } from "@/lib/marketing/priority"
+import { getMarketingSetting } from "@/lib/marketing/settings"
+
+const TEMP_ORDER = ["COLD", "WARM", "HOT"]
 
 /**
  * Temperature Signal Score 0-100 — `docs/06-business-rule.md` §4-§6, §39.
@@ -79,7 +82,14 @@ export function computeTemperatureSignal(input: TemperatureInput): TemperatureSi
 export async function recomputeTemperatureSuggestion(leadId: string): Promise<TemperatureSignalResult | null> {
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { currentActivityStage: true, outcome: true, lastInteractionAt: true, firstContactAt: true },
+    select: {
+      temperature: true,
+      temperatureLockedUntil: true,
+      currentActivityStage: true,
+      outcome: true,
+      lastInteractionAt: true,
+      firstContactAt: true,
+    },
   })
   if (!lead || lead.outcome !== "OPEN") return null
 
@@ -138,6 +148,31 @@ export async function recomputeTemperatureSuggestion(leadId: string): Promise<Te
       status: "SUCCESS",
     },
   })
+
+  // ---- AUTO_WITH_GUARDRAIL (docs/06 §4.1) ----
+  const mode = await getMarketingSetting("temperature.automation_mode")
+  const lockActive = lead.temperatureLockedUntil != null && lead.temperatureLockedUntil.getTime() > Date.now()
+  if (mode >= 1 && !lockActive && result.suggestedLevel !== lead.temperature) {
+    const from = TEMP_ORDER.indexOf(lead.temperature)
+    const to = TEMP_ORDER.indexOf(result.suggestedLevel)
+    // maks 1 tingkat per event kecuali strong signal
+    const allowed = result.strongSignal || Math.abs(to - from) <= 1
+    if (allowed && to >= 0) {
+      await prisma.$transaction([
+        prisma.lead.update({ where: { id: leadId }, data: { temperature: result.suggestedLevel, temperatureSource: "RULE" } }),
+        prisma.leadTemperatureHistory.create({
+          data: {
+            leadId,
+            fromTemperature: lead.temperature,
+            toTemperature: result.suggestedLevel,
+            source: "RULE",
+            scoreSnapshot: result.score,
+            reason: `Auto (guardrail): ${result.reasons.join(", ") || "signal"}`,
+          },
+        }),
+      ])
+    }
+  }
 
   return result
 }

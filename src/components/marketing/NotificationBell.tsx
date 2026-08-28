@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Bell } from "lucide-react"
 
+import { useVisibilityRefresh } from "./ui"
+
 interface Notif {
   id: string
   type: string
@@ -43,9 +45,10 @@ export const NotificationBell: React.FC = () => {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, 30000)
+    const t = setInterval(load, 20000)
     return () => clearInterval(t)
   }, [load])
+  useVisibilityRefresh(load)
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {

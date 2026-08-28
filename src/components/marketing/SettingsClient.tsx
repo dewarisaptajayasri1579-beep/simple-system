@@ -29,6 +29,7 @@ const SETTING_LABEL: Record<string, string> = {
   "escalation.followup_overdue_hours": "Escalation: Follow up overdue (jam)",
   "escalation.negotiation_idle_days": "Escalation: Negosiasi idle (hari)",
   "temperature.override_lock_hours": "Lock manual temperatur (jam)",
+  "temperature.automation_mode": "Mode temperatur: 0 = SUGGEST_ONLY, 1 = AUTO (guardrail)",
   "working_hours.enabled": "Working hours aktif (1 = ya, 0 = 24/7)",
   "working_hours.start_hour": "Jam mulai kerja",
   "working_hours.end_hour": "Jam selesai kerja",

@@ -43,6 +43,8 @@ export async function GET(request: Request) {
     hotBySegment,
     members,
     segments,
+    lostReasonBySeg,
+    lostReasons,
     conv,
     resp,
   ] = await Promise.all([
@@ -59,6 +61,12 @@ export async function GET(request: Request) {
     prisma.lead.groupBy({ by: ["segmentId"], where: { ...leadWhere, temperature: "HOT" }, _count: true }),
     buildTeamAggregates(),
     prisma.segment.findMany({ select: { id: true, name: true } }),
+    prisma.lead.groupBy({
+      by: ["segmentId", "lostReasonId"],
+      where: { ...leadWhere, outcome: "LOST", lostReasonId: { not: null } },
+      _count: true,
+    }),
+    prisma.leadLostReason.findMany({ select: { id: true, name: true } }),
     conversionRates(leadWhere as Record<string, unknown>),
     avgResponseTime({ days: 30 }),
   ])
@@ -71,9 +79,20 @@ export async function GET(request: Request) {
     new Map(rows.map((r) => [r.segmentId ?? "none", typeof r._count === "number" ? r._count : 0]))
 
   const segName = new Map(segments.map((s) => [s.id, s.name]))
+  const reasonName = new Map(lostReasons.map((r) => [r.id, r.name]))
   const wonSeg = mapSeg(wonBySegment as never)
   const lostSeg = mapSeg(lostBySegment as never)
   const hotSeg = mapSeg(hotBySegment as never)
+
+  // top 2 alasan LOST per segmen
+  const lostReasonsBySeg = new Map<string, { name: string; count: number }[]>()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of lostReasonBySeg as any[]) {
+    const key = r.segmentId ?? "none"
+    const arr = lostReasonsBySeg.get(key) ?? []
+    arr.push({ name: reasonName.get(r.lostReasonId) ?? "—", count: typeof r._count === "number" ? r._count : 0 })
+    lostReasonsBySeg.set(key, arr)
+  }
 
   const segmentPerformance = // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (bySegment as any[])
@@ -85,6 +104,10 @@ export async function GET(request: Request) {
         return {
           segmentId: r.segmentId,
           name: r.segmentId ? segName.get(r.segmentId) ?? "—" : "Tanpa Segmen",
+          topLostReasons: (lostReasonsBySeg.get(key) ?? [])
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 2)
+            .map((x) => `${x.name} (${x.count})`),
           leads,
           hot: hotSeg.get(key) ?? 0,
           won,

@@ -19,8 +19,9 @@ export const MARKETING_SETTING_DEFAULTS = {
   "escalation.hot_unreplied_hours": 2,
   "escalation.followup_overdue_hours": 24,
   "escalation.negotiation_idle_days": 3,
-  // temperature (docs/06 §6)
+  // temperature (docs/06 §6, §4.1) — automation_mode: 0 = SUGGEST_ONLY, 1 = AUTO_WITH_GUARDRAIL
   "temperature.override_lock_hours": 24,
+  "temperature.automation_mode": 0,
   // working hours (docs/06 §33) — Minggu selalu libur, Sen-Jum selalu kerja, Sabtu = toggle
   "working_hours.enabled": 1,
   "working_hours.start_hour": 8,

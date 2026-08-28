@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, Paperclip, Send, Sparkles } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
-import { tempBadgeVariant } from "./ui"
+import { tempBadgeVariant, useVisibilityRefresh } from "./ui"
 
 interface Message {
   id: string
@@ -103,9 +103,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     load()
   }, [load])
   useEffect(() => {
-    const t = setInterval(() => load(true), 10000)
+    const t = setInterval(() => load(true), 6000)
     return () => clearInterval(t)
   }, [load])
+  useVisibilityRefresh(() => load(true))
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
       lastCountRef.current = messages.length
