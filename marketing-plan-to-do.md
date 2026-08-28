@@ -99,31 +99,29 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 1 — Inbox & Percakapan (inti harian Sales)
+## FASE 1 — Inbox & Percakapan (inti harian Sales) — SELESAI
 
-6. API `GET /api/marketing/conversations` — list SEMUA conversation (tanpa filter scope), field:
-   lead, PIC, preview pesan terakhir, `unreadCustomerCount`, segment, temperature, `lastMessageAt`.
-   Ada toggle "Punya Saya / Semua" (default: Semua). Pakai `take` + cursor pagination, hindari N+1
-   (batch lead + last message).
-7. API `GET /api/marketing/conversations/[id]/messages` — timeline pesan 1 conversation (boleh
-   dibuka siapa pun), pagination (lazy load pesan lama). `unreadCustomerCount = 0` HANYA kalau
-   yang buka = PIC (biar counter non-PIC tidak ikut ke-reset).
-8. API `POST /api/marketing/conversations/[id]/messages` — kirim pesan keluar (OUTBOUND) via WAHUB
-   `sendMessage`. **Cek `canActOnLead` → tolak 403 kalau bukan PIC/SPV/Manager.** Simpan `Message`
-   dengan `senderUserId` = user login, `deliveryStatus` awal `PENDING`. (Catatan teknis: pesan
-   dikirim lewat session WAHUB milik PIC, jadi non-PIC yang boleh aksi = SPV/Manager tetap terkirim
-   dari nomor PIC.)
-9. Perluas webhook (`whatsapp-webhook.ts`) untuk update `deliveryStatus` pesan OUTBOUND (SENT /
-   DELIVERED / READ) kalau WAHUB kirim status callback.
-10. Halaman `/marketing/inbox` — list SEMUA conversation + filter baseline (Semua, Belum Dibalas,
-    Prioritas, Hot) + filter PIC / Tim + toggle "Punya Saya / Semua" + search
-    (nama/perusahaan/nomor) + unread badge. Filter diproses server-side.
-11. Halaman `/marketing/inbox/[conversationId]` — 1 layar: timeline chat (full transcript, terbuka
-    untuk semua) + composer + panel Profil Ringkas lead + (nanti) AI card. Kalau pembuka **bukan
-    PIC/SPV/Manager**: composer disabled + banner "Kamu memantau lead ini (PIC: {nama}). Klik
-    Ambil Alih untuk membalas." Balas tanpa pindah halaman. Auto-scroll, anti-duplikat pesan.
-12. Realtime pesan masuk saat app terbuka (polling interval dulu, atau SSE) — pesan baru naik ke
-    atas list & muncul di timeline tanpa refresh manual.
+6. [x] `GET /api/marketing/conversations` — list semua conversation; `scope=all|mine`,
+   `filter=all|unread|priority|hot`, `q`, `page`/`limit`. Batch PIC + `actableLeadIds` (anti N+1),
+   preview pesan terakhir via `messages take:1`. Tiap item bawa `canAct`.
+7. [x] `GET /api/marketing/conversations/[id]/messages` — timeline (ambil 100 terbaru, `beforeId`
+   untuk lebih lama), bawa meta lead + PIC + `canAct` + `hasWhatsappConnection`. Reset
+   `unreadCustomerCount` HANYA kalau viewer = PIC.
+8. [x] `POST /api/marketing/conversations/[id]/messages` — cek `canActOnLead` → 403; kirim via
+   `sendWhatsappMessageFromSession(conn.wahubSessionId, …)` (nomor PIC); simpan `Message` OUTBOUND
+   `senderUserId` + `deliveryStatus: "SENT"`; update `lastMessageAt` / `lastSalesMessageAt` /
+   `lastInteractionAt`; `logAudit`.
+9. [~] Delivery-status callback (SENT→DELIVERED→READ) **ditunda** — bentuk payload callback WAHUB
+   dewari belum diketahui. Sekarang status berhenti di `SENT`. Wire saat lihat payload asli.
+10. [x] Halaman `/marketing/inbox` (`InboxClient`) — filter tabs (Semua/Belum Dibalas/Prioritas/
+    Hot) + toggle Semua Tim / Punya Saya + search (debounce) + unread badge + label "pantau" utk
+    non-PIC. Filter server-side.
+11. [x] Halaman `/marketing/inbox/[conversationId]` (`ConversationView`) — 1 layar: header lead
+    (temperatur/segmen/outcome/PIC + link Detail) + timeline bubble + composer (Enter=kirim).
+    Non-PIC: composer diganti banner "Kamu memantau lead ini (PIC: …)" + tombol **Ambil Alih**
+    (disabled, nunggu Fase 7). Auto-scroll saat pesan bertambah.
+12. [x] Realtime = polling: inbox tiap 15 dtk, conversation tiap 10 dtk (silent refresh).
+    Profil ringkas panel terpisah & lazy-load pesan lama = enhancement nanti.
 
 ---
 
