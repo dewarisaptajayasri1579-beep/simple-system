@@ -29,8 +29,57 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 
 ---
 
+## YANG HARUS KAMU (ONY) KERJAKAN SENDIRI — di luar coding
+
+Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
+
+1. **Deploy / pastikan hidup instance WAHUB `backend-wahub-dewari`** (source `registrasi/backend-wahub`)
+   — VPS/host-nya, `pm2`/service-nya, domain + HTTPS-nya. Ini server Baileys-nya, harus jalan 24/7
+   dan bisa reconnect sendiri.
+2. **Buat client key di WAHUB dewari**: `POST /api/admin/login` (user/pass admin instance) →
+   `POST /api/admin/clients {"name":"simple-system-marketing"}` → salin API key.
+3. **Isi `.env`** simple-system (production & lokal):
+   - `MARKETING_WAHUB_BASE_URL` = URL publik WAHUB dewari
+   - `MARKETING_WAHUB_API_KEY` = key dari poin 2
+   - `APP_BASE_URL` = URL publik simple-system (dipakai bikin `webhookUrl`)
+   - `WAHUB_WEBHOOK_SECRET` = string rahasia bebas (dicek di route webhook)
+   - `ANTHROPIC_API_KEY` = untuk Fase 6 (AI) — boleh nyusul
+4. **Pastikan `APP_BASE_URL` bisa diakses dari luar** (WAHUB dewari harus bisa `POST` ke
+   `/api/marketing/whatsapp/webhook`). Kalau tes lokal: pakai tunnel (ngrok/cloudflared) dan set
+   `APP_BASE_URL` ke URL tunnel.
+5. **Daftarkan user Sales/SPV/Manager** di sistem (lewat Pengaturan → Users yang sudah ada) +
+   set `User.modules` mengandung `"marketing"`. Owner otomatis bypass.
+6. **Tentukan struktur Tim**: siapa Manager, SPV mana bawahannya siapa → nanti diisi lewat UI
+   Team (poin 51) atau kamu kasih daftarnya, aku seed.
+7. **Siapkan HP tiap Sales** untuk scan QR (nomor WA yang dipakai jualan) — 1 Sales 1 nomor.
+   WA Web/Baileys butuh HP utama tetap online.
+8. **Konfirmasi keputusan produk** yang masih perlu kamu putuskan saat jalan:
+   - Daftar Segment final (SevenRent, SAP, Absensi, Bengkel, Gym, Custom App, + lainnya?)
+   - Bobot Priority Score (default sudah ada di `docs/06`, poin 25) — pakai default dulu?
+   - Grace period follow up & jam kerja (poin 50)
+9. **Sediakan akses ke `docs/04-database.md` §11.1** kalau ada detail WAHUB dewari yang beda dari
+   asumsi (mis. nama field payload webhook) — biar poin 0a cepat.
+
+> Minimum biar aku bisa mulai Fase 1: poin 1–4 beres (WAHUB dewari hidup + env terisi + webhook
+> tembus). Poin 5–8 bisa jalan paralel.
+
+---
+
 ## FASE 0 — Persiapan & Fondasi
 
+0a. **Verifikasi WAHUB Marketing (`backend-wahub-dewari`)** sebelum apa pun — simple-system TIDAK
+    bikin Baileys sendiri, cuma HTTP client ke WAHUB (`src/lib/wahub.ts` sudah lengkap):
+    - Instance `backend-wahub-dewari` running & reachable; `MARKETING_WAHUB_BASE_URL` +
+      `MARKETING_WAHUB_API_KEY` terisi di `.env`.
+    - Uji manual endpoint: `POST /api/sessions/start`, `GET /api/sessions/qr/:id`,
+      `GET /api/sessions/status/:id`, `POST /api/messages/send` (dengan `sessionId`),
+      `POST /api/sessions/logout/:id` — cocokkan shape response dengan yang di-parse `wahub.ts`.
+    - **Webhook per-session**: pastikan `webhookUrl` per session dipanggil WAHUB saat pesan masuk,
+      query `?session=` diteruskan, dan payload berbentuk
+      `{ message: { from, to, body, timestamp, chatId, senderNumber, senderName } }` dengan
+      konvensi `to === "me"` untuk INBOUND (dipakai `handleMarketingWhatsappWebhook`).
+    - Cek apakah WAHUB kirim **delivery status callback** (SENT/DELIVERED/READ). Kalau tidak →
+      poin 9 disederhanakan (status berhenti di `SENT`).
 1. Cek ulang skema Prisma modul Marketing (`prisma/schema.prisma:1081+`) — pastikan semua `@@index`
    untuk kolom relasi (`leadId`, `assignedUserId`, `conversationId`, `teamId`, dst) dan kolom
    filter (`temperature`, `outcome`, `lastInteractionAt`, `priorityScore`) sudah ada.
