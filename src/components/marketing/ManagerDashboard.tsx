@@ -20,6 +20,14 @@ import {
 } from "@/components/ui"
 import { MktHeader } from "./ui"
 
+/** Rupiah ringkas: 1.500.000 → "Rp1,5 jt", 45.000.000 → "Rp45 jt", 1.2e9 → "Rp1,2 M". */
+function rpShort(n: number): string {
+  if (n >= 1_000_000_000) return `Rp${(n / 1_000_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} M`
+  if (n >= 1_000_000) return `Rp${(n / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt`
+  if (n >= 1_000) return `Rp${(n / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 0 })} rb`
+  return `Rp${n.toLocaleString("id-ID")}`
+}
+
 interface DashData {
   kpi: {
     totalLeads: number
@@ -44,6 +52,16 @@ interface DashData {
     won: number
     lost: number
     winRate: number | null
+  }[]
+  buyingPowerPerformance: {
+    tierId: string | null
+    name: string
+    leads: number
+    hot: number
+    won: number
+    lost: number
+    winRate: number | null
+    avgDealValue: number | null
   }[]
   team: {
     userId: string
@@ -212,6 +230,43 @@ export const ManagerDashboard: React.FC = () => {
                   <TableCell className="text-xs text-slate-500">{s.topLostReasons.join(" · ") || "—"}</TableCell>
                 </TableRow>
               ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </div>
+
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Performa per Kemampuan Beli</h2>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Kemampuan Beli</TableHead>
+                <TableHead className="text-right">Lead</TableHead>
+                <TableHead className="text-right">Hot</TableHead>
+                <TableHead className="text-right">Won</TableHead>
+                <TableHead className="text-right">Lost</TableHead>
+                <TableHead className="text-right">Win Rate</TableHead>
+                <TableHead className="text-right">Rata-rata Deal</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.buyingPowerPerformance.map((b) => (
+                <TableRow key={b.tierId ?? "none"}>
+                  <TableCell className="font-bold text-slate-800">{b.name}</TableCell>
+                  <TableCell className="text-right">{b.leads}</TableCell>
+                  <TableCell className="text-right text-rose-600 font-bold">{b.hot || ""}</TableCell>
+                  <TableCell className="text-right text-emerald-600 font-bold">{b.won || ""}</TableCell>
+                  <TableCell className="text-right text-slate-500">{b.lost || ""}</TableCell>
+                  <TableCell className="text-right">{b.winRate == null ? "—" : `${b.winRate}%`}</TableCell>
+                  <TableCell className="text-right text-slate-600">{b.avgDealValue == null ? "—" : rpShort(b.avgDealValue)}</TableCell>
+                </TableRow>
+              ))}
+              {data.buyingPowerPerformance.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-sm text-slate-400" colSpan={7}>Belum ada data.</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>

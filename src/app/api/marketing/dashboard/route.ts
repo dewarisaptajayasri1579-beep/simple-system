@@ -41,6 +41,11 @@ export async function GET(request: Request) {
     wonBySegment,
     lostBySegment,
     hotBySegment,
+    byBpt,
+    wonByBpt,
+    lostByBpt,
+    hotByBpt,
+    buyingPowerTiers,
     members,
     segments,
     lostReasonBySeg,
@@ -59,6 +64,11 @@ export async function GET(request: Request) {
     prisma.lead.groupBy({ by: ["segmentId"], where: { ...leadWhere, outcome: "WON" }, _count: true }),
     prisma.lead.groupBy({ by: ["segmentId"], where: { ...leadWhere, outcome: "LOST" }, _count: true }),
     prisma.lead.groupBy({ by: ["segmentId"], where: { ...leadWhere, temperature: "HOT" }, _count: true }),
+    prisma.lead.groupBy({ by: ["buyingPowerTierId"], where: leadWhere, _count: true }),
+    prisma.lead.groupBy({ by: ["buyingPowerTierId"], where: { ...leadWhere, outcome: "WON" }, _count: true, _sum: { dealValue: true } }),
+    prisma.lead.groupBy({ by: ["buyingPowerTierId"], where: { ...leadWhere, outcome: "LOST" }, _count: true }),
+    prisma.lead.groupBy({ by: ["buyingPowerTierId"], where: { ...leadWhere, temperature: "HOT" }, _count: true }),
+    prisma.leadBuyingPowerTier.findMany({ select: { id: true, name: true, sortOrder: true } }),
     buildTeamAggregates(),
     prisma.segment.findMany({ select: { id: true, name: true } }),
     prisma.lead.groupBy({
@@ -117,6 +127,45 @@ export async function GET(request: Request) {
       })
       .sort((a, b) => b.leads - a.leads)
 
+  // ---- Performa per Kemampuan Beli (termasuk rata-rata nilai deal dari lead WON) ----
+  const bptName = new Map(buyingPowerTiers.map((t) => [t.id, t.name]))
+  const bptOrder = new Map(buyingPowerTiers.map((t) => [t.id, t.sortOrder]))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapBpt = (rows: any[]) =>
+    new Map(rows.map((r) => [r.buyingPowerTierId ?? "none", typeof r._count === "number" ? r._count : 0]))
+  const wonBpt = mapBpt(wonByBpt as never)
+  const lostBpt = mapBpt(lostByBpt as never)
+  const hotBpt = mapBpt(hotByBpt as never)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wonValueBpt = new Map(
+    (wonByBpt as any[]).map((r) => [r.buyingPowerTierId ?? "none", typeof r._sum?.dealValue === "number" ? r._sum.dealValue : 0]),
+  )
+
+  const buyingPowerPerformance = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (byBpt as any[])
+      .map((r) => {
+        const key = r.buyingPowerTierId ?? "none"
+        const leads = typeof r._count === "number" ? r._count : 0
+        const won = wonBpt.get(key) ?? 0
+        const lost = lostBpt.get(key) ?? 0
+        const wonValue = wonValueBpt.get(key) ?? 0
+        return {
+          tierId: r.buyingPowerTierId,
+          name: r.buyingPowerTierId ? bptName.get(r.buyingPowerTierId) ?? "—" : "Belum Diprofil",
+          leads,
+          hot: hotBpt.get(key) ?? 0,
+          won,
+          lost,
+          winRate: won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null,
+          avgDealValue: won > 0 ? Math.round(wonValue / won) : null,
+        }
+      })
+      .sort((a, b) => {
+        const oa = a.tierId ? bptOrder.get(a.tierId) ?? 999 : 1000
+        const ob = b.tierId ? bptOrder.get(b.tierId) ?? 999 : 1000
+        return oa - ob
+      })
+
   return NextResponse.json({
     filters: { from: from?.toISOString() ?? null, to: to?.toISOString() ?? null, segmentId },
     kpi: {
@@ -139,6 +188,7 @@ export async function GET(request: Request) {
       { stage: "NEGOTIATION", label: "Negosiasi", count: countOf(byStage as never, "currentActivityStage", "NEGOTIATION") },
     ],
     segmentPerformance,
+    buyingPowerPerformance,
     team: members,
   })
 }
