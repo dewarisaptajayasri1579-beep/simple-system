@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, Search } from "lucide-react"
 
 interface LeadRow {
   id: string
@@ -64,6 +65,33 @@ export const LeadListClient: React.FC = () => {
 
   const [segments, setSegments] = useState<MetaOption[]>([])
   const [users, setUsers] = useState<MetaOption[]>([])
+  const [sources, setSources] = useState<MetaOption[]>([])
+  const router = useRouter()
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [addForm, setAddForm] = useState({ displayName: "", whatsappNumber: "", companyName: "", contactName: "", segmentId: "", sourceId: "" })
+  const [addErr, setAddErr] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+
+  const submitAdd = async () => {
+    setAdding(true)
+    setAddErr(null)
+    try {
+      const res = await fetch("/api/marketing/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addForm),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setAddErr(d.error || "Gagal membuat lead")
+        return
+      }
+      router.push(`/marketing/leads/${d.lead.id}`)
+    } finally {
+      setAdding(false)
+    }
+  }
   const qDebounced = useRef(q)
 
   useEffect(() => {
@@ -71,6 +99,7 @@ export const LeadListClient: React.FC = () => {
       .then((r) => r.json())
       .then((d) => {
         if (d.segments) setSegments(d.segments)
+        if (d.sources) setSources(d.sources)
         if (d.users) setUsers(d.users)
       })
       .catch(() => {})
@@ -122,18 +151,72 @@ export const LeadListClient: React.FC = () => {
         <h1 className="text-xl font-black text-slate-900">
           Lead <span className="text-sm font-bold text-slate-400">({total})</span>
         </h1>
-        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-bold">
-          {(["all", "mine"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setScope(s)}
-              className={`px-3 py-1.5 rounded-lg transition-colors ${scope === s ? "bg-blue-700 text-white" : "text-slate-500 hover:text-slate-800"}`}
-            >
-              {s === "all" ? "Semua Tim" : "Punya Saya"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowAdd(true); setAddErr(null) }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-700 text-white text-xs font-bold"
+          >
+            <Plus className="w-3.5 h-3.5" /> Tambah Lead
+          </button>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs font-bold">
+            {(["all", "mine"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={`px-3 py-1.5 rounded-lg transition-colors ${scope === s ? "bg-blue-700 text-white" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                {s === "all" ? "Semua Tim" : "Punya Saya"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md flex flex-col gap-2.5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-sm font-black text-slate-800">Tambah Lead Manual</h2>
+            <p className="text-xs text-slate-400">Lead dari luar WhatsApp (pameran, referral, dsb). Kamu otomatis jadi PIC.</p>
+            {addErr && <p className="text-xs font-semibold text-rose-600">{addErr}</p>}
+            {(
+              [
+                ["displayName", "Nama lead *"],
+                ["whatsappNumber", "No. WhatsApp * (08… / 62…)"],
+                ["companyName", "Perusahaan"],
+                ["contactName", "Nama kontak"],
+              ] as const
+            ).map(([k, label]) => (
+              <input
+                key={k}
+                placeholder={label}
+                value={addForm[k]}
+                onChange={(e) => setAddForm((f) => ({ ...f, [k]: e.target.value }))}
+                className={`${selectCls} w-full`}
+              />
+            ))}
+            <select value={addForm.segmentId} onChange={(e) => setAddForm((f) => ({ ...f, segmentId: e.target.value }))} className={`${selectCls} w-full`}>
+              <option value="">Segmen (opsional)</option>
+              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={addForm.sourceId} onChange={(e) => setAddForm((f) => ({ ...f, sourceId: e.target.value }))} className={`${selectCls} w-full`}>
+              <option value="">Sumber (opsional)</option>
+              {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={submitAdd}
+                disabled={adding || !addForm.displayName.trim() || !addForm.whatsappNumber.trim()}
+                className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
+              >
+                Simpan
+              </button>
+              <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold">
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma"
+import { getPriorityWeights } from "@/lib/marketing/settings"
 
 /**
- * Priority Engine — skor 0–100 deterministik. Bobot baseline (docs/06-business-rule.md):
+ * Priority Engine — skor 0–100 deterministik. Bobot default (docs/06-business-rule.md):
  *   Temperatur 25% · Aktivitas/Tahap 30% · Hasil Follow Up 25% · Recency/Idle 10% · AI Signal 10%
+ * Bobot bisa di-override di /marketing/settings (dinormalisasi ke total 1).
  *
  * `recalcLeadPriority` dipanggil di tiap event penting (pesan masuk/keluar, ubah temperatur,
  * aktivitas baru, follow up selesai, ubah outcome). Menyimpan nilai terbaru di `Lead.priorityScore`
@@ -10,7 +12,8 @@ import { prisma } from "@/lib/prisma"
  */
 export const PRIORITY_RULE_VERSION = "v1"
 
-const W = { temperature: 0.25, activity: 0.3, followUp: 0.25, recency: 0.1, ai: 0.1 }
+const DEFAULT_W = { temperature: 0.25, activity: 0.3, followUp: 0.25, recency: 0.1, ai: 0.1 }
+export type PriorityWeights = typeof DEFAULT_W
 
 const TEMP_SCORE: Record<string, number> = { COLD: 0, WARM: 50, HOT: 100 }
 const STAGE_SCORE: Record<string, number> = { NONE: 0, DISCUSSION: 30, ZOOM_DEMO: 55, PROPOSAL: 80, NEGOTIATION: 100 }
@@ -44,7 +47,8 @@ export interface PriorityResult {
   reasons: string[]
 }
 
-export function computeLeadPriority(input: PriorityInput): PriorityResult {
+export function computeLeadPriority(input: PriorityInput, weights: PriorityWeights = DEFAULT_W): PriorityResult {
+  const W = weights
   // Lead yang sudah WON/LOST tidak perlu diprioritaskan lagi.
   if (input.outcome !== "OPEN") {
     return {
@@ -125,15 +129,19 @@ export async function recalcLeadPriority(leadId: string): Promise<PriorityResult
     if (typeof raw === "number") aiBuyingSignal = raw <= 1 ? raw * 100 : raw
   }
 
-  const result = computeLeadPriority({
-    temperature: lead.temperature,
-    currentActivityStage: lead.currentActivityStage,
-    outcome: lead.outcome,
-    lastInteractionAt: lead.lastInteractionAt,
-    firstContactAt: lead.firstContactAt,
-    lastCompletedResultEffect: lastCompleted?.resultType?.priorityScoreEffect ?? null,
-    aiBuyingSignal,
-  })
+  const weights = await getPriorityWeights()
+  const result = computeLeadPriority(
+    {
+      temperature: lead.temperature,
+      currentActivityStage: lead.currentActivityStage,
+      outcome: lead.outcome,
+      lastInteractionAt: lead.lastInteractionAt,
+      firstContactAt: lead.firstContactAt,
+      lastCompletedResultEffect: lastCompleted?.resultType?.priorityScoreEffect ?? null,
+      aiBuyingSignal,
+    },
+    weights,
+  )
 
   await prisma.$transaction([
     prisma.lead.update({ where: { id: leadId }, data: { priorityScore: result.score, priorityLevel: result.level } }),

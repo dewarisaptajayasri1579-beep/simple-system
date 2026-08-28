@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { MarketingMasterList } from "./MarketingMasterList"
+
 interface Team {
   id: string
   name: string
@@ -14,10 +16,22 @@ interface Team {
 const SETTING_LABEL: Record<string, string> = {
   "follow_up.grace_minutes": "Grace follow up (menit) — batas 'tepat waktu' setelah jadwal",
   "ai.segment_auto_apply_confidence": "Confidence minimum auto-apply segmentasi AI (0–1)",
+  "priority.weight_temperature": "Bobot: Temperatur",
+  "priority.weight_activity": "Bobot: Aktivitas / Tahap",
+  "priority.weight_follow_up": "Bobot: Hasil Follow Up",
+  "priority.weight_recency": "Bobot: Recency / Idle",
+  "priority.weight_ai": "Bobot: AI Buying Signal",
 }
+const WEIGHT_KEYS = new Set([
+  "priority.weight_temperature",
+  "priority.weight_activity",
+  "priority.weight_follow_up",
+  "priority.weight_recency",
+  "priority.weight_ai",
+])
 
 export const SettingsClient: React.FC = () => {
-  const [tab, setTab] = useState<"umum" | "tim">("umum")
+  const [tab, setTab] = useState<"umum" | "master" | "tim">("umum")
   const [settings, setSettings] = useState<Record<string, number>>({})
   const [canEdit, setCanEdit] = useState(false)
   const [teams, setTeams] = useState<Team[]>([])
@@ -104,37 +118,130 @@ export const SettingsClient: React.FC = () => {
       {msg && <p className="text-sm font-semibold text-emerald-600">{msg}</p>}
 
       <div className="flex gap-1.5">
-        {(["umum", "tim"] as const).map((t) => (
+        {(["umum", "master", "tim"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-full text-xs font-bold ${tab === t ? "bg-blue-700 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
           >
-            {t === "umum" ? "Umum" : "Tim"}
+            {t === "umum" ? "Umum" : t === "master" ? "Master Data" : "Tim"}
           </button>
         ))}
       </div>
 
       {tab === "umum" && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col gap-3">
-          {Object.keys(settings).map((k) => (
-            <label key={k} className="text-xs font-semibold text-slate-600">
-              {SETTING_LABEL[k] ?? k}
-              <input
-                type="number"
-                step="any"
-                value={settings[k]}
-                disabled={!canEdit}
-                onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
-                className={`${inputCls} mt-1 w-full disabled:bg-slate-50`}
-              />
-            </label>
-          ))}
+          {Object.keys(settings)
+            .filter((k) => !WEIGHT_KEYS.has(k))
+            .map((k) => (
+              <label key={k} className="text-xs font-semibold text-slate-600">
+                {SETTING_LABEL[k] ?? k}
+                <input
+                  type="number"
+                  step="any"
+                  value={settings[k]}
+                  disabled={!canEdit}
+                  onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
+                  className={`${inputCls} mt-1 w-full disabled:bg-slate-50`}
+                />
+              </label>
+            ))}
+
+          <div className="mt-1 pt-3 border-t border-slate-100">
+            <p className="text-xs font-black uppercase text-slate-500">Bobot Priority Score</p>
+            <p className="text-[11px] text-slate-400 mb-2">
+              Total otomatis dinormalisasi ke 1. Setelah ubah, skor lama ikut kehitung ulang saat lead
+              berikutnya ada interaksi (atau jalankan `scripts/recalc-marketing-priority.ts`).
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[...WEIGHT_KEYS].map((k) => (
+                <label key={k} className="text-xs font-semibold text-slate-600">
+                  {SETTING_LABEL[k]}
+                  <input
+                    type="number"
+                    step="any"
+                    value={settings[k] ?? 0}
+                    disabled={!canEdit}
+                    onChange={(e) => setSettings((s) => ({ ...s, [k]: Number(e.target.value) }))}
+                    className={`${inputCls} mt-1 w-full disabled:bg-slate-50`}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
           {canEdit && (
             <button onClick={saveSettings} className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold">
               Simpan
             </button>
           )}
+        </div>
+      )}
+
+      {tab === "master" && (
+        <div className="flex flex-col gap-2">
+          <MarketingMasterList
+            title="Segmentasi"
+            endpoint="/api/marketing/segments"
+            listKey="segments"
+            canDelete
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "description", label: "Deskripsi", type: "text" },
+              { key: "aiContext", label: "Konteks AI", type: "text" },
+              { key: "leadCount", label: "Lead", type: "text", createOnly: true },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
+            title="Sumber Lead"
+            endpoint="/api/marketing/sources"
+            listKey="sources"
+            canDelete
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
+            title="Jenis Aktivitas (stageRank & score → tahapan + skor)"
+            endpoint="/api/marketing/activity-types"
+            listKey="activityTypes"
+            canCreate={false}
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "stageRank", label: "Rank", type: "number", width: "70px" },
+              { key: "score", label: "Skor", type: "number", width: "70px" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
+            title="Hasil Follow Up (priorityScoreEffect → komponen skor)"
+            endpoint="/api/marketing/result-types"
+            listKey="resultTypes"
+            canCreate={false}
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "priorityScoreEffect", label: "Efek Skor", type: "number", width: "80px" },
+              { key: "temperatureSignalScore", label: "Sinyal Temp", type: "number", width: "80px" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
+            title="Alasan LOST"
+            endpoint="/api/marketing/lost-reasons"
+            listKey="lostReasons"
+            canDelete
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
         </div>
       )}
 

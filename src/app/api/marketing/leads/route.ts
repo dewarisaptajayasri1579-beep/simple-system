@@ -2,8 +2,11 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
+import { logAudit } from "@/lib/marketing/audit"
 import { actableLeadIds } from "@/lib/marketing/permissions"
+import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
+import { normalizePhoneNumber } from "@/lib/wahub"
 
 /**
  * GET /api/marketing/leads — daftar lead (transparan: default SEMUA lead).
@@ -112,4 +115,59 @@ export async function GET(request: Request) {
   })
 
   return NextResponse.json({ leads, page, limit, total, hasMore: page * limit < total })
+}
+
+/**
+ * POST /api/marketing/leads — buat lead manual (lead dari luar WhatsApp: pameran, referral, dll).
+ * Pembuat otomatis jadi PIC (LeadAssignment PRIMARY). Nomor WA wajib & unik.
+ */
+export async function POST(request: Request) {
+  const user = await getMarketingApiUser()
+  if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+  const displayName = str(body?.displayName)
+  const rawPhone = str(body?.whatsappNumber)
+  if (!displayName) return NextResponse.json({ error: "Nama lead wajib diisi" }, { status: 400 })
+  if (!rawPhone) return NextResponse.json({ error: "Nomor WhatsApp wajib diisi" }, { status: 400 })
+  const whatsappNumber = normalizePhoneNumber(rawPhone)
+
+  const dup = await prisma.lead.findFirst({ where: { whatsappNumber }, select: { id: true, displayName: true } })
+  if (dup) {
+    return NextResponse.json(
+      { error: `Nomor ini sudah jadi lead "${dup.displayName}".`, existingLeadId: dup.id },
+      { status: 409 },
+    )
+  }
+
+  const now = new Date()
+  const lead = await prisma.lead.create({
+    data: {
+      displayName,
+      whatsappNumber,
+      companyName: str(body?.companyName) || null,
+      contactName: str(body?.contactName) || null,
+      email: str(body?.email).toLowerCase() || null,
+      city: str(body?.city) || null,
+      segmentId: str(body?.segmentId) || null,
+      sourceId: str(body?.sourceId) || null,
+      firstContactAt: now,
+      lastInteractionAt: now,
+      temperatureSource: "MANUAL",
+    },
+  })
+  await prisma.leadAssignment.create({
+    data: { leadId: lead.id, assignedUserId: user.id, assignedByUserId: user.id, assignmentType: "PRIMARY" },
+  })
+  await recalcLeadPriority(lead.id).catch(() => {})
+  await logAudit({
+    actorUserId: user.id,
+    action: "marketing.lead.create",
+    entityType: "lead",
+    entityId: lead.id,
+    after: { displayName, whatsappNumber, manual: true },
+  })
+
+  return NextResponse.json({ lead: { id: lead.id } }, { status: 201 })
 }

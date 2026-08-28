@@ -41,7 +41,7 @@ export async function analyzeLead(leadId: string) {
   if (!lead) throw new Error("Lead tidak ditemukan")
 
   const [segments, transcript] = await Promise.all([
-    prisma.segment.findMany({ where: { isActive: true }, select: { code: true, name: true } }),
+    prisma.segment.findMany({ where: { isActive: true }, select: { code: true, name: true, aiContext: true } }),
     loadTranscript(leadId),
   ])
 

@@ -319,7 +319,31 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## Status — SEMUA FASE (0–11) SELESAI ✅
+## FASE 12 — Master Data & Lead manual (menu yang belum ada) — SELESAI
+
+Tambahan setelah UAT pertama — hal yang belum punya UI:
+
+55. [x] **Kelola Segmentasi** — `GET/POST /api/marketing/segments`, `PATCH/DELETE .../[id]`
+    (DELETE ditolak kalau masih dipakai lead → suruh nonaktifkan). `aiContext` ikut dikirim ke
+    prompt AI segmentasi.
+56. [x] **Kelola Sumber Lead** — `GET/POST /api/marketing/sources` + `PATCH/DELETE .../[id]`.
+57. [x] **Kelola Jenis Aktivitas** — `GET /api/marketing/activity-types` + `PATCH .../[id]`
+    (`stageRank`, `score`, `isActive`; `code` dikunci).
+58. [x] **Kelola Hasil Follow Up** — `GET /api/marketing/result-types` + `PATCH .../[id]`
+    (`priorityScoreEffect`, `temperatureSignalScore`, `isPositive`, `isActive`).
+59. [x] **Kelola Alasan LOST** — `GET/POST /api/marketing/lost-reasons` + `PATCH/DELETE .../[id]`.
+60. [x] **Atur Bobot Priority Score** — 5 key `priority.weight_*` di `LeadSystemSetting`
+    (`getPriorityWeights`, dinormalisasi ke total 1) → dipakai `computeLeadPriority(input, weights)`.
+    UI di `/marketing/settings` tab **Umum** → "Bobot Priority Score".
+61. [x] Semua master data di atas → tab **"Master Data"** di `/marketing/settings`
+    (`MarketingMasterList` generik, MANAGER/owner untuk edit).
+62. [x] **Tambah Lead manual** — `POST /api/marketing/leads` (nama + no WA wajib, cek duplikat →
+    409, pembuat jadi PIC, recalc priority, audit). Tombol "Tambah Lead" + modal di
+    `/marketing/leads`.
+
+---
+
+## Status — SEMUA FASE (0–12) SELESAI ✅
 
 Fase 0 Fondasi · 1 Inbox · 2 Lead · 3 Aktivitas/Follow Up · 4 Priority Engine · 5 Beranda ·
 6 AI Analysis · 7 Ambil Alih/Reassign · 8 SPV/Manager · 9 Notifikasi/Audit · 10 PWA/Settings/Tim ·
