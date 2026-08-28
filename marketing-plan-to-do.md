@@ -222,7 +222,21 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 7 — Assignment / Reassign / Takeover
+## FASE 7 — Assignment / Reassign / Takeover — SELESAI
+
+38. [x] `POST /api/marketing/leads/[id]/assignments` — `action: "takeover"` (caller jadi PIC, siapa
+    pun boleh) atau `"reassign"` (ke `assignedUserId`, wajib `reason`, hanya MANAGER/SPV atau PIC
+    aktif). Transaction: tutup assignment lama (`isActive:false`+`endedAt`) → buat baru
+    (`TAKEOVER`/`PRIMARY`) → `LeadNotification` ke PIC baru (`dedupeKey assign:{id}`) → audit.
+    Tolak kalau target sudah jadi PIC / tidak punya modul marketing.
+39. [x] UI reassign di `LeadDetailClient` — tombol "Reassign PIC" (muncul untuk MANAGER/SPV atau
+    PIC aktif): pilih user + alasan. Riwayat Penugasan section sudah menampilkan history.
+    `GET /leads/[id]` sekarang balikin `viewerRole` + `isCurrentPic`.
+40. [x] Tombol "Ambil Alih" di `ConversationView` (banner non-PIC) & `LeadDetailClient` sekarang
+    aktif — 1 klik takeover, composer langsung kebuka setelah reload. Riwayat chat tetap "nempel"
+    di nomor WA lama (takeover = ganti PIC + assignment, bukan pindah conversation).
+
+### (rencana asli)
 
 38. API `POST /api/marketing/leads/[id]/assignments` — assign / reassign / takeover. 1 active
     PRIMARY per lead, semua perubahan simpan actor + reason, kirim notifikasi ke PIC baru.

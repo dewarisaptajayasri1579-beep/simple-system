@@ -96,6 +96,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [lead, setLead] = useState<LeadDetail | null>(null)
   const [pic, setPic] = useState<Opt | null>(null)
   const [canAct, setCanAct] = useState(false)
+  const [viewerRole, setViewerRole] = useState<"MANAGER" | "SPV" | "SALES">("SALES")
+  const [isCurrentPic, setIsCurrentPic] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -104,7 +106,12 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [lostReasons, setLostReasons] = useState<Opt[]>([])
   const [activityTypes, setActivityTypes] = useState<ActivityTypeOpt[]>([])
   const [resultTypes, setResultTypes] = useState<Opt[]>([])
+  const [users, setUsers] = useState<Opt[]>([])
   const [lostPick, setLostPick] = useState("")
+
+  const [reassignOpen, setReassignOpen] = useState(false)
+  const [reassignTo, setReassignTo] = useState("")
+  const [reassignReason, setReassignReason] = useState("")
 
   const [actOpen, setActOpen] = useState(false)
   const [actForm, setActForm] = useState({ activityTypeId: "", occurredAt: "", note: "" })
@@ -127,6 +134,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       setLead(data.lead)
       setPic(data.pic)
       setCanAct(data.canAct)
+      setViewerRole(data.viewerRole ?? "SALES")
+      setIsCurrentPic(Boolean(data.isCurrentPic))
       setForm({
         displayName: data.lead.displayName ?? "",
         companyName: data.lead.companyName ?? "",
@@ -152,6 +161,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         if (d.lostReasons) setLostReasons(d.lostReasons)
         if (d.activityTypes) setActivityTypes(d.activityTypes)
         if (d.followUpResultTypes) setResultTypes(d.followUpResultTypes)
+        if (d.users) setUsers(d.users)
       })
       .catch(() => {})
   }, [])
@@ -217,9 +227,62 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
           )}
         </div>
         {!canAct && (
-          <p className="mt-3 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-            Kamu memantau lead ini. Tombol aksi dinonaktifkan — hanya PIC / SPV / Manager yang bisa mengubah.
-          </p>
+          <div className="mt-3 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
+            <span>Kamu memantau lead ini. Hanya PIC / SPV / Manager yang bisa mengubah.</span>
+            <button
+              disabled={busy}
+              onClick={() => call(`/api/marketing/leads/${leadId}/assignments`, { action: "takeover", reason: "Ambil alih dari detail lead" })}
+              className="px-2.5 py-1 rounded-lg bg-blue-700 text-white font-bold flex-shrink-0 disabled:opacity-40"
+            >
+              Ambil Alih
+            </button>
+          </div>
+        )}
+
+        {(canAct && (viewerRole !== "SALES" || isCurrentPic)) && (
+          <div className="mt-3">
+            <button onClick={() => setReassignOpen((v) => !v)} className="text-xs font-bold text-blue-700">
+              {reassignOpen ? "Tutup reassign" : "Reassign PIC"}
+            </button>
+            {reassignOpen && (
+              <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+                <select
+                  value={reassignTo}
+                  onChange={(e) => setReassignTo(e.target.value)}
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+                >
+                  <option value="">Pindah ke…</option>
+                  {users.filter((u) => u.id !== pic?.id).map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <input
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                  placeholder="Alasan reassign (wajib)"
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-400"
+                />
+                <button
+                  disabled={busy || !reassignTo || !reassignReason.trim()}
+                  onClick={async () => {
+                    const ok = await call(`/api/marketing/leads/${leadId}/assignments`, {
+                      action: "reassign",
+                      assignedUserId: reassignTo,
+                      reason: reassignReason.trim(),
+                    })
+                    if (ok) {
+                      setReassignOpen(false)
+                      setReassignTo("")
+                      setReassignReason("")
+                    }
+                  }}
+                  className="self-start px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-bold disabled:opacity-40"
+                >
+                  Pindahkan PIC
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

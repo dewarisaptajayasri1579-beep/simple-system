@@ -91,6 +91,28 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     }
   }, [messages])
 
+  const [takingOver, setTakingOver] = useState(false)
+  const takeOver = async () => {
+    if (!meta) return
+    setTakingOver(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/marketing/leads/${meta.lead.id}/assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "takeover", reason: "Ambil alih dari inbox" }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Gagal mengambil alih")
+        return
+      }
+      await load()
+    } finally {
+      setTakingOver(false)
+    }
+  }
+
   const send = async () => {
     const text = draft.trim()
     if (!text || sending) return
@@ -209,11 +231,11 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             Kamu memantau lead ini{meta.pic ? ` (PIC: ${meta.pic.name})` : ""}. Untuk membalas, ambil alih dulu.
           </p>
           <button
-            disabled
-            title="Fitur Ambil Alih menyusul (Fase 7)"
-            className="px-3 py-1.5 rounded-xl bg-slate-200 text-slate-500 text-xs font-bold cursor-not-allowed flex-shrink-0"
+            onClick={takeOver}
+            disabled={takingOver}
+            className="px-3 py-1.5 rounded-xl bg-blue-700 text-white text-xs font-bold flex-shrink-0 disabled:opacity-50"
           >
-            Ambil Alih
+            {takingOver ? "…" : "Ambil Alih"}
           </button>
         </div>
       )}

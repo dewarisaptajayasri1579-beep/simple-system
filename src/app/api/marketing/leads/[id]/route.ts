@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
-import { canActOnLead } from "@/lib/marketing/permissions"
+import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { prisma } from "@/lib/prisma"
 
 /** GET — detail lengkap 1 lead (boleh dibuka siapa pun anggota tim). PATCH — edit field identitas
@@ -53,10 +53,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   })
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
 
-  const canAct = await canActOnLead(user, id)
+  const [canAct, viewerRole] = await Promise.all([canActOnLead(user, id), resolveMarketingRole(user.id, user.role)])
   const activePic = lead.assignments.find((a) => a.isActive)?.assignedUser ?? null
+  const isCurrentPic = activePic?.id === user.id
 
-  return NextResponse.json({ lead: serializeLead(lead), pic: activePic, canAct })
+  return NextResponse.json({ lead: serializeLead(lead), pic: activePic, canAct, viewerRole, isCurrentPic })
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
