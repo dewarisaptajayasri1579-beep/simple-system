@@ -53,6 +53,61 @@ export async function avgResponseTime(opts: { days?: number; assignedUserId?: st
   return { avgMs: capped.length ? Math.round(total / capped.length) : null, samples: capped.length }
 }
 
+/**
+ * Avg response time per Sales — untuk tabel KPI tim. Diatribusikan ke pengirim balasan
+ * (`Message.senderUserId` pada OUTBOUND), bukan PIC saat ini. 1 pasang = grup inbound berturut →
+ * outbound pertama sesudahnya, dalam 1 conversation. Working-hours aware.
+ */
+export async function avgResponseTimeByUser(
+  userIds: string[],
+  days = 30,
+): Promise<Map<string, { avgMs: number | null; samples: number }>> {
+  const out = new Map<string, { avgMs: number | null; samples: number }>()
+  for (const id of userIds) out.set(id, { avgMs: null, samples: 0 })
+  if (userIds.length === 0) return out
+
+  const since = new Date(Date.now() - days * 86400000)
+  const messages = await prisma.message.findMany({
+    where: {
+      sentAt: { gte: since },
+      conversation: { lead: { assignments: { some: { assignedUserId: { in: userIds } } } } },
+    },
+    orderBy: [{ conversationId: "asc" }, { sentAt: "asc" }],
+    select: { conversationId: true, direction: true, senderUserId: true, sentAt: true },
+    take: 20000,
+  })
+
+  // { userId -> [ms, ms, ...] }
+  const perUser = new Map<string, number[]>()
+  let curConv: string | null = null
+  let pendingInbound: Date | null = null
+  for (const m of messages) {
+    if (m.conversationId !== curConv) {
+      curConv = m.conversationId
+      pendingInbound = null
+    }
+    if (m.direction === "INBOUND") {
+      if (!pendingInbound) pendingInbound = m.sentAt
+    } else if (m.direction === "OUTBOUND" && pendingInbound) {
+      if (m.senderUserId && userIds.includes(m.senderUserId)) {
+        const arr = perUser.get(m.senderUserId) ?? []
+        arr.push(await workingMsBetween(pendingInbound, m.sentAt))
+        perUser.set(m.senderUserId, arr)
+      }
+      pendingInbound = null
+    }
+  }
+
+  for (const [uid, arr] of perUser) {
+    const capped = arr.slice(0, 300)
+    out.set(uid, {
+      avgMs: capped.length ? Math.round(capped.reduce((s, x) => s + x, 0) / capped.length) : null,
+      samples: capped.length,
+    })
+  }
+  return out
+}
+
 /** Conversion rates global (docs §22). `where` opsional untuk filter periode/segmen. */
 export async function conversionRates(where: Record<string, unknown> = {}) {
   const [totalLeads, everHot, reachedProposal, reachedNegotiation, won, lost] = await Promise.all([
