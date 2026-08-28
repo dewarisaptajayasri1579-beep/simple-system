@@ -188,13 +188,15 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 5 — Beranda Sales
+## FASE 5 — Beranda Sales — SELESAI
 
-29. API `GET /api/marketing/home` — KPI harian (Lead Hot, Follow Up Hari Ini, Terlambat, Chat
-    Belum Dibalas) + list "Kerjakan Dulu" (urut Priority Score, server-side).
-30. Halaman `/marketing` (ganti `ModulePlaceholder`) — header sapaan + notification bell + 4 KPI
-    card + "Kerjakan Dulu" + quick filter (Hot, Follow Up, Belum Dibalas, Overdue). Angka konsisten
-    dengan drill-down list-nya.
+29. [x] `GET /api/marketing/home` — `scope=mine|all`. KPI: `hotLeads`, `followUpToday`,
+    `followUpOverdue`, `unrepliedChats` (semua scope-aware). "Kerjakan Dulu" = 10 lead OPEN urut
+    `priorityScore` desc + alasan singkat (Hot/tahap/follow up terlambat/chat belum dibalas) +
+    `nextAction` + `conversationId`. Batch next-follow-up / overdue / conv / `canAct` (anti N+1).
+30. [x] Halaman `/marketing` (`HomeClient`, ganti stub) — 4 KPI card clickable (→ leads?temperature=HOT,
+    follow-up, follow-up, inbox) + list "Kerjakan Dulu" (link lead + Buka Chat) + toggle Punya Saya /
+    Semua Tim. Poll 20 dtk. (Notification bell = Fase 9, sudah ada placeholder disabled di shell.)
 
 ---
 
@@ -285,9 +287,18 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ## Catatan urutan pengerjaan
 
-- **MVP minimum** = Fase 0 → 1 → 2 → 3 → 5 (Sales bisa kerja penuh dari HP tanpa AI & tanpa
-  dashboard atasan). Toggle "Punya Saya / Semua" + full transparansi chat sudah ikut sejak
-  Fase 1–2, jadi "saling pantau semua lead" tercapai sejak MVP.
-- Fase 4 (Priority) bisa dikerjakan paralel setelah Fase 3.
-- Fase 6 (AI) dan Fase 8 (SPV/Manager) menyusul setelah MVP stabil.
-- Setiap fase: `npx tsc --noEmit` bersih sebelum commit; auto commit & push per aturan `CLAUDE.md`.
+- **MVP minimum = Fase 0 → 1 → 2 → 3 → 5 → SELESAI ✅** (Sales bisa kerja penuh dari HP tanpa AI &
+  tanpa dashboard atasan). Toggle "Punya Saya / Semua" + full transparansi chat ikut sejak Fase 1–2,
+  jadi "saling pantau semua lead" sudah tercapai.
+- **Berikutnya:** Fase 4 (Priority Engine — sekarang `recalcLeadPriority` masih stub, skor manual),
+  lalu Fase 6 (AI) & Fase 7 (Ambil Alih/Reassign) & Fase 8 (SPV/Manager) & Fase 9 (Notif/Push).
+- Setiap fase: `npx tsc --noEmit` + `npm run build` bersih sebelum commit; auto commit & push per
+  aturan `CLAUDE.md`.
+
+## Sisa tugas non-coding sebelum benar-benar dipakai (lihat juga checklist "YANG HARUS KAMU KERJAKAN")
+
+- Deploy env `MARKETING_WAHUB_*`, `APP_BASE_URL`, `WAHUB_WEBHOOK_SECRET` ke production `simple.onyseven.com`.
+- `npx tsx scripts/seed-marketing.ts` di DB production.
+- Verifikasi webhook WAHUB dewari tembus + cocokkan bentuk payload (poin 0a).
+- Daftarkan user Sales/SPV/Manager + `User.modules` berisi `"marketing"`; susun Tim.
+- Tiap Sales scan QR di `/marketing/whatsapp`.
