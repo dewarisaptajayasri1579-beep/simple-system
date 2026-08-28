@@ -305,14 +305,17 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 11 — Uji End-to-End & Dokumentasi
+## FASE 11 — Uji End-to-End & Dokumentasi — SELESAI
 
-52. Jalankan skenario end-to-end `docs/03` §30 (lead masuk → dibuat → segment AI → assign →
-    notif → inbox → balas → aktivitas → priority berubah → follow up → reminder → selesai →
-    KPI SPV & funnel Manager berubah → semua di audit).
-53. Buat `Check-Flow-Marketing.MD` (pola sama Check-Flow modul Internal) — jejak alur nyata dari
-    kode + hal yang gampang salah paham.
-54. Update menu Dokumentasi in-app kalau perlu versi staf awam.
+52. [x] `scripts/marketing-smoke.ts` — bikin lead throwaway, jalankan alur inti (assign → aktivitas
+    → follow up → selesai → priority → notifikasi → agregat tim → settings), cetak hasil, HAPUS
+    lagi. Sudah dijalankan: **SMOKE OK ✅** (priority 51/MONITOR, notif ok, 1 anggota tim, settings
+    default). Skenario `docs/03` §30 penuh butuh traffic WA nyata — di-cover manual saat UAT.
+53. [x] `Check-Flow-Marketing.MD` di root — diagram mermaid + 11 langkah + 8 hal yang gampang salah
+    paham + tabel file kunci. Pola sama Check-Flow modul Internal.
+54. [~] Menu Dokumentasi in-app (`src/components/dokumentasi/`, modul Internal) belum menyertakan
+    modul Marketing — `Check-Flow-Marketing.MD` jadi rujukan sementara. Integrasi ke menu = kalau
+    modul Marketing sudah stabil dipakai.
 
 ---
 
