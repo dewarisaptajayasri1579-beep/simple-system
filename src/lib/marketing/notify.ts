@@ -1,10 +1,22 @@
+import webpush from "web-push"
+
 import { prisma } from "@/lib/prisma"
+
+let vapidReady = false
+function ensureVapid(): boolean {
+  if (vapidReady) return true
+  const pub = process.env.VAPID_PUBLIC_KEY
+  const priv = process.env.VAPID_PRIVATE_KEY
+  if (!pub || !priv) return false
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:admin@onyseven.com", pub, priv)
+  vapidReady = true
+  return true
+}
 
 /**
  * Bikin 1 baris `LeadNotification` untuk 1 user. Idempotent via `dedupeKey` unik —
  * `createMany({ skipDuplicates })` jadi pemanggilan ulang dengan key sama tidak dobel.
- *
- * Pengiriman push nyata (Web Push) = `sendWebPush`, no-op sampai VAPID di-set (Fase 10).
+ * Kalau baris baru benar-benar dibuat → kirim Web Push ke device aktif user (best-effort).
  */
 export async function createNotification(input: {
   userId: string
@@ -32,13 +44,38 @@ export async function createNotification(input: {
     ],
     skipDuplicates: true,
   })
-  if (res.count > 0) void sendWebPush(input.userId, input.title, input.body, input.deepLink)
+  if (res.count > 0) {
+    void sendWebPush(input.userId, input.title, input.body, input.deepLink).catch(() => {})
+    await prisma.leadNotification.updateMany({
+      where: { dedupeKey: input.dedupeKey, sentAt: null },
+      data: { sentAt: new Date(), status: "SENT" },
+    })
+  }
   return res.count > 0
 }
 
-/** Kirim Web Push ke semua device user. No-op kalau VAPID belum di-set / lib belum ada.
- *  Diaktifkan di Fase 10 (npm i web-push + VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY). */
-export async function sendWebPush(_userId: string, _title: string, _body: string, _url?: string): Promise<void> {
-  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return
-  // TODO Fase 10: load web-push, ambil PushSubscription aktif user, kirim payload JSON.
+/** Kirim Web Push ke semua device aktif user. No-op kalau VAPID belum di-set.
+ *  Subscription yang ditolak (404/410) otomatis dinonaktifkan. */
+export async function sendWebPush(userId: string, title: string, body: string, url?: string): Promise<void> {
+  if (!ensureVapid()) return
+  const subs = await prisma.pushSubscription.findMany({
+    where: { userId, isActive: true, endpoint: { not: "" } },
+    select: { id: true, endpoint: true, p256dh: true, auth: true },
+  })
+  if (subs.length === 0) return
+
+  const payload = JSON.stringify({ title, body, url: url || "/marketing", tag: url })
+  await Promise.all(
+    subs.map(async (s) => {
+      if (!s.p256dh || !s.auth) return
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload)
+      } catch (err: unknown) {
+        const code = (err as { statusCode?: number }).statusCode
+        if (code === 404 || code === 410) {
+          await prisma.pushSubscription.update({ where: { id: s.id }, data: { isActive: false } }).catch(() => {})
+        }
+      }
+    }),
+  )
 }
