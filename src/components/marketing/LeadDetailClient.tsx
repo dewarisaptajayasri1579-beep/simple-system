@@ -624,17 +624,32 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               sizeVariant="sm"
             />
           ))}
-          <div>
+          <div className="sm:col-span-2">
             <label className="text-xs sm:text-sm font-bold text-slate-700">Segmen</label>
-            <div className="mt-1.5">
-              <Select
-                options={[{ value: "", label: "— belum —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
-                value={form.segmentId}
-                disabled={!canAct}
-                onChange={(v) => setForm((f) => ({ ...f, segmentId: v }))}
-                sizeVariant="sm"
-              />
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {[{ id: "", name: "— belum —" }, ...segments].map((s) => {
+                const active = (form.segmentId || "") === s.id
+                return (
+                  <button
+                    key={s.id || "none"}
+                    type="button"
+                    disabled={!canAct || busy || active}
+                    onClick={async () => {
+                      setForm((f) => ({ ...f, segmentId: s.id }))
+                      await call(`/api/marketing/leads/${leadId}`, { segmentId: s.id || null }, "PATCH")
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${
+                      active
+                        ? "bg-blue-700 text-white border-blue-700"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50"
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                )
+              })}
             </div>
+            <p className="mt-1 text-[11px] text-slate-400">Klik untuk langsung ganti — tersimpan otomatis.</p>
           </div>
         </div>
       </Section>
@@ -650,6 +665,22 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
           ) : null
         }
       >
+        {canAct && activityTypes.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {activityTypes.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                disabled={busy}
+                title={`Catat "${t.name}" sekarang`}
+                onClick={() => call(`/api/marketing/leads/${leadId}/activities`, { activityTypeId: t.id })}
+                className="px-2.5 py-1 rounded-full text-xs font-bold border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700 transition-colors disabled:opacity-50"
+              >
+                + {t.name}
+              </button>
+            ))}
+          </div>
+        )}
         {actOpen && canAct && (
           <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
             <Select

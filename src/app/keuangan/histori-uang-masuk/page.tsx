@@ -2,18 +2,10 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
 import { AppLayout } from "@/components/layout/AppLayout"
-import { Card, CardTitle, CardDescription } from "@/components/ui"
-import { HistoriUangMasukTable, type UangMasukRow } from "@/components/keuangan/HistoriUangMasukTable"
+import { HistoriUangMasukClient, type UangMasukRow, type WeekRecap } from "@/components/keuangan/HistoriUangMasukClient"
 import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { jakartaTodayDateIso, jakartaIsoWeekday, shiftJakartaDateIso, parseJakartaDateIso } from "@/lib/datetime"
-
-function formatRupiah(n: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
-}
-function formatShort(dateIso: string) {
-  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "Asia/Jakarta" }).format(parseJakartaDateIso(dateIso))
-}
 
 const WEEK_OPTIONS = [12, 26, 52]
 
@@ -29,7 +21,8 @@ export default async function HistoriUangMasukPage({ searchParams }: { searchPar
 
   // Rentang: dari Senin (weeks-1) minggu lalu s/d sekarang — supaya tiap minggu di rekap utuh.
   const todayIso = jakartaTodayDateIso()
-  const startIso = shiftJakartaDateIso(mondayOf(todayIso), -7 * (weeks - 1))
+  const currentMonday = mondayOf(todayIso)
+  const startIso = shiftJakartaDateIso(currentMonday, -7 * (weeks - 1))
   const from = parseJakartaDateIso(startIso)
 
   // "Uang masuk dari penjualan" = InvoicePayment efektif (filter kanonik yang dipakai di seluruh
@@ -56,6 +49,7 @@ export default async function HistoriUangMasukPage({ searchParams }: { searchPar
 
   const rows: UangMasukRow[] = payments.map((p) => ({
     id: p.id,
+    weekKey: mondayOf(jakartaTodayDateIso(p.paidAt)),
     paidAt: p.paidAt.toISOString(),
     amount: p.amount,
     clientName: p.invoice.client.name,
@@ -69,15 +63,13 @@ export default async function HistoriUangMasukPage({ searchParams }: { searchPar
 
   // Rekap per minggu (Senin–Minggu, zona Jakarta), terbaru di atas.
   const byWeek = new Map<string, { count: number; total: number }>()
-  for (const p of payments) {
-    const key = mondayOf(jakartaTodayDateIso(p.paidAt))
-    const bucket = byWeek.get(key) ?? { count: 0, total: 0 }
-    bucket.count += 1
-    bucket.total += p.amount
-    byWeek.set(key, bucket)
+  for (const r of rows) {
+    const b = byWeek.get(r.weekKey) ?? { count: 0, total: 0 }
+    b.count += 1
+    b.total += r.amount
+    byWeek.set(r.weekKey, b)
   }
-  const currentMonday = mondayOf(todayIso)
-  const weekRecap = Array.from({ length: weeks }, (_, i) => {
+  const weekRecap: WeekRecap[] = Array.from({ length: weeks }, (_, i) => {
     const monday = shiftJakartaDateIso(currentMonday, -7 * i)
     const sunday = shiftJakartaDateIso(monday, 6)
     const b = byWeek.get(monday) ?? { count: 0, total: 0 }
@@ -95,7 +87,7 @@ export default async function HistoriUangMasukPage({ searchParams }: { searchPar
           </Link>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">Histori Uang Masuk</h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-            Uang masuk dari penjualan (pelunasan invoice), terbaru di atas. {weeks} minggu terakhir.
+            Uang masuk dari penjualan (pelunasan invoice), direkap per minggu. Klik satu minggu untuk lihat rinciannya.
           </p>
           <div className="flex items-center gap-2 mt-3">
             {WEEK_OPTIONS.map((w) => (
@@ -114,45 +106,7 @@ export default async function HistoriUangMasukPage({ searchParams }: { searchPar
           </div>
         </div>
 
-        <Card variant="panel" padding="none">
-          <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
-            <div>
-              <CardTitle>Rekap per Minggu</CardTitle>
-              <CardDescription>Senin–Minggu (WIB)</CardDescription>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total {weeks} minggu</p>
-              <p className="text-lg font-black text-emerald-700">{formatRupiah(grandTotal)}</p>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y border-slate-100 bg-slate-50/60 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                  <th className="px-5 sm:px-6 py-2.5">Minggu</th>
-                  <th className="px-5 sm:px-6 py-2.5 text-right">Pembayaran</th>
-                  <th className="px-5 sm:px-6 py-2.5 text-right">Total Masuk</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weekRecap.map((w) => (
-                  <tr key={w.monday} className="border-b border-slate-50 last:border-0">
-                    <td className="px-5 sm:px-6 py-2.5 font-semibold text-slate-800">
-                      {formatShort(w.monday)} – {formatShort(w.sunday)}
-                      {w.isCurrent && <span className="ml-2 text-[10px] font-bold text-blue-600">MINGGU INI</span>}
-                    </td>
-                    <td className="px-5 sm:px-6 py-2.5 text-right tabular-nums text-slate-500">{w.count || "-"}</td>
-                    <td className="px-5 sm:px-6 py-2.5 text-right font-bold tabular-nums text-slate-900">
-                      {w.total ? formatRupiah(w.total) : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <HistoriUangMasukTable rows={rows} />
+        <HistoriUangMasukClient weeks={weeks} weekRecap={weekRecap} rows={rows} grandTotal={grandTotal} />
       </div>
     </AppLayout>
   )
