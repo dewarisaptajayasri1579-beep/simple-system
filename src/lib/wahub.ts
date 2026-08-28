@@ -155,17 +155,18 @@ export async function sendWhatsappMessageFromSession(sessionId: string, rawNumbe
 /** Bentuk respons WAHUB saat kirim pesan — id pesan dipakai buat mencocokkan ack status
  *  (SENT/DELIVERED/READ) yang datang lewat webhook. Nama field beda-beda antar versi wrapper,
  *  jadi semua kemungkinan ditangkap. */
-export type WahubSendResult = {
+type WahubKeyish = { key?: { id?: string }; id?: string; messageId?: string }
+export type WahubSendResult = WahubKeyish & {
   success?: boolean
-  messageId?: string
-  id?: string
-  key?: { id?: string }
-  data?: { key?: { id?: string }; id?: string; messageId?: string }
+  // backend-wahub membungkus hasil Baileys `sock.sendMessage()` (WAMessage) di `response`.
+  response?: WahubKeyish
+  data?: WahubKeyish
 }
 
 /** Ambil id pesan dari respons WAHUB (atau null kalau wrapper-nya tidak mengembalikannya). */
 export function extractWahubMessageId(r: WahubSendResult | null | undefined): string | null {
-  return r?.messageId || r?.id || r?.key?.id || r?.data?.messageId || r?.data?.id || r?.data?.key?.id || null
+  const pick = (x: WahubKeyish | null | undefined) => x?.key?.id || x?.messageId || x?.id || null
+  return pick(r) || pick(r?.response) || pick(r?.data) || null
 }
 
 /** Kirim media (gambar/dokumen via URL, WAHUB yang fetch) + caption dari session Sales tertentu. */
