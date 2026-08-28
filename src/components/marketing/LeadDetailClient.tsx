@@ -124,6 +124,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [tempSuggestion, setTempSuggestion] = useState<
     { score?: number; suggestedLevel?: string; reasons?: string[]; lockedUntil?: string | null } | null
   >(null)
+  const [buyingPowerSuggestion, setBuyingPowerSuggestion] = useState<
+    { suggestedTierId?: string; suggestedTierName?: string; score?: number; reason?: string } | null
+  >(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -171,6 +174,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       setIsCurrentPic(Boolean(data.isCurrentPic))
       setAuditTrail(data.auditTrail ?? [])
       setTempSuggestion(data.temperatureSuggestion ?? null)
+      setBuyingPowerSuggestion(data.buyingPowerSuggestion ?? null)
       setForm({
         displayName: data.lead.displayName ?? "",
         companyName: data.lead.companyName ?? "",
@@ -682,6 +686,31 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 )
               })}
             </div>
+            {buyingPowerSuggestion?.suggestedTierId && (
+              <div className="mt-2 text-xs bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                <span className="text-slate-600">
+                  Saran AI: <span className="font-bold text-emerald-700">{buyingPowerSuggestion.suggestedTierName}</span>
+                  {buyingPowerSuggestion.reason ? ` — ${buyingPowerSuggestion.reason}` : ""}
+                </span>
+                {canAct && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={busy}
+                    onClick={() =>
+                      call(
+                        `/api/marketing/leads/${leadId}`,
+                        { buyingPowerTierId: buyingPowerSuggestion.suggestedTierId, buyingPowerSource: "AI" },
+                        "PATCH",
+                      )
+                    }
+                    className="flex-shrink-0"
+                  >
+                    Terapkan
+                  </Button>
+                )}
+              </div>
+            )}
             <Input
               className="mt-1.5"
               placeholder="Catatan kemampuan beli (opsional) — mis. punya 3 cabang, instansi ada DIPA"

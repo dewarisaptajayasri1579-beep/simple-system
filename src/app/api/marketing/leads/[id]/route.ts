@@ -56,7 +56,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
 
   const convIds = lead.conversations.map((c) => c.id)
-  const [canAct, viewerRole, auditRows, tempRec] = await Promise.all([
+  const [canAct, viewerRole, auditRows, tempRec, buyingPowerRec] = await Promise.all([
     canActOnLead(user, id),
     resolveMarketingRole(user.id, user.role),
     prisma.auditLog.findMany({
@@ -75,6 +75,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       orderBy: { createdAt: "desc" },
       select: { outputJson: true, createdAt: true },
     }),
+    prisma.leadAiAnalysis.findFirst({
+      where: { leadId: id, analysisType: "BUYING_POWER_RECOMMENDATION", status: "SUCCESS" },
+      orderBy: { createdAt: "desc" },
+      select: { outputJson: true, createdAt: true },
+    }),
   ])
   const activePic = lead.assignments.find((a) => a.isActive)?.assignedUser ?? null
   const isCurrentPic = activePic?.id === user.id
@@ -89,6 +94,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     temperatureSuggestion: tempRec
       ? { ...(tempRec.outputJson as Record<string, unknown>), at: tempRec.createdAt.toISOString(), lockedUntil: lockActive ? lead.temperatureLockedUntil!.toISOString() : null }
       : null,
+    buyingPowerSuggestion: (() => {
+      if (!buyingPowerRec) return null
+      const o = buyingPowerRec.outputJson as Record<string, unknown>
+      // Sembunyikan kalau saran = tier yang sudah dipakai sekarang.
+      if (o.suggestedTierId && o.suggestedTierId === lead.buyingPowerTierId) return null
+      return { ...o, at: buyingPowerRec.createdAt.toISOString() }
+    })(),
     auditTrail: auditRows.map((a) => ({
       id: a.id,
       action: a.action,
@@ -136,7 +148,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("segmentId" in body) data.segmentId = str(body.segmentId) || null
   if ("buyingPowerTierId" in body) {
     data.buyingPowerTierId = str(body.buyingPowerTierId) || null
-    data.buyingPowerSource = "MANUAL"
+    // "Terapkan saran AI" kirim buyingPowerSource:"AI"; edit manual (chip) default "MANUAL".
+    data.buyingPowerSource = body.buyingPowerSource === "AI" && data.buyingPowerTierId ? "AI" : "MANUAL"
   }
   if ("buyingPowerNote" in body) data.buyingPowerNote = str(body.buyingPowerNote) || null
   if ("note" in body) data.note = str(body.note) || null

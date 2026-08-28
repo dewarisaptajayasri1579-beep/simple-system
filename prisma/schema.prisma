@@ -1550,7 +1550,7 @@ model LeadFollowUp {
 model LeadAiAnalysis {
   id                  String   @id @default(uuid())
   leadId              String   @map("lead_id")
-  analysisType        String   @map("analysis_type") // "SEGMENTATION" | "PROFILING" | "SUMMARY" | "NEXT_BEST_ACTION" | "BUYING_SIGNAL" | "TEMPERATURE_RECOMMENDATION"
+  analysisType        String   @map("analysis_type") // "SEGMENTATION" | "PROFILING" | "SUMMARY" | "NEXT_BEST_ACTION" | "BUYING_SIGNAL" | "TEMPERATURE_RECOMMENDATION" | "BUYING_POWER_RECOMMENDATION"
   version             Int
   modelName           String   @map("model_name")
   promptVersion       String   @map("prompt_version")
