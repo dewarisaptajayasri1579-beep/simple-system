@@ -4,6 +4,29 @@ Rencana kerja modul Marketing, dikerjakan **step by step per nomor**. Centang `[
 selesai. Acuan spec: `docs/01`–`06`. Kondisi awal: skema DB + koneksi WhatsApp per-Sales +
 ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 
+## Model Visibilitas & Izin (keputusan project — override `docs/06`)
+
+- **LIHAT: semua transparan.** Semua anggota Tim (Manager, SPV, Sales) bisa membuka & memantau
+  **SEMUA lead**, termasuk **full isi percakapan WhatsApp** lead siapa pun. Tidak ada scope
+  filter untuk operasi baca.
+- **AKSI: hanya lead sendiri.** Balas chat, ubah temperatur, tambah aktivitas, selesaikan
+  follow up, ubah outcome → **hanya boleh oleh PIC (assignee PRIMARY) lead itu**, atau oleh
+  SPV/Manager. Sales lain = read-only di lead orang.
+- **Ambil alih** tetap tersedia (reassign/takeover, Fase 7) kalau Sales lain memang perlu
+  pegang lead tsb — mengubah PIC + catat alasan.
+- **Semua aksi tercatat di `AuditLog`** (siapa, kapan, apa) apa pun rolenya.
+
+## Di mana Scan WhatsApp
+
+- Halaman: **`/marketing/whatsapp`** → komponen `src/components/marketing/ConnectWhatsapp.tsx`
+  (tombol masuk dari `/marketing`, label "Hubungkan WhatsApp").
+- Tiap Sales scan QR **nomornya sendiri** → session WAHUB `sales-{userId}`
+  (`WhatsappConnection`, 1:1 ke `User`).
+- API: `POST /api/marketing/whatsapp/connect` (mulai session), `GET .../qr` (ambil QR),
+  `GET .../status` (poll sampai `READY`), `POST .../disconnect`.
+- Pesan masuk ke nomor itu → webhook `POST /api/marketing/whatsapp/webhook?session=sales-{userId}`
+  → auto buat Lead + set PIC = pemilik nomor.
+
 ---
 
 ## FASE 0 — Persiapan & Fondasi
@@ -17,29 +40,38 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
    `LeadLostReason`. Buat script `scripts/seed-marketing.ts` (idempotent, upsert by code).
 3. Buat layout modul Marketing sendiri — sidebar/bottom-nav khusus (bukan pakai `Sidebar.tsx`
    Internal). Item nav baseline: Beranda, Inbox, Lead, Follow Up, (SPV: Tim), (Manager: Dashboard).
-4. Helper scope data server-side: fungsi `marketingScope(user)` yang mengembalikan filter Prisma
-   berdasarkan role TeamMembership (SALES = lead sendiri, SPV = tim, MANAGER = semua). Semua query
-   modul ini WAJIB lewat helper ini.
+4. Helper izin server-side (bukan scope baca — lihat "Model Visibilitas" di atas):
+   - `canViewMarketing(user)` → semua anggota Tim `true` (operasi baca TIDAK difilter).
+   - `canActOnLead(user, lead)` → `true` kalau user = PIC PRIMARY lead itu, ATAU role SPV/Manager.
+     Semua endpoint mutasi (balas chat, temperatur, aktivitas, follow up, outcome) WAJIB cek ini
+     dan tolak 403 kalau `false`.
 5. Helper `logAudit(...)` untuk `AuditLog` (append-only) — dipakai di semua mutasi penting.
 
 ---
 
 ## FASE 1 — Inbox & Percakapan (inti harian Sales)
 
-6. API `GET /api/marketing/conversations` — list conversation (scope-aware), field: lead, preview
-   pesan terakhir, `unreadCustomerCount`, segment, temperature, `lastMessageAt`. Pakai `take` +
-   cursor pagination, hindari N+1 (batch lead + last message).
-7. API `GET /api/marketing/conversations/[id]/messages` — timeline pesan 1 conversation, pagination
-   (lazy load pesan lama), tandai `unreadCustomerCount = 0` saat dibuka.
+6. API `GET /api/marketing/conversations` — list SEMUA conversation (tanpa filter scope), field:
+   lead, PIC, preview pesan terakhir, `unreadCustomerCount`, segment, temperature, `lastMessageAt`.
+   Ada toggle "Punya Saya / Semua" (default: Semua). Pakai `take` + cursor pagination, hindari N+1
+   (batch lead + last message).
+7. API `GET /api/marketing/conversations/[id]/messages` — timeline pesan 1 conversation (boleh
+   dibuka siapa pun), pagination (lazy load pesan lama). `unreadCustomerCount = 0` HANYA kalau
+   yang buka = PIC (biar counter non-PIC tidak ikut ke-reset).
 8. API `POST /api/marketing/conversations/[id]/messages` — kirim pesan keluar (OUTBOUND) via WAHUB
-   `sendMessage`, simpan `Message` dengan `senderUserId` = user login, `deliveryStatus` awal
-   `PENDING`.
+   `sendMessage`. **Cek `canActOnLead` → tolak 403 kalau bukan PIC/SPV/Manager.** Simpan `Message`
+   dengan `senderUserId` = user login, `deliveryStatus` awal `PENDING`. (Catatan teknis: pesan
+   dikirim lewat session WAHUB milik PIC, jadi non-PIC yang boleh aksi = SPV/Manager tetap terkirim
+   dari nomor PIC.)
 9. Perluas webhook (`whatsapp-webhook.ts`) untuk update `deliveryStatus` pesan OUTBOUND (SENT /
    DELIVERED / READ) kalau WAHUB kirim status callback.
-10. Halaman `/marketing/inbox` — list conversation + filter baseline (Semua, Belum Dibalas,
-    Prioritas, Hot) + search (nama/perusahaan/nomor) + unread badge. Filter diproses server-side.
-11. Halaman `/marketing/inbox/[conversationId]` — 1 layar: timeline chat + composer + panel Profil
-    Ringkas lead + (nanti) AI card. Balas tanpa pindah halaman. Auto-scroll, anti-duplikat pesan.
+10. Halaman `/marketing/inbox` — list SEMUA conversation + filter baseline (Semua, Belum Dibalas,
+    Prioritas, Hot) + filter PIC / Tim + toggle "Punya Saya / Semua" + search
+    (nama/perusahaan/nomor) + unread badge. Filter diproses server-side.
+11. Halaman `/marketing/inbox/[conversationId]` — 1 layar: timeline chat (full transcript, terbuka
+    untuk semua) + composer + panel Profil Ringkas lead + (nanti) AI card. Kalau pembuka **bukan
+    PIC/SPV/Manager**: composer disabled + banner "Kamu memantau lead ini (PIC: {nama}). Klik
+    Ambil Alih untuk membalas." Balas tanpa pindah halaman. Auto-scroll, anti-duplikat pesan.
 12. Realtime pesan masuk saat app terbuka (polling interval dulu, atau SSE) — pesan baru naik ke
     atas list & muncul di timeline tanpa refresh manual.
 
@@ -47,36 +79,40 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 
 ## FASE 2 — Lead Management
 
-13. API `GET /api/marketing/leads` — list lead scope-aware + filter (segment, temperature,
-    activity stage, PIC, priority range, outcome, follow-up status, lead age, idle days) +
-    pagination.
-14. API `GET /api/marketing/leads/[id]` — detail lengkap: identitas, segmentasi, temperatur,
-    priority, aktivitas, follow-up, assignment history, summary.
+13. API `GET /api/marketing/leads` — list SEMUA lead (tanpa filter scope) + filter (segment,
+    temperature, activity stage, PIC, Tim, priority range, outcome, follow-up status, lead age,
+    idle days) + toggle "Punya Saya / Semua" + pagination.
+14. API `GET /api/marketing/leads/[id]` — detail lengkap (boleh dibuka siapa pun): identitas,
+    segmentasi, temperatur, priority, aktivitas, follow-up, assignment history, summary. Sertakan
+    flag `canAct` di response supaya UI tahu tombol aksi ditampilkan/disabled.
 15. API `PATCH /api/marketing/leads/[id]` — update field manual (displayName, company, segmentId,
-    dll) + tulis history + audit.
+    dll). **Cek `canActOnLead` → 403 kalau bukan PIC/SPV/Manager.** Tulis history + audit.
 16. Halaman `/marketing/leads` — list (mobile: nama/segment/temp/activity/priority/next follow up;
-    desktop tambah PIC/last interaction/idle days/outcome/created). Filter kombinasi, URL simpan
-    state di desktop.
-17. Halaman `/marketing/leads/[id]` — 10 section sesuai `docs/03` §6 + quick action (Chat, Tambah
-    Aktivitas, Buat Follow Up, Ubah Temperatur, Reassign, Won/Lost).
-18. Fitur ubah **Temperatur** (COLD/WARM/HOT) — manual update, simpan `LeadTemperatureHistory`,
-    trigger recalculate priority, audit.
-19. Fitur **Outcome** (OPEN/WON/LOST) — field terpisah dari temperatur; LOST wajib pilih
-    `LeadLostReason`; timeline event + audit.
+    desktop tambah PIC/last interaction/idle days/outcome/created). Default tampil SEMUA lead,
+    kolom PIC selalu terlihat. Filter kombinasi, URL simpan state di desktop.
+17. Halaman `/marketing/leads/[id]` — 10 section sesuai `docs/03` §6. Quick action (Chat, Tambah
+    Aktivitas, Buat Follow Up, Ubah Temperatur, Won/Lost) hanya aktif kalau `canAct`; kalau tidak,
+    tombol disabled + CTA "Ambil Alih". Reassign selalu terlihat untuk SPV/Manager.
+18. Fitur ubah **Temperatur** (COLD/WARM/HOT) — manual update (PIC/SPV/Manager saja), simpan
+    `LeadTemperatureHistory`, trigger recalculate priority, audit.
+19. Fitur **Outcome** (OPEN/WON/LOST) — field terpisah dari temperatur; PIC/SPV/Manager saja;
+    LOST wajib pilih `LeadLostReason`; timeline event + audit.
 
 ---
 
 ## FASE 3 — Aktivitas & Follow Up
 
 20. API + UI **Aktivitas**: `POST /api/marketing/leads/[id]/activities` (type, occurred_at, note,
-    result, attachment, source). Tampil chronological. Menambah aktivitas bisa menggeser
-    activity stage bila rule terpenuhi + recalculate priority + audit.
-21. API + UI **Follow Up**: buat follow up (schedule date/time, tujuan, PIC, note). Status
-    OPEN/COMPLETED/CANCELLED. Overdue = derived (bukan enum).
-22. Flow **selesaikan follow up** — wajib isi `result` (8 hasil baseline), `completed_at`, opsi
-    langsung buat "next follow up" dari layar completion.
-23. Halaman `/marketing/follow-up` — daftar follow up Sales: Hari Ini, Akan Datang, Terlambat.
-    KPI on-time bisa dihitung.
+    result, attachment, source) — cek `canActOnLead`. Timeline aktivitas boleh DILIHAT semua Tim.
+    Menambah aktivitas bisa menggeser activity stage bila rule terpenuhi + recalculate priority +
+    audit.
+21. API + UI **Follow Up**: buat follow up (schedule date/time, tujuan, PIC, note) — cek
+    `canActOnLead`. Status OPEN/COMPLETED/CANCELLED. Overdue = derived (bukan enum).
+22. Flow **selesaikan follow up** (PIC/SPV/Manager) — wajib isi `result` (8 hasil baseline),
+    `completed_at`, opsi langsung buat "next follow up" dari layar completion.
+23. Halaman `/marketing/follow-up` — default daftar follow up **milik saya** (Hari Ini, Akan
+    Datang, Terlambat) + toggle "Semua Tim" untuk pantau follow up semua orang. KPI on-time
+    dihitung per orang.
 24. Cron reminder follow up (`src/lib/cron/`): Scheduled (sebelum jatuh tempo), Due (saat jatuh
     tempo), Overdue (lewat batas). Simpan dedupe key di `LeadNotification` — 1 event tidak spam.
 
@@ -135,7 +171,11 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 
 ---
 
-## FASE 8 — SPV & Manager
+## FASE 8 — SPV & Manager (view monitoring, bukan gerbang akses)
+
+> Karena semua data sudah terbuka untuk semua Tim, halaman-halaman di fase ini adalah **cara
+> pandang teragregasi** (per sales / per tim / funnel), bukan pembatas akses. Sales pun boleh
+> membukanya kalau mau lihat performa tim.
 
 41. API + halaman **SPV Team Dashboard** (`/marketing/tim`) — KPI tim (lead aktif, hot, overdue
     follow up, chat belum dibalas, priority lead, won, follow up discipline, response time) +
@@ -152,8 +192,9 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 ## FASE 9 — Notification & Audit
 
 45. `LeadNotification` — engine notifikasi: lead di-assign, pesan baru, follow up due/overdue,
-    Hot Lead tidak dibalas, reassign, eskalasi SPV, AI high buying signal. Role-aware,
-    scope-aware, deduplicated, simpan status sent/read, punya deep link.
+    Hot Lead tidak dibalas, reassign, eskalasi SPV, AI high buying signal. **Notifikasi
+    ditargetkan ke PIC lead + SPV/Manager terkait** (bukan broadcast ke semua Tim, walau semua
+    Tim bisa lihat leadnya). Deduplicated, simpan status sent/read, punya deep link.
 46. Halaman Notification Center + notification bell (unread count, mark all read, klik → deep link
     ke conversation / lead detail).
 47. Web Push (PWA) — `PushSubscription`, service worker, subscribe flow, kirim push saat app
@@ -189,7 +230,8 @@ ingest pesan masuk **sudah ada**; UI pengelolaan lead **belum ada**.
 ## Catatan urutan pengerjaan
 
 - **MVP minimum** = Fase 0 → 1 → 2 → 3 → 5 (Sales bisa kerja penuh dari HP tanpa AI & tanpa
-  dashboard atasan).
+  dashboard atasan). Toggle "Punya Saya / Semua" + full transparansi chat sudah ikut sejak
+  Fase 1–2, jadi "saling pantau semua lead" tercapai sejak MVP.
 - Fase 4 (Priority) bisa dikerjakan paralel setelah Fase 3.
 - Fase 6 (AI) dan Fase 8 (SPV/Manager) menyusul setelah MVP stabil.
 - Setiap fase: `npx tsc --noEmit` bersih sebelum commit; auto commit & push per aturan `CLAUDE.md`.
