@@ -281,7 +281,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     await prisma.conversation.update({ where: { id: outConv.id }, data: { lastMessageAt: outSentAt } })
     await prisma.lead.update({
       where: { id: outLeadId },
-      data: { lastSalesMessageAt: outSentAt, lastInteractionAt: outSentAt, waGroupAlertedAt: null },
+      data: { lastSalesMessageAt: outSentAt, lastInteractionAt: outSentAt, lastChatAt: outSentAt, waGroupAlertedAt: null },
     })
     publishMarketingEvent({ type: "message", conversationId: outConv.id, leadId: outLeadId, direction: "OUTBOUND", at: outSentAt.toISOString() })
     await recalcLeadDerived(outLeadId).catch(() => {})
@@ -397,7 +397,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   })
   await prisma.lead.update({
     where: { id: leadId },
-    data: { lastCustomerMessageAt: sentAt, lastInteractionAt: sentAt },
+    data: { lastCustomerMessageAt: sentAt, lastInteractionAt: sentAt, lastChatAt: sentAt },
   })
 
   await recalcLeadDerived(leadId).catch(() => {})

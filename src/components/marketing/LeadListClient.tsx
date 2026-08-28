@@ -35,8 +35,11 @@ interface LeadRow {
   priorityLevel: string
   outcome: string
   segmentName: string | null
+  note: string | null
   pic: { id: string; name: string } | null
   lastInteractionAt: string | null
+  lastChatAt: string | null
+  lastActivity: { name: string; at: string; note: string | null } | null
   createdAt: string
   nextFollowUpAt: string | null
   idleDays: number | null
@@ -51,6 +54,18 @@ interface MetaOption {
 function fmtDate(iso: string | null) {
   if (!iso) return "—"
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "2-digit" })
+}
+
+function relTime(iso: string | null) {
+  if (!iso) return "—"
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (m < 1) return "baru saja"
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}j`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}h`
+  return fmtDate(iso)
 }
 
 export const LeadListClient: React.FC = () => {
@@ -249,7 +264,8 @@ export const LeadListClient: React.FC = () => {
         <div className="w-48">
           <Select
             options={[
-              { value: "priority", label: "Urut: Prioritas" },
+              { value: "priority", label: "Urut: Skor Prioritas" },
+              { value: "chat", label: "Urut: Chat Terakhir" },
               { value: "recent", label: "Urut: Interaksi Terbaru" },
               { value: "created", label: "Urut: Terbaru Dibuat" },
             ]}
@@ -280,9 +296,10 @@ export const LeadListClient: React.FC = () => {
                     <TableHead>Segmen</TableHead>
                     <TableHead>Temp</TableHead>
                     <TableHead>Tahap</TableHead>
+                    <TableHead>Aktivitas Terakhir</TableHead>
                     <TableHead className="text-right">Skor</TableHead>
                     <TableHead>PIC</TableHead>
-                    <TableHead>Idle</TableHead>
+                    <TableHead>Chat Terakhir</TableHead>
                     <TableHead>Follow Up</TableHead>
                     <TableHead>Outcome</TableHead>
                   </TableRow>
@@ -295,15 +312,26 @@ export const LeadListClient: React.FC = () => {
                           {l.displayName}
                         </Link>
                         <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
+                        {l.note && <div className="text-xs text-amber-700 italic truncate max-w-[220px] mt-0.5">📌 {l.note}</div>}
                       </TableCell>
                       <TableCell className="text-slate-600">{l.segmentName ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
                       </TableCell>
                       <TableCell className="text-slate-600">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</TableCell>
+                      <TableCell className="text-slate-600">
+                        {l.lastActivity ? (
+                          <>
+                            {l.lastActivity.name}
+                            <span className="text-xs text-slate-400"> · {relTime(l.lastActivity.at)}</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-bold text-slate-700">{Math.round(l.priorityScore)}</TableCell>
                       <TableCell className="text-slate-600">{l.pic?.name ?? "—"}</TableCell>
-                      <TableCell className="text-slate-500">{l.idleDays != null ? `${l.idleDays}h` : "—"}</TableCell>
+                      <TableCell className="text-slate-500">{relTime(l.lastChatAt)}</TableCell>
                       <TableCell className="text-slate-500">{fmtDate(l.nextFollowUpAt)}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" size="sm">{l.outcome}</Badge>
@@ -326,12 +354,17 @@ export const LeadListClient: React.FC = () => {
                       <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
+                    {l.note && <p className="text-xs text-amber-700 italic truncate mt-0.5">📌 {l.note}</p>}
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {l.segmentName && <Badge variant="secondary" size="sm">{l.segmentName}</Badge>}
                       <Badge variant="secondary" size="sm">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</Badge>
                       <Badge variant="info" size="sm">Skor {Math.round(l.priorityScore)}</Badge>
                       {l.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{l.outcome}</Badge>}
                       {l.pic && <span className="text-[10px] font-semibold text-slate-400">PIC: {l.pic.name}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                      <span>💬 {relTime(l.lastChatAt)}</span>
+                      {l.lastActivity && <span>· {l.lastActivity.name} {relTime(l.lastActivity.at)}</span>}
                     </div>
                   </Card>
                 </Link>

@@ -46,9 +46,11 @@ export async function GET(request: Request) {
   const orderBy: Prisma.LeadOrderByWithRelationInput[] =
     sort === "recent"
       ? [{ lastInteractionAt: { sort: "desc", nulls: "last" } }]
-      : sort === "created"
-        ? [{ createdAt: "desc" }]
-        : [{ priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
+      : sort === "chat"
+        ? [{ lastChatAt: { sort: "desc", nulls: "last" } }]
+        : sort === "created"
+          ? [{ createdAt: "desc" }]
+          : [{ priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
 
   const [total, rows] = await Promise.all([
     prisma.lead.count({ where }),
@@ -68,15 +70,17 @@ export async function GET(request: Request) {
         priorityLevel: true,
         outcome: true,
         lastInteractionAt: true,
+        lastChatAt: true,
         firstContactAt: true,
         createdAt: true,
+        note: true,
         segment: { select: { name: true } },
       },
     }),
   ])
 
   const leadIds = rows.map((r) => r.id)
-  const [assignments, nextFollowUps, actable] = await Promise.all([
+  const [assignments, nextFollowUps, lastActivities, actable] = await Promise.all([
     prisma.leadAssignment.findMany({
       where: { leadId: { in: leadIds }, isActive: true },
       select: { leadId: true, assignedUser: { select: { id: true, name: true } } },
@@ -86,14 +90,22 @@ export async function GET(request: Request) {
       where: { leadId: { in: leadIds }, status: "OPEN" },
       _min: { scheduledAt: true },
     }),
+    prisma.leadActivity.findMany({
+      where: { leadId: { in: leadIds }, isVoid: false },
+      orderBy: [{ leadId: "asc" }, { occurredAt: "desc" }],
+      distinct: ["leadId"],
+      select: { leadId: true, occurredAt: true, note: true, activityType: { select: { name: true } } },
+    }),
     actableLeadIds(user, leadIds),
   ])
   const picByLead = new Map(assignments.map((a) => [a.leadId, a.assignedUser]))
   const nextFuByLead = new Map(nextFollowUps.map((g) => [g.leadId, g._min.scheduledAt]))
+  const lastActByLead = new Map(lastActivities.map((a) => [a.leadId, a]))
   const now = Date.now()
 
   const leads = rows.map((r) => {
     const ref = r.lastInteractionAt ?? r.firstContactAt
+    const act = lastActByLead.get(r.id)
     return {
       id: r.id,
       displayName: r.displayName,
@@ -105,8 +117,11 @@ export async function GET(request: Request) {
       priorityLevel: r.priorityLevel,
       outcome: r.outcome,
       segmentName: r.segment?.name ?? null,
+      note: r.note ?? null,
       pic: picByLead.get(r.id) ?? null,
       lastInteractionAt: r.lastInteractionAt?.toISOString() ?? null,
+      lastChatAt: r.lastChatAt?.toISOString() ?? null,
+      lastActivity: act ? { name: act.activityType.name, at: act.occurredAt.toISOString(), note: act.note ?? null } : null,
       createdAt: r.createdAt.toISOString(),
       nextFollowUpAt: nextFuByLead.get(r.id)?.toISOString() ?? null,
       idleDays: ref ? Math.floor((now - ref.getTime()) / 86400000) : null,

@@ -131,6 +131,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ("city" in body) data.city = str(body.city) || null
   if ("sourceId" in body) data.sourceId = str(body.sourceId) || null
   if ("segmentId" in body) data.segmentId = str(body.segmentId) || null
+  if ("note" in body) data.note = str(body.note) || null
 
   if (Object.keys(data).length === 0) return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 })
 
@@ -174,6 +175,7 @@ function serializeLead(lead: any) {
     whatsappNumber: lead.whatsappNumber,
     email: lead.email,
     city: lead.city,
+    note: lead.note ?? null,
     temperature: lead.temperature,
     temperatureSource: lead.temperatureSource,
     outcome: lead.outcome,
@@ -185,6 +187,7 @@ function serializeLead(lead: any) {
     lostReason: lead.lostReason,
     firstContactAt: lead.firstContactAt?.toISOString() ?? null,
     lastInteractionAt: lead.lastInteractionAt?.toISOString() ?? null,
+    lastChatAt: lead.lastChatAt?.toISOString() ?? null,
     lastCustomerMessageAt: lead.lastCustomerMessageAt?.toISOString() ?? null,
     lastSalesMessageAt: lead.lastSalesMessageAt?.toISOString() ?? null,
     wonAt: lead.wonAt?.toISOString() ?? null,

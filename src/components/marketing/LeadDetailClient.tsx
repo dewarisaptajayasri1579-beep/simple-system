@@ -148,7 +148,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [fuForm, setFuForm] = useState({ scheduledAt: "", purpose: "", note: "" })
   const [completingFu, setCompletingFu] = useState<string | null>(null)
 
-  const [form, setForm] = useState({ displayName: "", companyName: "", contactName: "", email: "", city: "", segmentId: "" })
+  const [form, setForm] = useState({ displayName: "", companyName: "", contactName: "", email: "", city: "", segmentId: "", note: "" })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -174,6 +174,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         email: data.lead.email ?? "",
         city: data.lead.city ?? "",
         segmentId: data.lead.segment?.id ?? "",
+        note: data.lead.note ?? "",
       })
     } finally {
       setLoading(false)
@@ -595,6 +596,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                     email: form.email,
                     city: form.city,
                     segmentId: form.segmentId,
+                    note: form.note,
                   },
                   "PATCH",
                 )
@@ -650,6 +652,18 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               })}
             </div>
             <p className="mt-1 text-[11px] text-slate-400">Klik untuk langsung ganti — tersimpan otomatis.</p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Catatan</label>
+            <Textarea
+              className="mt-1.5"
+              value={form.note}
+              disabled={!canAct}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              rows={2}
+              placeholder="Catatan singkat soal lead ini — tampil juga di daftar lead"
+              sizeVariant="sm"
+            />
           </div>
         </div>
       </Section>

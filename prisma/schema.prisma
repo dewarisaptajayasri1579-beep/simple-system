@@ -1193,6 +1193,12 @@ model Lead {
   lastInteractionAt      DateTime? @map("last_interaction_at")
   lastCustomerMessageAt  DateTime? @map("last_customer_message_at")
   lastSalesMessageAt     DateTime? @map("last_sales_message_at")
+  // Waktu pesan WA TERAKHIR di percakapan ini (masuk ATAU keluar) — dipakai buat sort "Chat
+  // Terakhir" & kolom "Terakhir komunikasi" di daftar lead. Beda dari lastInteractionAt yang
+  // ikut kegeser aktivitas internal / follow up.
+  lastChatAt             DateTime? @map("last_chat_at")
+  // Catatan singkat / pinned note per lead (freeform), tampil di daftar & detail.
+  note                   String?
   // outcome WON wajib wonAt terisi, outcome LOST wajib lostAt terisi — divalidasi di service
   // layer (endpoint Won/Lost, lihat docs/04-database.md §28), bukan DB constraint.
   wonAt                  DateTime? @map("won_at")
@@ -1229,6 +1235,7 @@ model Lead {
   @@index([outcome])
   @@index([priorityScore])
   @@index([lastInteractionAt])
+  @@index([lastChatAt])
   @@index([createdAt])
   @@index([lostReasonId])
   // Scan cron alert "lead belum direspon" (outcome OPEN + belum di-alert + pesan customer lama).
