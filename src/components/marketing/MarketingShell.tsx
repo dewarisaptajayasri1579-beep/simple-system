@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import {
   ArrowLeftRight,
   BarChart2,
-  Bell,
   CalendarClock,
   LayoutGrid,
   LogOut,
@@ -15,6 +14,8 @@ import {
   QrCode,
   Users,
 } from "lucide-react"
+
+import { NotificationBell } from "./NotificationBell"
 
 interface NavItem {
   label: string
@@ -119,14 +120,7 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              title="Notifikasi — segera hadir"
-              disabled
-              className="flex items-center justify-center w-9 h-9 rounded-2xl bg-white/70 border border-slate-200/80 text-slate-400 opacity-60 cursor-not-allowed"
-            >
-              <Bell className="w-4 h-4" />
-            </button>
+            <NotificationBell />
 
             <div className="relative lg:hidden">
               <button

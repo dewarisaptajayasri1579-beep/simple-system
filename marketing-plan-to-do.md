@@ -267,18 +267,20 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 9 — Notification & Audit
+## FASE 9 — Notification & Audit — SELESAI
 
-45. `LeadNotification` — engine notifikasi: lead di-assign, pesan baru, follow up due/overdue,
-    Hot Lead tidak dibalas, reassign, eskalasi SPV, AI high buying signal. **Notifikasi
-    ditargetkan ke PIC lead + SPV/Manager terkait** (bukan broadcast ke semua Tim, walau semua
-    Tim bisa lihat leadnya). Deduplicated, simpan status sent/read, punya deep link.
-46. Halaman Notification Center + notification bell (unread count, mark all read, klik → deep link
-    ke conversation / lead detail).
-47. Web Push (PWA) — `PushSubscription`, service worker, subscribe flow, kirim push saat app
-    background/closed. Realtime (app terbuka) dan push (background) dipisah.
-48. Halaman **Timeline/Audit** user-friendly di Lead Detail — tampilkan `AuditLog` sebagai riwayat
-    yang mudah dibaca staf.
+45. [x] `createNotification()` (`src/lib/marketing/notify.ts`) — dedupe via `dedupeKey` unik
+    (`createMany skipDuplicates`). Produser aktif: follow up due/overdue (cron), lead di-assign /
+    takeover / reassign (assignments route), **pesan customer baru** (webhook, dedupe per menit).
+    Semua ditarget ke PIC. (Eskalasi SPV & AI signal menyusul.)
+46. [x] `GET/POST /api/marketing/notifications` (list 50 + unreadCount; mark `{id}` / `{all:true}`).
+    `NotificationBell` di `MarketingShell` (badge unread, poll 30 dtk, tandai semua dibaca, klik →
+    deep link + auto-mark). Menggantikan bell disabled.
+47. [~] Web Push — `GET/POST/DELETE /api/marketing/push` (VAPID public key + simpan/hapus
+    `PushSubscription`). `sendWebPush()` stub (no-op sampai VAPID di-set). **Service worker +
+    subscribe UI + `npm i web-push` = Fase 10.**
+48. [x] Section "Timeline / Audit" di `LeadDetailClient` — `AuditLog` (entityType lead +
+    conversation lead ini) 40 terakhir, label Indonesia (`AUDIT_LABEL`), actor + waktu.
 
 ---
 

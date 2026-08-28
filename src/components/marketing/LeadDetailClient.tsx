@@ -79,6 +79,19 @@ interface LeadDetail {
   latestPriority: { score: number; level: string; reasonJson: unknown; calculatedAt: string } | null
 }
 
+const AUDIT_LABEL: Record<string, string> = {
+  "marketing.lead.update": "Ubah data lead",
+  "marketing.lead.temperature": "Ubah temperatur",
+  "marketing.lead.outcome": "Ubah outcome",
+  "marketing.activity.create": "Tambah aktivitas",
+  "marketing.followup.create": "Buat follow up",
+  "marketing.followup.complete": "Selesaikan follow up",
+  "marketing.followup.cancel": "Batalkan follow up",
+  "marketing.assignment.takeover": "Ambil alih PIC",
+  "marketing.assignment.reassign": "Reassign PIC",
+  "marketing.message.send": "Kirim pesan",
+}
+
 const TEMPS = ["COLD", "WARM", "HOT"] as const
 const OUTCOMES = ["OPEN", "WON", "LOST"] as const
 const TEMP_BTN: Record<string, string> = {
@@ -98,6 +111,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [canAct, setCanAct] = useState(false)
   const [viewerRole, setViewerRole] = useState<"MANAGER" | "SPV" | "SALES">("SALES")
   const [isCurrentPic, setIsCurrentPic] = useState(false)
+  const [auditTrail, setAuditTrail] = useState<{ id: string; action: string; actor: string; at: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -136,6 +150,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       setCanAct(data.canAct)
       setViewerRole(data.viewerRole ?? "SALES")
       setIsCurrentPic(Boolean(data.isCurrentPic))
+      setAuditTrail(data.auditTrail ?? [])
       setForm({
         displayName: data.lead.displayName ?? "",
         companyName: data.lead.companyName ?? "",
@@ -608,6 +623,18 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 {fmt(h.createdAt)}
                 {h.changedByUser && <span className="text-slate-400"> · {h.changedByUser.name}</span>}
                 {h.reason && <span className="text-slate-400"> · {h.reason}</span>}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {auditTrail.length > 0 && (
+        <Section title="Timeline / Audit">
+          <ul className="flex flex-col gap-1 text-xs text-slate-500">
+            {auditTrail.map((a) => (
+              <li key={a.id}>
+                <span className="font-semibold text-slate-700">{AUDIT_LABEL[a.action] ?? a.action}</span> · {a.actor} · {fmt(a.at)}
               </li>
             ))}
           </ul>

@@ -53,11 +53,38 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   })
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
 
-  const [canAct, viewerRole] = await Promise.all([canActOnLead(user, id), resolveMarketingRole(user.id, user.role)])
+  const convIds = lead.conversations.map((c) => c.id)
+  const [canAct, viewerRole, auditRows] = await Promise.all([
+    canActOnLead(user, id),
+    resolveMarketingRole(user.id, user.role),
+    prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityType: "lead", entityId: id },
+          { entityType: "conversation", entityId: { in: convIds.length ? convIds : ["_none_"] } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      select: { id: true, action: true, createdAt: true, actorUser: { select: { name: true } } },
+    }),
+  ])
   const activePic = lead.assignments.find((a) => a.isActive)?.assignedUser ?? null
   const isCurrentPic = activePic?.id === user.id
 
-  return NextResponse.json({ lead: serializeLead(lead), pic: activePic, canAct, viewerRole, isCurrentPic })
+  return NextResponse.json({
+    lead: serializeLead(lead),
+    pic: activePic,
+    canAct,
+    viewerRole,
+    isCurrentPic,
+    auditTrail: auditRows.map((a) => ({
+      id: a.id,
+      action: a.action,
+      actor: a.actorUser?.name ?? "Sistem",
+      at: a.createdAt.toISOString(),
+    })),
+  })
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
