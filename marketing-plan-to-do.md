@@ -125,26 +125,29 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 2 — Lead Management
+## FASE 2 — Lead Management — SELESAI
 
-13. API `GET /api/marketing/leads` — list SEMUA lead (tanpa filter scope) + filter (segment,
-    temperature, activity stage, PIC, Tim, priority range, outcome, follow-up status, lead age,
-    idle days) + toggle "Punya Saya / Semua" + pagination.
-14. API `GET /api/marketing/leads/[id]` — detail lengkap (boleh dibuka siapa pun): identitas,
-    segmentasi, temperatur, priority, aktivitas, follow-up, assignment history, summary. Sertakan
-    flag `canAct` di response supaya UI tahu tombol aksi ditampilkan/disabled.
-15. API `PATCH /api/marketing/leads/[id]` — update field manual (displayName, company, segmentId,
-    dll). **Cek `canActOnLead` → 403 kalau bukan PIC/SPV/Manager.** Tulis history + audit.
-16. Halaman `/marketing/leads` — list (mobile: nama/segment/temp/activity/priority/next follow up;
-    desktop tambah PIC/last interaction/idle days/outcome/created). Default tampil SEMUA lead,
-    kolom PIC selalu terlihat. Filter kombinasi, URL simpan state di desktop.
-17. Halaman `/marketing/leads/[id]` — 10 section sesuai `docs/03` §6. Quick action (Chat, Tambah
-    Aktivitas, Buat Follow Up, Ubah Temperatur, Won/Lost) hanya aktif kalau `canAct`; kalau tidak,
-    tombol disabled + CTA "Ambil Alih". Reassign selalu terlihat untuk SPV/Manager.
-18. Fitur ubah **Temperatur** (COLD/WARM/HOT) — manual update (PIC/SPV/Manager saja), simpan
-    `LeadTemperatureHistory`, trigger recalculate priority, audit.
-19. Fitur **Outcome** (OPEN/WON/LOST) — field terpisah dari temperatur; PIC/SPV/Manager saja;
-    LOST wajib pilih `LeadLostReason`; timeline event + audit.
+13. [x] `GET /api/marketing/leads` — list semua lead; `scope=all|mine`, `q`, `segmentId`,
+    `temperature`, `stage`, `outcome`, `priorityLevel`, `picUserId`, `sort=priority|recent|created`,
+    `page`/`limit`. Batch PIC + next-follow-up (`groupBy _min scheduledAt`) + `actableLeadIds` +
+    `idleDays` (anti N+1). `GET /api/marketing/meta` — opsi segmen/sumber/lostReason/user/activity
+    type/result type untuk dropdown.
+14. [x] `GET /api/marketing/leads/[id]` — detail lengkap: identitas, segmen/sumber, temperatur,
+    priority (+snapshot terakhir), aktivitas (30), follow up (30), riwayat penugasan, riwayat
+    temperatur, conversations. Bawa `canAct` + `pic`.
+15. [x] `PATCH /api/marketing/leads/[id]` — edit displayName/company/contact/email/city/segmentId
+    (`canActOnLead` → 403). Ganti segmen → tulis `LeadSegmentHistory` (transaction). Audit before/after.
+16. [x] Halaman `/marketing/leads` (`LeadListClient`) — tabel (desktop) + kartu (mobile), filter
+    kombinasi (segmen/temp/tahap/outcome/prioritas/PIC/sort) + toggle Semua Tim/Punya Saya +
+    search debounce. Kolom PIC selalu ada.
+17. [x] Halaman `/marketing/leads/[id]` (`LeadDetailClient`) — section: header (+Chat), Temperatur,
+    Outcome, Prioritas, Identitas & Segmen (form), Aktivitas, Follow Up, Riwayat Penugasan, Riwayat
+    Temperatur. Tombol aksi disabled + banner "memantau" kalau `!canAct`. (Tambah aktivitas / buat
+    follow up = Fase 3; Ambil Alih / Reassign = Fase 7.)
+18. [x] `POST /api/marketing/leads/[id]/temperature` (COLD/WARM/HOT) — `canActOnLead`, no-op kalau
+    sama, tulis `LeadTemperatureHistory`, panggil `recalcLeadPriority` (stub Fase 4), audit.
+19. [x] `POST /api/marketing/leads/[id]/outcome` (OPEN/WON/LOST) — `canActOnLead`; WON→`wonAt`,
+    LOST→wajib `lostReasonId`+`lostAt`, OPEN→bersihkan; audit. (Event timeline pakai audit dulu.)
 
 ---
 

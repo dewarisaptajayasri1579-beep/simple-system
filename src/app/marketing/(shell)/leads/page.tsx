@@ -1,5 +1,5 @@
-import { MarketingComingSoon } from "@/components/marketing/MarketingComingSoon"
+import { LeadListClient } from "@/components/marketing/LeadListClient"
 
 export default function MarketingLeadsPage() {
-  return <MarketingComingSoon title="Lead" note="Daftar semua lead + filter + detail lead — Fase 2." />
+  return <LeadListClient />
 }
