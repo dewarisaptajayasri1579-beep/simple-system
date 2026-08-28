@@ -22,6 +22,8 @@ export async function GET(request: Request) {
 
   const base: Prisma.LeadFollowUpWhereInput = {}
   if (scope === "mine") base.assignedUserId = user.id
+  const assignedUserId = sp.get("assignedUserId")
+  if (assignedUserId) base.assignedUserId = assignedUserId
 
   const sot = startOfToday()
   const eot = endOfToday()
