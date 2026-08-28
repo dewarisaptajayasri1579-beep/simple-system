@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Send, Sparkles } from "lucide-react"
+import { ArrowLeft, Paperclip, Send, Sparkles } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { tempBadgeVariant } from "./ui"
@@ -47,6 +47,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
+  const [mediaUrl, setMediaUrl] = useState("")
   const [sending, setSending] = useState(false)
   const [usedSuggestionId, setUsedSuggestionId] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<{ id: string; style: string; text: string }[]>([])
@@ -143,13 +144,14 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
 
   const send = async () => {
     const text = draft.trim()
-    if (!text || sending) return
+    const media = mediaUrl.trim()
+    if ((!text && !media) || sending) return
     setSending(true)
     try {
       const res = await fetch(`/api/marketing/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text, aiSuggestionId: usedSuggestionId }),
+        body: JSON.stringify({ body: text, mediaUrl: media || undefined, aiSuggestionId: usedSuggestionId }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -158,6 +160,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       }
       setError(null)
       setDraft("")
+      setMediaUrl("")
       setUsedSuggestionId(null)
       setMessages((prev) => [...prev, data.message])
     } finally {
@@ -207,7 +210,16 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
                   out ? "bg-blue-600 text-white rounded-br-md" : "bg-white border border-slate-200 text-slate-800 rounded-bl-md"
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                {m.mediaUrl && m.messageType === "IMAGE" && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.mediaUrl} alt="lampiran" className="rounded-lg max-w-full mb-1 max-h-64 object-cover" />
+                )}
+                {m.mediaUrl && m.messageType !== "IMAGE" && (
+                  <a href={m.mediaUrl} target="_blank" rel="noreferrer" className={`underline text-xs ${out ? "text-blue-100" : "text-blue-700"}`}>
+                    📎 Lampiran ({m.messageType.toLowerCase()})
+                  </a>
+                )}
+                {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
                 <p className={`text-[10px] mt-1 ${out ? "text-blue-100" : "text-slate-400"}`}>
                   {clockTime(m.sentAt)}
                   {out && m.deliveryStatus ? ` · ${m.deliveryStatus.toLowerCase()}` : ""}
@@ -260,8 +272,26 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
         </div>
       )}
 
+      {meta.canAct && mediaUrl && (
+        <div className="pb-2 text-xs text-slate-500 flex items-center gap-2">
+          <span className="truncate">📎 {mediaUrl}</span>
+          <button onClick={() => setMediaUrl("")} className="text-rose-600 font-bold flex-shrink-0">hapus</button>
+        </div>
+      )}
       {meta.canAct ? (
         <div className="flex items-end gap-2 pt-2 border-t border-slate-200">
+          <button
+            type="button"
+            title="Lampirkan gambar via URL"
+            onClick={() => {
+              const u = window.prompt("URL gambar/dokumen (https://…):")
+              if (u && /^https?:\/\//.test(u)) setMediaUrl(u.trim())
+            }}
+            disabled={!meta.hasWhatsappConnection}
+            className="w-11 h-11 rounded-2xl border border-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

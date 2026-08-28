@@ -152,6 +152,22 @@ export async function sendWhatsappMessageFromSession(sessionId: string, rawNumbe
   return res.json() as Promise<{ success: boolean }>
 }
 
+/** Kirim media (gambar/dokumen via URL, WAHUB yang fetch) + caption dari session Sales tertentu. */
+export async function sendWhatsappMediaFromSession(sessionId: string, rawNumber: string, mediaUrl: string, caption?: string) {
+  requireMarketingWahubEnv()
+  const number = rawNumber.includes("@") ? rawNumber : normalizePhoneNumber(rawNumber)
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/messages/send-media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": MARKETING_WAHUB_API_KEY! },
+    body: JSON.stringify({ sessionId, number, mediaUrl, caption }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal kirim media (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ success: boolean }>
+}
+
 /** Daftarkan ulang webhook sesi WAHUB milik simple-system — dipanggil tiap kali server start
  *  (lihat instrumentation.ts).
  *  PENTING: sesi WAHUB cuma bisa punya SATU webhookUrl aktif. Sejak simple-system ikut memakai

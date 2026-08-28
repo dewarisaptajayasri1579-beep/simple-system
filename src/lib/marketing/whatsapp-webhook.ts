@@ -1,52 +1,133 @@
+import { createHash } from "node:crypto"
+
 import { normalizePhoneNumber } from "@/lib/wahub"
 import { prisma } from "@/lib/prisma"
+import { analyzeLead } from "@/lib/marketing/ai"
 import { createNotification } from "@/lib/marketing/notify"
+import { findDuplicateLead } from "@/lib/marketing/duplicate"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 
 interface WahubIncomingMessage {
+  id?: string
   from?: string
   senderNumber?: string
   senderName?: string
-  /** JID chat asal pesan — beda dari "from" kalau grup ("from" sudah di-resolve ke pengirimnya).
-   *  Grup selalu berakhiran "@g.us", diabaikan di sini (Simple Lead cuma urus chat 1:1). */
   chatId?: string
   to?: string
   body?: string
+  /** Baileys ack: 1=pending 2=server(sent) 3=delivered 4=read 5=played */
+  ack?: number
+  type?: string // "text" | "image" | "document" | "audio" | "video" | ...
+  mediaUrl?: string
+  mimetype?: string
+  caption?: string
   timestamp?: number
 }
 
 interface WahubWebhookPayload {
   sessionId?: string
+  event?: string
   message?: WahubIncomingMessage
 }
 
-/** Ingest 1 pesan WhatsApp masuk dari session Sales tertentu jadi Lead/Conversation/Message.
- *  `localSessionId` = bagian lokal sessionId (query param `session`, sama dengan
- *  WhatsappConnection.wahubSessionId) — dipakai cari pemilik koneksi ini, BUKAN payload.sessionId
- *  (itu versi sudah di-prefix WAHUB, lihat docs/04-database.md §11.1).
- *
- *  Auto-segmentasi AI (docs §9.1) belum diimplementasi di sini — segmentId sengaja dibiarkan null
- *  saat lead baru dibuat, menyusul di fase AI Analysis. */
+const MEDIA_TYPE_MAP: Record<string, string> = {
+  image: "IMAGE",
+  document: "DOCUMENT",
+  audio: "AUDIO",
+  ptt: "AUDIO",
+  video: "OTHER",
+  sticker: "OTHER",
+}
+
+/** Idempotency key stabil untuk 1 pesan — pakai `id` dari WAHUB kalau ada, kalau tidak
+ *  sintetik dari (pengirim + timestamp + hash isi). */
+function messageKey(m: WahubIncomingMessage, digits: string): string {
+  if (m.id) return `wahub:${m.id}`
+  const h = createHash("sha1").update(`${m.body ?? ""}|${m.mediaUrl ?? ""}`).digest("hex").slice(0, 12)
+  return `wahub:${digits}:${m.timestamp ?? 0}:${h}`
+}
+
+/**
+ * Ingest 1 event WhatsApp dari session Sales. Menangani:
+ *  - pesan masuk (TEXT / media) → Lead / Conversation / Message (idempotent)
+ *  - status/ack pesan keluar → update Message.deliveryStatus
+ *  - raw event dicatat di LeadWebhookEvent untuk debug/idempotency
+ */
 export async function handleMarketingWhatsappWebhook(localSessionId: string, payload: WahubWebhookPayload) {
   const connection = await prisma.whatsappConnection.findUnique({ where: { wahubSessionId: localSessionId } })
   if (!connection) return { skipped: "unknown session" }
 
   const message = payload.message
-  if (!message?.from) return { skipped: "no message" }
+  if (!message) return { skipped: "no message" }
+
+  const digits = message.senderNumber || (message.from ? message.from.replace(/@.*$/, "") : "")
+  const eventId = message.id ? `wahub:${message.id}` : `${localSessionId}:${digits}:${message.timestamp ?? Date.now()}:${message.ack ?? "m"}`
+
+  // Raw log (best-effort, unik per event → retry provider tidak dobel proses).
+  const logged = await prisma.leadWebhookEvent
+    .create({
+      data: {
+        provider: "wahub",
+        providerEventId: eventId,
+        eventType: message.ack != null ? "status" : "message",
+        payload: payload as object,
+      },
+    })
+    .then(() => true)
+    .catch(() => false) // P2002 = sudah pernah diproses
+
+  if (!logged) return { skipped: "duplicate event" }
+
+  // ---- Status / ack pesan keluar ----
+  if (message.ack != null && message.to !== "me") {
+    const status = message.ack >= 4 ? "READ" : message.ack === 3 ? "DELIVERED" : message.ack === 2 ? "SENT" : null
+    if (status && message.id) {
+      await prisma.message.updateMany({ where: { providerMessageId: `wahub:${message.id}` }, data: { deliveryStatus: status } })
+    }
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    return { handled: true, statusUpdate: status }
+  }
+
+  // ---- Pesan masuk ----
+  if (!message.from) return { skipped: "no from" }
   if (message.to !== "me") return { skipped: "outgoing message" }
-  if (!message.body?.trim()) return { skipped: "empty body" }
 
   const chatId = message.chatId || message.from
   if (chatId.endsWith("@g.us")) return { skipped: "group message" }
 
-  const digits = message.senderNumber || message.from.replace(/@.*$/, "")
+  const isMedia = message.type && message.type !== "text" && message.type !== "chat"
+  const messageType = isMedia ? MEDIA_TYPE_MAP[message.type!] ?? "OTHER" : "TEXT"
+  const bodyText = isMedia ? message.caption?.trim() || null : message.body?.trim() || null
+  if (!isMedia && !bodyText) return { skipped: "empty body" }
+
   const whatsappNumber = normalizePhoneNumber(digits)
   const sentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
+  const providerMessageId = messageKey(message, digits)
 
-  let lead = await prisma.lead.findFirst({ where: { whatsappNumber } })
-  if (!lead) {
+  // Idempotency di level pesan.
+  const existing = await prisma.message.findUnique({ where: { providerMessageId }, select: { id: true } })
+  if (existing) {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    return { skipped: "duplicate message" }
+  }
+
+  const dup = await findDuplicateLead(whatsappNumber)
+  let leadId: string
+  let leadName: string
+  let isNewLead = false
+  if (dup) {
+    leadId = dup.leadId
+    leadName = dup.displayName
+    // Lead WON/LOST yang recent dihubungi lagi → buka kembali (docs §27).
+    if (dup.outcome !== "OPEN") {
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { outcome: "OPEN", wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null },
+      })
+    }
+  } else {
     const source = await prisma.leadSource.findUnique({ where: { code: "WHATSAPP" } })
-    lead = await prisma.lead.create({
+    const lead = await prisma.lead.create({
       data: {
         displayName: message.senderName || whatsappNumber,
         whatsappNumber,
@@ -57,20 +138,19 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     await prisma.leadAssignment.create({
       data: { leadId: lead.id, assignedUserId: connection.userId, assignmentType: "PRIMARY" },
     })
+    leadId = lead.id
+    leadName = lead.displayName
+    isNewLead = true
   }
 
-  // providerConversationId di-namespace per session (bukan cuma chatId polos) — customer yang
-  // sama bisa punya JID identik ke lebih dari 1 nomor Sales (2 conversation berbeda), jadi
-  // (provider, providerConversationId) globalnya harus tetap unik per session.
   const providerConversationId = `${connection.wahubSessionId}:${chatId}`
-
   let conversation = await prisma.conversation.findUnique({
     where: { provider_providerConversationId: { provider: "wahub", providerConversationId } },
   })
   if (!conversation) {
     conversation = await prisma.conversation.create({
       data: {
-        leadId: lead.id,
+        leadId,
         whatsappConnectionId: connection.id,
         provider: "wahub",
         providerConversationId,
@@ -82,12 +162,15 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   await prisma.message.create({
     data: {
       conversationId: conversation.id,
+      providerMessageId,
       direction: "INBOUND",
-      messageType: "TEXT",
-      body: message.body,
+      messageType,
+      body: bodyText,
+      mediaUrl: message.mediaUrl ?? null,
       senderExternalId: digits,
       sentAt,
       deliveryStatus: "DELIVERED",
+      rawProviderPayload: message as object,
     },
   })
 
@@ -95,25 +178,26 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     where: { id: conversation.id },
     data: { lastMessageAt: sentAt, unreadCustomerCount: { increment: 1 } },
   })
-
   await prisma.lead.update({
-    where: { id: lead.id },
+    where: { id: leadId },
     data: { lastCustomerMessageAt: sentAt, lastInteractionAt: sentAt },
   })
 
-  await recalcLeadDerived(lead.id).catch(() => {})
+  await recalcLeadDerived(leadId).catch(() => {})
 
-  // Notifikasi ke PIC lead (dedupe per menit supaya burst chat tidak spam).
+  // Auto-segmentasi/analisa AI untuk lead baru (docs §9.1) — fire-and-forget, non-blocking.
+  if (isNewLead) void analyzeLead(leadId).catch(() => {})
+
   const pic = await prisma.leadAssignment.findFirst({
-    where: { leadId: lead.id, isActive: true },
+    where: { leadId, isActive: true },
     select: { assignedUserId: true },
   })
   if (pic) {
     await createNotification({
       userId: pic.assignedUserId,
       type: "NEW_CUSTOMER_MESSAGE",
-      title: `Pesan baru: ${lead.displayName}`,
-      body: message.body.slice(0, 120),
+      title: `Pesan baru: ${leadName}`,
+      body: bodyText?.slice(0, 120) || `[${messageType.toLowerCase()}]`,
       entityType: "conversation",
       entityId: conversation.id,
       deepLink: `/marketing/inbox/${conversation.id}`,
@@ -121,5 +205,10 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     }).catch(() => {})
   }
 
-  return { handled: true, leadId: lead.id, conversationId: conversation.id }
+  await prisma.leadWebhookEvent.updateMany({
+    where: { providerEventId: eventId },
+    data: { processedAt: new Date(), processingStatus: "PROCESSED" },
+  })
+
+  return { handled: true, leadId, conversationId: conversation.id, isNewLead }
 }

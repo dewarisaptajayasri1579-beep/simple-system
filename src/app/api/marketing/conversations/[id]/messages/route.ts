@@ -6,7 +6,7 @@ import { MESSAGE_SELECT, messageDto } from "@/lib/marketing/inbox"
 import { canActOnLead } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
-import { sendWhatsappMessageFromSession } from "@/lib/wahub"
+import { sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
 
 /**
  * GET  — timeline pesan 1 percakapan (boleh dibuka siapa pun anggota tim).
@@ -100,10 +100,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const { id } = await params
-  const payload = (await request.json().catch(() => null)) as { body?: unknown; aiSuggestionId?: unknown } | null
+  const payload = (await request.json().catch(() => null)) as
+    | { body?: unknown; aiSuggestionId?: unknown; mediaUrl?: unknown }
+    | null
   const text = typeof payload?.body === "string" ? payload.body.trim() : ""
   const aiSuggestionId = typeof payload?.aiSuggestionId === "string" ? payload.aiSuggestionId : null
-  if (!text) return NextResponse.json({ error: "Pesan tidak boleh kosong" }, { status: 400 })
+  const mediaUrl = typeof payload?.mediaUrl === "string" && /^https?:\/\//.test(payload.mediaUrl) ? payload.mediaUrl : null
+  if (!text && !mediaUrl) return NextResponse.json({ error: "Pesan tidak boleh kosong" }, { status: 400 })
 
   const conversation = await prisma.conversation.findUnique({
     where: { id },
@@ -127,12 +130,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const sentAt = new Date()
+  const session = conversation.whatsappConnection.wahubSessionId
+  const number = conversation.lead.whatsappNumber
   try {
-    await sendWhatsappMessageFromSession(
-      conversation.whatsappConnection.wahubSessionId,
-      conversation.lead.whatsappNumber,
-      text,
-    )
+    if (mediaUrl) await sendWhatsappMediaFromSession(session, number, mediaUrl, text || undefined)
+    else await sendWhatsappMessageFromSession(session, number, text)
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Gagal mengirim ke WhatsApp" },
@@ -144,8 +146,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     data: {
       conversationId: id,
       direction: "OUTBOUND",
-      messageType: "TEXT",
-      body: text,
+      messageType: mediaUrl ? "IMAGE" : "TEXT",
+      body: text || null,
+      mediaUrl: mediaUrl ?? undefined,
       senderUserId: user.id,
       aiSuggestionId: aiSuggestionId ?? undefined,
       sentAt,

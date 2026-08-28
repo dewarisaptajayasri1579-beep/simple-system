@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeftRight, CheckCircle2, QrCode, Smartphone, Unplug } from "lucide-react"
+import { ArrowLeft, ArrowLeftRight, CheckCircle2, QrCode, Smartphone, Unplug } from "lucide-react"
 
 import { Alert, Button, Card, Spinner } from "@/components/ui"
 import { AppLogo } from "@/components/ui/AppLogo"
@@ -144,9 +144,17 @@ export const ConnectWhatsapp: React.FC = () => {
             </div>
           )}
 
+          {status === "READY" && (
+            <Link href="/marketing" className="w-full">
+              <Button variant="primary" fullWidth leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Kembali ke Aplikasi
+              </Button>
+            </Link>
+          )}
+
           <div className="flex items-center gap-3 w-full">
             {status === "READY" ? (
-              <Button variant="danger" fullWidth leftIcon={<Unplug className="w-4 h-4" />} isLoading={loading} onClick={handleDisconnect}>
+              <Button variant="ghost" fullWidth leftIcon={<Unplug className="w-4 h-4" />} isLoading={loading} onClick={handleDisconnect} className="text-rose-600">
                 Putuskan Koneksi
               </Button>
             ) : (
