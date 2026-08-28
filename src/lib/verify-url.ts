@@ -1,6 +1,6 @@
 import QRCode from "qrcode"
 
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://simple.onyseven.com"
+const APP_BASE_URL = process.env.APP_BASE_URL || "https://simplev2.onyseven.com"
 
 export function invoiceVerifyUrl(invoiceNumber: string) {
   return `${APP_BASE_URL}/verify/invoice/${encodeURIComponent(invoiceNumber)}`
