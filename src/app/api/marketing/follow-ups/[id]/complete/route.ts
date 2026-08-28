@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
-import { FOLLOW_UP_GRACE_MS } from "@/lib/marketing/follow-up"
 import { canActOnLead } from "@/lib/marketing/permissions"
+import { getFollowUpGraceMs } from "@/lib/marketing/settings"
 import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
 
@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const resultNote = typeof body?.resultNote === "string" ? body.resultNote.trim() || null : null
 
   const now = new Date()
-  const isOnTime = now.getTime() <= fu.scheduledAt.getTime() + FOLLOW_UP_GRACE_MS
+  const isOnTime = now.getTime() <= fu.scheduledAt.getTime() + (await getFollowUpGraceMs())
 
   let nextData: { scheduledAt: Date; purpose: string; note: string | null } | null = null
   const n = body?.next

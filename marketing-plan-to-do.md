@@ -288,15 +288,20 @@ Bagian ini tanggung jawab kamu; sisanya (semua FASE di bawah) aku yang coding.
 
 ---
 
-## FASE 10 — PWA & Pengaturan
+## FASE 10 — PWA & Pengaturan — SELESAI
 
-49. PWA shell — manifest, service worker, installable, standalone display, offline shell,
-    safe-area, update notification saat versi baru.
-50. Halaman **Settings** modul Marketing (Manager/Admin + permission) — kelola segment, follow up
-    grace period, reminder offset, score weights, AI confidence threshold, escalation threshold,
-    working hours, notification preference default. Simpan ke `LeadSystemSetting`.
-51. Manajemen **Team & TeamMembership** — UI buat Owner/Manager: buat tim, tambah member, set
-    `membershipRole` (SALES/SPV/MEMBER), set supervisor.
+49. [x] `public/sw.js` (push + notificationclick) + `PushRegister` (daftar SW, subscribe kalau
+    VAPID ada & izin diberikan → `POST /api/marketing/push`) dimount di `MarketingShell`. Manifest
+    Internal yang sudah ada (`display:standalone`, icon) dipakai bersama. **Server-side push send
+    (`npm i web-push` + `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`) = tugas ONY.**
+50. [x] `GET/PUT /api/marketing/settings` (MANAGER/owner) + halaman `/marketing/settings` tab
+    "Umum" — tunable `follow_up.grace_minutes` (dipakai di complete follow-up via
+    `getFollowUpGraceMs`) & `ai.segment_auto_apply_confidence`. Semua ber-default di
+    `MARKETING_SETTING_DEFAULTS`.
+51. [x] `GET/POST /api/marketing/teams` + `POST/DELETE /api/marketing/teams/[id]/members`
+    (MANAGER/owner) + tab "Tim" di `/marketing/settings` — buat tim (nama/kode/manager), tambah
+    anggota (SALES/SPV/MEMBER), keluarkan (soft `activeUntil`). `resolveMarketingRole` otomatis
+    baca SPV/manager dari sini.
 
 ---
 

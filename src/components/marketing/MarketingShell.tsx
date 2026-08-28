@@ -12,10 +12,12 @@ import {
   MessagesSquare,
   Network,
   QrCode,
+  Settings,
   Users,
 } from "lucide-react"
 
 import { NotificationBell } from "./NotificationBell"
+import { PushRegister } from "./PushRegister"
 
 interface NavItem {
   label: string
@@ -32,6 +34,7 @@ const NAV: NavItem[] = [
   { label: "Follow Up", href: "/marketing/follow-up", icon: <CalendarClock className="w-5 h-5" />, mobile: true },
   { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
   { label: "Dashboard", href: "/marketing/dashboard", icon: <BarChart2 className="w-5 h-5" /> },
+  { label: "Pengaturan", href: "/marketing/settings", icon: <Settings className="w-5 h-5" /> },
 ]
 
 function isActivePath(pathname: string, href: string) {
@@ -59,6 +62,7 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
 
   return (
     <div className="min-h-screen bg-app-mesh text-slate-800 font-sans flex relative overflow-x-clip">
+      <PushRegister />
       {/* ---- Sidebar (desktop) ---- */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-60 flex-col justify-between bg-gradient-to-b from-[#0a2540] via-[#09356b] to-[#041c38] text-white shadow-2xl border-r border-blue-900/40">
         <div>
@@ -142,6 +146,12 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                   >
                     <QrCode className="w-4 h-4 text-slate-500" /> Hubungkan WhatsApp
+                  </Link>
+                  <Link
+                    href="/marketing/settings"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    <Settings className="w-4 h-4 text-slate-500" /> Pengaturan
                   </Link>
                   <Link
                     href="/modules"
