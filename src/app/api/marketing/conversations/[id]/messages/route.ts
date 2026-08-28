@@ -72,6 +72,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     await prisma.conversation.update({ where: { id }, data: { unreadCustomerCount: 0 } })
   }
 
+  // Buka detail percakapan = sudah dibaca → hilangkan notifikasi lonceng milik user ini yang
+  // menunjuk ke percakapan ini (pesan baru, dsb). Emit event supaya lonceng ikut update realtime.
+  const cleared = await prisma.leadNotification.updateMany({
+    where: { userId: user.id, entityType: "conversation", entityId: id, readAt: null },
+    data: { readAt: new Date(), status: "READ" },
+  })
+  if (cleared.count > 0) {
+    publishMarketingEvent({ type: "notification", userId: user.id, at: new Date().toISOString() })
+  }
+
   return NextResponse.json({
     conversation: {
       id: conversation.id,
