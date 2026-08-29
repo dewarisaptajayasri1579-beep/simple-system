@@ -33,7 +33,7 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
 }
 
-const REF_LABEL: Record<string, string> = { server: "Bayar Server", domain: "Bayar Domain", recurring_bill: "Biaya Berkala" };
+const REF_LABEL: Record<string, string> = { server: "Bayar Server", domain: "Bayar Domain", recurring_bill: "Biaya Berkala", kasbon: "Kasbon" };
 
 // journalEntryId = link presisi ke jurnal transaksi INI. Fallback sourceType+sourceId cuma buat
 // baris lama (sebelum kolom ini ada) — itu dipakai bareng-bareng oleh SELURUH histori

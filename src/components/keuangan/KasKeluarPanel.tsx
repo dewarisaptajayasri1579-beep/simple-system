@@ -360,6 +360,7 @@ export const KasKeluarPanel: React.FC<{
     server: "Bayar Server",
     maintenance: "Bayar Maintenance",
     recurring_bill: "Bayar Biaya Berkala",
+    kasbon: "Kasbon",
   };
 
   const rowLabel = (r: TransactionRow) => {

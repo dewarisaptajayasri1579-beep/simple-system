@@ -259,6 +259,18 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     await tx.recurringBill.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
   } else if (transaction.refType === "maintenance" && transaction.refId) {
     await tx.maintenance.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt } })
+  } else if (transaction.refType === "kasbon" && transaction.refId) {
+    // Hitung ulang sisa Kasbon dari SEMUA leg (pencairan expense + pelunasan income) yang sudah
+    // posted, termasuk transaction ini sendiri (masih berstatus "draft" di DB di titik ini,
+    // baru di-flip "posted" oleh tx.transaction.update di akhir fungsi — makanya nilainya
+    // ditambahkan manual, bukan ikut query `otherPosted`).
+    const otherPosted = await tx.transaction.findMany({
+      where: { refType: "kasbon", refId: transaction.refId, postStatus: "posted", id: { not: transaction.id } },
+      select: { type: true, grossAmount: true },
+    })
+    const signed = (t: { type: string; grossAmount: number }) => (t.type === "expense" ? t.grossAmount : -t.grossAmount)
+    const outstanding = signed(transaction) + otherPosted.reduce((s, t) => s + signed(t), 0)
+    await tx.kasbon.update({ where: { id: transaction.refId }, data: { status: outstanding <= 0.5 ? "lunas" : "outstanding" } })
   }
 
   return tx.transaction.update({

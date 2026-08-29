@@ -96,6 +96,24 @@ export function accountTransferLines(input: {
   ]
 }
 
+/** Pencairan Kasbon (uang muka ke karyawan) — debit Piutang Karyawan, kredit Kas/Bank yang
+ *  dicairkan. Lihat model Kasbon: leg ini adalah 1 Transaction type="expense" refType="kasbon". */
+export function kasbonDisbursementLines(input: { kasBankCoaCode: string; amount: number }): JournalLineInput[] {
+  return [
+    { accountCode: COA_CODE.piutangKaryawan, debit: input.amount },
+    { accountCode: input.kasBankCoaCode, credit: input.amount },
+  ]
+}
+
+/** Pelunasan Kasbon (boleh dicicil, dipanggil berkali-kali untuk 1 Kasbon yang sama) — kebalikan
+ *  dari kasbonDisbursementLines: debit Kas/Bank yang menerima, kredit Piutang Karyawan. */
+export function kasbonRepaymentLines(input: { kasBankCoaCode: string; amount: number }): JournalLineInput[] {
+  return [
+    { accountCode: input.kasBankCoaCode, debit: input.amount },
+    { accountCode: COA_CODE.piutangKaryawan, credit: input.amount },
+  ]
+}
+
 /** "Tandai Lunas" biaya berkala / server. Tanpa memo generik di baris — biar Buku Besar
  *  jatuh ke journalEntry.description yang sudah spesifik (mis. "Pembayaran domain - nama.com"),
  *  bukan teks generik yang menutupi domain/server mana yang dibayar. */

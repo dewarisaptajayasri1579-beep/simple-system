@@ -20,6 +20,7 @@ const REF_LABEL: Record<string, string> = {
   server: "Bayar Server",
   maintenance: "Bayar Maintenance",
   recurring_bill: "Bayar Biaya Berkala",
+  kasbon: "Kasbon",
 }
 
 export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -50,7 +51,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   // Sama syaratnya dengan PATCH /api/transactions/[id]: draft pengeluaran manual ATAU baris
   // Bayar Domain/Server/Maintenance/Biaya Berkala (bukan bagian dari Payment) boleh edit inline
   // di sini — sisanya (Kas Masuk manual, atau bagian dari Payment) tetap lewat Posting/Hapus.
-  const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill"])
+  const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill", "kasbon"])
   const editable =
     transaction.postStatus === "draft" &&
     transaction.type === "expense" &&

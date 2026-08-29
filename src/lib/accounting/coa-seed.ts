@@ -12,6 +12,7 @@ export const COA_SEED: CoaSeedRow[] = [
   { code: "1-0000", name: "Aset", type: "asset", parentCode: null },
   { code: "1-1000", name: "Kas & Bank", type: "asset", parentCode: "1-0000" },
   { code: "1-2000", name: "Piutang Usaha", type: "asset", parentCode: "1-0000" },
+  { code: "1-2500", name: "Piutang Karyawan", type: "asset", parentCode: "1-0000" },
   { code: "1-3000", name: "Aset Tetap", type: "asset", parentCode: "1-0000" },
 
   { code: "2-0000", name: "Liabilitas", type: "liability", parentCode: null },
@@ -47,6 +48,7 @@ export const COA_SEED: CoaSeedRow[] = [
 export const COA_CODE = {
   kasBankParent: "1-1000",
   piutangUsaha: "1-2000",
+  piutangKaryawan: "1-2500",
   hutangUsahaVendor: "2-1000",
   ppnKeluaran: "2-2000",
   hutangBiayaBerkala: "2-3000",

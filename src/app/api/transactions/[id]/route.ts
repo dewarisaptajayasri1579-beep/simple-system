@@ -11,7 +11,7 @@ import { COA_CODE, bebanCodeForCategory } from "@/lib/accounting/coa-seed"
  *  titik ini jadi lastPaidAt/expiryDate/dsb belum ke-update sama sekali (baru kesentuh pas
  *  posting, lihat finalizeTransactionPosting), jadi ubah nominal/keterangan sebelum posting
  *  aman, tidak menyentuh tracking field apa pun. */
-const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill"])
+const EDITABLE_REF_TYPES = new Set(["domain", "server", "maintenance", "recurring_bill", "kasbon"])
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
@@ -70,6 +70,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (transaction.refType === "domain") return COA_CODE.bebanDomain
     if (transaction.refType === "server") return COA_CODE.bebanServerHosting
     if (transaction.refType === "maintenance") return COA_CODE.bebanMaintenance
+    if (transaction.refType === "kasbon") return COA_CODE.piutangKaryawan
     const bill = await tx.recurringBill.findUnique({ where: { id: transaction.refId! } })
     if (!bill) throw new Error("Biaya berkala terkait tidak ditemukan")
     return bebanCodeForCategory(bill.category)

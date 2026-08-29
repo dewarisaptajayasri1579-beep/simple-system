@@ -59,6 +59,11 @@ model User {
   leadSystemSettingsUpdated LeadSystemSetting[]
   whatsappConnection       WhatsappConnection?
 
+  // ---- Kasbon (lihat model Kasbon) — dipisah 2 relasi karena 1 User bisa jadi penerima
+  // sekaligus pemberi kasbon untuk orang lain.
+  kasbons        Kasbon[] @relation("KasbonUser")
+  kasbonsCreated Kasbon[] @relation("KasbonCreatedBy")
+
   @@map("users")
   @@schema("simple_system")
 }
@@ -743,7 +748,7 @@ model JournalEntry {
   entryNumber String   @unique @map("entry_number") // "JE-2026-000001"
   date        DateTime
   description String
-  sourceType  String   @map("source_type") // "invoice" | "invoice_revenue" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "manual" | "correction"
+  sourceType  String   @map("source_type") // "invoice" | "invoice_revenue" | "invoice_payment" | "transaction" | "recurring_bill" | "server" | "domain" | "maintenance" | "kasbon" | "manual" | "correction"
   sourceId    String?  @map("source_id")
   createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -823,7 +828,7 @@ model Transaction {
   // Referensi balik opsional ke Server/Domain/RecurringBill kalau Transaction ini hasil
   // "Bayar Server/Domain"/"Tandai Lunas" — dipakai endpoint posting utk tahu lastPaidAt
   // milik record mana yang perlu diupdate saat Transaction ini di-posting.
-  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill" | "maintenance"
+  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill" | "maintenance" | "kasbon"
   refId   String? @map("ref_id")
 
   // Kalau Transaction ini dibuat sebagai bagian dari 1 Payment (baris pelunasan invoice ATAU
@@ -848,6 +853,32 @@ model Transaction {
   @@index([paymentId])
   @@index([refType, refId])
   @@map("transactions")
+  @@schema("simple_system")
+}
+
+// Kasbon (uang muka ke karyawan) — model ringan, pencairan & pelunasan-nya dicatat sebagai
+// Transaction biasa dengan refType="kasbon" & refId=Kasbon.id (sama pola dengan Domain/Server/
+// RecurringBill di atas), bukan model transaksi terpisah. Pencairan = 1 Transaction
+// type="expense", pelunasan (boleh dicicil berkali-kali) = Transaction type="income" — histori
+// cicilan otomatis ada lewat query refId, tidak butuh tabel KasbonRepayment sendiri. Status
+// dihitung ulang & disimpan di sini setiap salah satu leg-nya diposting (lihat
+// finalizeTransactionPosting di lib/accounting/mark-paid.ts).
+model Kasbon {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id") // karyawan (User) penerima kasbon
+  amount      Float // nominal awal dicairkan
+  description String?
+  occurredAt  DateTime @map("occurred_at") // tanggal cair
+  status      String   @default("outstanding") @map("status") // "outstanding" | "lunas"
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User @relation("KasbonUser", fields: [userId], references: [id])
+  createdBy User @relation("KasbonCreatedBy", fields: [createdById], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("kasbons")
   @@schema("simple_system")
 }
 
