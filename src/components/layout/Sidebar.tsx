@@ -44,7 +44,7 @@ const ADMIN_HREF_OVERRIDE: Record<string, string> = {
   Akuntansi: "/akuntansi/buku-besar",
 };
 
-function navItemsForRole(role: string | undefined): NavItem[] {
+export function navItemsForRole(role: string | undefined): NavItem[] {
   if (role !== "admin") return navItems;
   return navItems
     .filter((item) => ADMIN_ALLOWED_LABELS.has(item.label))

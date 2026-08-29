@@ -163,6 +163,15 @@ body {
   animation: pulse-subtle 3s ease-in-out infinite;
 }
 
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
+
 /* Halaman cetak invoice — sembunyikan chrome aplikasi (sidebar/header/bottom bar/footer),
    sisakan cuma konten invoice-nya. */
 .print-only {
