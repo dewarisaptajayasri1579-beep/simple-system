@@ -83,6 +83,7 @@ export default async function PengaturanPage() {
 
         <PengaturanPanel
           userRole={user.role}
+          currentUserId={user.id}
           settings={{
             operasionalPct: settings.operasionalPct,
             direksiPct: settings.direksiPct,
@@ -105,7 +106,7 @@ export default async function PengaturanPage() {
             slottingHppReserveAccountId: settings.slottingHppReserveAccountId,
             slottingTransferFee: settings.slottingTransferFee,
           }}
-          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber, modules: u.modules }))}
+          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber, modules: u.modules, isActive: u.isActive }))}
           domains={domains.map((d) => ({
             ...d,
             lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,

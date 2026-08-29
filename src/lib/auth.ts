@@ -58,5 +58,8 @@ export async function getSessionUser() {
   })
 
   if (!session || session.expiresAt < new Date()) return null
+  // User yang dinonaktifkan → perlakukan seperti belum login (sesi lamanya sudah dihapus saat
+  // dinonaktifkan, ini jaring pengaman kalau ada sesi yang lolos).
+  if (!session.user.isActive) return null
   return session.user
 }

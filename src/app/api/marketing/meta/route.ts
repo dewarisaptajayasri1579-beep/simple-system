@@ -15,7 +15,7 @@ export async function GET() {
     prisma.leadSource.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.leadLostReason.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.user.findMany({
-      where: { OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
+      where: { isActive: true, OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

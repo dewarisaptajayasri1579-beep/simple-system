@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   } else {
     // MANAGER / owner
     const all = await prisma.user.findMany({
-      where: { OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
+      where: { isActive: true, OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
       select: { id: true },
     })
     userIds = all.map((u) => u.id)

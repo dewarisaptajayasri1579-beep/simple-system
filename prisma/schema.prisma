@@ -31,6 +31,9 @@ model User {
   // requireModuleAccess di lib/current-user.ts. Default cuma "internal" karena user lama
   // sebelum kolom ini ada semuanya staf Internal.
   modules      String[] @default(["internal"])
+  // Nonaktif → tidak bisa login & sesi aktifnya dicabut, tapi semua riwayat (pesan, aktivitas,
+  // audit, KPI) tetap utuh. Owner tidak boleh dinonaktifkan. Dikelola di Pengaturan → User.
+  isActive     Boolean   @default(true) @map("is_active")
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
 

@@ -11,7 +11,7 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, isActive: true, createdAt: true },
   })
   return NextResponse.json(users)
 }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   const created = await prisma.user.create({
     data: { name, email, role, phoneNumber: body?.phoneNumber || null, modules, passwordHash: hashPassword(password) },
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, isActive: true, createdAt: true },
   })
 
   return NextResponse.json(created, { status: 201 })

@@ -12,6 +12,7 @@ import {
   Select,
   Alert,
   FilterableTable,
+  Switch,
 } from "@/components/ui";
 import {
   MasterDataPanel,
@@ -62,6 +63,7 @@ export interface UserRow {
   role: string;
   phoneNumber: string | null;
   modules: string[];
+  isActive: boolean;
 }
 
 const MODULE_OPTIONS: { value: string; label: string }[] = [
@@ -103,6 +105,7 @@ function formatBytes(bytes: number) {
 
 export const PengaturanPanel: React.FC<{
   userRole: string;
+  currentUserId: string;
   settings: SettingsData;
   users: UserRow[];
   domains: DomainRow[];
@@ -119,6 +122,7 @@ export const PengaturanPanel: React.FC<{
   accounts: AccountOption[];
 }> = ({
   userRole,
+  currentUserId,
   settings,
   users: initialUsers,
   domains,
@@ -184,6 +188,7 @@ export const PengaturanPanel: React.FC<{
   const [newModules, setNewModules] = useState<string[]>(["internal"]);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [userMessage, setUserMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingDeactivate, setPendingDeactivate] = useState<string | null>(null);
 
   const totalPct = operasionalPct + direksiPct + bonusPct;
   const slottingTotalPct = slottingOperasionalPct + slottingDireksiPct + slottingBonusPct + slottingHppReservePct;
@@ -316,6 +321,26 @@ export const PengaturanPanel: React.FC<{
     if (res.ok) {
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, phoneNumber } : u)));
     }
+  };
+
+  const handleToggleActive = async (id: string, isActive: boolean) => {
+    setUserMessage(null);
+    setPendingDeactivate(null);
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setUserMessage({ type: "error", text: data.error || "Gagal mengubah status user" });
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isActive } : u)));
+    setUserMessage({
+      type: "success",
+      text: isActive ? "User diaktifkan kembali." : "User dinonaktifkan & sesi login-nya dicabut.",
+    });
   };
 
   // Akses COA per Role — cuma dipakai owner, dan cuma buat role "admin" (Owner/Direktur selalu
@@ -576,26 +601,68 @@ export const PengaturanPanel: React.FC<{
               {
                 key: "modules",
                 header: "Modul",
-                cellClassName: "min-w-[220px]",
+                cellClassName: "min-w-[200px]",
                 cell: (u) => (
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <div className="flex flex-col gap-1.5">
                     {MODULE_OPTIONS.map((m) => (
-                      <label key={m.value} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="w-3.5 h-3.5"
-                          checked={u.modules.includes(m.value)}
-                          onChange={(e) => handleToggleModule(u.id, m.value, e.target.checked)}
-                        />
-                        {m.label}
-                      </label>
+                      <Switch
+                        key={m.value}
+                        label={m.label}
+                        checked={u.modules.includes(m.value)}
+                        disabled={!u.isActive}
+                        onChange={(e) => handleToggleModule(u.id, m.value, e.target.checked)}
+                      />
                     ))}
                   </div>
                 ),
               },
+              {
+                key: "status",
+                header: "Status",
+                cellClassName: "min-w-[180px]",
+                filterValue: (u) => (u.isActive ? "aktif" : "nonaktif"),
+                filterOptions: [
+                  { value: "aktif", label: "Aktif" },
+                  { value: "nonaktif", label: "Nonaktif" },
+                ],
+                cell: (u) => {
+                  if (u.id === currentUserId) {
+                    return <span className="text-xs font-semibold text-slate-400">akun kamu</span>;
+                  }
+                  if (u.role === "owner") {
+                    return <span className="text-xs font-semibold text-slate-400">Owner (selalu aktif)</span>;
+                  }
+                  if (pendingDeactivate === u.id) {
+                    return (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold text-rose-700">Nonaktifkan user ini?</span>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="danger" onClick={() => handleToggleActive(u.id, false)}>
+                            Ya, nonaktifkan
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setPendingDeactivate(null)}>
+                            Batal
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Switch
+                      label={u.isActive ? "Aktif" : "Nonaktif"}
+                      checked={u.isActive}
+                      onChange={(e) => {
+                        if (e.target.checked) handleToggleActive(u.id, true);
+                        else setPendingDeactivate(u.id);
+                      }}
+                    />
+                  );
+                },
+              },
             ]}
             rows={users}
             rowKey={(u) => u.id}
+            rowClassName={(u) => (u.isActive ? "" : "opacity-55")}
             emptyMessage="Belum ada user."
           />
         </div>
@@ -609,19 +676,16 @@ export const PengaturanPanel: React.FC<{
         </div>
         <div className="mt-4">
           <span className="text-xs sm:text-sm font-bold text-slate-700 block mb-2">Modul</span>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             {MODULE_OPTIONS.map((m) => (
-              <label key={m.value} className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4"
-                  checked={newModules.includes(m.value)}
-                  onChange={(e) =>
-                    setNewModules((prev) => (e.target.checked ? [...new Set([...prev, m.value])] : prev.filter((v) => v !== m.value)))
-                  }
-                />
-                {m.label}
-              </label>
+              <Switch
+                key={m.value}
+                label={m.label}
+                checked={newModules.includes(m.value)}
+                onChange={(e) =>
+                  setNewModules((prev) => (e.target.checked ? [...new Set([...prev, m.value])] : prev.filter((v) => v !== m.value)))
+                }
+              />
             ))}
           </div>
         </div>

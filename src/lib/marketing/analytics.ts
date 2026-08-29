@@ -25,7 +25,7 @@ export async function buildTeamAggregates(): Promise<TeamMemberStats[]> {
   const som = startOfMonth()
 
   const users = await prisma.user.findMany({
-    where: { OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
+    where: { isActive: true, OR: [{ role: "owner" }, { modules: { has: "marketing" } }] },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   })

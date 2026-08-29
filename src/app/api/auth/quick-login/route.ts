@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma"
  *  karena grup itu memang cuma berisi Owner-owner yang sama. */
 export async function GET() {
   const owners = await prisma.user.findMany({
-    where: { role: "owner" },
+    where: { role: "owner", isActive: true },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: "userId wajib diisi" }, { status: 400 })
 
   const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (!user || user.role !== "owner") {
+  if (!user || user.role !== "owner" || !user.isActive) {
     return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 })
   }
 

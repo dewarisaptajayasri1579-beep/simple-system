@@ -16,6 +16,9 @@ export async function POST(request: Request) {
   if (!user || !verifyPassword(password, user.passwordHash)) {
     return NextResponse.json({ error: "Email atau password salah" }, { status: 401 })
   }
+  if (!user.isActive) {
+    return NextResponse.json({ error: "Akun kamu dinonaktifkan. Hubungi Owner." }, { status: 403 })
+  }
 
   await createSession(user.id)
 

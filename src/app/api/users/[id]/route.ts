@@ -11,7 +11,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await request.json().catch(() => null)
 
-  const data: { role?: string; phoneNumber?: string | null; modules?: string[] } = {}
+  const data: { role?: string; phoneNumber?: string | null; modules?: string[]; isActive?: boolean } = {}
   if (body?.role !== undefined) {
     if (!["owner", "direktur", "admin"].includes(body.role)) {
       return NextResponse.json({ error: "Role tidak valid" }, { status: 400 })
@@ -26,11 +26,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     data.modules = body.modules
   }
+  if (typeof body?.isActive === "boolean") {
+    if (!body.isActive) {
+      if (id === user.id) {
+        return NextResponse.json({ error: "Tidak bisa menonaktifkan akun sendiri." }, { status: 400 })
+      }
+      const target = await prisma.user.findUnique({ where: { id }, select: { role: true } })
+      if (!target) return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 })
+      if (target.role === "owner") {
+        return NextResponse.json({ error: "Akun Owner tidak bisa dinonaktifkan." }, { status: 400 })
+      }
+    }
+    data.isActive = body.isActive
+  }
 
   const updated = await prisma.user.update({
     where: { id },
     data,
-    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true },
+    select: { id: true, name: true, email: true, role: true, phoneNumber: true, modules: true, isActive: true },
   })
+
+  // Nonaktif → cabut semua sesi login user itu supaya langsung ter-logout di semua device.
+  if (data.isActive === false) {
+    await prisma.session.deleteMany({ where: { userId: id } })
+  }
+
   return NextResponse.json(updated)
 }
