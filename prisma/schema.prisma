@@ -562,6 +562,10 @@ model InvoicePayment {
   accountId     String   @map("account_id")
   paymentId     String?  @map("payment_id") // grup ke kwitansi Payment (menu Pembayaran) — null utk payment lama/migrasi
   amount        Float
+  // Kurs (1 unit Invoice.currency = ? IDR) — cuma diisi kalau invoice-nya bukan IDR (mis. JPY),
+  // dipakai buat konversi `amount` (JPY) jadi kas riil IDR yang dijurnal (lihat cashAmount di
+  // POST /api/payments). Null utk invoice IDR (kurs = 1, tidak relevan).
+  kursRate      Float?   @map("kurs_rate")
   costAmount    Float    @default(0) @map("cost_amount") // HPP tambahan yang diinput manual saat transaksi ini (di luar HPP baris invoice)
   paidAt        DateTime @default(now()) @map("paid_at")
   notes         String?

@@ -38,6 +38,9 @@ interface InvoiceRow {
   // PPN invoice ini disetor client langsung ke negara (client Pemungut PPN) — sisa tagih &
   // porsi PPN yang ditampilkan/dikirim ke backend jadi 0, cuma DPP yang benar-benar ditagih.
   isPemungutInvoice: boolean;
+  // "IDR" | "JPY" dkk (lihat Invoice.currency) — kalau bukan IDR, "Jumlah Dibayar" di sini masih
+  // dalam currency invoice, butuh input Kurs terpisah buat tahu kas riil (IDR) yang masuk.
+  currency: string;
 }
 
 interface DomainOption {
@@ -57,6 +60,9 @@ type CostMode = "none" | "manual" | "domain" | "server";
 interface LineState {
   checked: boolean;
   amount: number;
+  // Kurs (1 unit currency invoice = ? IDR) — cuma relevan/wajib diisi kalau invoice-nya bukan
+  // IDR (lihat kolom "Jumlah Dibayar"). Default 0 supaya staf wajib isi manual, bukan asumsi 1.
+  kursRate: number;
   costMode: CostMode;
   costAmount: number;
   costLinkId: string;
@@ -67,6 +73,23 @@ interface LineState {
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
+}
+
+/** Kas riil (IDR) dari 1 baris — sama dengan `amount` untuk invoice IDR (kurs dianggap 1), atau
+ *  hasil konversi `amount * kursRate` untuk invoice asing (JPY dkk). Dipakai buat ringkasan Total
+ *  Dibayar & preview PPN supaya konsisten dengan cashAmount yang dihitung backend. */
+function cashEquivalent(inv: Pick<InvoiceRow, "currency">, line: Pick<LineState, "amount" | "kursRate"> | undefined) {
+  if (!line) return 0;
+  if (inv.currency === "IDR") return line.amount;
+  return Math.round(line.amount * (line.kursRate || 0));
+}
+
+/** Format nominal sesuai currency invoice-nya sendiri (JPY dkk) — dipakai buat kolom yang
+ *  angkanya masih dalam currency invoice (Total/PPN/Sisa/Jumlah Dibayar), BEDA dari
+ *  formatRupiah biasa yang tetap dipakai buat ringkasan kas riil (Total Dibayar/PPN portion). */
+function formatMoney(amount: number, currency: string) {
+  if (currency === "IDR") return formatRupiah(amount);
+  return new Intl.NumberFormat("ja-JP", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 }
 
 function formatDate(iso: string | null) {
@@ -140,6 +163,7 @@ export const PembayaranForm: React.FC<{
             payments: { amount: number }[];
             costLinkType: "domain" | "server" | null;
             costLinkId: string | null;
+            currency: string;
           }>
         ) => {
           const rows: InvoiceRow[] = data
@@ -157,6 +181,7 @@ export const PembayaranForm: React.FC<{
                 dueDate: inv.dueDate,
                 remaining: Math.max(0, cashDue - paid),
                 isPemungutInvoice,
+                currency: inv.currency,
               };
             })
             .filter((r) => r.remaining > 0.5);
@@ -179,6 +204,7 @@ export const PembayaranForm: React.FC<{
                   {
                     checked: r.id === prefillInvoiceId,
                     amount: r.remaining,
+                    kursRate: 0,
                     costMode: (autoLink ? source!.costLinkType : "none") as CostMode,
                     costAmount: 0,
                     costLinkId: autoLink ? source!.costLinkId! : "",
@@ -222,13 +248,21 @@ export const PembayaranForm: React.FC<{
   const updateLine = (id: string, patch: Partial<LineState>) =>
     setLines((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
-  const totalDibayar = Object.values(lines).reduce((sum, l) => sum + (l.checked ? l.amount : 0), 0);
+  // Total Dibayar = kas riil (IDR) yang bakal masuk — sama dengan sum(amount) untuk invoice IDR,
+  // tapi dikonversi kurs dulu untuk invoice asing (sama filosofi Payment.totalAmount backend).
+  const totalDibayar = invoices.reduce((sum, inv) => {
+    const line = lines[inv.id];
+    return sum + (line?.checked ? cashEquivalent(inv, line) : 0);
+  }, 0);
   // Total PPN dari semua invoice yang dicentang, proporsional terhadap jumlah yang dibayar —
-  // rumus sama persis dengan ppnPortion di app/api/payments/route.ts supaya konsisten.
+  // rumus sama persis dengan ppnPortion di app/api/payments/route.ts supaya konsisten, dikonversi
+  // kurs juga (ppnPortionIdr) buat invoice asing.
   const totalPpnPortion = invoices.reduce((sum, inv) => {
     const line = lines[inv.id];
     if (!line?.checked || inv.isPemungutInvoice || inv.ppnAmount <= 0 || inv.totalAmount <= 0) return sum;
-    return sum + Math.round((inv.ppnAmount * line.amount) / inv.totalAmount);
+    const ppnPortion = Math.round((inv.ppnAmount * line.amount) / inv.totalAmount);
+    const kurs = inv.currency === "IDR" ? 1 : line.kursRate || 0;
+    return sum + Math.round(ppnPortion * kurs);
   }, 0);
 
   const columns: FilterableColumn<InvoiceRow>[] = [
@@ -258,26 +292,27 @@ export const PembayaranForm: React.FC<{
       ),
     },
     { key: "dueDate", header: "Jatuh Tempo", cell: (inv) => formatDate(inv.dueDate) },
-    { key: "totalAmount", header: "Total", cell: (inv) => formatRupiah(inv.totalAmount) },
+    { key: "totalAmount", header: "Total", cell: (inv) => formatMoney(inv.totalAmount, inv.currency) },
     {
       key: "ppnAmount",
       header: "PPN",
       cell: (inv) =>
         inv.ppnAmount <= 0 ? "-" : inv.isPemungutInvoice ? (
           <span className="text-slate-400" title="Disetor client (Pemungut PPN), bukan ke kas kita">
-            {formatRupiah(inv.ppnAmount)} (dipungut client)
+            {formatMoney(inv.ppnAmount, inv.currency)} (dipungut client)
           </span>
         ) : (
-          formatRupiah(inv.ppnAmount)
+          formatMoney(inv.ppnAmount, inv.currency)
         ),
     },
-    { key: "remaining", header: "Sisa", cellClassName: "font-semibold", cell: (inv) => formatRupiah(inv.remaining) },
+    { key: "remaining", header: "Sisa", cellClassName: "font-semibold", cell: (inv) => formatMoney(inv.remaining, inv.currency) },
     {
       key: "amount",
       header: "Jumlah Dibayar",
       headClassName: "min-w-[10rem]",
       cell: (inv) => {
         const line = lines[inv.id];
+        const isForeign = inv.currency !== "IDR";
         // PPN proporsional terhadap porsi yang dibayar sekarang — sama persis rumus yang dipakai
         // backend (lihat ppnPortion di app/api/payments/route.ts) supaya angka yang staf lihat di
         // sini konsisten dengan yang benar-benar kejurnal sebagai "PPN Keluaran".
@@ -286,9 +321,30 @@ export const PembayaranForm: React.FC<{
             ? Math.round((inv.ppnAmount * (line?.amount ?? 0)) / inv.totalAmount)
             : 0;
         return (
-          <div className="space-y-0.5">
-            <CurrencyInput sizeVariant="sm" value={line?.amount ?? 0} disabled={!line?.checked} onChange={(v) => updateLine(inv.id, { amount: v })} />
-            {line?.checked && ppnPortion > 0 && <p className="text-xs text-slate-400">termasuk PPN {formatRupiah(ppnPortion)}</p>}
+          <div className="space-y-1">
+            <CurrencyInput
+              sizeVariant="sm"
+              currencyPrefix={isForeign ? "¥" : "Rp"}
+              value={line?.amount ?? 0}
+              disabled={!line?.checked}
+              onChange={(v) => updateLine(inv.id, { amount: v })}
+            />
+            {line?.checked && ppnPortion > 0 && <p className="text-xs text-slate-400">termasuk PPN {formatMoney(ppnPortion, inv.currency)}</p>}
+            {isForeign && (
+              <>
+                <CurrencyInput
+                  sizeVariant="sm"
+                  placeholder="Kurs (1 JPY = ? IDR)"
+                  currencyPrefix="Rp"
+                  value={line?.kursRate ?? 0}
+                  disabled={!line?.checked}
+                  onChange={(v) => updateLine(inv.id, { kursRate: v })}
+                />
+                {line?.checked && (
+                  <p className="text-xs text-slate-500">≈ {formatRupiah(cashEquivalent(inv, line))}</p>
+                )}
+              </>
+            )}
           </div>
         );
       },
@@ -404,6 +460,14 @@ export const PembayaranForm: React.FC<{
       setError("Ada baris biaya yang belum diisi nominal HPP-nya");
       return;
     }
+    const missingKurs = selected.find(([invoiceId, l]) => {
+      const inv = invoices.find((i) => i.id === invoiceId);
+      return inv && inv.currency !== "IDR" && !(l.kursRate > 0);
+    });
+    if (missingKurs) {
+      setError("Ada invoice mata uang asing yang belum diisi Kurs-nya");
+      return;
+    }
     if (settlePpn && !ppnSettlementAccountId) {
       setError("Pilih dulu akun kas/bank untuk setor PPN-nya");
       return;
@@ -423,6 +487,7 @@ export const PembayaranForm: React.FC<{
           lines: selected.map(([invoiceId, l]) => ({
             invoiceId,
             amount: l.amount,
+            kursRate: l.kursRate,
             costAmount: l.costMode === "none" ? 0 : l.costAmount,
             costLink:
               l.costMode === "domain" || l.costMode === "server"

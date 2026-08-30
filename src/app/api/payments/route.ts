@@ -38,6 +38,9 @@ interface LineInput {
   amount: number
   costAmount?: number
   costLink?: CostLinkInput
+  // Kurs (1 unit Invoice.currency = ? IDR) — wajib > 0 kalau invoice-nya bukan IDR (lihat
+  // kurs/cashAmount di bawah). Diabaikan untuk invoice IDR (kurs dianggap 1).
+  kursRate?: number
 }
 
 export async function POST(request: Request) {
@@ -77,6 +80,7 @@ export async function POST(request: Request) {
         amount: Number(l.amount) || 0,
         costAmount: Math.max(0, Number(l.costAmount) || 0),
         costLink,
+        kursRate: Number(l.kursRate) || 0,
       }
     })
     .filter((l) => l.invoiceId && l.amount > 0)
@@ -130,6 +134,11 @@ export async function POST(request: Request) {
   if (!client) return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 })
 
   const invoiceById = new Map(invoices.map((inv) => [inv.id, inv]))
+  // Kurs (1 unit Invoice.currency = ? IDR) — wajib diisi staf kalau invoice-nya bukan IDR, dipakai
+  // buat konversi `line.amount` (JPY dkk) jadi kas riil IDR yang dijurnal (lihat kursByInvoiceId
+  // di loop utama di bawah). Invoice IDR selalu kurs 1 — amount sudah IDR apa adanya, tidak ada
+  // konversi (rumus jadi identik dengan sebelum fitur currency asing ada).
+  const kursByInvoiceId = new Map<string, number>()
   for (const line of lines) {
     const invoice = invoiceById.get(line.invoiceId)!
     const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
@@ -140,10 +149,16 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    if (invoice.currency !== "IDR" && !(line.kursRate > 0)) {
+      return NextResponse.json({ error: `${invoice.invoiceNumber}: isi kurs untuk invoice mata uang asing (${invoice.currency})` }, { status: 400 })
+    }
+    kursByInvoiceId.set(line.invoiceId, invoice.currency === "IDR" ? 1 : line.kursRate)
   }
 
   const settings = await prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } })
-  const totalAmount = lines.reduce((sum, l) => sum + l.amount, 0)
+  // Payment.totalAmount = kas riil (IDR) yang benar-benar masuk, BUKAN sum(line.amount) mentah —
+  // buat invoice IDR keduanya sama (kurs 1), buat invoice asing amount (JPY dkk) dikonversi dulu.
+  const totalAmount = lines.reduce((sum, l) => sum + Math.round(l.amount * (kursByInvoiceId.get(l.invoiceId) ?? 1)), 0)
   const paymentNumber = await generatePaymentNumber()
 
   const result = await prisma.$transaction(async (tx) => {
@@ -163,12 +178,20 @@ export async function POST(request: Request) {
       const isPemungutInvoice = client.isPemungutPpn && invoice.ppnEnabled
       const cashDue = invoiceCashDue(invoice, client.isPemungutPpn)
 
+      // Kurs (1 kalau invoice IDR — rumus di bawah jadi identik dengan sebelum ada currency
+      // asing). Semua rasio/proporsi (rawPortion dkk) TETAP dihitung di angka invoice currency
+      // (JPY dkk) pakai line.amount seperti sebelumnya — baru dikonversi ke kas riil (IDR) lewat
+      // `cashAmount`/`*Idr` di titik terakhir sebelum masuk Transaction/jurnal.
+      const kurs = kursByInvoiceId.get(line.invoiceId) ?? 1
+      const cashAmount = Math.round(line.amount * kurs)
+
       // Alokasikan HPP+PPN invoice secara proporsional ke pembayaran ini (supaya PPN & HPP tidak
       // ikut kena split walau tagihannya dicicil), lalu tambah HPP manual yang diinput staf khusus
-      // untuk transaksi ini (mis. biaya kirim/admin yang baru muncul saat pelunasan).
+      // untuk transaksi ini (mis. biaya kirim/admin yang baru muncul saat pelunasan). costAmount
+      // TIDAK dikali kurs — itu input manual staf yang sudah dalam Rupiah riil.
       const rawPortion = cashDue > 0 ? ((invoice.totalCost + (isPemungutInvoice ? 0 : invoice.ppnAmount)) * line.amount) / cashDue : 0
-      const nonRevenuePortion = Math.round(rawPortion) + Math.round(line.costAmount)
-      const split = computeSplit(line.amount, nonRevenuePortion, {
+      const nonRevenuePortion = Math.round(rawPortion * kurs) + Math.round(line.costAmount)
+      const split = computeSplit(cashAmount, nonRevenuePortion, {
         operasionalPct: settings.operasionalPct,
         direksiPct: settings.direksiPct,
         bonusPct: settings.bonusPct,
@@ -179,7 +202,7 @@ export async function POST(request: Request) {
           transactionNumber: await generateTransactionNumber(tx, "income"),
           accountId,
           type: "income",
-          grossAmount: line.amount,
+          grossAmount: cashAmount,
           cost: nonRevenuePortion,
           netAmount: split.netAmount,
           splitOperasionalPct: settings.operasionalPct,
@@ -200,7 +223,10 @@ export async function POST(request: Request) {
           invoiceId: line.invoiceId,
           accountId,
           paymentId: payment.id,
+          // amount TETAP dalam invoice currency (JPY dkk), BUKAN cashAmount — supaya
+          // invoiceCashDue/sisa tagih (juga dalam invoice currency) tetap konsisten.
           amount: line.amount,
+          kursRate: invoice.currency === "IDR" ? null : kurs,
           costAmount: line.costAmount,
           notes,
           transactionId: transaction.id,
@@ -230,8 +256,13 @@ export async function POST(request: Request) {
       // dikaitkan) juga baru diakui SEKARANG, proporsional — konsisten dengan Pendapatan/PPN.
       const ppnPortion = !isPemungutInvoice && invoice.totalAmount > 0 ? Math.round((invoice.ppnAmount * line.amount) / invoice.totalAmount) : 0
       const hppPortion = cashDue > 0 ? Math.round((invoice.totalCost * line.amount) / cashDue) : 0
-      const revenuePortion = line.amount - ppnPortion
-      totalPpnPortion += ppnPortion
+      // Dikonversi ke kas riil (IDR) di titik ini — revenuePortionIdr dihitung dari cashAmount
+      // (bukan line.amount) supaya "amount = revenueAmount + ppnAmount" tetap balance persis
+      // dengan debit Kas/Bank di invoicePaymentLines (lihat catatan kurs di plan).
+      const ppnPortionIdr = Math.round(ppnPortion * kurs)
+      const hppPortionIdr = Math.round(hppPortion * kurs)
+      const revenuePortionIdr = cashAmount - ppnPortionIdr
+      totalPpnPortion += ppnPortionIdr
       const journalEntry = await postJournalEntry(tx, {
         date: paidAt,
         description: `Pelunasan ${paymentNumber} - invoice ${invoice.invoiceNumber}`,
@@ -240,11 +271,11 @@ export async function POST(request: Request) {
         createdBy: user.id,
         lines: invoicePaymentLines({
           kasBankCoaCode,
-          amount: line.amount,
+          amount: cashAmount,
           revenueCoaCode: revenueCoaCodeForInvoice(invoice),
-          revenueAmount: revenuePortion,
-          ppnAmount: ppnPortion,
-          hppAmount: hppPortion,
+          revenueAmount: revenuePortionIdr,
+          ppnAmount: ppnPortionIdr,
+          hppAmount: hppPortionIdr,
         }),
       })
       await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })

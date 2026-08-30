@@ -8,6 +8,11 @@ function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
 }
 
+function formatMoney(amount: number, currency: string) {
+  if (currency === "IDR") return formatRupiah(amount);
+  return new Intl.NumberFormat("ja-JP", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+}
+
 /** Format cetak Kwitansi — hanya render saat print (lihat .print-only di globals.css), meniru
  *  persis referensi "Kwitansi Keren" (nota/Kwitansi Keren.png). Ukuran kertas A5 landscape, sama
  *  dengan cetak Invoice (lihat @page & .print-nota-a5 di globals.css). Tampilan layar sehari-hari
@@ -19,7 +24,16 @@ export const KwitansiPrintable: React.FC<{
   qrDataUrl?: string;
   isFullyPaid: boolean;
 }> = ({ payment, receiverName, date, qrDataUrl, isFullyPaid }) => {
-  const untukPembayaran = payment.invoicePayments.map((ip) => ip.invoice.invoiceNumber).join(", ");
+  // Invoice mata uang asing (JPY dkk, lihat InvoicePayment.kursRate) ditampilkan dengan rincian
+  // konversinya (nominal asli @ kurs = hasil Rupiah) — invoice IDR biasa tetap cuma nomor invoice
+  // seperti sebelumnya, tidak berubah tampilannya.
+  const untukPembayaran = payment.invoicePayments
+    .map((ip) =>
+      ip.invoice.currency !== "IDR" && ip.kursRate
+        ? `${ip.invoice.invoiceNumber} (${formatMoney(ip.amount, ip.invoice.currency)} @ kurs ${ip.kursRate} = ${formatRupiah(Math.round(ip.amount * ip.kursRate))})`
+        : ip.invoice.invoiceNumber
+    )
+    .join(", ");
 
   return (
     <div className="print-only">
