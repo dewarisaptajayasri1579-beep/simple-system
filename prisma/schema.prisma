@@ -121,6 +121,10 @@ model Client {
   // Efeknya: sisa tagih/lunas invoice dihitung dari DPP saja (totalAmount - ppnAmount), lihat
   // `invoiceCashDue` di lib/invoice-due.ts — jangan hitung ulang manual di tempat lain.
   isPemungutPpn Boolean @default(false) @map("is_pemungut_ppn")
+  // Mata uang default invoice ke client ini ("IDR" | "JPY") — dipakai buat prefill Invoice.currency
+  // saat bikin invoice baru (invoice tetap simpan snapshot sendiri, tidak ikut berubah kalau
+  // Client.currency diganti belakangan). Client Jepang (mis. iMEDIA Inc.) di-set "JPY".
+  currency    String   @default("IDR")
   createdAt   DateTime @default(now()) @map("created_at")
 
   domains            Domain[]
@@ -468,6 +472,15 @@ model Invoice {
   totalCost     Float    @default(0) @map("total_cost")
   status        String   @default("unpaid") // "unpaid" | "partial" | "paid" | "claimed_paid"
   notes         String?
+
+  // Mata uang nota ("IDR" | "JPY") — snapshot dari Client.currency saat invoice dibuat (TIDAK
+  // ikut berubah kalau Client.currency diganti belakangan, sama pola dengan revenueCoaCode di
+  // bawah). Cuma mengubah tampilan cetak (NotaPrintable) & UI form — semua field nominal di atas
+  // tetap Float polos diisi apa adanya sesuai currency ini (mis. 140000 utk JPY 140.000), TIDAK
+  // dikonversi ke IDR. Laporan Piutang/Laba-Rugi/Neraca sengaja tidak dikonversi juga (menjumlah
+  // nilai currency campuran apa adanya) — diterima sebagai keterbatasan untuk kasus invoice
+  // client asing yang jarang & bernilai kecil di pembukuan utama.
+  currency      String   @default("IDR")
 
   // Arsip bukti setor PPN oleh client Pemungut PPN (mis. instansi pemerintah) — CATATAN saja,
   // tidak ada efek jurnal (PPN-nya memang tidak pernah masuk kas kita, lihat Client.isPemungutPpn
@@ -946,6 +959,16 @@ model Settings {
   paymentBankNameNonPpn      String? @map("payment_bank_name_non_ppn")
   paymentAccountNameNonPpn   String? @map("payment_account_name_non_ppn")
   paymentAccountNumberNonPpn String? @map("payment_account_number_non_ppn")
+
+  // Rekening wire internasional (SWIFT) — dicetak di nota invoice yang currency-nya bukan IDR
+  // (mis. client Jepang), TERPISAH dari 2 rekening di atas karena butuh Branch Name & SWIFT Code
+  // yang tidak dipakai rekening domestik biasa. Lihat NotaPrintable.tsx blok "Payment To" versi
+  // non-IDR.
+  paymentBankNameIntl      String? @map("payment_bank_name_intl")
+  paymentBankBranchIntl    String? @map("payment_bank_branch_intl")
+  paymentSwiftCodeIntl     String? @map("payment_swift_code_intl")
+  paymentAccountNameIntl   String? @map("payment_account_name_intl")
+  paymentAccountNumberIntl String? @map("payment_account_number_intl")
 
   // ---- Slotting Omset — pembagian Laba Bersih Project (Uang Masuk - HPP) ke 4 rekening tujuan,
   // TERPISAH dari operasionalPct/direksiPct/bonusPct di atas (itu split lama per-baris pembayaran,

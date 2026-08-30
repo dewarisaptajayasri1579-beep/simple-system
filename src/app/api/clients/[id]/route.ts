@@ -16,6 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body[key] === "string") data[key] = body[key] || null
   }
   if (typeof body.isPemungutPpn === "boolean") data.isPemungutPpn = body.isPemungutPpn
+  if (body.currency === "IDR" || body.currency === "JPY") data.currency = body.currency
   if (typeof body.name === "string" && !body.name.trim()) {
     return NextResponse.json({ error: "Nama client wajib diisi" }, { status: 400 })
   }

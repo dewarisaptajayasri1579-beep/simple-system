@@ -34,6 +34,11 @@ export async function PATCH(request: Request) {
     "paymentBankNameNonPpn",
     "paymentAccountNameNonPpn",
     "paymentAccountNumberNonPpn",
+    "paymentBankNameIntl",
+    "paymentBankBranchIntl",
+    "paymentSwiftCodeIntl",
+    "paymentAccountNameIntl",
+    "paymentAccountNumberIntl",
   ]) {
     if (typeof body?.[key] === "string") data[key] = body[key] || null
   }

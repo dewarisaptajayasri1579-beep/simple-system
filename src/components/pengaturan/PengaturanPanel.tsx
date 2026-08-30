@@ -40,6 +40,11 @@ export interface SettingsData {
   paymentBankNameNonPpn: string | null;
   paymentAccountNameNonPpn: string | null;
   paymentAccountNumberNonPpn: string | null;
+  paymentBankNameIntl: string | null;
+  paymentBankBranchIntl: string | null;
+  paymentSwiftCodeIntl: string | null;
+  paymentAccountNameIntl: string | null;
+  paymentAccountNumberIntl: string | null;
   slottingOperasionalPct: number;
   slottingDireksiPct: number;
   slottingBonusPct: number;
@@ -167,6 +172,11 @@ export const PengaturanPanel: React.FC<{
   const [paymentBankNameNonPpn, setPaymentBankNameNonPpn] = useState(settings.paymentBankNameNonPpn ?? "");
   const [paymentAccountNameNonPpn, setPaymentAccountNameNonPpn] = useState(settings.paymentAccountNameNonPpn ?? "");
   const [paymentAccountNumberNonPpn, setPaymentAccountNumberNonPpn] = useState(settings.paymentAccountNumberNonPpn ?? "");
+  const [paymentBankNameIntl, setPaymentBankNameIntl] = useState(settings.paymentBankNameIntl ?? "");
+  const [paymentBankBranchIntl, setPaymentBankBranchIntl] = useState(settings.paymentBankBranchIntl ?? "");
+  const [paymentSwiftCodeIntl, setPaymentSwiftCodeIntl] = useState(settings.paymentSwiftCodeIntl ?? "");
+  const [paymentAccountNameIntl, setPaymentAccountNameIntl] = useState(settings.paymentAccountNameIntl ?? "");
+  const [paymentAccountNumberIntl, setPaymentAccountNumberIntl] = useState(settings.paymentAccountNumberIntl ?? "");
   const [slottingOperasionalPct, setSlottingOperasionalPct] = useState(settings.slottingOperasionalPct);
   const [slottingDireksiPct, setSlottingDireksiPct] = useState(settings.slottingDireksiPct);
   const [slottingBonusPct, setSlottingBonusPct] = useState(settings.slottingBonusPct);
@@ -219,6 +229,11 @@ export const PengaturanPanel: React.FC<{
         paymentBankNameNonPpn,
         paymentAccountNameNonPpn,
         paymentAccountNumberNonPpn,
+        paymentBankNameIntl,
+        paymentBankBranchIntl,
+        paymentSwiftCodeIntl,
+        paymentAccountNameIntl,
+        paymentAccountNumberIntl,
         slottingOperasionalPct,
         slottingDireksiPct,
         slottingBonusPct,
@@ -456,7 +471,7 @@ export const PengaturanPanel: React.FC<{
         <div className="mt-5 pt-5 border-t border-slate-200/60">
           <p className="font-bold text-sm text-slate-800">Rekening Pembayaran (dicetak di Nota Invoice)</p>
           <p className="text-xs text-slate-500 mt-0.5">Rekening tujuan transfer beda tergantung invoice-nya pakai PPN atau tidak.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
             <div className="space-y-3">
               <p className="text-xs font-bold text-slate-500 uppercase">Invoice dengan PPN</p>
               <Input label="Nama Bank" value={paymentBankNamePpn} onChange={(e) => setPaymentBankNamePpn(e.target.value)} placeholder="mis. BCA" />
@@ -487,6 +502,25 @@ export const PengaturanPanel: React.FC<{
                 value={paymentAccountNumberNonPpn}
                 onChange={(e) => setPaymentAccountNumberNonPpn(e.target.value)}
                 placeholder="mis. 015 485 3711"
+              />
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-slate-500 uppercase">Internasional (SWIFT)</p>
+              <p className="text-[11px] text-slate-500 -mt-2">Dicetak di nota invoice yang currency-nya bukan IDR (mis. client Jepang).</p>
+              <Input label="Nama Bank" value={paymentBankNameIntl} onChange={(e) => setPaymentBankNameIntl(e.target.value)} placeholder="mis. PT BANK CENTRAL ASIA Tbk" />
+              <Input label="Cabang" value={paymentBankBranchIntl} onChange={(e) => setPaymentBankBranchIntl(e.target.value)} placeholder="mis. BCA KCU Slamet Riyadi" />
+              <Input label="Kode SWIFT" value={paymentSwiftCodeIntl} onChange={(e) => setPaymentSwiftCodeIntl(e.target.value)} placeholder="mis. CENAIDJA" />
+              <Input
+                label="Atas Nama"
+                value={paymentAccountNameIntl}
+                onChange={(e) => setPaymentAccountNameIntl(e.target.value)}
+                placeholder="mis. CV. Seven Smarts Indonesia"
+              />
+              <Input
+                label="No. Rekening"
+                value={paymentAccountNumberIntl}
+                onChange={(e) => setPaymentAccountNumberIntl(e.target.value)}
+                placeholder="mis. 015 4853 711"
               />
             </div>
           </div>

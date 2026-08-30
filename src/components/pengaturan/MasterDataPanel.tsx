@@ -91,6 +91,8 @@ export interface ClientRow {
   address: string | null;
   notes: string | null;
   isPemungutPpn: boolean;
+  // Mata uang default invoice ke client ini ("IDR" | "JPY") — lihat Client.currency di schema.
+  currency: string;
 }
 export interface DomainRow {
   id: string;
@@ -1279,6 +1281,7 @@ const CLIENT_COLUMNS = [
   { key: "phone", label: "No. HP" },
   { key: "pic", label: "PIC" },
   { key: "pemungutPpn", label: "Pemungut PPN" },
+  { key: "currency", label: "Currency" },
 ];
 
 const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) => {
@@ -1347,6 +1350,16 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
           },
         ]
       : []),
+    ...(isVisible("currency")
+      ? [
+          {
+            key: "currency",
+            header: "Currency",
+            cell: (c: ClientRow) =>
+              c.currency === "JPY" ? <span className="text-[11px] font-bold text-[#0544cc]">JPY</span> : <span className="text-slate-400">IDR</span>,
+          },
+        ]
+      : []),
     {
       key: "aksi",
       header: "Aksi",
@@ -1391,6 +1404,13 @@ const ClientSection: React.FC<{ rows: ClientRow[] }> = ({ rows: initialRows }) =
           </div>
           <Input label="Alamat" value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
           <Input label="Catatan" value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          <Select
+            label="Currency Invoice"
+            helperText="Default mata uang invoice baru ke client ini (bisa diganti manual per invoice) — client Jepang pakai JPY."
+            options={[{ value: "IDR", label: "IDR (Rupiah)" }, { value: "JPY", label: "JPY (Yen Jepang)" }]}
+            value={form.currency ?? "IDR"}
+            onChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+          />
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3">
             <input
               type="checkbox"

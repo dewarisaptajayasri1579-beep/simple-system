@@ -16,6 +16,9 @@ export interface CurrencyInputProps {
   autoFocus?: boolean;
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  /** Simbol mata uang di kiri input — default "Rp". Dipakai form invoice client asing (mis. "¥"
+   *  untuk client JPY, lihat Invoice.currency) supaya tidak salah kesan nominalnya Rupiah. */
+  currencyPrefix?: string;
 }
 
 function formatThousands(n: number): string {
@@ -33,7 +36,7 @@ function parseDigits(raw: string): number {
  *  (bukan qty, persentase, atau field angka non-uang lain — itu tetap pakai <Input type="number">
  *  biasa). Kalau bikin form input nominal uang baru, pakai komponen ini, jangan Input biasa. */
 export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ label, helperText, error, value, onChange, sizeVariant = "lg", placeholder = "0", disabled, className = "", id, autoFocus, onBlur, onKeyDown }, ref) => {
+  ({ label, helperText, error, value, onChange, sizeVariant = "lg", placeholder = "0", disabled, className = "", id, autoFocus, onBlur, onKeyDown, currencyPrefix = "Rp" }, ref) => {
     const [display, setDisplay] = useState(() => formatThousands(value));
 
     useEffect(() => {
@@ -62,7 +65,7 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
           </label>
         )}
         <div className="relative flex items-center w-full">
-          <span className="absolute left-3.5 text-slate-500 font-semibold text-xs sm:text-sm pointer-events-none">Rp</span>
+          <span className="absolute left-3.5 text-slate-500 font-semibold text-xs sm:text-sm pointer-events-none">{currencyPrefix}</span>
           <input
             ref={ref}
             id={generatedId}

@@ -29,6 +29,7 @@ function formatDueDate(iso: string | null) {
 interface ClientOption {
   id: string;
   name: string;
+  currency: string;
 }
 
 interface ItemOption {
@@ -53,6 +54,14 @@ function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 }
 
+/** Format ringkasan total sesuai currency invoice — dipakai bareng formatRupiah (yang tetap
+ *  dipakai buat harga katalog/pending-billing di atas, itu selalu IDR terlepas dari currency
+ *  invoice yang lagi dibuat). */
+function formatMoney(n: number, currency: string) {
+  if (currency === "JPY") return new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: 0 }).format(n || 0);
+  return formatRupiah(n);
+}
+
 const emptyLine = (): LineDraft => ({ itemId: null, description: "", qty: 1, unitPrice: 0, unitCost: 0, discountAmount: 0 });
 
 export interface InvoiceFormPrefill {
@@ -73,6 +82,10 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [clientId, setClientId] = useState(prefill?.clientId ?? "");
+  // Currency nota ("IDR" | "JPY") — default ikut Client.currency saat client dipilih (lihat
+  // effect di bawah), tetap bisa diganti manual. Diskon disembunyikan buat currency non-IDR
+  // (lihat handleSubmit & bagian "Baris Item"/"Diskon & PPN" di render).
+  const [currency, setCurrency] = useState("IDR");
   const [issuedAt, setIssuedAt] = useState(jakartaTodayDateIso());
   // Default jatuh tempo 7 hari dari tanggal invoice — tetap boleh diubah manual, dan kalau
   // sudah diubah manual, tidak lagi ikut geser otomatis pas Tanggal Invoice diganti.
@@ -155,6 +168,20 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
     fetch("/api/items").then((r) => r.json()).then(setItems);
     fetch("/api/settings").then((r) => r.json()).then((s) => setPpnRate(s.defaultPpnRate ?? 11));
   }, []);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const client = clients.find((c) => c.id === clientId);
+    if (client) setCurrency(client.currency === "JPY" ? "JPY" : "IDR");
+  }, [clientId, clients]);
+
+  // Diskon tidak dipakai buat nota currency asing (lihat plan) — begitu pindah ke non-IDR, nolkan
+  // biar tidak ada nilai lama nyangkut dari saat masih IDR.
+  useEffect(() => {
+    if (currency === "IDR") return;
+    setDiscountAmount(0);
+    setLines((prev) => prev.map((l) => (l.discountAmount ? { ...l, discountAmount: 0 } : l)));
+  }, [currency]);
 
   useEffect(() => {
     if (!clientId) {
@@ -280,6 +307,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
+          currency,
           issuedAt,
           dueDate: dueDate || null,
           notes,
@@ -335,6 +363,13 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+          <Select
+            label="Currency"
+            helperText="Default ikut Client, bisa diganti manual."
+            options={[{ value: "IDR", label: "IDR (Rupiah)" }, { value: "JPY", label: "JPY (Yen Jepang)" }]}
+            value={currency}
+            onChange={setCurrency}
+          />
           <Input label="Tanggal Invoice" type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} />
           <Input
             label="Jatuh Tempo"
@@ -423,7 +458,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
                 value={line.description}
                 onChange={(e) => updateLine(index, { description: e.target.value })}
               />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className={`grid grid-cols-2 gap-3 ${currency === "IDR" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
                 <Input
                   label="Qty"
                   type="number"
@@ -434,24 +469,28 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
                 <CurrencyInput
                   label="Harga Satuan"
                   sizeVariant="sm"
+                  currencyPrefix={currency === "JPY" ? "¥" : "Rp"}
                   value={line.unitPrice}
                   onChange={(v) => updateLine(index, { unitPrice: v })}
                 />
                 <CurrencyInput
                   label="HPP Satuan"
                   sizeVariant="sm"
+                  currencyPrefix={currency === "JPY" ? "¥" : "Rp"}
                   value={line.unitCost}
                   onChange={(v) => updateLine(index, { unitCost: v })}
                 />
-                <CurrencyInput
-                  label="Diskon"
-                  sizeVariant="sm"
-                  value={line.discountAmount}
-                  onChange={(v) => updateLine(index, { discountAmount: v })}
-                />
+                {currency === "IDR" && (
+                  <CurrencyInput
+                    label="Diskon"
+                    sizeVariant="sm"
+                    value={line.discountAmount}
+                    onChange={(v) => updateLine(index, { discountAmount: v })}
+                  />
+                )}
               </div>
               <p className="text-right text-sm font-bold text-slate-700">
-                Subtotal: {formatRupiah(line.qty * line.unitPrice - line.discountAmount)}
+                Subtotal: {formatMoney(line.qty * line.unitPrice - line.discountAmount, currency)}
               </p>
             </div>
           ))}
@@ -466,7 +505,7 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           <CardTitle>Diskon &amp; PPN</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-          <CurrencyInput label="Diskon Tambahan" value={discountAmount} onChange={setDiscountAmount} />
+          {currency === "IDR" && <CurrencyInput label="Diskon Tambahan" value={discountAmount} onChange={setDiscountAmount} />}
           <label className="flex items-center gap-2.5 h-14 px-1 cursor-pointer select-none">
             <input type="checkbox" checked={ppnEnabled} onChange={(e) => setPpnEnabled(e.target.checked)} className="w-5 h-5" />
             <span className="font-bold text-sm text-slate-700">Kenakan PPN {ppnRate}%</span>
@@ -489,27 +528,29 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
         <div className="mt-6 pt-4 border-t border-slate-200/60 space-y-1.5 text-sm">
           <div className="flex justify-between text-slate-600">
             <span>Subtotal</span>
-            <span>{formatRupiah(subtotal)}</span>
+            <span>{formatMoney(subtotal, currency)}</span>
           </div>
-          <div className="flex justify-between text-slate-600">
-            <span>Diskon</span>
-            <span>- {formatRupiah(totalLineDiscount + discountAmount)}</span>
-          </div>
+          {currency === "IDR" && (
+            <div className="flex justify-between text-slate-600">
+              <span>Diskon</span>
+              <span>- {formatMoney(totalLineDiscount + discountAmount, currency)}</span>
+            </div>
+          )}
           {ppnEnabled && (
             <>
               <div className="flex justify-between text-slate-600">
                 <span>DPP</span>
-                <span>{formatRupiah(dppAmount)}</span>
+                <span>{formatMoney(dppAmount, currency)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>PPN {ppnRate}%{ppnInclusive ? " (breakdown)" : ""}</span>
-                <span>{formatRupiah(ppnAmount)}</span>
+                <span>{formatMoney(ppnAmount, currency)}</span>
               </div>
             </>
           )}
           <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t border-slate-200/60">
             <span>Total</span>
-            <span>{formatRupiah(totalAmount)}</span>
+            <span>{formatMoney(totalAmount, currency)}</span>
           </div>
         </div>
 
@@ -519,13 +560,14 @@ export const InvoiceForm: React.FC<{ prefill?: InvoiceFormPrefill }> = ({ prefil
           <CurrencyInput
             label="DP (Rencana) — opsional"
             helperText="Cuma catatan (belum tentu sudah dibayar) — dipakai buat tampilkan estimasi Sisa Setelah DP di invoice. Pelunasan beneran tetap lewat menu Pembayaran."
+            currencyPrefix={currency === "JPY" ? "¥" : "Rp"}
             value={dpAmount}
             onChange={setDpAmount}
           />
           {dpAmount > 0 && (
             <div className="mt-2 flex justify-between text-sm text-amber-700 font-semibold">
               <span>Sisa Setelah DP (Rencana)</span>
-              <span>{formatRupiah(Math.max(0, totalAmount - dpAmount))}</span>
+              <span>{formatMoney(Math.max(0, totalAmount - dpAmount), currency)}</span>
             </div>
           )}
         </div>

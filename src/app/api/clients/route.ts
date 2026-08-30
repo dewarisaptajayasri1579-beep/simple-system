@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         address: body?.address || null,
         notes: body?.notes || null,
         isPemungutPpn: Boolean(body?.isPemungutPpn),
+        currency: body?.currency === "JPY" ? "JPY" : "IDR",
       },
     })
     return NextResponse.json(client, { status: 201 })

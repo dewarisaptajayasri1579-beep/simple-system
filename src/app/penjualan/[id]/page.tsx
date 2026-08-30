@@ -56,6 +56,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const bank = invoice.ppnEnabled
     ? { name: settings.paymentBankNamePpn, account: settings.paymentAccountNamePpn, number: settings.paymentAccountNumberPpn }
     : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
+  const bankIntl = {
+    bankName: settings.paymentBankNameIntl,
+    branchName: settings.paymentBankBranchIntl,
+    swiftCode: settings.paymentSwiftCodeIntl,
+    accountName: settings.paymentAccountNameIntl,
+    accountNumber: settings.paymentAccountNumberIntl,
+  }
 
   const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
 
@@ -159,7 +166,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
            referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
-        <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
+        <NotaPrintable invoice={invoice} bank={bank} bankIntl={bankIntl} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">

@@ -25,9 +25,16 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const bank = invoice.ppnEnabled
     ? { name: settings.paymentBankNamePpn, account: settings.paymentAccountNamePpn, number: settings.paymentAccountNumberPpn }
     : { name: settings.paymentBankNameNonPpn, account: settings.paymentAccountNameNonPpn, number: settings.paymentAccountNumberNonPpn }
+  const bankIntl = {
+    bankName: settings.paymentBankNameIntl,
+    branchName: settings.paymentBankBranchIntl,
+    swiftCode: settings.paymentSwiftCodeIntl,
+    accountName: settings.paymentAccountNameIntl,
+    accountNumber: settings.paymentAccountNumberIntl,
+  }
 
   const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
   const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
 
-  return <NotaPrintable invoice={invoice} bank={bank} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
+  return <NotaPrintable invoice={invoice} bank={bank} bankIntl={bankIntl} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
 }

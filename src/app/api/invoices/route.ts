@@ -53,6 +53,8 @@ export async function POST(request: Request) {
   if (!clientId) return NextResponse.json({ error: "Client wajib dipilih" }, { status: 400 })
   if (lines.length === 0) return NextResponse.json({ error: "Minimal 1 baris item" }, { status: 400 })
 
+  const currency = body?.currency === "JPY" ? "JPY" : "IDR"
+
   // Kalau invoice ini dibuat dari "Tagih Sekarang" (Dashboard Domain/Server/Maintenance) — simpan
   // link-nya supaya form Pembayaran nanti bisa otomatis pilih Bayar Domain/Server/Maintenance
   // tanpa staf pilih manual, dan supaya BillingFollowUp (SLA tindak-lanjut tagihan, lihat
@@ -131,6 +133,7 @@ export async function POST(request: Request) {
         data: {
           invoiceNumber,
           clientId,
+          currency,
           issuedAt: body?.issuedAt ? new Date(body.issuedAt) : undefined,
           dueDate: body?.dueDate ? new Date(body.dueDate) : null,
           subtotal,
