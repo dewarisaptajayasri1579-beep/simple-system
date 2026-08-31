@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -199,6 +200,8 @@ export const PengaturanPanel: React.FC<{
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [userMessage, setUserMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingDeactivate, setPendingDeactivate] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   const totalPct = operasionalPct + direksiPct + bonusPct;
   const slottingTotalPct = slottingOperasionalPct + slottingDireksiPct + slottingBonusPct + slottingHppReservePct;
@@ -356,6 +359,24 @@ export const PengaturanPanel: React.FC<{
       type: "success",
       text: isActive ? "User diaktifkan kembali." : "User dinonaktifkan & sesi login-nya dicabut.",
     });
+  };
+
+  // Hapus permanen — beda dari nonaktifkan, cuma berhasil kalau user belum punya riwayat apa pun
+  // (lihat guard di DELETE /api/users/[id]); kalau sudah ada histori, backend menolak & minta
+  // nonaktifkan saja supaya data historis (Buku Besar, Lead, dst) tidak nyangkut.
+  const handleDeleteUser = async (id: string) => {
+    setUserMessage(null);
+    setIsDeletingUser(true);
+    const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => null);
+    setIsDeletingUser(false);
+    setPendingDelete(null);
+    if (!res.ok) {
+      setUserMessage({ type: "error", text: data?.error || "Gagal menghapus user" });
+      return;
+    }
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    setUserMessage({ type: "success", text: "User berhasil dihapus." });
   };
 
   // Akses COA per Role — cuma dipakai owner, dan cuma buat role "admin" (Owner/Direktur selalu
@@ -693,6 +714,34 @@ export const PengaturanPanel: React.FC<{
                   );
                 },
               },
+              {
+                key: "aksi",
+                header: "Aksi",
+                cellClassName: "min-w-[160px]",
+                cell: (u) => {
+                  if (u.id === currentUserId || u.role === "owner") return null;
+                  if (pendingDelete === u.id) {
+                    return (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold text-rose-700">Hapus permanen?</span>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="danger" onClick={() => handleDeleteUser(u.id)} isLoading={isDeletingUser}>
+                            Ya, hapus
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setPendingDelete(null)}>
+                            Batal
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Button size="sm" variant="ghost" onClick={() => setPendingDelete(u.id)}>
+                      <Trash2 className="w-4 h-4 text-rose-500" />
+                    </Button>
+                  );
+                },
+              },
             ]}
             rows={users}
             rowKey={(u) => u.id}
@@ -700,6 +749,10 @@ export const PengaturanPanel: React.FC<{
             emptyMessage="Belum ada user."
           />
         </div>
+        <p className="text-xs text-slate-500 mt-2">
+          Hapus cuma berhasil kalau user itu belum punya riwayat aktivitas apa pun (pesan, lead, audit, kasbon, dst) — kalau sudah ada, nonaktifkan saja
+          lewat kolom Status supaya data historisnya tetap utuh.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200/60">
           <Input label="Nama" value={newName} onChange={(e) => setNewName(e.target.value)} />
