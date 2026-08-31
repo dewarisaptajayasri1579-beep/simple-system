@@ -101,7 +101,7 @@ export async function getWahubSessionStatus(sessionId: string) {
     const text = await res.text().catch(() => "")
     throw new Error(`WAHUB gagal cek status (${res.status}): ${text.slice(0, 200)}`)
   }
-  return res.json() as Promise<{ sessionId: string; status: string }>
+  return res.json() as Promise<{ sessionId: string; status: string; phoneNumber?: string | null }>
 }
 
 /** QR code buat scan — WAHUB balikin HTML `<img src="data:...">`, di sini di-parse jadi data URL

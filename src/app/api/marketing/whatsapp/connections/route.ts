@@ -25,6 +25,7 @@ export async function GET() {
           where: { id: connection.id },
           data: {
             status,
+            phoneNumber: status === "READY" ? (remote?.phoneNumber ?? connection.phoneNumber) : connection.phoneNumber,
             lastStatusCheckAt: new Date(),
             lastConnectedAt: status === "READY" ? new Date() : connection.lastConnectedAt,
           },

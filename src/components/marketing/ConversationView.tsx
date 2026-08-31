@@ -82,7 +82,9 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
-  const [mediaUrl, setMediaUrl] = useState("")
+  const [attachment, setAttachment] = useState<{ url: string; messageType: string; name: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [sending, setSending] = useState(false)
   const [usedSuggestionId, setUsedSuggestionId] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<{ id: string; style: string; text: string }[]>([])
@@ -343,7 +345,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
 
   const send = async () => {
     const text = draft.trim()
-    const media = mediaUrl.trim()
+    const media = attachment
     if ((!text && !media) || sending) return
     setSending(true)
     const tempId = `tmp-${Date.now()}`
@@ -351,9 +353,9 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       id: tempId,
       providerMessageId: null,
       direction: "OUTBOUND",
-      messageType: media ? "IMAGE" : "TEXT",
+      messageType: media ? media.messageType : "TEXT",
       body: text || null,
-      mediaUrl: media || null,
+      mediaUrl: media?.url ?? null,
       senderUserId: null,
       sentAt: new Date().toISOString(),
       deliveryStatus: "QUEUED",
@@ -361,14 +363,19 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     setMessages((prev) => [...prev, optimistic])
     setError(null)
     setDraft("")
-    setMediaUrl("")
+    setAttachment(null)
     const suggestionId = usedSuggestionId
     setUsedSuggestionId(null)
     try {
       const res = await fetch(`/api/marketing/conversations/${conversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text, mediaUrl: media || undefined, aiSuggestionId: suggestionId }),
+        body: JSON.stringify({
+          body: text,
+          mediaUrl: media?.url ?? undefined,
+          messageType: media?.messageType ?? undefined,
+          aiSuggestionId: suggestionId,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -504,7 +511,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={m.mediaUrl} alt="lampiran" className="rounded-lg max-w-full mb-1 max-h-64 object-cover" />
                 )}
-                {m.mediaUrl && m.messageType !== "IMAGE" && (
+                {m.mediaUrl && m.messageType === "AUDIO" && (
+                  <audio controls src={m.mediaUrl} className="w-56 max-w-full mb-1" />
+                )}
+                {m.mediaUrl && m.messageType !== "IMAGE" && m.messageType !== "AUDIO" && (
                   <a href={m.mediaUrl} target="_blank" rel="noreferrer" className={`underline text-xs ${out ? "text-blue-100" : "text-blue-700"}`}>
                     📎 Lampiran ({m.messageType.toLowerCase()})
                   </a>
@@ -650,22 +660,49 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
         </div>
       )}
 
-      {meta.canAct && mediaUrl && (
+      {meta.canAct && (uploading || attachment) && (
         <div className="pb-2 text-xs text-slate-500 flex items-center gap-2">
-          <span className="truncate">📎 {mediaUrl}</span>
-          <button onClick={() => setMediaUrl("")} className="text-rose-600 font-bold flex-shrink-0">hapus</button>
+          <span className="truncate">📎 {uploading ? "Mengunggah…" : attachment?.name}</span>
+          {!uploading && (
+            <button onClick={() => setAttachment(null)} className="text-rose-600 font-bold flex-shrink-0">hapus</button>
+          )}
         </div>
       )}
       {meta.canAct ? (
         <div className="flex items-end gap-2 pt-2 border-t border-slate-200">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+            hidden
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ""
+              if (!file) return
+              setUploading(true)
+              setError(null)
+              try {
+                const form = new FormData()
+                form.append("file", file)
+                const res = await fetch(`/api/marketing/conversations/${conversationId}/upload`, { method: "POST", body: form })
+                const data = await res.json()
+                if (!res.ok) {
+                  setError(data.error || "Gagal upload file")
+                  return
+                }
+                setAttachment({ url: data.url, messageType: data.messageType, name: file.name })
+              } catch {
+                setError("Gagal upload file")
+              } finally {
+                setUploading(false)
+              }
+            }}
+          />
           <button
             type="button"
-            title="Lampirkan gambar via URL"
-            onClick={() => {
-              const u = window.prompt("URL gambar/dokumen (https://…):")
-              if (u && /^https?:\/\//.test(u)) setMediaUrl(u.trim())
-            }}
-            disabled={!canSend}
+            title="Lampirkan file"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!canSend || uploading}
             className="w-11 h-11 rounded-2xl border border-slate-200 text-slate-500 flex items-center justify-center flex-shrink-0 disabled:opacity-40"
           >
             <Paperclip className="w-4 h-4" />
@@ -681,7 +718,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           />
           <Button
             onClick={send}
-            disabled={sending || !draft.trim() || !canSend}
+            disabled={sending || uploading || (!draft.trim() && !attachment) || !canSend}
             isLoading={sending}
             className="!w-11 !h-11 !p-0 !rounded-2xl flex-shrink-0"
             aria-label="Kirim"

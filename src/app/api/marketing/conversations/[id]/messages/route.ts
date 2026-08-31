@@ -128,11 +128,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const payload = (await request.json().catch(() => null)) as
-    | { body?: unknown; aiSuggestionId?: unknown; mediaUrl?: unknown }
+    | { body?: unknown; aiSuggestionId?: unknown; mediaUrl?: unknown; messageType?: unknown }
     | null
   const text = typeof payload?.body === "string" ? payload.body.trim() : ""
   const aiSuggestionId = typeof payload?.aiSuggestionId === "string" ? payload.aiSuggestionId : null
   const mediaUrl = typeof payload?.mediaUrl === "string" && /^https?:\/\//.test(payload.mediaUrl) ? payload.mediaUrl : null
+  const ALLOWED_MEDIA_TYPES = new Set(["IMAGE", "DOCUMENT", "AUDIO", "OTHER"])
+  const mediaMessageType =
+    typeof payload?.messageType === "string" && ALLOWED_MEDIA_TYPES.has(payload.messageType) ? payload.messageType : "OTHER"
   if (!text && !mediaUrl) return NextResponse.json({ error: "Pesan tidak boleh kosong" }, { status: 400 })
 
   const conversation = await prisma.conversation.findUnique({
@@ -176,7 +179,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     data: {
       conversationId: id,
       direction: "OUTBOUND",
-      messageType: mediaUrl ? "IMAGE" : "TEXT",
+      messageType: mediaUrl ? mediaMessageType : "TEXT",
       body: text || null,
       mediaUrl: mediaUrl ?? undefined,
       senderUserId: user.id,

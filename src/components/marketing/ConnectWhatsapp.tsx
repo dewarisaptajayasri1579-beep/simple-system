@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeftRight, CheckCircle2, Pencil, Plus, QrCode, Smartphone, Unplug, X } from "lucide-react"
+import { ArrowLeftRight, CheckCircle2, Home, Pencil, Plus, QrCode, Smartphone, Unplug, X } from "lucide-react"
 
 import { Alert, Button, Card, Input, Spinner } from "@/components/ui"
 import { AppLogo } from "@/components/ui/AppLogo"
@@ -15,6 +15,10 @@ interface ConnectionState {
   label: string | null
   status: Status
   phoneNumber: string | null
+}
+
+function formatPhoneNumber(raw: string) {
+  return raw.startsWith("+") ? raw : `+${raw}`
 }
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -81,7 +85,7 @@ const ConnectionCard: React.FC<{
             <p className="text-sm font-black text-slate-900">{connection.label || "WhatsApp"}</p>
             <Pencil className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
           </button>
-          {connection.phoneNumber && <p className="text-xs text-slate-500">{connection.phoneNumber}</p>}
+          {connection.phoneNumber && <p className="text-xs text-slate-500">{formatPhoneNumber(connection.phoneNumber)}</p>}
         </div>
       )}
 
@@ -271,6 +275,9 @@ export const ConnectWhatsapp: React.FC = () => {
       <div className="flex items-center justify-between">
         <AppLogo size="sm" layout="horizontal" showTagline={false} />
         <div className="flex items-center gap-5">
+          <Link href="/marketing" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+            <Home className="w-4 h-4" /> Beranda
+          </Link>
           <Link href="/modules" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors">
             <ArrowLeftRight className="w-4 h-4" /> Ganti Modul
           </Link>
