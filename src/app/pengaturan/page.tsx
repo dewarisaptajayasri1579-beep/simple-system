@@ -15,6 +15,7 @@ export default async function PengaturanPage() {
   const [
     settings,
     users,
+    activeTeamMemberships,
     domains,
     recurringBills,
     clients,
@@ -30,6 +31,7 @@ export default async function PengaturanPage() {
   ] = await Promise.all([
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.teamMembership.findMany({ where: { activeUntil: null }, select: { userId: true } }),
     prisma.domain.findMany({ include: { client: true }, orderBy: { name: "asc" } }),
     prisma.recurringBill.findMany({ include: { vendor: true, period: true }, orderBy: { name: "asc" } }),
     prisma.client.findMany({ orderBy: { name: "asc" } }),
@@ -111,7 +113,19 @@ export default async function PengaturanPage() {
             slottingHppReserveAccountId: settings.slottingHppReserveAccountId,
             slottingTransferFee: settings.slottingTransferFee,
           }}
-          users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, phoneNumber: u.phoneNumber, modules: u.modules, isActive: u.isActive }))}
+          users={(() => {
+            const teamUserIds = new Set(activeTeamMemberships.map((m) => m.userId))
+            return users.map((u) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              role: u.role,
+              phoneNumber: u.phoneNumber,
+              modules: u.modules,
+              isActive: u.isActive,
+              hasMarketingTeam: teamUserIds.has(u.id),
+            }))
+          })()}
           domains={domains.map((d) => ({
             ...d,
             lastPaidAt: d.lastPaidAt ? d.lastPaidAt.toISOString() : null,

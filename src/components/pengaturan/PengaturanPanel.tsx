@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Trash2, TriangleAlert } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -70,6 +71,10 @@ export interface UserRow {
   phoneNumber: string | null;
   modules: string[];
   isActive: boolean;
+  // Punya TeamMembership aktif di modul Marketing atau tidak — kalau modul "marketing" dicentang
+  // tapi ini false, user itu belum kepasang di tim mana pun jadi Beranda/Inbox/dst-nya bakal
+  // kosong (lihat pengingat di kolom Modul). Diisi dari page.tsx (Prisma.teamMembership).
+  hasMarketingTeam: boolean;
 }
 
 const MODULE_OPTIONS: { value: string; label: string }[] = [

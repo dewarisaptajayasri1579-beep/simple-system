@@ -57,7 +57,7 @@ model User {
   pushSubscriptions        PushSubscription[]
   auditLogs                AuditLog[]
   leadSystemSettingsUpdated LeadSystemSetting[]
-  whatsappConnection       WhatsappConnection?
+  whatsappConnections      WhatsappConnection[]
 
   // ---- Kasbon (lihat model Kasbon) — dipisah 2 relasi karena 1 User bisa jadi penerima
   // sekaligus pemberi kasbon untuk orang lain.
@@ -1406,9 +1406,10 @@ model LeadAssignment {
 }
 
 /// Session WAHUB per Sales — MENYIMPANG dari baseline "satu identitas bisnis" di
-/// docs/01-project-overview.md §10.1 asli: project ini pakai 1 nomor WA per Sales (scan QR
-/// sendiri-sendiri di app lewat WAHUB multi-session), bukan 1 nomor bisnis bersama. Alasan &
-/// detail flow onboarding ada di §10.3 doc yang sama.
+/// docs/01-project-overview.md §10.1 asli: project ini pakai nomor WA per-Sales (scan QR
+/// sendiri-sendiri di app lewat WAHUB multi-session), bukan 1 nomor bisnis bersama. 1 Sales
+/// boleh punya LEBIH DARI 1 koneksi (mis. WA utama + WA toko lain) — `label` dipakai buat
+/// bedain identitas tiap nomor di UI. Alasan & detail flow onboarding ada di §10.3 doc yang sama.
 ///
 /// PENTING: WAHUB TIDAK butuh client/API key terpisah per Sales — 1 client key (punya
 /// simple-system, `WAHUB_API_KEY` yang sudah ada) bisa punya banyak session sekaligus, dibedakan
@@ -1416,14 +1417,15 @@ model LeadAssignment {
 /// ensureSessionOwnership di source WAHUB). Tiap session punya `webhookUrl` SENDIRI-SENDIRI
 /// (disimpan per-sessionId di WAHUB, bukan global) — jadi aman dijalankan berdampingan dengan
 /// session "default" milik Director Assistant tanpa saling menimpa webhook. `wahubSessionId` di
-/// sini = bagian LOKAL sebelum prefix (mis. `sales-{userId}`), bukan sessionId penuh.
+/// sini = bagian LOKAL sebelum prefix (mis. `sales-{userId}-{suffix acak}`), bukan sessionId penuh.
 ///
 /// QR code sendiri sengaja TIDAK disimpan di sini (transient, ambil live dari WAHUB
 /// `GET /api/sessions/qr/{sessionId}` selama status QR_READY).
 model WhatsappConnection {
   id                  String    @id @default(uuid())
-  userId              String    @unique @map("user_id") // 1 Sales = 1 koneksi WA (MVP)
-  wahubSessionId      String    @unique @map("wahub_session_id") // bagian lokal, mis. "sales-{userId}"
+  userId              String    @map("user_id") // 1 Sales bisa punya banyak koneksi WA
+  label               String?   @map("label") // identitas nomor ini, mis. "WA Utama" / "WA Toko 2"
+  wahubSessionId      String    @unique @map("wahub_session_id") // bagian lokal, mis. "sales-{userId}-{suffix}"
   phoneNumber         String?   @map("phone_number")
   status              String    @default("STARTING") @map("status") // "STARTING" | "QR_READY" | "READY" | "FAILED" | "DISCONNECTED"
   webhookRegisteredAt DateTime? @map("webhook_registered_at")
@@ -1435,6 +1437,7 @@ model WhatsappConnection {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations Conversation[]
 
+  @@index([userId])
   @@index([status])
   @@map("whatsapp_connections")
   @@schema("simple_system")

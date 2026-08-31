@@ -11,27 +11,21 @@ type ConnState =
   | { kind: "loading" }
   | { kind: "ready" }
   | { kind: "none" } // belum pernah menghubungkan WA sama sekali
-  | { kind: "down"; status: string } // pernah terhubung, sekarang tidak READY
+  | { kind: "down"; downCount: number; total: number } // ada koneksi, tapi tidak ada yang READY
   | { kind: "unreachable" } // WAHUB tidak merespons — status tak bisa dipastikan
 
-const STATUS_LABEL: Record<string, string> = {
-  STARTING: "sedang menyambung",
-  QR_READY: "menunggu scan QR",
-  FAILED: "gagal / perlu scan ulang",
-  DISCONNECTED: "terputus",
-}
-
 /**
- * Banner yang muncul di Inbox & detail percakapan kalau koneksi WhatsApp Sales yang sedang
- * login TIDAK aktif — supaya jelas kenapa pesan tidak masuk/keluar, plus tombol ke halaman
- * hubungkan. Tidak menampilkan apa pun kalau koneksi normal (READY).
+ * Banner yang muncul di Inbox & detail percakapan kalau TIDAK ADA koneksi WhatsApp Sales yang
+ * sedang login yang aktif — supaya jelas kenapa pesan tidak masuk/keluar, plus tombol ke halaman
+ * hubungkan. Tidak menampilkan apa pun kalau minimal satu koneksi READY (nomor lain masih bisa
+ * menerima lead meski salah satu nomor terputus).
  */
 export const WhatsappStatusBanner: React.FC<{ className?: string }> = ({ className }) => {
   const [state, setState] = useState<ConnState>({ kind: "loading" })
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch("/api/marketing/whatsapp/status", { cache: "no-store" })
+      const res = await fetch("/api/marketing/whatsapp/connections", { cache: "no-store" })
       if (res.status === 502) {
         setState({ kind: "unreachable" })
         return
@@ -41,12 +35,17 @@ export const WhatsappStatusBanner: React.FC<{ className?: string }> = ({ classNa
         setState({ kind: "unreachable" })
         return
       }
-      if (!data.connection) {
+      const connections: Array<{ status: string }> = data.connections ?? []
+      if (connections.length === 0) {
         setState({ kind: "none" })
         return
       }
-      const status: string = data.connection.status
-      setState(status === "READY" ? { kind: "ready" } : { kind: "down", status })
+      const readyCount = connections.filter((c) => c.status === "READY").length
+      if (readyCount > 0) {
+        setState({ kind: "ready" })
+        return
+      }
+      setState({ kind: "down", downCount: connections.length, total: connections.length })
     } catch {
       setState({ kind: "unreachable" })
     }
@@ -66,7 +65,7 @@ export const WhatsappStatusBanner: React.FC<{ className?: string }> = ({ classNa
       ? "WhatsApp kamu belum terhubung, jadi pesan lead tidak bisa masuk atau dibalas."
       : state.kind === "unreachable"
         ? "Status WhatsApp tidak bisa dipastikan — server pesan sedang tidak merespons. Pesan mungkin tertunda."
-        : `WhatsApp kamu ${STATUS_LABEL[state.status] ?? "tidak terhubung"}. Pesan lead berhenti masuk & tidak bisa dibalas sampai tersambung lagi.`
+        : `${state.downCount} dari ${state.total} nomor WhatsApp kamu terputus. Pesan lead ke nomor itu berhenti masuk & tidak bisa dibalas sampai tersambung lagi.`
 
   return (
     <Link href="/marketing/whatsapp" className={`block ${className ?? ""}`}>

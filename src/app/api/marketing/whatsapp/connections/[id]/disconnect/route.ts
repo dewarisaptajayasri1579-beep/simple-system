@@ -4,12 +4,15 @@ import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { prisma } from "@/lib/prisma"
 import { logoutWahubSession } from "@/lib/wahub"
 
-export async function POST() {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
-  const connection = await prisma.whatsappConnection.findUnique({ where: { userId: user.id } })
-  if (!connection) return NextResponse.json({ error: "Belum ada koneksi" }, { status: 404 })
+  const { id } = await params
+  const connection = await prisma.whatsappConnection.findUnique({ where: { id } })
+  if (!connection || connection.userId !== user.id) {
+    return NextResponse.json({ error: "Koneksi tidak ditemukan" }, { status: 404 })
+  }
 
   try {
     await logoutWahubSession(connection.wahubSessionId)
@@ -21,5 +24,5 @@ export async function POST() {
     where: { id: connection.id },
     data: { status: "DISCONNECTED", phoneNumber: null },
   })
-  return NextResponse.json({ connection: updated })
+  return NextResponse.json(updated)
 }
