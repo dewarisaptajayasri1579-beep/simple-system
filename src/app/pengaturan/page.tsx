@@ -107,10 +107,12 @@ export default async function PengaturanPage() {
             slottingDireksiPct: settings.slottingDireksiPct,
             slottingBonusPct: settings.slottingBonusPct,
             slottingHppReservePct: settings.slottingHppReservePct,
+            slottingLabaDitahanPct: settings.slottingLabaDitahanPct,
             slottingOperasionalAccountId: settings.slottingOperasionalAccountId,
             slottingDireksiAccountId: settings.slottingDireksiAccountId,
             slottingBonusAccountId: settings.slottingBonusAccountId,
             slottingHppReserveAccountId: settings.slottingHppReserveAccountId,
+            slottingLabaDitahanAccountId: settings.slottingLabaDitahanAccountId,
             slottingTransferFee: settings.slottingTransferFee,
           }}
           users={(() => {

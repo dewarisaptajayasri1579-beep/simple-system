@@ -21,11 +21,12 @@ export default async function SlottingOmsetDetailPage({ params }: { params: Prom
   ])
   if (!slot) notFound()
 
-  const [operasionalAccount, direksiAccount, bonusAccount, hppReserveAccount] = await Promise.all([
+  const [operasionalAccount, direksiAccount, bonusAccount, hppReserveAccount, labaDitahanAccount] = await Promise.all([
     settings.slottingOperasionalAccountId ? prisma.account.findUnique({ where: { id: settings.slottingOperasionalAccountId } }) : null,
     settings.slottingDireksiAccountId ? prisma.account.findUnique({ where: { id: settings.slottingDireksiAccountId } }) : null,
     settings.slottingBonusAccountId ? prisma.account.findUnique({ where: { id: settings.slottingBonusAccountId } }) : null,
     settings.slottingHppReserveAccountId ? prisma.account.findUnique({ where: { id: settings.slottingHppReserveAccountId } }) : null,
+    settings.slottingLabaDitahanAccountId ? prisma.account.findUnique({ where: { id: settings.slottingLabaDitahanAccountId } }) : null,
   ])
 
   // Default centang checkbox "Biaya Admin" per rekening tujuan — nyala kalau bank sumber &
@@ -50,6 +51,7 @@ export default async function SlottingOmsetDetailPage({ params }: { params: Prom
             direksiAmount: slot.direksiAmount,
             bonusAmount: slot.bonusAmount,
             hppReserveAmount: slot.hppReserveAmount,
+            labaDitahanAmount: slot.labaDitahanAmount,
             transferFeeTotal: slot.transferFeeTotal,
             payment: {
               id: slot.payment.id,
@@ -70,16 +72,19 @@ export default async function SlottingOmsetDetailPage({ params }: { params: Prom
             direksiPct: settings.slottingDireksiPct,
             bonusPct: settings.slottingBonusPct,
             hppReservePct: settings.slottingHppReservePct,
+            labaDitahanPct: settings.slottingLabaDitahanPct,
             operasionalAccountName: operasionalAccount?.name ?? null,
             direksiAccountName: direksiAccount?.name ?? null,
             bonusAccountName: bonusAccount?.name ?? null,
             hppReserveAccountName: hppReserveAccount?.name ?? null,
+            labaDitahanAccountName: labaDitahanAccount?.name ?? null,
             transferFee: settings.slottingTransferFee,
             defaultFeeApplies: {
               Operasional: defaultFeeApplies(operasionalAccount),
               Direksi: defaultFeeApplies(direksiAccount),
               Bonus: defaultFeeApplies(bonusAccount),
-              "Cadangan HPP": defaultFeeApplies(hppReserveAccount),
+              "Cadangan Modal/HPP": defaultFeeApplies(hppReserveAccount),
+              "Laba Ditahan/Dana Darurat": defaultFeeApplies(labaDitahanAccount),
             },
           }}
         />

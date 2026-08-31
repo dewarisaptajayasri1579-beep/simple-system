@@ -19,6 +19,7 @@ export interface SlottingOmsetDetailProps {
     direksiAmount: number | null
     bonusAmount: number | null
     hppReserveAmount: number | null
+    labaDitahanAmount: number | null
     transferFeeTotal: number | null
     payment: { id: string; paymentNumber: string; clientName: string; accountName: string }
     costLines: { id: string; description: string; amount: number }[]
@@ -29,17 +30,19 @@ export interface SlottingOmsetDetailProps {
     direksiPct: number
     bonusPct: number
     hppReservePct: number
+    labaDitahanPct: number
     operasionalAccountName: string | null
     direksiAccountName: string | null
     bonusAccountName: string | null
     hppReserveAccountName: string | null
+    labaDitahanAccountName: string | null
     transferFee: number
     defaultFeeApplies: Record<BucketKey, boolean>
   }
 }
 
-type BucketKey = "Operasional" | "Direksi" | "Bonus" | "Cadangan HPP"
-const BUCKET_KEYS: BucketKey[] = ["Operasional", "Direksi", "Bonus", "Cadangan HPP"]
+type BucketKey = "Operasional" | "Direksi" | "Bonus" | "Cadangan Modal/HPP" | "Laba Ditahan/Dana Darurat"
+const BUCKET_KEYS: BucketKey[] = ["Operasional", "Direksi", "Cadangan Modal/HPP", "Bonus", "Laba Ditahan/Dana Darurat"]
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0)
@@ -75,12 +78,14 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
           direksi: Math.round((netAmount * settingsPreview.direksiPct) / 100),
           bonus: Math.round((netAmount * settingsPreview.bonusPct) / 100),
           hppReserve: Math.round((netAmount * settingsPreview.hppReservePct) / 100),
+          labaDitahan: Math.round((netAmount * settingsPreview.labaDitahanPct) / 100),
         }
       : {
           operasional: slot.operasionalAmount ?? 0,
           direksi: slot.direksiAmount ?? 0,
           bonus: slot.bonusAmount ?? 0,
           hppReserve: slot.hppReserveAmount ?? 0,
+          labaDitahan: slot.labaDitahanAmount ?? 0,
         }
 
   const handleAddLine = async () => {
@@ -143,6 +148,7 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
       direksiAmount: data.direksiAmount,
       bonusAmount: data.bonusAmount,
       hppReserveAmount: data.hppReserveAmount,
+      labaDitahanAmount: data.labaDitahanAmount,
       transferFeeTotal: data.transferFeeTotal,
     }))
   }
@@ -254,6 +260,15 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
             onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, Direksi: checked }))}
           />
           <SplitRow
+            label="Cadangan Modal/HPP"
+            pct={settingsPreview.hppReservePct}
+            amount={preview.hppReserve}
+            accountName={settingsPreview.hppReserveAccountName}
+            showFeeCheckbox={slot.status === "draft" && isOwner}
+            feeChecked={feeOverrides["Cadangan Modal/HPP"]}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, "Cadangan Modal/HPP": checked }))}
+          />
+          <SplitRow
             label="Bonus"
             pct={settingsPreview.bonusPct}
             amount={preview.bonus}
@@ -263,13 +278,13 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
             onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, Bonus: checked }))}
           />
           <SplitRow
-            label="Cadangan HPP"
-            pct={settingsPreview.hppReservePct}
-            amount={preview.hppReserve}
-            accountName={settingsPreview.hppReserveAccountName}
+            label="Laba Ditahan/Dana Darurat"
+            pct={settingsPreview.labaDitahanPct}
+            amount={preview.labaDitahan}
+            accountName={settingsPreview.labaDitahanAccountName}
             showFeeCheckbox={slot.status === "draft" && isOwner}
-            feeChecked={feeOverrides["Cadangan HPP"]}
-            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, "Cadangan HPP": checked }))}
+            feeChecked={feeOverrides["Laba Ditahan/Dana Darurat"]}
+            onFeeChange={(checked) => setFeeOverrides((prev) => ({ ...prev, "Laba Ditahan/Dana Darurat": checked }))}
           />
           {slot.status === "draft" && (
             <p className="text-xs text-slate-500 pt-1">
@@ -318,7 +333,7 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
         <div className="space-y-4">
           <p className="text-sm text-slate-600 font-medium">
             Slotting Omset <span className="font-bold text-slate-800">{slot.payment.paymentNumber}</span> — Laba Bersih{" "}
-            <span className="font-bold text-slate-800">{formatRupiah(netAmount)}</span> akan dipindah ke 4 rekening tujuan.
+            <span className="font-bold text-slate-800">{formatRupiah(netAmount)}</span> akan dipindah ke 5 rekening tujuan.
           </p>
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setConfirmProcessOpen(false)}>

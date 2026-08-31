@@ -54,12 +54,14 @@ export async function PATCH(request: Request) {
   if (typeof body?.slottingDireksiPct === "number") data.slottingDireksiPct = body.slottingDireksiPct
   if (typeof body?.slottingBonusPct === "number") data.slottingBonusPct = body.slottingBonusPct
   if (typeof body?.slottingHppReservePct === "number") data.slottingHppReservePct = body.slottingHppReservePct
+  if (typeof body?.slottingLabaDitahanPct === "number") data.slottingLabaDitahanPct = body.slottingLabaDitahanPct
   if (typeof body?.slottingTransferFee === "number") data.slottingTransferFee = body.slottingTransferFee
   for (const key of [
     "slottingOperasionalAccountId",
     "slottingDireksiAccountId",
     "slottingBonusAccountId",
     "slottingHppReserveAccountId",
+    "slottingLabaDitahanAccountId",
   ]) {
     if (typeof body?.[key] === "string") data[key] = body[key] || null
   }
@@ -68,7 +70,8 @@ export async function PATCH(request: Request) {
     (Number(data.slottingOperasionalPct) || 0) +
     (Number(data.slottingDireksiPct) || 0) +
     (Number(data.slottingBonusPct) || 0) +
-    (Number(data.slottingHppReservePct) || 0)
+    (Number(data.slottingHppReservePct) || 0) +
+    (Number(data.slottingLabaDitahanPct) || 0)
   if (data.slottingOperasionalPct !== undefined && Math.abs(slottingTotal - 100) > 0.01) {
     return NextResponse.json({ error: "Total persentase Slotting Omset harus 100%" }, { status: 400 })
   }

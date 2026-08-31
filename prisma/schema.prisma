@@ -693,6 +693,7 @@ model Account {
   slottingDireksiFor     Settings? @relation("SlottingDireksiAccount")
   slottingBonusFor       Settings? @relation("SlottingBonusAccount")
   slottingHppReserveFor  Settings? @relation("SlottingHppReserveAccount")
+  slottingLabaDitahanFor Settings? @relation("SlottingLabaDitahanAccount")
 
   @@index([coaAccountId])
   @@map("accounts")
@@ -974,19 +975,21 @@ model Settings {
   paymentAccountNameIntl   String? @map("payment_account_name_intl")
   paymentAccountNumberIntl String? @map("payment_account_number_intl")
 
-  // ---- Slotting Omset — pembagian Laba Bersih Project (Uang Masuk - HPP) ke 4 rekening tujuan,
+  // ---- Slotting Omset — pembagian Laba Bersih Project (Uang Masuk - HPP) ke 5 rekening tujuan,
   // TERPISAH dari operasionalPct/direksiPct/bonusPct di atas (itu split lama per-baris pembayaran,
-  // tanpa cadangan HPP, tidak pernah memindahkan uang beneran). Total 4 persentase di bawah harus
+  // tanpa cadangan HPP, tidak pernah memindahkan uang beneran). Total 5 persentase di bawah harus
   // 100 (divalidasi di PATCH /api/settings). Akun tujuan nullable — "Proses" di menu Slotting
   // Omset ditolak kalau ada yang belum di-set.
   slottingOperasionalPct       Float   @default(40) @map("slotting_operasional_pct")
-  slottingDireksiPct           Float   @default(40) @map("slotting_direksi_pct")
+  slottingDireksiPct           Float   @default(25) @map("slotting_direksi_pct")
   slottingBonusPct             Float   @default(5)  @map("slotting_bonus_pct")
-  slottingHppReservePct        Float   @default(15) @map("slotting_hpp_reserve_pct")
+  slottingHppReservePct        Float   @default(20) @map("slotting_hpp_reserve_pct")
+  slottingLabaDitahanPct        Float   @default(10) @map("slotting_laba_ditahan_pct")
   slottingOperasionalAccountId String? @unique @map("slotting_operasional_account_id")
   slottingDireksiAccountId     String? @unique @map("slotting_direksi_account_id")
   slottingBonusAccountId       String? @unique @map("slotting_bonus_account_id")
   slottingHppReserveAccountId  String? @unique @map("slotting_hpp_reserve_account_id")
+  slottingLabaDitahanAccountId  String? @unique @map("slotting_laba_ditahan_account_id")
   // Biaya admin bank otomatis kalau akun sumber & tujuan beda bank (dipotong dari nominal yang
   // ditransfer, dicatat terpisah sebagai Transaction beban "Biaya Admin Bank" dari akun sumber).
   slottingTransferFee          Float   @default(2500) @map("slotting_transfer_fee")
@@ -997,6 +1000,7 @@ model Settings {
   slottingDireksiAccount     Account? @relation("SlottingDireksiAccount", fields: [slottingDireksiAccountId], references: [id])
   slottingBonusAccount       Account? @relation("SlottingBonusAccount", fields: [slottingBonusAccountId], references: [id])
   slottingHppReserveAccount  Account? @relation("SlottingHppReserveAccount", fields: [slottingHppReserveAccountId], references: [id])
+  slottingLabaDitahanAccount Account? @relation("SlottingLabaDitahanAccount", fields: [slottingLabaDitahanAccountId], references: [id])
 
   @@map("settings")
   @@schema("simple_system")
@@ -1034,6 +1038,8 @@ model RevenueSlot {
   direksiAmount         Float?    @map("direksi_amount")
   bonusAmount           Float?    @map("bonus_amount")
   hppReserveAmount      Float?    @map("hpp_reserve_amount")
+  labaDitahanPct        Float?    @map("laba_ditahan_pct")
+  labaDitahanAmount     Float?    @map("laba_ditahan_amount")
   transferFeeTotal      Float?    @map("transfer_fee_total")
   status                String    @default("draft") @map("status") // "draft" | "processed" | "skipped"
   createdAt             DateTime  @default(now()) @map("created_at")

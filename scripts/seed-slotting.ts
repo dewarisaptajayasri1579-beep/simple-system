@@ -1,5 +1,6 @@
 /**
- * Seed 4 akun tujuan "Slotting Omset" (Operasional/Direksi/Bonus/Cadangan HPP) — placeholder,
+ * Seed 5 akun tujuan "Slotting Omset" (Operasional/Direksi/Cadangan Modal-HPP/Bonus/Laba
+ * Ditahan-Dana Darurat) — placeholder,
  * staf tinggal edit nama/nomor rekening asli lewat Keuangan > Akun Kas & Bank setelah ini.
  * Juga set Settings.slotting*AccountId supaya menu Slotting Omset langsung bisa dipakai.
  * Aman dijalankan berulang: upsert by name.
@@ -36,7 +37,8 @@ async function main() {
   const operasional = await ensureAccount("Operasional (Slotting)")
   const direksi = await ensureAccount("Direksi (Slotting)")
   const bonus = await ensureAccount("Bonus Tim (Slotting)")
-  const hppReserve = await ensureAccount("Cadangan HPP (Slotting)")
+  const hppReserve = await ensureAccount("Cadangan Modal/HPP (Slotting)")
+  const labaDitahan = await ensureAccount("Laba Ditahan/Dana Darurat (Slotting)")
 
   await prisma.settings.upsert({
     where: { id: "default" },
@@ -45,6 +47,7 @@ async function main() {
       slottingDireksiAccountId: direksi.id,
       slottingBonusAccountId: bonus.id,
       slottingHppReserveAccountId: hppReserve.id,
+      slottingLabaDitahanAccountId: labaDitahan.id,
     },
     create: {
       id: "default",
@@ -52,9 +55,10 @@ async function main() {
       slottingDireksiAccountId: direksi.id,
       slottingBonusAccountId: bonus.id,
       slottingHppReserveAccountId: hppReserve.id,
+      slottingLabaDitahanAccountId: labaDitahan.id,
     },
   })
-  console.log("Settings.slotting*AccountId sudah di-set. Persentase default: 40/40/5/15, biaya admin Rp2.500.")
+  console.log("Settings.slotting*AccountId sudah di-set. Persentase default: 40/25/20/5/10, biaya admin Rp2.500.")
 }
 
 main()

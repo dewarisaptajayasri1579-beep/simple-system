@@ -16,8 +16,9 @@ interface Bucket {
 }
 
 /** Eksekusi 1 Slotting Omset draft: hitung Laba Bersih final (grossAmount - initialCostAmount -
- *  additionalCostAmount), bagi ke 4 rekening (Operasional/Direksi/Bonus/Cadangan HPP) via Pindah
- *  Buku otomatis (langsung posted, bukan draft — sekali "Proses" ditekan dianggap final), potong
+ *  additionalCostAmount), bagi ke 5 rekening (Operasional/Direksi/Cadangan Modal-HPP/Bonus/Laba
+ *  Ditahan-Dana Darurat) via Pindah Buku otomatis (langsung posted, bukan draft — sekali "Proses"
+ *  ditekan dianggap final), potong
  *  biaya admin dari nominal yang ditransfer kalau bank sumber & tujuan beda (dicatat terpisah
  *  sebagai Transaction beban "Biaya Admin Bank" dari akun sumber, biar kelihatan di Kas Keluar &
  *  Buku Besar). Owner-only — sama gate dengan Jurnal Manual, ini gerakan uang otomatis berbasis
@@ -45,8 +46,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const buckets: Bucket[] = [
     { label: "Operasional", pct: settings.slottingOperasionalPct, accountId: settings.slottingOperasionalAccountId },
     { label: "Direksi", pct: settings.slottingDireksiPct, accountId: settings.slottingDireksiAccountId },
+    { label: "Cadangan Modal/HPP", pct: settings.slottingHppReservePct, accountId: settings.slottingHppReserveAccountId },
     { label: "Bonus", pct: settings.slottingBonusPct, accountId: settings.slottingBonusAccountId },
-    { label: "Cadangan HPP", pct: settings.slottingHppReservePct, accountId: settings.slottingHppReserveAccountId },
+    { label: "Laba Ditahan/Dana Darurat", pct: settings.slottingLabaDitahanPct, accountId: settings.slottingLabaDitahanAccountId },
   ]
   const missing = buckets.filter((b) => !b.accountId)
   if (missing.length > 0) {
@@ -147,18 +149,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
       }
 
+      const pctByLabel = Object.fromEntries(buckets.map((b) => [b.label, b.pct]))
+
       return tx.revenueSlot.update({
         where: { id: slot.id },
         data: {
           netAmount,
-          operasionalPct: buckets[0].pct,
-          direksiPct: buckets[1].pct,
-          bonusPct: buckets[2].pct,
-          hppReservePct: buckets[3].pct,
+          operasionalPct: pctByLabel["Operasional"],
+          direksiPct: pctByLabel["Direksi"],
+          bonusPct: pctByLabel["Bonus"],
+          hppReservePct: pctByLabel["Cadangan Modal/HPP"],
+          labaDitahanPct: pctByLabel["Laba Ditahan/Dana Darurat"],
           operasionalAmount: amounts["Operasional"],
           direksiAmount: amounts["Direksi"],
           bonusAmount: amounts["Bonus"],
-          hppReserveAmount: amounts["Cadangan HPP"],
+          hppReserveAmount: amounts["Cadangan Modal/HPP"],
+          labaDitahanAmount: amounts["Laba Ditahan/Dana Darurat"],
           transferFeeTotal,
           status: "processed",
           processedAt: new Date(),
