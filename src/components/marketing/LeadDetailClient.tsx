@@ -162,11 +162,51 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Visualisasi level suara mic saat rekam — AnalyserNode kebaca langsung via rAF loop & digambar
+  // ke canvas (bukan lewat React state, biar tidak re-render tiap frame).
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const waveformRafRef = useRef<number | null>(null)
+  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  const stopWaveform = () => {
+    if (waveformRafRef.current != null) cancelAnimationFrame(waveformRafRef.current)
+    waveformRafRef.current = null
+    analyserRef.current = null
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+  }
+
+  const drawWaveform = () => {
+    const analyser = analyserRef.current
+    const canvas = waveformCanvasRef.current
+    if (!analyser || !canvas) return
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    analyser.getByteFrequencyData(data)
+    const ctx = canvas.getContext("2d")
+    if (ctx) {
+      const w = canvas.width
+      const h = canvas.height
+      ctx.clearRect(0, 0, w, h)
+      const barCount = data.length
+      const barWidth = w / barCount
+      ctx.fillStyle = "#e11d48"
+      for (let i = 0; i < barCount; i++) {
+        const level = data[i] / 255
+        const barHeight = Math.max(2, level * h)
+        ctx.fillRect(i * barWidth, (h - barHeight) / 2, Math.max(1, barWidth - 1), barHeight)
+      }
+    }
+    waveformRafRef.current = requestAnimationFrame(drawWaveform)
+  }
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop()
+      stopWaveform()
     }
   }, [])
   const [fuOpen, setFuOpen] = useState(false)
@@ -283,6 +323,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       recorder.onstop = () => {
         // Matiin semua track mic — kalau tidak, indikator "mic aktif" browser tetap nyala terus.
         stream.getTracks().forEach((t) => t.stop())
+        stopWaveform()
         void uploadRecording(new Blob(chunksRef.current, { type: recorder.mimeType }))
       }
       mediaRecorderRef.current = recorder
@@ -290,6 +331,16 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       setRecordingSeconds(0)
       timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
       setRecordingStatus("recording")
+
+      const audioCtx = new AudioContext()
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 64
+      analyser.smoothingTimeConstant = 0.7
+      source.connect(analyser)
+      audioCtxRef.current = audioCtx
+      analyserRef.current = analyser
+      waveformRafRef.current = requestAnimationFrame(drawWaveform)
     } catch {
       setRecordingError("Tidak bisa akses mic — cek izin browser.")
     }
@@ -823,9 +874,13 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 </button>
               )}
               {recordingStatus === "recording" && (
-                <button onClick={stopRecording} className="flex items-center gap-1 text-xs font-bold text-rose-600 animate-pulse">
-                  <Square className="w-3.5 h-3.5" /> Selesai ({Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, "0")})
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse flex-shrink-0" />
+                  <canvas ref={waveformCanvasRef} width={64} height={20} className="flex-shrink-0" />
+                  <button onClick={stopRecording} className="flex items-center gap-1 text-xs font-bold text-rose-600">
+                    <Square className="w-3.5 h-3.5" /> Selesai ({Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, "0")})
+                  </button>
+                </div>
               )}
               {recordingStatus === "uploading" && <span className="text-xs font-bold text-slate-400">Mengirim & mentranskrip…</span>}
               <button onClick={() => setActOpen((v) => !v)} className="text-xs font-bold text-blue-700">
