@@ -6,8 +6,11 @@ import { resolveMarketingRole } from "@/lib/marketing/permissions"
 import { parseKeywordInput } from "@/lib/marketing/segment-rules"
 import { prisma } from "@/lib/prisma"
 
-/** GET — semua segmen (termasuk nonaktif) + jumlah lead per segmen. POST — buat segmen
- *  (MANAGER/owner). `code` di-uppercase & unik. */
+/** GET — semua segmen (termasuk nonaktif) + jumlah lead per segmen. POST — buat segmen BARU
+ *  (semua role modul Marketing, termasuk Sales — supaya bisa nambah langsung dari Detail Lead
+ *  atau Detail Inbox tanpa pindah menu; lihat SegmentPicker.tsx). Edit/nonaktifkan segmen yang
+ *  sudah ada TETAP Manager/owner saja (lihat `canEdit` di GET & PATCH .../segments/[id]).
+ *  `code` di-uppercase & unik. */
 export async function GET() {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
@@ -41,9 +44,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
-  if ((await resolveMarketingRole(user.id, user.role)) !== "MANAGER") {
-    return NextResponse.json({ error: "Hanya Manager/Owner yang bisa kelola master data." }, { status: 403 })
-  }
+  // Sengaja TIDAK dibatasi MANAGER — bikin segmen baru boleh siapa saja yang punya akses modul
+  // Marketing (termasuk Sales), beda dari edit/nonaktifkan segmen yang sudah ada (tetap Manager
+  // saja, lihat canEdit di GET & PATCH .../segments/[id]).
 
   const body = (await request.json().catch(() => null)) as
     | {

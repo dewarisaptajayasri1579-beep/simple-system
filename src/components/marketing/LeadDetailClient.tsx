@@ -6,6 +6,7 @@ import { ArrowLeft, MessageSquare, Mic, Square } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+import { SegmentPicker } from "./SegmentPicker"
 import { tempBadgeVariant } from "./ui"
 
 interface Opt {
@@ -137,7 +138,6 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const [segments, setSegments] = useState<Opt[]>([])
   const [buyingPowerTiers, setBuyingPowerTiers] = useState<Opt[]>([])
   const [lostReasons, setLostReasons] = useState<Opt[]>([])
   const [activityTypes, setActivityTypes] = useState<ActivityTypeOpt[]>([])
@@ -284,11 +284,54 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
     loadAi()
   }, [load, loadAi])
 
+  // Catatan Manual — sama persis dengan panel "Catatan" di Inbox (ConversationView.tsx), pakai
+  // model+API LeadNote yang sama, jadi satu riwayat yang sama muncul di kedua tempat.
+  const [leadNotes, setLeadNotes] = useState<{ id: string; body: string; createdAt: string; author: Opt }[]>([])
+  const [noteDraft, setNoteDraft] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
+
+  const loadNotes = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/notes`, { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setLeadNotes(d.notes ?? [])
+    } catch {
+      /* ignore */
+    }
+  }, [leadId])
+  useEffect(() => {
+    loadNotes()
+  }, [loadNotes])
+
+  const addNote = async () => {
+    const text = noteDraft.trim()
+    if (!text || savingNote) return
+    setSavingNote(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: text }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Gagal menyimpan catatan")
+        return
+      }
+      setLeadNotes((prev) => [d.note, ...prev])
+      setNoteDraft("")
+    } catch {
+      setError("Gagal menghubungi server saat menyimpan catatan")
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
   useEffect(() => {
     fetch("/api/marketing/meta")
       .then((r) => r.json())
       .then((d) => {
-        if (d.segments) setSegments(d.segments)
         if (d.buyingPowerTiers) setBuyingPowerTiers(d.buyingPowerTiers)
         if (d.lostReasons) setLostReasons(d.lostReasons)
         if (d.activityTypes) setActivityTypes(d.activityTypes)
@@ -428,7 +471,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   )
 
   return (
-    <div className="flex flex-col gap-3 max-w-3xl">
+    <div className="flex flex-col gap-3 max-w-6xl">
       <Link href="/marketing/leads" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800">
         <ArrowLeft className="w-4 h-4" /> Semua Lead
       </Link>
@@ -522,6 +565,11 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         )}
       </Card>
 
+      {/* Urutan section kolom kiri sengaja diurut dari yang paling sering diupdate Sales:
+          Temperatur, Identitas, Aktivitas, Follow Up, Outcome, Riwayat2, baru AI Insight. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+      <div className="lg:col-span-8 flex flex-col gap-3">
+
       {/* Temperatur */}
       <Section title="Temperatur">
         <div className="flex gap-2">
@@ -560,181 +608,6 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 Terapkan
               </Button>
             ) : null}
-          </div>
-        )}
-      </Section>
-
-      {/* Outcome */}
-      <Section title="Outcome">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={lead.outcome === "WON" ? "success" : lead.outcome === "LOST" ? "danger" : "secondary"}>
-            {lead.outcome}
-          </Badge>
-          {lead.outcome === "WON" && lead.dealValue != null && (
-            <span className="text-xs text-slate-500">Nilai: {rupiah(lead.dealValue)}</span>
-          )}
-          {lead.outcome === "LOST" && lead.lostReason && (
-            <span className="text-xs text-slate-500">Alasan: {lead.lostReason.name}</span>
-          )}
-        </div>
-
-        {canAct && lead.outcome === "OPEN" && (
-          <div className="mt-3 flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Button size="sm" variant="success" onClick={() => setWonOpen((v) => !v)}>
-                Tandai WON
-              </Button>
-            </div>
-            {wonOpen && (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
-                <Input
-                  type="date"
-                  label="Tanggal deal"
-                  value={wonForm.at}
-                  onChange={(e) => setWonForm((f) => ({ ...f, at: e.target.value }))}
-                  sizeVariant="sm"
-                />
-                <Input
-                  type="number"
-                  label="Nilai deal (Rp, opsional)"
-                  value={wonForm.value}
-                  onChange={(e) => setWonForm((f) => ({ ...f, value: e.target.value }))}
-                  sizeVariant="sm"
-                />
-                <Textarea
-                  label="Catatan"
-                  value={wonForm.note}
-                  onChange={(e) => setWonForm((f) => ({ ...f, note: e.target.value }))}
-                  rows={2}
-                  sizeVariant="sm"
-                />
-                <Button
-                  size="sm"
-                  variant="success"
-                  isLoading={busy}
-                  className="self-start"
-                  onClick={async () => {
-                    const ok = await call(`/api/marketing/leads/${leadId}/outcome`, {
-                      outcome: "WON",
-                      wonAt: wonForm.at ? new Date(wonForm.at).toISOString() : undefined,
-                      dealValue: wonForm.value ? Number(wonForm.value) : undefined,
-                      wonNote: wonForm.note.trim() || undefined,
-                    })
-                    if (ok) setWonOpen(false)
-                  }}
-                >
-                  Simpan WON
-                </Button>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Select
-                  options={[{ value: "", label: "Alasan LOST…" }, ...lostReasons.map((r) => ({ value: r.id, label: r.name }))]}
-                  value={lostPick}
-                  onChange={setLostPick}
-                  sizeVariant="sm"
-                />
-              </div>
-              <Button
-                size="sm"
-                variant="danger"
-                isLoading={busy}
-                disabled={!lostPick}
-                onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "LOST", lostReasonId: lostPick })}
-              >
-                Set LOST
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {canAct && lead.outcome !== "OPEN" && (
-          <div className="mt-3">
-            <Button
-              size="sm"
-              variant="secondary"
-              isLoading={busy}
-              onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "OPEN" })}
-            >
-              Buka Kembali
-            </Button>
-          </div>
-        )}
-      </Section>
-
-      {/* Priority */}
-      <Section title="Prioritas">
-        <p className="text-lg font-black text-slate-800">
-          {Math.round(lead.latestPriority?.score ?? lead.priorityScore)}
-          <span className="text-slate-400 font-semibold text-sm"> / {lead.latestPriority?.level ?? lead.priorityLevel}</span>
-        </p>
-        {priorityReasons.length > 0 && <p className="text-xs text-slate-500 mt-1">{priorityReasons.join(" · ")}</p>}
-        {priorityModifiers.length > 0 && (
-          <p className="text-[11px] text-amber-600 mt-0.5">{priorityModifiers.join(" · ")}</p>
-        )}
-        {!lead.latestPriority && (
-          <p className="text-xs text-slate-400 mt-1">Belum pernah dihitung ulang — akan terisi saat ada interaksi berikutnya.</p>
-        )}
-      </Section>
-
-      {/* AI Insight */}
-      <Section
-        title="AI Insight — Perkiraan"
-        right={
-          <button onClick={runAi} disabled={aiBusy} className="text-xs font-bold text-blue-700 disabled:opacity-50">
-            {aiBusy ? "Menganalisa…" : Object.keys(ai).length ? "Analisa ulang" : "Analisa AI"}
-          </button>
-        }
-      >
-        {Object.keys(ai).length === 0 ? (
-          <p className="text-sm text-slate-400">Belum ada analisa. Klik &quot;Analisa AI&quot; (butuh minimal 1 pesan di percakapan).</p>
-        ) : (
-          <div className="flex flex-col gap-2.5 text-sm">
-            {ai.SEGMENTATION && (
-              <div>
-                <p className="text-xs font-black uppercase text-slate-400">Segmentasi</p>
-                <p className="text-slate-700">
-                  {ai.SEGMENTATION.output?.segmentCode}{" "}
-                  <span className="text-slate-400">({Math.round((ai.SEGMENTATION.confidence ?? 0) * 100)}% yakin)</span>
-                </p>
-                <p className="text-xs text-slate-500">{ai.SEGMENTATION.output?.reason}</p>
-              </div>
-            )}
-            {ai.SUMMARY && (
-              <div>
-                <p className="text-xs font-black uppercase text-slate-400">Ringkasan</p>
-                <p className="text-slate-700">{ai.SUMMARY.output?.customerContext}</p>
-                {ai.SUMMARY.output?.needs && <p className="text-xs text-slate-500">Kebutuhan: {ai.SUMMARY.output.needs}</p>}
-                {ai.SUMMARY.output?.objections && <p className="text-xs text-slate-500">Keberatan: {ai.SUMMARY.output.objections}</p>}
-                {ai.SUMMARY.output?.nextAction && <p className="text-xs text-slate-500">Next: {ai.SUMMARY.output.nextAction}</p>}
-              </div>
-            )}
-            {ai.PROFILING && (
-              <div>
-                <p className="text-xs font-black uppercase text-slate-400">Profil</p>
-                <p className="text-xs text-slate-600">
-                  Ukuran: {ai.PROFILING.output?.companySize} · Minat: {ai.PROFILING.output?.buyingInterest} · Daya beli:{" "}
-                  {ai.PROFILING.output?.buyingPower} · Peluang closing: {ai.PROFILING.output?.closingProbability}
-                </p>
-                {ai.PROFILING.output?.summary && <p className="text-xs text-slate-500 mt-0.5">{ai.PROFILING.output.summary}</p>}
-              </div>
-            )}
-            {ai.NEXT_BEST_ACTION && (
-              <div>
-                <p className="text-xs font-black uppercase text-slate-400">Next Best Action</p>
-                <p className="text-slate-700">{ai.NEXT_BEST_ACTION.output?.action}</p>
-                <p className="text-xs text-slate-500">{ai.NEXT_BEST_ACTION.output?.reason}</p>
-              </div>
-            )}
-            {ai.BUYING_SIGNAL && (
-              <div>
-                <p className="text-xs font-black uppercase text-slate-400">Buying Signal</p>
-                <p className="text-slate-700">
-                  {ai.BUYING_SIGNAL.output?.score}/100 <span className="text-xs text-slate-500">— {ai.BUYING_SIGNAL.output?.reason}</span>
-                </p>
-              </div>
-            )}
           </div>
         )}
       </Section>
@@ -793,30 +666,17 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
           <Input label="No. Telp" value={lead.whatsappNumber} disabled sizeVariant="sm" />
           <div className="sm:col-span-2">
             <label className="text-xs sm:text-sm font-bold text-slate-700">Segmen</label>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {[{ id: "", name: "— belum —" }, ...segments].map((s) => {
-                const active = (form.segmentId || "") === s.id
-                return (
-                  <button
-                    key={s.id || "none"}
-                    type="button"
-                    disabled={!canAct || busy || active}
-                    onClick={async () => {
-                      setForm((f) => ({ ...f, segmentId: s.id }))
-                      await call(`/api/marketing/leads/${leadId}`, { segmentId: s.id || null }, "PATCH")
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${
-                      active
-                        ? "bg-blue-700 text-white border-blue-700"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50"
-                    }`}
-                  >
-                    {s.name}
-                  </button>
-                )
-              })}
+            <div className="mt-1.5">
+              <SegmentPicker
+                value={form.segmentId}
+                disabled={!canAct}
+                onChange={async (id) => {
+                  setForm((f) => ({ ...f, segmentId: id }))
+                  await call(`/api/marketing/leads/${leadId}`, { segmentId: id || null }, "PATCH")
+                }}
+              />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">Klik untuk langsung ganti — tersimpan otomatis.</p>
+            <p className="mt-1 text-[11px] text-slate-400">Klik untuk langsung ganti, atau "+ Baru" buat bikin segmen baru — tersimpan otomatis.</p>
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs sm:text-sm font-bold text-slate-700">Kemampuan Beli</label>
@@ -1094,6 +954,105 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         )}
       </Section>
 
+      {/* Outcome */}
+      <Section title="Outcome">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={lead.outcome === "WON" ? "success" : lead.outcome === "LOST" ? "danger" : "secondary"}>
+            {lead.outcome}
+          </Badge>
+          {lead.outcome === "WON" && lead.dealValue != null && (
+            <span className="text-xs text-slate-500">Nilai: {rupiah(lead.dealValue)}</span>
+          )}
+          {lead.outcome === "LOST" && lead.lostReason && (
+            <span className="text-xs text-slate-500">Alasan: {lead.lostReason.name}</span>
+          )}
+        </div>
+
+        {canAct && lead.outcome === "OPEN" && (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant="success" onClick={() => setWonOpen((v) => !v)}>
+                Tandai WON
+              </Button>
+            </div>
+            {wonOpen && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5">
+                <Input
+                  type="date"
+                  label="Tanggal deal"
+                  value={wonForm.at}
+                  onChange={(e) => setWonForm((f) => ({ ...f, at: e.target.value }))}
+                  sizeVariant="sm"
+                />
+                <Input
+                  type="number"
+                  label="Nilai deal (Rp, opsional)"
+                  value={wonForm.value}
+                  onChange={(e) => setWonForm((f) => ({ ...f, value: e.target.value }))}
+                  sizeVariant="sm"
+                />
+                <Textarea
+                  label="Catatan"
+                  value={wonForm.note}
+                  onChange={(e) => setWonForm((f) => ({ ...f, note: e.target.value }))}
+                  rows={2}
+                  sizeVariant="sm"
+                />
+                <Button
+                  size="sm"
+                  variant="success"
+                  isLoading={busy}
+                  className="self-start"
+                  onClick={async () => {
+                    const ok = await call(`/api/marketing/leads/${leadId}/outcome`, {
+                      outcome: "WON",
+                      wonAt: wonForm.at ? new Date(wonForm.at).toISOString() : undefined,
+                      dealValue: wonForm.value ? Number(wonForm.value) : undefined,
+                      wonNote: wonForm.note.trim() || undefined,
+                    })
+                    if (ok) setWonOpen(false)
+                  }}
+                >
+                  Simpan WON
+                </Button>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  options={[{ value: "", label: "Alasan LOST…" }, ...lostReasons.map((r) => ({ value: r.id, label: r.name }))]}
+                  value={lostPick}
+                  onChange={setLostPick}
+                  sizeVariant="sm"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="danger"
+                isLoading={busy}
+                disabled={!lostPick}
+                onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "LOST", lostReasonId: lostPick })}
+              >
+                Set LOST
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {canAct && lead.outcome !== "OPEN" && (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              isLoading={busy}
+              onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "OPEN" })}
+            >
+              Buka Kembali
+            </Button>
+          </div>
+        )}
+      </Section>
+
       {/* Riwayat */}
       <Section title="Riwayat Penugasan">
         <ul className="flex flex-col gap-1.5 text-sm">
@@ -1133,6 +1092,118 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
           </ul>
         </Section>
       )}
+
+      {/* Priority */}
+      <Section title="Prioritas">
+        <p className="text-lg font-black text-slate-800">
+          {Math.round(lead.latestPriority?.score ?? lead.priorityScore)}
+          <span className="text-slate-400 font-semibold text-sm"> / {lead.latestPriority?.level ?? lead.priorityLevel}</span>
+        </p>
+        {priorityReasons.length > 0 && <p className="text-xs text-slate-500 mt-1">{priorityReasons.join(" · ")}</p>}
+        {priorityModifiers.length > 0 && (
+          <p className="text-[11px] text-amber-600 mt-0.5">{priorityModifiers.join(" · ")}</p>
+        )}
+        {!lead.latestPriority && (
+          <p className="text-xs text-slate-400 mt-1">Belum pernah dihitung ulang — akan terisi saat ada interaksi berikutnya.</p>
+        )}
+      </Section>
+
+      {/* AI Insight */}
+      <Section
+        title="AI Insight — Perkiraan"
+        right={
+          <button onClick={runAi} disabled={aiBusy} className="text-xs font-bold text-blue-700 disabled:opacity-50">
+            {aiBusy ? "Menganalisa…" : Object.keys(ai).length ? "Analisa ulang" : "Analisa AI"}
+          </button>
+        }
+      >
+        {Object.keys(ai).length === 0 ? (
+          <p className="text-sm text-slate-400">Belum ada analisa. Klik &quot;Analisa AI&quot; (butuh minimal 1 pesan di percakapan).</p>
+        ) : (
+          <div className="flex flex-col gap-2.5 text-sm">
+            {ai.SEGMENTATION && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Segmentasi</p>
+                <p className="text-slate-700">
+                  {ai.SEGMENTATION.output?.segmentCode}{" "}
+                  <span className="text-slate-400">({Math.round((ai.SEGMENTATION.confidence ?? 0) * 100)}% yakin)</span>
+                </p>
+                <p className="text-xs text-slate-500">{ai.SEGMENTATION.output?.reason}</p>
+              </div>
+            )}
+            {ai.SUMMARY && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Ringkasan</p>
+                <p className="text-slate-700">{ai.SUMMARY.output?.customerContext}</p>
+                {ai.SUMMARY.output?.needs && <p className="text-xs text-slate-500">Kebutuhan: {ai.SUMMARY.output.needs}</p>}
+                {ai.SUMMARY.output?.objections && <p className="text-xs text-slate-500">Keberatan: {ai.SUMMARY.output.objections}</p>}
+                {ai.SUMMARY.output?.nextAction && <p className="text-xs text-slate-500">Next: {ai.SUMMARY.output.nextAction}</p>}
+              </div>
+            )}
+            {ai.PROFILING && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Profil</p>
+                <p className="text-xs text-slate-600">
+                  Ukuran: {ai.PROFILING.output?.companySize} · Minat: {ai.PROFILING.output?.buyingInterest} · Daya beli:{" "}
+                  {ai.PROFILING.output?.buyingPower} · Peluang closing: {ai.PROFILING.output?.closingProbability}
+                </p>
+                {ai.PROFILING.output?.summary && <p className="text-xs text-slate-500 mt-0.5">{ai.PROFILING.output.summary}</p>}
+              </div>
+            )}
+            {ai.NEXT_BEST_ACTION && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Next Best Action</p>
+                <p className="text-slate-700">{ai.NEXT_BEST_ACTION.output?.action}</p>
+                <p className="text-xs text-slate-500">{ai.NEXT_BEST_ACTION.output?.reason}</p>
+              </div>
+            )}
+            {ai.BUYING_SIGNAL && (
+              <div>
+                <p className="text-xs font-black uppercase text-slate-400">Buying Signal</p>
+                <p className="text-slate-700">
+                  {ai.BUYING_SIGNAL.output?.score}/100 <span className="text-xs text-slate-500">— {ai.BUYING_SIGNAL.output?.reason}</span>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
+      </div>
+
+      {/* Catatan Manual — freeform, dicap waktu+tanggal otomatis (LeadNote, sama dengan yang di
+          Inbox). Kolom kanan biar tetap kelihatan sambil scroll section kiri. */}
+      <div className="lg:col-span-4 flex flex-col gap-3 lg:sticky lg:top-4">
+        <Section title="Catatan Manual">
+          {canAct && (
+            <div className="flex flex-col gap-2 mb-3">
+              <Textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                rows={3}
+                placeholder="Tulis catatan tambahan…"
+                sizeVariant="sm"
+              />
+              <Button size="sm" isLoading={savingNote} disabled={!noteDraft.trim()} onClick={addNote} className="self-start">
+                Simpan Catatan
+              </Button>
+            </div>
+          )}
+          {leadNotes.length === 0 ? (
+            <p className="text-xs text-slate-400">Belum ada catatan.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5 max-h-[28rem] overflow-y-auto">
+              {leadNotes.map((n) => (
+                <li key={n.id} className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <p className="whitespace-pre-wrap break-words text-slate-700">{n.body}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{n.author.name} · {fmt(n.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+      </div>
     </div>
   )
 }

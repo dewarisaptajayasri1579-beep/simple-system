@@ -51,6 +51,7 @@ model User {
   sentMessages             Message[]
   leadActivities           LeadActivity[]
   leadNotes                LeadNote[]
+  messageTemplatesCreated  MessageTemplate[]
   leadFollowUpsAssigned    LeadFollowUp[]        @relation("LeadFollowUpAssignee")
   leadFollowUpsCreated     LeadFollowUp[]        @relation("LeadFollowUpCreator")
   leadAiSuggestionsUsed    LeadAiSuggestion[]
@@ -1573,6 +1574,25 @@ model LeadNote {
   @@index([leadId, createdAt])
   @@index([authorUserId])
   @@map("lead_notes")
+  @@schema("simple_system")
+}
+
+/// Template pesan balasan WhatsApp, dibuat manual oleh Sales — dibagi ke SATU TIM (siapa aja di
+/// modul Marketing bisa pakai/edit/hapus template siapa aja, bukan cuma punya sendiri). Dipakai
+/// dari tombol "Template" di composer Inbox (ConversationView) — klik salah satu template cuma
+/// ngisi ke kotak ketik (draft), TIDAK langsung kirim, supaya Sales masih bisa edit sebelum kirim.
+model MessageTemplate {
+  id          String   @id @default(uuid())
+  title       String
+  body        String
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([createdById])
+  @@map("message_templates")
   @@schema("simple_system")
 }
 

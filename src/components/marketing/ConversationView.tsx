@@ -42,6 +42,7 @@ interface ConversationMeta {
     priorityLevel: string
     outcome: string
     currentActivityStage: string
+    segmentId: string | null
     segmentName: string | null
   }
   pic: { id: string; name: string } | null
