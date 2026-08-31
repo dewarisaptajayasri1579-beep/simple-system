@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { CalendarClock, Flame, MessagesSquare, TriangleAlert } from "lucide-react"
 
 import { Alert, Badge, Card, SkeletonList, StatTile } from "@/components/ui"
@@ -31,6 +32,7 @@ interface HomeData {
 }
 
 export const HomeClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
+  const router = useRouter()
   const [scope, setScope] = useState<"mine" | "all">("mine")
   const [data, setData] = useState<HomeData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -97,31 +99,47 @@ export const HomeClient: React.FC<{ isSales?: boolean }> = ({ isSales = false })
           </Card>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {data.workOn.map((w) => (
-              <li key={w.id}>
-                <Card variant="solid" padding="sm" hoverable className="!rounded-2xl">
-                  <div className="flex items-start justify-between gap-2">
-                    <Link href={`/marketing/leads/${w.id}`} className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate">
-                      {w.displayName}
-                      {w.companyName ? <span className="font-medium text-slate-400"> · {w.companyName}</span> : null}
-                    </Link>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <Badge variant={tempBadgeVariant(w.temperature)} size="sm">{w.temperature}</Badge>
-                      <Badge variant="info" size="sm">Skor {Math.round(w.priorityScore)}</Badge>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{w.reason}</p>
-                  <div className="flex items-center justify-between gap-2 mt-2">
-                    <p className="text-xs font-bold text-slate-700">→ {w.nextAction}</p>
-                    {w.conversationId && (
-                      <Link href={`/marketing/inbox/${w.conversationId}`} className="text-[11px] font-bold text-blue-700 flex-shrink-0">
-                        Buka Chat{w.unread > 0 ? ` (${w.unread})` : ""}
+            {data.workOn.map((w) => {
+              // Klik kartu di mana pun langsung buka chat (kalau lead ini sudah punya percakapan)
+              // — dulu harus klik teks "Buka Chat" secara spesifik. Nama lead tetap bisa diklik
+              // sendiri ke Detail Lead (stopPropagation biar tidak ikut trigger buka chat).
+              const goToChat = w.conversationId ? () => router.push(`/marketing/inbox/${w.conversationId}`) : undefined
+              return (
+                <li key={w.id}>
+                  <Card
+                    variant="solid"
+                    padding="sm"
+                    hoverable
+                    onClick={goToChat}
+                    className={`!rounded-2xl ${goToChat ? "cursor-pointer" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <Link
+                        href={`/marketing/leads/${w.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate"
+                      >
+                        {w.displayName}
+                        {w.companyName ? <span className="font-medium text-slate-400"> · {w.companyName}</span> : null}
                       </Link>
-                    )}
-                  </div>
-                </Card>
-              </li>
-            ))}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Badge variant={tempBadgeVariant(w.temperature)} size="sm">{w.temperature}</Badge>
+                        <Badge variant="info" size="sm">Skor {Math.round(w.priorityScore)}</Badge>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{w.reason}</p>
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <p className="text-xs font-bold text-slate-700">→ {w.nextAction}</p>
+                      {w.conversationId && (
+                        <span className="text-[11px] font-bold text-blue-700 flex-shrink-0">
+                          Buka Chat{w.unread > 0 ? ` (${w.unread})` : ""}
+                        </span>
+                      )}
+                    </div>
+                  </Card>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
