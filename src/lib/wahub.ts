@@ -203,6 +203,58 @@ export async function sendWhatsappMediaFromSession(sessionId: string, rawNumber:
   return res.json() as Promise<WahubSendResult>
 }
 
+export interface WahubGroupSummary {
+  id: string
+  subject: string
+  participantCount: number
+}
+
+/** Daftar semua grup WA yang session ini jadi anggotanya (buat UI pilih grup tanpa tahu JID
+ *  dulu) — `sessionId` sebagai PATH param (bukan query), ikut pola endpoint session lain. */
+export async function getWahubGroupList(sessionId: string) {
+  requireMarketingWahubEnv()
+  const res = await fetch(`${MARKETING_WAHUB_BASE_URL}/api/groups/${encodeURIComponent(sessionId)}`, {
+    headers: { "x-api-key": MARKETING_WAHUB_API_KEY! },
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal ambil daftar grup (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return (await res.json()) as { groups: WahubGroupSummary[] }
+}
+
+export interface WahubGroupParticipant {
+  id: string
+  phoneNumber: string | null
+  name: string | null
+  isAdmin: boolean
+  isSuperAdmin: boolean
+}
+
+export interface WahubGroupInfo {
+  id: string
+  subject: string
+  description: string | null
+  owner: string | null
+  createdAt: number | null
+  participantCount: number
+  participants: WahubGroupParticipant[]
+}
+
+/** Info lengkap + daftar partisipan 1 grup spesifik. */
+export async function getWahubGroupParticipants(sessionId: string, groupJid: string) {
+  requireMarketingWahubEnv()
+  const res = await fetch(
+    `${MARKETING_WAHUB_BASE_URL}/api/groups/participants/${encodeURIComponent(sessionId)}?groupJid=${encodeURIComponent(groupJid)}`,
+    { headers: { "x-api-key": MARKETING_WAHUB_API_KEY! } },
+  )
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal ambil anggota grup (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return (await res.json()) as WahubGroupInfo
+}
+
 /** Daftarkan ulang webhook sesi WAHUB milik simple-system — dipanggil tiap kali server start
  *  (lihat instrumentation.ts).
  *  PENTING: sesi WAHUB cuma bisa punya SATU webhookUrl aktif. Sejak simple-system ikut memakai

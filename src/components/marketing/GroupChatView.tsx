@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Paperclip, Pencil, Plus, Send, Trash2, X, Zap } from "lucide-react"
+import { Paperclip, Pencil, Plus, Send, ShieldCheck, Trash2, Users, X, Zap } from "lucide-react"
 
-import { Alert, Badge, Button, Input, SkeletonList } from "@/components/ui"
+import { Alert, Badge, Button, Input, Modal, SkeletonList, Spinner } from "@/components/ui"
 import { useMarketingStream, useVisibilityRefresh } from "./ui"
 
 interface GroupMessage {
@@ -51,6 +51,15 @@ export const GroupChatView: React.FC<{ groupId: string }> = ({ groupId }) => {
   const [renaming, setRenaming] = useState(false)
   const [nameDraft, setNameDraft] = useState("")
   const [savingName, setSavingName] = useState(false)
+  const [participantsOpen, setParticipantsOpen] = useState(false)
+  const [participantsInfo, setParticipantsInfo] = useState<{
+    subject: string
+    description: string | null
+    participantCount: number
+    participants: { id: string; phoneNumber: string | null; name: string | null; isAdmin: boolean; isSuperAdmin: boolean }[]
+  } | null>(null)
+  const [loadingParticipants, setLoadingParticipants] = useState(false)
+  const [participantsError, setParticipantsError] = useState<string | null>(null)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [templateForm, setTemplateForm] = useState<{ id: string | null; title: string; body: string } | null>(null)
@@ -197,6 +206,25 @@ export const GroupChatView: React.FC<{ groupId: string }> = ({ groupId }) => {
     }
   }
 
+  const openParticipants = async () => {
+    setParticipantsOpen(true)
+    setLoadingParticipants(true)
+    setParticipantsError(null)
+    try {
+      const res = await fetch(`/api/marketing/groups/${groupId}/participants`, { cache: "no-store" })
+      const d = await res.json()
+      if (!res.ok) {
+        setParticipantsError(d.error || "Gagal ambil anggota grup")
+        return
+      }
+      setParticipantsInfo(d.info)
+    } catch {
+      setParticipantsError("Gagal menghubungi server")
+    } finally {
+      setLoadingParticipants(false)
+    }
+  }
+
   const send = async () => {
     const text = draft.trim()
     const media = attachment
@@ -257,6 +285,12 @@ export const GroupChatView: React.FC<{ groupId: string }> = ({ groupId }) => {
             {meta.whatsappConnectionLabel && <Badge variant="secondary" size="sm">{meta.whatsappConnectionLabel}</Badge>}
           </p>
         </div>
+        <button
+          onClick={openParticipants}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-700 flex-shrink-0 mt-0.5"
+        >
+          <Users className="w-3.5 h-3.5" /> Anggota
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
@@ -405,6 +439,31 @@ export const GroupChatView: React.FC<{ groupId: string }> = ({ groupId }) => {
           {!sending && <Send className="w-4 h-4" />}
         </Button>
       </div>
+
+      <Modal isOpen={participantsOpen} onClose={() => setParticipantsOpen(false)} title="Anggota Grup" size="sm">
+        {loadingParticipants ? (
+          <div className="flex justify-center py-6"><Spinner /></div>
+        ) : participantsError ? (
+          <Alert variant="error">{participantsError}</Alert>
+        ) : participantsInfo ? (
+          <div className="space-y-3">
+            {participantsInfo.description && <p className="text-xs text-slate-500">{participantsInfo.description}</p>}
+            <p className="text-xs font-bold text-slate-500 uppercase">{participantsInfo.participantCount} Anggota</p>
+            <ul className="flex flex-col gap-1.5 max-h-96 overflow-y-auto">
+              {participantsInfo.participants.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-50 text-sm">
+                  <span className="text-slate-700 truncate">{p.name || p.phoneNumber || p.id.split("@")[0]}</span>
+                  {(p.isAdmin || p.isSuperAdmin) && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 flex-shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5" /> {p.isSuperAdmin ? "Owner" : "Admin"}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }
