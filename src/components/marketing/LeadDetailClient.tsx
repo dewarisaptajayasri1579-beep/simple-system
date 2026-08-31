@@ -110,6 +110,11 @@ const TEMP_BTN: Record<string, string> = {
   COLD: "bg-slate-500 text-white border-slate-500",
 }
 
+function toLocalDatetimeInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function fmt(iso: string | null) {
   if (!iso) return "—"
   return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -364,8 +369,30 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         setRecordingError(data.error || "Gagal upload rekaman")
         return
       }
+
+      const now = new Date()
+      const callType = activityTypes.find((t) => t.code === "CALL")
+      if (data.transcript && callType) {
+        // Transkrip sukses & jenis "Telepon" ada → langsung catat aktivitas tanpa perlu staf
+        // review dulu (jenis = Telepon, tanggal/jam = sekarang, catatan = transkrip).
+        const ok = await call(`/api/marketing/leads/${leadId}/activities`, {
+          activityTypeId: callType.id,
+          occurredAt: now.toISOString(),
+          note: data.transcript,
+          attachmentUrl: data.attachmentUrl || undefined,
+        })
+        if (!ok) setRecordingError("Rekaman & transkrip tersimpan, tapi gagal mencatat aktivitas — isi manual lewat \"+ Tambah\".")
+        return
+      }
+
+      // Transkrip gagal, atau jenis "Telepon" belum ada di Master Data — buka form buat staf
+      // review manual, tetap prefill jenis/tanggal/jam/catatan semaksimal mungkin.
       setPendingAttachmentUrl(data.attachmentUrl ?? null)
-      setActForm((f) => ({ ...f, note: data.transcript || f.note }))
+      setActForm((f) => ({
+        activityTypeId: callType?.id ?? f.activityTypeId,
+        occurredAt: toLocalDatetimeInput(now),
+        note: data.transcript || f.note,
+      }))
       setActOpen(true)
       if (!data.transcript) setRecordingError(data.transcribeError || "Rekaman tersimpan, tapi transkrip gagal — isi catatan manual.")
     } catch {

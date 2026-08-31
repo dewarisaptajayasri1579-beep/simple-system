@@ -34,7 +34,10 @@ async function main() {
   }
 
   // score = normalized activity score (docs/06 §7): DISCUSSION 20, ZOOM_DEMO 55, PROPOSAL 75, NEGOTIATION 90.
+  // CALL bukan tahap pipeline (lihat rules.ts advanceStage) — stageRank 0 & tidak masuk STAGE_RANK,
+  // jadi pencatatan "Telepon" tidak pernah menggeser currentActivityStage.
   const activityTypes = [
+    { code: "CALL", name: "Telepon", stageRank: 0, score: 10 },
     { code: "DISCUSSION", name: "Diskusi", stageRank: 1, score: 20 },
     { code: "ZOOM_DEMO", name: "Zoom/Demo", stageRank: 2, score: 55 },
     { code: "PROPOSAL", name: "Kirim Penawaran", stageRank: 3, score: 75 },
