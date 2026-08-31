@@ -282,6 +282,17 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
 
   if (!message.from) return { skipped: "no from" }
 
+  // "status@broadcast" BUKAN percakapan 1-on-1 — itu channel WhatsApp Status (siapa aja yang
+  // reply/react story WA nomor ini nyampe lewat chatId yang SAMA persis, walau pengirimnya
+  // beda-beda orang tiap kali). Kalau tidak di-skip, semua reply status ke-gabung jadi 1
+  // Lead/Conversation ngasal (pernah kejadian: 1 lead "misattributed" isinya 173 pesan dari 54
+  // nomor beda). Skip total di sini, sebelum masuk ke pengecekan grup (bukan grup, meski sama-
+  // sama "bukan 1:1" — beda kasus, jangan ikut jadi GroupChat juga).
+  if (message.chatId === "status@broadcast" || message.from === "status@broadcast") {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+    return { skipped: "status broadcast" }
+  }
+
   // ---- Balasan Sales yang dikirim LANGSUNG dari WhatsApp-nya (bukan lewat app ini) ----
   // WAHUB tetap kirim webhook untuk pesan KELUAR sesi ini. Kalau app yang mengirim, baris Message
   // OUTBOUND sudah dibuat di route kirim → di sini cukup backfill `providerMessageId` (anti-dobel).
