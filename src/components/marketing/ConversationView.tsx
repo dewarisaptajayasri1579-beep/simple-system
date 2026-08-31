@@ -157,7 +157,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   }, [load])
   useVisibilityRefresh(() => load(true))
   useMarketingStream((evt) => {
-    if (evt.type === "notification" || evt.conversationId !== conversationId) return
+    if (evt.type === "notification" || evt.type === "group_message" || evt.conversationId !== conversationId) return
     if (evt.type === "message") {
       setTyping(false)
       load(true)

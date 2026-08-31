@@ -18,6 +18,7 @@ import {
   Settings,
   Trophy,
   Users,
+  UsersRound,
 } from "lucide-react"
 
 import { NotificationBell } from "./NotificationBell"
@@ -34,6 +35,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { label: "Beranda", href: "/marketing", icon: <LayoutGrid className="w-5 h-5" />, mobile: true },
   { label: "Inbox", href: "/marketing/inbox", icon: <MessagesSquare className="w-5 h-5" />, mobile: true },
+  { label: "Grup", href: "/marketing/groups", icon: <UsersRound className="w-5 h-5" />, mobile: true },
   { label: "Lead", href: "/marketing/leads", icon: <Users className="w-5 h-5" />, mobile: true },
   { label: "Follow Up", href: "/marketing/follow-up", icon: <CalendarClock className="w-5 h-5" />, mobile: true },
   { label: "Closing", href: "/marketing/closing", icon: <Trophy className="w-5 h-5" /> },
@@ -66,9 +68,11 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
   const pathname = usePathname() || "/marketing"
   const [menuOpen, setMenuOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "?"
-  // Halaman detail percakapan (/marketing/inbox/<id>) — mode fokus: bottom-nav disembunyikan,
-  // header dikasih tombol kembali ke Inbox.
+  // Halaman detail percakapan (/marketing/inbox/<id> atau /marketing/groups/<id>) — mode fokus:
+  // bottom-nav disembunyikan, header dikasih tombol kembali.
   const isConversationDetail = /^\/marketing\/inbox\/[^/]+$/.test(pathname)
+  const isGroupDetail = /^\/marketing\/groups\/[^/]+$/.test(pathname)
+  const isChatDetail = isConversationDetail || isGroupDetail
 
   // Status koneksi WhatsApp Sales yang login — null = belum tahu, true = minimal 1 nomor READY.
   const [waReady, setWaReady] = useState<boolean | null>(null)
@@ -176,10 +180,10 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
       <div className="flex-1 lg:pl-60 flex flex-col min-w-0">
         <header className="h-16 glass-header sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between border-b border-white/60">
           <div className="flex items-center gap-2 min-w-0">
-            {isConversationDetail && (
+            {isChatDetail && (
               <Link
-                href="/marketing/inbox"
-                aria-label="Kembali ke Inbox"
+                href={isGroupDetail ? "/marketing/groups" : "/marketing/inbox"}
+                aria-label={isGroupDetail ? "Kembali ke Grup" : "Kembali ke Inbox"}
                 className="w-9 h-9 -ml-1.5 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -187,7 +191,7 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
             )}
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-extrabold text-slate-800 leading-tight">
-                {isConversationDetail ? "Percakapan" : "Marketing"}
+                {isGroupDetail ? "Grup" : isConversationDetail ? "Percakapan" : "Marketing"}
               </span>
               <span className="text-[11px] text-slate-500 font-semibold truncate">
                 Halo, {userName} · {roleLabel}
@@ -258,14 +262,14 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
         </header>
 
         <main
-          className={`flex-1 p-4 sm:p-6 lg:p-8 ${isConversationDetail ? "pb-4" : "pb-24"} lg:pb-8 relative z-10 max-w-6xl w-full mx-auto`}
+          className={`flex-1 p-4 sm:p-6 lg:p-8 ${isChatDetail ? "pb-4" : "pb-24"} lg:pb-8 relative z-10 max-w-6xl w-full mx-auto`}
         >
           {children}
         </main>
       </div>
 
       {/* ---- Bottom nav (mobile) — disembunyikan di halaman detail percakapan ---- */}
-      <nav className={`${isConversationDetail ? "hidden" : "lg:hidden"} fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1`}>
+      <nav className={`${isChatDetail ? "hidden" : "lg:hidden"} fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1`}>
         <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
           {NAV.filter((n) => n.mobile).map((item) => {
             const active = isActivePath(pathname, item.href)

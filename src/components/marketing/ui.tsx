@@ -29,6 +29,7 @@ export type MarketingStreamEvent =
   | { type: "notification"; userId: string; at: string }
   | { type: "status"; conversationId: string; providerMessageId: string; status: string; at: string }
   | { type: "typing"; conversationId: string; at: string }
+  | { type: "group_message"; groupChatId: string; connectionUserId: string; direction: "INBOUND" | "OUTBOUND"; at: string }
 
 /** Buka koneksi SSE ke `/api/marketing/stream` dan panggil `onEvent` tiap ada event realtime
  *  (pesan masuk/keluar, notifikasi baru). `EventSource` auto-reconnect sendiri kalau putus.
@@ -46,7 +47,7 @@ export function useMarketingStream(onEvent: (evt: MarketingStreamEvent) => void)
         /* frame bukan JSON (ready/ping) — abaikan */
       }
     }
-    const names = ["message", "notification", "status", "typing"]
+    const names = ["message", "notification", "status", "typing", "group_message"]
     names.forEach((n) => es.addEventListener(n, handler))
     return () => {
       names.forEach((n) => es.removeEventListener(n, handler))

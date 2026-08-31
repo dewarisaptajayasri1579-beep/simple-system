@@ -52,6 +52,7 @@ model User {
   leadActivities           LeadActivity[]
   leadNotes                LeadNote[]
   messageTemplatesCreated  MessageTemplate[]
+  groupMessagesSent        GroupMessage[]
   leadFollowUpsAssigned    LeadFollowUp[]        @relation("LeadFollowUpAssignee")
   leadFollowUpsCreated     LeadFollowUp[]        @relation("LeadFollowUpCreator")
   leadAiSuggestionsUsed    LeadAiSuggestion[]
@@ -1445,10 +1446,55 @@ model WhatsappConnection {
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  groupChats    GroupChat[]
 
   @@index([userId])
   @@index([status])
   @@map("whatsapp_connections")
+  @@schema("simple_system")
+}
+
+/// Grup WhatsApp — TERPISAH dari Lead/Conversation (bukan prospek, gak ada PIC/temperature/
+/// follow-up). Cuma inbox baca+balas grup yang salah satu nomor WA-nya (WhatsappConnection) ikut
+/// jadi anggota. Visibilitas: Sales pemilik WhatsappConnection + SPV/Manager (pola sama
+/// canActOnLead, lihat permissions.ts canActOnGroup).
+model GroupChat {
+  id                   String    @id @default(uuid())
+  whatsappConnectionId String    @map("whatsapp_connection_id")
+  groupJid             String    @map("group_jid") // "xxxx@g.us"
+  name                 String?   // WA gak selalu kirim subject grup di webhook — manual rename di UI
+  lastMessageAt        DateTime? @map("last_message_at")
+  unreadCount          Int       @default(0) @map("unread_count")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  whatsappConnection WhatsappConnection @relation(fields: [whatsappConnectionId], references: [id], onDelete: Cascade)
+  messages           GroupMessage[]
+
+  @@unique([whatsappConnectionId, groupJid])
+  @@index([whatsappConnectionId])
+  @@map("group_chats")
+  @@schema("simple_system")
+}
+
+model GroupMessage {
+  id                String   @id @default(uuid())
+  groupChatId       String   @map("group_chat_id")
+  providerMessageId String?  @unique @map("provider_message_id")
+  direction         String // "INBOUND" | "OUTBOUND"
+  messageType       String   @map("message_type") // "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "OTHER"
+  body              String?
+  mediaUrl          String?  @map("media_url")
+  senderName        String?  @map("sender_name") // nama pengirim di grup (INBOUND, dari WA)
+  senderUserId      String?  @map("sender_user_id") // OUTBOUND dikirim dari app ini
+  sentAt            DateTime @map("sent_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  groupChat  GroupChat @relation(fields: [groupChatId], references: [id], onDelete: Cascade)
+  senderUser User?     @relation(fields: [senderUserId], references: [id])
+
+  @@index([groupChatId, sentAt])
+  @@map("group_messages")
   @@schema("simple_system")
 }
 

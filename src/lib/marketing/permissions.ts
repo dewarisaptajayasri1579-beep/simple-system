@@ -70,3 +70,17 @@ export async function actableLeadIds(user: Pick<User, "id" | "role">, leadIds: s
   })
   return new Set(rows.map((r) => r.leadId))
 }
+
+/** Sama pola dengan `canActOnLead`, buat Grup WhatsApp (bukan Lead — gak ada LeadAssignment).
+ *  MANAGER/SPV selalu boleh; SALES cuma boleh kalau dia pemilik WhatsappConnection yang jadi
+ *  anggota grup itu. */
+export async function canActOnGroup(user: Pick<User, "id" | "role">, groupChatId: string): Promise<boolean> {
+  const role = await resolveMarketingRole(user.id, user.role)
+  if (role === "MANAGER" || role === "SPV") return true
+
+  const group = await prisma.groupChat.findUnique({
+    where: { id: groupChatId },
+    select: { whatsappConnection: { select: { userId: true } } },
+  })
+  return group?.whatsappConnection.userId === user.id
+}

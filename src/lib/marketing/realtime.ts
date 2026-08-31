@@ -26,6 +26,8 @@ export type MarketingEvent =
   | { type: "status"; conversationId: string; providerMessageId: string; status: string; at: string }
   // customer sedang mengetik di WhatsApp (presence "composing" dari WAHUB)
   | { type: "typing"; conversationId: string; at: string }
+  // pesan Grup WA — connectionUserId dipakai client buat filter (bukan leadId, grup bukan Lead)
+  | { type: "group_message"; groupChatId: string; connectionUserId: string; direction: "INBOUND" | "OUTBOUND"; at: string }
 
 const PG_CHANNEL = "marketing_events"
 const BUS_CHANNEL = "evt"

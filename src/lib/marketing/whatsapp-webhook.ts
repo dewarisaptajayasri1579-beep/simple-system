@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import type { WhatsappConnection } from "@prisma/client"
 
 import { normalizePhoneNumber } from "@/lib/wahub"
 import { prisma } from "@/lib/prisma"
@@ -75,6 +76,122 @@ function messageKey(m: WahubIncomingMessage, digits: string): string {
   if (m.id) return `wahub:${m.id}`
   const h = createHash("sha1").update(`${m.body ?? ""}|${m.mediaUrl ?? ""}`).digest("hex").slice(0, 12)
   return `wahub:${digits}:${m.timestamp ?? 0}:${h}`
+}
+
+/** Pesan MASUK dari grup WA — TERPISAH dari alur Lead (bukan prospek): cuma GroupChat/GroupMessage
+ *  biasa, gak ada Lead creation/segmentasi/AI/auto-follow-up/notifikasi PIC. */
+async function handleGroupInboundMessage(connection: WhatsappConnection, message: WahubIncomingMessage, chatId: string, eventId: string) {
+  const cls = classifyMessage(message)
+  if (cls.kind === "skip") {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+    return { skipped: `grup tanpa isi (type: ${message.type})` }
+  }
+  const messageType = cls.messageType
+  const bodyText = cls.body
+  if (cls.kind === "media" && !message.mediaUrl && !bodyText) return { skipped: "grup: empty media" }
+
+  const digits = message.senderNumber || (message.from ? message.from.replace(/@.*$/, "") : "")
+  const providerMessageId = messageKey(message, digits || chatId)
+  const existing = await prisma.groupMessage.findUnique({ where: { providerMessageId }, select: { id: true } })
+  if (existing) {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    return { skipped: "duplicate group message" }
+  }
+
+  const sentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
+  const group = await prisma.groupChat.upsert({
+    where: { whatsappConnectionId_groupJid: { whatsappConnectionId: connection.id, groupJid: chatId } },
+    update: {},
+    create: { whatsappConnectionId: connection.id, groupJid: chatId },
+  })
+
+  await prisma.groupMessage.create({
+    data: {
+      groupChatId: group.id,
+      providerMessageId,
+      direction: "INBOUND",
+      messageType,
+      body: bodyText,
+      mediaUrl: message.mediaUrl ?? null,
+      senderName: message.senderName ?? null,
+      sentAt,
+    },
+  })
+
+  await prisma.groupChat.update({ where: { id: group.id }, data: { lastMessageAt: sentAt, unreadCount: { increment: 1 } } })
+
+  publishMarketingEvent({ type: "group_message", groupChatId: group.id, connectionUserId: connection.userId, direction: "INBOUND", at: sentAt.toISOString() })
+
+  await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+  return { handled: true, groupChatId: group.id }
+}
+
+/** Balasan Sales ke grup yang dikirim LANGSUNG dari WhatsApp-nya (bukan lewat app ini) — pola
+ *  sama dengan jalur outgoing Lead (backfill kalau app yang kirim duluan). */
+async function handleGroupOutgoingMessage(connection: WhatsappConnection, message: WahubIncomingMessage, eventId: string) {
+  const chatId = message.chatId || message.from || ""
+  if (!chatId) return { skipped: "outgoing grup tanpa chatId" }
+
+  const clsOut = classifyMessage(message)
+  if (clsOut.kind === "skip") {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "IGNORED" } })
+    return { skipped: "outgoing grup tanpa isi" }
+  }
+  const outBody = clsOut.body
+
+  const digits = message.senderNumber || (message.from ? message.from.replace(/@.*$/, "") : "")
+  const outMsgId = messageKey(message, digits || chatId)
+  const dupOut = await prisma.groupMessage.findUnique({ where: { providerMessageId: outMsgId }, select: { id: true } })
+  if (dupOut) {
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    return { skipped: "duplicate outgoing group message" }
+  }
+
+  const outSentAt = message.timestamp ? new Date(message.timestamp * 1000) : new Date()
+  const group = await prisma.groupChat.upsert({
+    where: { whatsappConnectionId_groupJid: { whatsappConnectionId: connection.id, groupJid: chatId } },
+    update: {},
+    create: { whatsappConnectionId: connection.id, groupJid: chatId },
+  })
+
+  // Pesan yang dikirim lewat app ini (< 2 menit lalu, providerMessageId masih null) → backfill
+  // id-nya, jangan bikin baris baru.
+  let appSent: { id: string } | null = null
+  if (outBody || message.mediaUrl) {
+    appSent = await prisma.groupMessage.findFirst({
+      where: {
+        groupChatId: group.id,
+        direction: "OUTBOUND",
+        providerMessageId: null,
+        sentAt: { gte: new Date(outSentAt.getTime() - 120_000) },
+        ...(outBody ? { body: outBody } : { mediaUrl: message.mediaUrl }),
+      },
+      orderBy: { sentAt: "desc" },
+      select: { id: true },
+    })
+  }
+  if (appSent) {
+    await prisma.groupMessage.update({ where: { id: appSent.id }, data: { providerMessageId: outMsgId } })
+    await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+    return { skipped: "outgoing group sudah dicatat app", backfilled: appSent.id }
+  }
+
+  await prisma.groupMessage.create({
+    data: {
+      groupChatId: group.id,
+      providerMessageId: outMsgId,
+      direction: "OUTBOUND",
+      messageType: clsOut.messageType,
+      body: outBody,
+      mediaUrl: message.mediaUrl ?? null,
+      senderUserId: connection.userId,
+      sentAt: outSentAt,
+    },
+  })
+  await prisma.groupChat.update({ where: { id: group.id }, data: { lastMessageAt: outSentAt } })
+  publishMarketingEvent({ type: "group_message", groupChatId: group.id, connectionUserId: connection.userId, direction: "OUTBOUND", at: outSentAt.toISOString() })
+  await prisma.leadWebhookEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date(), processingStatus: "PROCESSED" } })
+  return { handled: true, groupChatId: group.id, outbound: true }
 }
 
 /**
@@ -172,7 +289,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
   // tercatat di percakapan & KPI (lastSalesMessageAt).
   if (message.to !== "me") {
     if (message.isGroup || message.chatId?.endsWith("@g.us") || message.from?.endsWith("@g.us")) {
-      return { skipped: "outgoing group message" }
+      return handleGroupOutgoingMessage(connection, message, eventId)
     }
     const clsOut = classifyMessage(message)
     if (clsOut.kind === "skip") {
@@ -292,7 +409,7 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
 
   // ---- Pesan masuk ----
   const chatId = message.chatId || message.from
-  if (chatId.endsWith("@g.us")) return { skipped: "group message" }
+  if (chatId.endsWith("@g.us")) return handleGroupInboundMessage(connection, message, chatId, eventId)
 
   // Klasifikasi by ISI, bukan label `type` — event protokol tanpa isi diabaikan.
   const cls = classifyMessage(message)
