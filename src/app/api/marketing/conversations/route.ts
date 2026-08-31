@@ -12,6 +12,8 @@ import { prisma } from "@/lib/prisma"
  *    boleh lihat Inbox miliknya sendiri, apa pun query `scope` yang dikirim client (lihat
  *    InboxClient.tsx yang juga sudah sembunyikan toggle-nya, tapi enforcement aslinya di sini).
  *  - `filter`: all | unread | priority | hot
+ *  - `waConnectionId`: filter ke satu nomor WA (WhatsappConnection) tertentu — dipakai kalau
+ *    sales/manager punya >1 nomor dan mau pisahin Inbox per nomor.
  *  - `q`: cari nama / perusahaan / nomor WA
  *  - `page` / `limit` (offset pagination, limit maks 100)
  * Tiap item bawa `canAct` (boleh balas/aksi atau tidak) supaya UI tak perlu cek ulang.
@@ -24,6 +26,7 @@ export async function GET(request: Request) {
   const marketingRole = await resolveMarketingRole(user.id, user.role)
   const scope = marketingRole === "SALES" ? "mine" : searchParams.get("scope") === "mine" ? "mine" : "all"
   const filter = searchParams.get("filter") ?? "all"
+  const waConnectionId = searchParams.get("waConnectionId")
   const q = (searchParams.get("q") ?? "").trim()
   const page = Math.max(1, Number(searchParams.get("page")) || 1)
   const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 30))
@@ -43,6 +46,7 @@ export async function GET(request: Request) {
   const where: Prisma.ConversationWhereInput = {}
   if (Object.keys(leadWhere).length > 0) where.lead = leadWhere
   if (filter === "unread") where.unreadCustomerCount = { gt: 0 }
+  if (waConnectionId) where.whatsappConnectionId = waConnectionId
 
   const [total, rows] = await Promise.all([
     prisma.conversation.count({ where }),

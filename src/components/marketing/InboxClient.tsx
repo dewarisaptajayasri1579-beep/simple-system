@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Search } from "lucide-react"
 
-import { Alert, Badge, Card, Input, SkeletonList } from "@/components/ui"
+import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
 import { FilterPills, MktHeader, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
@@ -47,6 +47,12 @@ function relativeTime(iso: string | null) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
 }
 
+interface WhatsappNumberOption {
+  id: string
+  label: string
+  ownerName: string | null
+}
+
 export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
   const [filter, setFilter] = useState("all")
   // Sales terkunci ke "mine" (lihat halaman inbox/page.tsx) — backend juga sudah maksa ini
@@ -54,10 +60,19 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
   // sengaja disembunyikan di bawah biar tidak ada UI yang keliatan bisa diklik tapi percuma.
   const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : "all")
   const [q, setQ] = useState("")
+  const [waConnectionId, setWaConnectionId] = useState("")
+  const [waNumbers, setWaNumbers] = useState<WhatsappNumberOption[]>([])
   const [items, setItems] = useState<ConversationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const qDebounced = useRef(q)
+
+  useEffect(() => {
+    fetch("/api/marketing/conversations/whatsapp-numbers", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setWaNumbers(data.numbers ?? []))
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(
     async (silent = false) => {
@@ -65,6 +80,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
       try {
         const params = new URLSearchParams({ filter, scope, limit: "50" })
         if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
+        if (waConnectionId) params.set("waConnectionId", waConnectionId)
         const res = await fetch(`/api/marketing/conversations?${params}`, { cache: "no-store" })
         const data = await res.json()
         if (!res.ok) {
@@ -77,7 +93,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
         if (!silent) setLoading(false)
       }
     },
-    [filter, scope],
+    [filter, scope, waConnectionId],
   )
 
   useEffect(() => {
@@ -118,6 +134,18 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
       />
 
       <FilterPills options={FILTERS} value={filter} onChange={setFilter} />
+
+      {waNumbers.length > 1 && (
+        <Select
+          options={[
+            { value: "", label: "Semua Nomor WA" },
+            ...waNumbers.map((n) => ({ value: n.id, label: n.ownerName ? `${n.label} (${n.ownerName})` : n.label })),
+          ]}
+          value={waConnectionId}
+          onChange={setWaConnectionId}
+          sizeVariant="sm"
+        />
+      )}
 
       <WhatsappStatusBanner />
 

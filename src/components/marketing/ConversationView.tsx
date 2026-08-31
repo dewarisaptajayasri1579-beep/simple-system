@@ -101,6 +101,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [templateForm, setTemplateForm] = useState<{ id: string | null; title: string; body: string } | null>(null)
   const [savingTemplate, setSavingTemplate] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const draftRef = useRef<HTMLTextAreaElement | null>(null)
   const lastCountRef = useRef(0)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -177,6 +178,16 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
+
+  // Textarea composer auto-grow mengikuti isi ketikan — biar baris pertama tidak "naik" ke luar
+  // tampilan sebelum di-scroll. Dibatasi max-h-32 (lihat className textarea), lewat itu baru
+  // scroll internal seperti biasa.
+  useEffect(() => {
+    const el = draftRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [draft])
 
   const loadSuggestions = useCallback(async () => {
     try {
@@ -660,12 +671,13 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             <Paperclip className="w-4 h-4" />
           </button>
           <textarea
+            ref={draftRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={1}
             placeholder={composerPlaceholder}
             disabled={!canSend}
-            className="flex-1 resize-none max-h-32 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400"
+            className="flex-1 resize-none max-h-32 overflow-y-auto px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400"
           />
           <Button
             onClick={send}
