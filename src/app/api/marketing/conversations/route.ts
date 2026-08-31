@@ -67,6 +67,7 @@ export async function GET(request: Request) {
           },
         },
         messages: { take: 1, orderBy: { sentAt: "desc" }, select: { body: true, direction: true } },
+        whatsappConnection: { select: { label: true, phoneNumber: true } },
       },
     }),
   ])
@@ -93,6 +94,7 @@ export async function GET(request: Request) {
       segmentName: r.lead.segment?.name ?? null,
     },
     pic: picByLead.get(r.leadId) ?? null,
+    whatsappConnectionLabel: r.whatsappConnection?.label ?? r.whatsappConnection?.phoneNumber ?? null,
     lastMessageAt: r.lastMessageAt?.toISOString() ?? null,
     lastMessagePreview: r.messages[0] ?? null,
     unreadCustomerCount: r.unreadCustomerCount,

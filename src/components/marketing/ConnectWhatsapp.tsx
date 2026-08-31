@@ -152,6 +152,10 @@ export const ConnectWhatsapp: React.FC = () => {
   }, [refreshList, stopPolling])
 
   const handleAddConnection = async () => {
+    if (!addingLabel?.trim()) {
+      setError("Isi dulu nama/identitas nomor ini (mis. WA Utama)")
+      return
+    }
     setLoadingId("__new__")
     setError(null)
     try {

@@ -38,13 +38,15 @@ export async function GET() {
   return NextResponse.json({ connections: updated })
 }
 
-/** Tambah koneksi WA baru untuk Sales yang sedang login. Body opsional: { label }. */
+/** Tambah koneksi WA baru untuk Sales yang sedang login. Body wajib: { label } — identitas
+ *  nomor ini, dipakai buat bedain lead yang masuk lewat nomor mana di UI. */
 export async function POST(req: Request) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
   const label: string | null = typeof body?.label === "string" && body.label.trim() ? body.label.trim() : null
+  if (!label) return NextResponse.json({ error: "Nama/identitas nomor wajib diisi" }, { status: 400 })
 
   const sessionId = newWahubSessionId(user.id)
   const webhookUrl = marketingWhatsappWebhookUrl(sessionId)

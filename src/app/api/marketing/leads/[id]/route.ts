@@ -40,7 +40,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       },
       conversations: {
         orderBy: { lastMessageAt: { sort: "desc", nulls: "last" } },
-        select: { id: true, lastMessageAt: true, unreadCustomerCount: true, channel: true },
+        select: {
+          id: true,
+          lastMessageAt: true,
+          unreadCustomerCount: true,
+          channel: true,
+          whatsappConnection: { select: { label: true, phoneNumber: true } },
+        },
       },
       activities: {
         orderBy: { occurredAt: "desc" },
@@ -249,6 +255,7 @@ function serializeLead(lead: any) {
       channel: c.channel,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
       unreadCustomerCount: c.unreadCustomerCount,
+      whatsappConnectionLabel: c.whatsappConnection?.label ?? c.whatsappConnection?.phoneNumber ?? null,
     })),
     activities: lead.activities.map((a: any) => ({
       id: a.id,

@@ -49,6 +49,7 @@ interface ConversationMeta {
   hasWhatsappConnection: boolean
   whatsappStatus: string | null
   whatsappConnected: boolean
+  whatsappConnectionLabel: string | null
 }
 
 function clockTime(iso: string) {
@@ -266,6 +267,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
             {lead.segmentName && <Badge variant="secondary" size="sm">{lead.segmentName}</Badge>}
             {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
+            {meta.whatsappConnectionLabel && <Badge variant="secondary" size="sm">{meta.whatsappConnectionLabel}</Badge>}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {lead.companyName ? `${lead.companyName} · ` : ""}

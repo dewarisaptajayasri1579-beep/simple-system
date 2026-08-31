@@ -20,6 +20,7 @@ interface ConversationItem {
     segmentName: string | null
   }
   pic: { id: string; name: string } | null
+  whatsappConnectionLabel: string | null
   lastMessageAt: string | null
   lastMessagePreview: { body: string | null; direction: string } | null
   unreadCustomerCount: number
@@ -162,6 +163,9 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
+                      {c.whatsappConnectionLabel && (
+                        <Badge variant="secondary" size="sm">{c.whatsappConnectionLabel}</Badge>
+                      )}
                       {c.lead.segmentName && <Badge variant="secondary" size="sm">{c.lead.segmentName}</Badge>}
                       {(c.lead.priorityLevel === "HIGH" || c.lead.priorityLevel === "TOP") && (
                         <Badge variant="warning" size="sm">Prioritas</Badge>

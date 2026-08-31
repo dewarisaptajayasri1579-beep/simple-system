@@ -54,7 +54,7 @@ interface LeadDetail {
     assignedUser: Opt
     assignedByUser: Opt | null
   }[]
-  conversations: { id: string; channel: string; lastMessageAt: string | null; unreadCustomerCount: number }[]
+  conversations: { id: string; channel: string; lastMessageAt: string | null; unreadCustomerCount: number; whatsappConnectionLabel: string | null }[]
   activities: {
     id: string
     type: { code: string; name: string }
@@ -63,6 +63,7 @@ interface LeadDetail {
     note: string | null
     result: string | null
     isVoid: boolean
+    attachmentUrl: string | null
   }[]
   followUps: {
     id: string
@@ -151,6 +152,23 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
   const [actOpen, setActOpen] = useState(false)
   const [actForm, setActForm] = useState({ activityTypeId: "", occurredAt: "", note: "" })
+  // Rekam Panggilan — mic browser (MediaRecorder) lalu upload+transkrip lewat
+  // POST .../recordings, hasilnya cuma pre-fill actForm.note (staf tetap review sebelum
+  // "Simpan Aktivitas", lihat handleSaveActivity). pendingAttachmentUrl dikirim bareng saat itu.
+  const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "uploading">("idle")
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [recordingError, setRecordingError] = useState<string | null>(null)
+  const [pendingAttachmentUrl, setPendingAttachmentUrl] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop()
+    }
+  }, [])
   const [fuOpen, setFuOpen] = useState(false)
   const [fuForm, setFuForm] = useState({ scheduledAt: "", purpose: "", note: "" })
   const [completingFu, setCompletingFu] = useState<string | null>(null)
@@ -252,6 +270,60 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
     }
   }
 
+  const startRecording = async () => {
+    setRecordingError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : ""
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      chunksRef.current = []
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      recorder.onstop = () => {
+        // Matiin semua track mic — kalau tidak, indikator "mic aktif" browser tetap nyala terus.
+        stream.getTracks().forEach((t) => t.stop())
+        void uploadRecording(new Blob(chunksRef.current, { type: recorder.mimeType }))
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setRecordingSeconds(0)
+      timerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000)
+      setRecordingStatus("recording")
+    } catch {
+      setRecordingError("Tidak bisa akses mic — cek izin browser.")
+    }
+  }
+
+  const stopRecording = () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    setRecordingStatus("uploading")
+    mediaRecorderRef.current?.stop()
+  }
+
+  const uploadRecording = async (blob: Blob) => {
+    try {
+      const body = new FormData()
+      body.append("audio", blob, "recording.webm")
+      // Sengaja fetch langsung (bukan helper `call()`) — ini harus multipart, biarkan browser
+      // yang set Content-Type boundary-nya sendiri.
+      const res = await fetch(`/api/marketing/leads/${leadId}/recordings`, { method: "POST", body })
+      const data = await res.json()
+      if (!res.ok) {
+        setRecordingError(data.error || "Gagal upload rekaman")
+        return
+      }
+      setPendingAttachmentUrl(data.attachmentUrl ?? null)
+      setActForm((f) => ({ ...f, note: data.transcript || f.note }))
+      setActOpen(true)
+      if (!data.transcript) setRecordingError(data.transcribeError || "Rekaman tersimpan, tapi transkrip gagal — isi catatan manual.")
+    } catch {
+      setRecordingError("Gagal menghubungi server saat upload rekaman.")
+    } finally {
+      setRecordingStatus("idle")
+    }
+  }
+
   if (loading) return <SkeletonList rows={6} />
   if (!lead) return <Alert variant="error">{error ?? "Lead tidak ditemukan"}</Alert>
 
@@ -301,6 +373,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
             </p>
             <p className="text-xs text-slate-400 mt-1">
               PIC: {pic?.name ?? "belum ada"} · dibuat {fmt(lead.createdAt)}
+              {lead.conversations[0]?.whatsappConnectionLabel && ` · masuk lewat ${lead.conversations[0].whatsappConnectionLabel}`}
             </p>
           </div>
           {lead.conversations[0] && (
@@ -743,12 +816,30 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         title={`Aktivitas (${lead.activities.length})`}
         right={
           canAct ? (
-            <button onClick={() => setActOpen((v) => !v)} className="text-xs font-bold text-blue-700">
-              {actOpen ? "Tutup" : "+ Tambah"}
-            </button>
+            <div className="flex items-center gap-3">
+              {recordingStatus === "idle" && (
+                <button onClick={startRecording} className="flex items-center gap-1 text-xs font-bold text-rose-600" title="Rekam panggilan lalu transkrip otomatis">
+                  <Mic className="w-3.5 h-3.5" /> Rekam Panggilan
+                </button>
+              )}
+              {recordingStatus === "recording" && (
+                <button onClick={stopRecording} className="flex items-center gap-1 text-xs font-bold text-rose-600 animate-pulse">
+                  <Square className="w-3.5 h-3.5" /> Selesai ({Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, "0")})
+                </button>
+              )}
+              {recordingStatus === "uploading" && <span className="text-xs font-bold text-slate-400">Mengirim & mentranskrip…</span>}
+              <button onClick={() => setActOpen((v) => !v)} className="text-xs font-bold text-blue-700">
+                {actOpen ? "Tutup" : "+ Tambah"}
+              </button>
+            </div>
           ) : null
         }
       >
+        {recordingError && (
+          <Alert variant="error" onClose={() => setRecordingError(null)} className="mb-3">
+            {recordingError}
+          </Alert>
+        )}
         {canAct && activityTypes.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1.5">
             {activityTypes.map((t) => (
@@ -783,9 +874,12 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               value={actForm.note}
               onChange={(e) => setActForm((f) => ({ ...f, note: e.target.value }))}
               rows={2}
-              placeholder="Catatan (opsional)"
+              placeholder="Catatan (opsional) — otomatis keisi transkrip kalau habis Rekam Panggilan"
               sizeVariant="sm"
             />
+            {pendingAttachmentUrl && (
+              <audio controls src={pendingAttachmentUrl} className="w-full h-9" />
+            )}
             <Button
               size="sm"
               isLoading={busy}
@@ -796,9 +890,11 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                   activityTypeId: actForm.activityTypeId,
                   occurredAt: actForm.occurredAt ? new Date(actForm.occurredAt).toISOString() : undefined,
                   note: actForm.note.trim() || undefined,
+                  attachmentUrl: pendingAttachmentUrl || undefined,
                 })
                 if (ok) {
                   setActForm({ activityTypeId: "", occurredAt: "", note: "" })
+                  setPendingAttachmentUrl(null)
                   setActOpen(false)
                 }
               }}
@@ -816,6 +912,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 <span className="font-bold text-slate-700">{a.type.name}</span>
                 <span className="text-slate-400"> · {fmt(a.occurredAt)} · {a.actorUser.name}</span>
                 {a.note && <p className="text-xs text-slate-500 mt-0.5">{a.note}</p>}
+                {a.attachmentUrl && <audio controls src={a.attachmentUrl} className="mt-1 h-8 w-full max-w-xs" />}
               </li>
             ))}
           </ul>
