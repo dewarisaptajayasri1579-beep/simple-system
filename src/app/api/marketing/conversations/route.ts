@@ -2,13 +2,15 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
-import { actableLeadIds } from "@/lib/marketing/permissions"
+import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { prisma } from "@/lib/prisma"
 
 /**
  * GET /api/marketing/conversations — daftar percakapan.
  *  - Default `scope=all`: SEMUA percakapan (transparansi tim). `scope=mine`: hanya lead yang
- *    PIC-nya user ini.
+ *    PIC-nya user ini. Role SALES DIPAKSA "mine" di server — beda dari Manager/SPV, Sales cuma
+ *    boleh lihat Inbox miliknya sendiri, apa pun query `scope` yang dikirim client (lihat
+ *    InboxClient.tsx yang juga sudah sembunyikan toggle-nya, tapi enforcement aslinya di sini).
  *  - `filter`: all | unread | priority | hot
  *  - `q`: cari nama / perusahaan / nomor WA
  *  - `page` / `limit` (offset pagination, limit maks 100)
@@ -19,7 +21,8 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const scope = searchParams.get("scope") === "mine" ? "mine" : "all"
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  const scope = marketingRole === "SALES" ? "mine" : searchParams.get("scope") === "mine" ? "mine" : "all"
   const filter = searchParams.get("filter") ?? "all"
   const q = (searchParams.get("q") ?? "").trim()
   const page = Math.max(1, Number(searchParams.get("page")) || 1)

@@ -46,9 +46,12 @@ function relativeTime(iso: string | null) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
 }
 
-export const InboxClient: React.FC = () => {
+export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
   const [filter, setFilter] = useState("all")
-  const [scope, setScope] = useState<"all" | "mine">("all")
+  // Sales terkunci ke "mine" (lihat halaman inbox/page.tsx) — backend juga sudah maksa ini
+  // (GET /api/marketing/conversations mengabaikan query scope kalau rolenya SALES), toggle-nya
+  // sengaja disembunyikan di bawah biar tidak ada UI yang keliatan bisa diklik tapi percuma.
+  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : "all")
   const [q, setQ] = useState("")
   const [items, setItems] = useState<ConversationItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,7 +105,7 @@ export const InboxClient: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       <MktHeader title="Inbox">
-        <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />
+        {!isSales && <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />}
       </MktHeader>
 
       <Input
