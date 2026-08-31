@@ -52,6 +52,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // biasa — WA tidak bisa kasih tahu ini diklik dari nomor siapa (lihat QuickLoginModal).
   const user = await getSessionUser()
   if (!user) redirect(params.quick === "1" ? "/login?quick=1" : "/login")
+  // Halaman modul Internal — user yang cuma punya akses modul lain (mis. Marketing) tidak boleh
+  // masuk lewat URL langsung, sama gate-nya dengan getCurrentUser() di lib/current-user.ts.
+  if (user.role !== "owner" && !user.modules.includes("internal")) redirect("/modules")
 
   // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, section
   // Domain/Server/Maintenance tampilkan SEMUA item jatuh tempo sampai tanggal ini, ganti window

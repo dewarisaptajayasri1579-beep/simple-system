@@ -16,6 +16,9 @@ function byDueDateAsc<T extends { dueDate: string | null }>(a: T, b: T) {
 export default async function DashboardFinancePage({ searchParams }: { searchParams: Promise<{ to?: string }> }) {
   const user = await getSessionUser()
   if (!user) redirect("/login")
+  // Halaman modul Internal — user yang cuma punya akses modul lain (mis. Marketing) tidak boleh
+  // masuk lewat URL langsung, sama gate-nya dengan getCurrentUser() di lib/current-user.ts.
+  if (user.role !== "owner" && !user.modules.includes("internal")) redirect("/modules")
 
   const params = await searchParams
   // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, ganti window
