@@ -69,7 +69,7 @@ function relTime(iso: string | null) {
   return fmtDate(iso)
 }
 
-export const LeadListClient: React.FC = () => {
+export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
   const [rows, setRows] = useState<LeadRow[]>([])
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
@@ -78,7 +78,7 @@ export const LeadListClient: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [scope, setScope] = useState<"all" | "mine">("all")
+  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : "all")
   const [q, setQ] = useState("")
   const [segmentId, setSegmentId] = useState("")
   const [buyingPowerTierId, setBuyingPowerTierId] = useState("")
@@ -193,7 +193,7 @@ export const LeadListClient: React.FC = () => {
         <Button size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setShowAdd(true); setAddErr(null) }}>
           Tambah Lead
         </Button>
-        <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />
+        {!isSales && <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />}
       </MktHeader>
 
       <Input
@@ -271,9 +271,11 @@ export const LeadListClient: React.FC = () => {
             sizeVariant="sm"
           />
         </div>
-        <div className="w-40">
-          <Select options={[{ value: "", label: "Semua PIC" }, ...opt(users)]} value={picUserId} onChange={setPicUserId} sizeVariant="sm" />
-        </div>
+        {!isSales && (
+          <div className="w-40">
+            <Select options={[{ value: "", label: "Semua PIC" }, ...opt(users)]} value={picUserId} onChange={setPicUserId} sizeVariant="sm" />
+          </div>
+        )}
         <div className="w-48">
           <Select
             options={[

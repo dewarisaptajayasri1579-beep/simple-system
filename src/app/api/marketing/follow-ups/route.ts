@@ -3,11 +3,13 @@ import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { endOfToday, followUpDto, startOfToday } from "@/lib/marketing/follow-up"
+import { resolveMarketingRole } from "@/lib/marketing/permissions"
 import { prisma } from "@/lib/prisma"
 
 /**
  * GET /api/marketing/follow-ups — daftar follow up untuk halaman Follow Up.
  *  scope=all|mine (default all) · bucket=today|upcoming|overdue|done|all (default today) · page/limit
+ *  Role SALES DIPAKSA "mine" di server, apa pun query yang dikirim.
  * Selalu balikin `counts` (today/upcoming/overdue) scope-aware buat badge tab.
  */
 export async function GET(request: Request) {
@@ -15,7 +17,8 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const sp = new URL(request.url).searchParams
-  const scope = sp.get("scope") === "mine" ? "mine" : "all"
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  const scope = marketingRole === "SALES" ? "mine" : sp.get("scope") === "mine" ? "mine" : "all"
   const bucket = sp.get("bucket") ?? "today"
   const page = Math.max(1, Number(sp.get("page")) || 1)
   const limit = Math.min(100, Math.max(1, Number(sp.get("limit")) || 50))
@@ -23,7 +26,7 @@ export async function GET(request: Request) {
   const base: Prisma.LeadFollowUpWhereInput = {}
   if (scope === "mine") base.assignedUserId = user.id
   const assignedUserId = sp.get("assignedUserId")
-  if (assignedUserId) base.assignedUserId = assignedUserId
+  if (assignedUserId && marketingRole !== "SALES") base.assignedUserId = assignedUserId
 
   const sot = startOfToday()
   const eot = endOfToday()

@@ -38,7 +38,7 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
-export const FollowUpBoard: React.FC = () => {
+export const FollowUpBoard: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
   const [bucket, setBucket] = useState("today")
   const [scope, setScope] = useState<"all" | "mine">("mine")
   const [items, setItems] = useState<FollowUp[]>([])
@@ -101,7 +101,7 @@ export const FollowUpBoard: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       <MktHeader title="Follow Up">
-        <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} />
+        {!isSales && <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} />}
       </MktHeader>
 
       <FilterPills options={tabsWithBadge} value={bucket} onChange={setBucket} />

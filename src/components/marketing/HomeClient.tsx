@@ -30,7 +30,7 @@ interface HomeData {
   workOn: WorkItem[]
 }
 
-export const HomeClient: React.FC = () => {
+export const HomeClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
   const [scope, setScope] = useState<"mine" | "all">("mine")
   const [data, setData] = useState<HomeData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -74,7 +74,7 @@ export const HomeClient: React.FC = () => {
   return (
     <div className="flex flex-col gap-5">
       <MktHeader title="Beranda">
-        <ScopeToggle value={scope} onChange={setScope} />
+        {!isSales && <ScopeToggle value={scope} onChange={setScope} />}
       </MktHeader>
 
       {error && <Alert variant="error">{error}</Alert>}

@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { endOfToday, startOfToday } from "@/lib/marketing/follow-up"
-import { actableLeadIds } from "@/lib/marketing/permissions"
+import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { prisma } from "@/lib/prisma"
 
 const STAGE_LABEL: Record<string, string> = {
@@ -16,7 +16,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 /**
  * GET /api/marketing/home — data Beranda.
- *  scope=mine (default) | all
+ *  scope=mine (default) | all — Role SALES DIPAKSA "mine" di server, apa pun query yang dikirim.
  *  Return: kpi { hotLeads, followUpToday, followUpOverdue, unrepliedChats } + workOn (10 lead
  *  OPEN prioritas tertinggi, dengan alasan singkat + next follow up).
  */
@@ -24,7 +24,9 @@ export async function GET(request: Request) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
-  const scope = new URL(request.url).searchParams.get("scope") === "all" ? "all" : "mine"
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  const scope =
+    marketingRole === "SALES" ? "mine" : new URL(request.url).searchParams.get("scope") === "all" ? "all" : "mine"
   const mineLeadFilter: Prisma.LeadWhereInput =
     scope === "mine" ? { assignments: { some: { assignedUserId: user.id, isActive: true } } } : {}
   const mineFuFilter: Prisma.LeadFollowUpWhereInput = scope === "mine" ? { assignedUserId: user.id } : {}
