@@ -119,7 +119,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         setAddErr(d.error || "Gagal membuat lead")
         return
       }
-      router.push(`/marketing/leads/${d.lead.id}`)
+      router.push(`/marketing/leads/${d.lead.id}?syncHistory=1`)
     } finally {
       setAdding(false)
     }

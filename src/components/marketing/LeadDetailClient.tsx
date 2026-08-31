@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, MessageSquare, Mic, Square } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, MessageSquare, Mic, RefreshCw, Square } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
@@ -122,6 +123,8 @@ function fmt(iso: string | null) {
 }
 
 export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [lead, setLead] = useState<LeadDetail | null>(null)
   const [pic, setPic] = useState<Opt | null>(null)
   const [canAct, setCanAct] = useState(false)
@@ -341,6 +344,37 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       .catch(() => {})
   }, [])
 
+  // Sinkron riwayat chat WhatsApp (dari nomor Sales sendiri, lihat POST .../sync-whatsapp-history)
+  // — bisa makan sampai ~20 detik (WAHUB nunggu balasan WhatsApp), jadi dijalankan di background,
+  // TIDAK pakai `call()`/`busy` supaya tombol aksi lain tetap bisa dipakai selama nunggu.
+  const [syncingHistory, setSyncingHistory] = useState(false)
+  const [syncHistoryMsg, setSyncHistoryMsg] = useState<string | null>(null)
+  const syncWhatsappHistory = useCallback(async () => {
+    setSyncingHistory(true)
+    setSyncHistoryMsg(null)
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/sync-whatsapp-history`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) {
+        setSyncHistoryMsg(data.error || "Gagal sinkron riwayat chat")
+        return
+      }
+      setSyncHistoryMsg(
+        data.syncedCount > 0 ? `${data.syncedCount} pesan lama ditemukan & disinkronkan.` : "Tidak ada riwayat chat sebelumnya.",
+      )
+      await load()
+    } finally {
+      setSyncingHistory(false)
+    }
+  }, [leadId, load])
+
+  useEffect(() => {
+    if (searchParams.get("syncHistory") !== "1") return
+    router.replace(`/marketing/leads/${leadId}`)
+    syncWhatsappHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const call = async (url: string, body: unknown, method = "POST") => {
     setBusy(true)
     setError(null)
@@ -497,12 +531,30 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               {lead.conversations[0]?.whatsappConnectionLabel && ` · masuk lewat ${lead.conversations[0].whatsappConnectionLabel}`}
             </p>
           </div>
-          {lead.conversations[0] && (
-            <Link href={`/marketing/inbox/${lead.conversations[0].id}`} className="flex-shrink-0">
-              <Button size="sm" leftIcon={<MessageSquare className="w-3.5 h-3.5" />}>Chat</Button>
-            </Link>
-          )}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {canAct && (
+              <Button
+                size="sm"
+                variant="secondary"
+                isLoading={syncingHistory}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                onClick={syncWhatsappHistory}
+              >
+                Sinkron Riwayat Chat
+              </Button>
+            )}
+            {lead.conversations[0] && (
+              <Link href={`/marketing/inbox/${lead.conversations[0].id}`}>
+                <Button size="sm" leftIcon={<MessageSquare className="w-3.5 h-3.5" />}>Chat</Button>
+              </Link>
+            )}
+          </div>
         </div>
+        {syncHistoryMsg && (
+          <div className="mt-3 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+            {syncHistoryMsg}
+          </div>
+        )}
         {!canAct && (
           <div className="mt-3 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between gap-3">
             <span>Kamu memantau lead ini. Hanya PIC / SPV / Manager yang bisa mengubah.</span>

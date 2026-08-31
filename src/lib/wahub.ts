@@ -152,6 +152,24 @@ export async function sendWhatsappMessageFromSession(sessionId: string, rawNumbe
   return res.json() as Promise<WahubSendResult>
 }
 
+/** Riwayat chat 1 nomor dari WhatsApp session Sales itu sendiri (on-demand history sync
+ *  Baileys, lihat fetchChatHistory di backend-wahub) — HANYA chat yang memang pernah terjadi
+ *  di HP Sales, array kosong = memang tidak ada riwayat (bukan error). Bisa makan sampai
+ *  ~20 detik (WAHUB nunggu balasan WhatsApp), jadi jangan dipanggil dari jalur yang harus cepat. */
+export async function fetchChatHistoryFromSession(sessionId: string, rawNumber: string, count = 50) {
+  requireMarketingWahubEnv()
+  const number = normalizePhoneNumber(rawNumber)
+  const res = await fetch(
+    `${MARKETING_WAHUB_BASE_URL}/api/messages/history/${encodeURIComponent(sessionId)}?number=${encodeURIComponent(number)}&count=${count}`,
+    { headers: { "x-api-key": MARKETING_WAHUB_API_KEY! } },
+  )
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`WAHUB gagal ambil riwayat chat (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return res.json() as Promise<{ messages: { id: string; fromMe: boolean; body: string; timestamp: number }[] }>
+}
+
 /** Bentuk respons WAHUB saat kirim pesan — id pesan dipakai buat mencocokkan ack status
  *  (SENT/DELIVERED/READ) yang datang lewat webhook. Nama field beda-beda antar versi wrapper,
  *  jadi semua kemungkinan ditangkap. */
