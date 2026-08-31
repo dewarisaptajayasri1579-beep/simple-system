@@ -673,6 +673,18 @@ export const PengaturanPanel: React.FC<{
                         onChange={(e) => handleToggleModule(u.id, m.value, e.target.checked)}
                       />
                     ))}
+                    {u.modules.includes("marketing") && !u.hasMarketingTeam && (
+                      <div className="flex items-start gap-1.5 mt-0.5 text-amber-700">
+                        <TriangleAlert className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <p className="text-[11px] font-semibold leading-snug">
+                          Belum masuk tim manapun — Beranda/Inbox Marketing-nya bakal kosong sampai di-assign lewat{" "}
+                          <Link href="/marketing/tim" className="underline">
+                            Marketing &gt; Tim
+                          </Link>
+                          .
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ),
               },
