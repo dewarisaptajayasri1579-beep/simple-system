@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Card, CardHeader, CardTitle, CardDescription, Button, Input, CurrencyInput, Alert, Badge } from "@/components/ui"
+import { Card, CardHeader, CardTitle, CardDescription, Button, Input, CurrencyInput, Alert, Badge, Modal } from "@/components/ui"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 
 export interface SlottingOmsetDetailProps {
@@ -62,6 +62,8 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   const [isSkipping, setIsSkipping] = useState(false)
   const [error, setError] = useState("")
   const [feeOverrides, setFeeOverrides] = useState<Record<BucketKey, boolean>>(settingsPreview.defaultFeeApplies)
+  const [confirmProcessOpen, setConfirmProcessOpen] = useState(false)
+  const [confirmSkipOpen, setConfirmSkipOpen] = useState(false)
 
   const totalCost = slot.initialCostAmount + costLines.reduce((s, l) => s + l.amount, 0)
   const netAmount = slot.status === "draft" ? slot.grossAmount - totalCost : (slot.netAmount ?? 0)
@@ -118,7 +120,7 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   }
 
   const handleProcess = async () => {
-    if (!confirm(`Proses Slotting Omset ${slot.payment.paymentNumber}? Laba Bersih ${formatRupiah(netAmount)} akan dipindah ke 4 rekening tujuan.`)) return
+    setConfirmProcessOpen(false)
     setIsProcessing(true)
     setError("")
     const res = await fetch(`/api/revenue-slots/${slot.id}/process`, {
@@ -146,7 +148,7 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   }
 
   const handleSkip = async () => {
-    if (!confirm("Tandai TIDAK di-split? Tidak ada Pindah Buku yang akan dibuat.")) return
+    setConfirmSkipOpen(false)
     setIsSkipping(true)
     setError("")
     const res = await fetch(`/api/revenue-slots/${slot.id}/skip`, { method: "POST" })
@@ -302,15 +304,46 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
 
         {slot.status === "draft" && isOwner && (
           <div className="flex justify-end gap-3 mt-6">
-            <Button variant="ghost" onClick={handleSkip} isLoading={isSkipping}>
+            <Button variant="ghost" onClick={() => setConfirmSkipOpen(true)} isLoading={isSkipping}>
               Tidak Split
             </Button>
-            <Button variant="primary" onClick={handleProcess} isLoading={isProcessing} disabled={netAmount <= 0}>
+            <Button variant="primary" onClick={() => setConfirmProcessOpen(true)} isLoading={isProcessing} disabled={netAmount <= 0}>
               Proses
             </Button>
           </div>
         )}
       </Card>
+
+      <Modal isOpen={confirmProcessOpen} onClose={() => setConfirmProcessOpen(false)} title="Proses Slotting Omset?" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 font-medium">
+            Slotting Omset <span className="font-bold text-slate-800">{slot.payment.paymentNumber}</span> — Laba Bersih{" "}
+            <span className="font-bold text-slate-800">{formatRupiah(netAmount)}</span> akan dipindah ke 4 rekening tujuan.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setConfirmProcessOpen(false)}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleProcess} isLoading={isProcessing}>
+              Ya, Proses
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={confirmSkipOpen} onClose={() => setConfirmSkipOpen(false)} title="Tandai Tidak Di-split?" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 font-medium">Tidak ada Pindah Buku yang akan dibuat untuk Slotting Omset ini.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setConfirmSkipOpen(false)}>
+              Batal
+            </Button>
+            <Button variant="danger" onClick={handleSkip} isLoading={isSkipping}>
+              Ya, Tidak Split
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   )
 }
