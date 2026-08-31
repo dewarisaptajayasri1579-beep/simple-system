@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, Check, CheckCheck, Clock, Paperclip, Send, Sparkles } from "lucide-react"
+import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Send, Sparkles } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
@@ -52,8 +52,19 @@ interface ConversationMeta {
   whatsappConnectionLabel: string | null
 }
 
+interface LeadNote {
+  id: string
+  body: string
+  createdAt: string
+  author: { id: string; name: string }
+}
+
 function clockTime(iso: string) {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+}
+
+function noteTimestamp(iso: string) {
+  return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })
 }
 
 export const ConversationView: React.FC<{ conversationId: string }> = ({ conversationId }) => {
@@ -72,6 +83,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [typing, setTyping] = useState(false)
+  const [notes, setNotes] = useState<LeadNote[]>([])
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [noteDraft, setNoteDraft] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -162,6 +177,46 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   useEffect(() => {
     loadSuggestions()
   }, [loadSuggestions])
+
+  const leadId = meta?.lead.id ?? null
+  const loadNotes = useCallback(async () => {
+    if (!leadId) return
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/notes`, { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setNotes(d.notes ?? [])
+    } catch {
+      /* ignore */
+    }
+  }, [leadId])
+  useEffect(() => {
+    loadNotes()
+  }, [loadNotes])
+
+  const addNote = async () => {
+    const text = noteDraft.trim()
+    if (!text || !leadId || savingNote) return
+    setSavingNote(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/marketing/leads/${leadId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: text }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Gagal menyimpan catatan")
+        return
+      }
+      setNotes((prev) => [d.note, ...prev])
+      setNoteDraft("")
+    } catch {
+      setError("Gagal menghubungi server saat menyimpan catatan")
+    } finally {
+      setSavingNote(false)
+    }
+  }
 
   const takeOver = async () => {
     if (!meta) return
@@ -278,6 +333,49 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
         <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline flex-shrink-0 mt-0.5">
           Detail
         </Link>
+      </div>
+
+      {/* catatan internal — freeform, dicap waktu+tanggal otomatis. Ditaruh di sini (bukan di
+          paling bawah dekat composer) karena ini yang paling sering diisi Sales sambil chat. */}
+      <div className="border-b border-slate-200 py-2">
+        <button
+          onClick={() => setNotesOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-600"
+        >
+          <NotebookPen className="w-3.5 h-3.5" />
+          Catatan{notes.length > 0 ? ` (${notes.length})` : ""}
+          <span className="text-slate-400 font-medium">{notesOpen ? "— tutup" : "— lihat/tambah"}</span>
+        </button>
+        {notesOpen && (
+          <div className="mt-2 flex flex-col gap-2">
+            {meta.canAct && (
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  rows={1}
+                  placeholder="Tulis catatan tambahan…"
+                  className="flex-1 resize-none max-h-24 px-3 py-2 rounded-xl border border-slate-200 bg-white/70 text-xs outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                />
+                <Button size="sm" onClick={addNote} isLoading={savingNote} disabled={!noteDraft.trim()} className="flex-shrink-0">
+                  Simpan
+                </Button>
+              </div>
+            )}
+            {notes.length === 0 ? (
+              <p className="text-xs text-slate-400">Belum ada catatan.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                {notes.map((n) => (
+                  <li key={n.id} className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <p className="whitespace-pre-wrap break-words text-slate-700">{n.body}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{n.author.name} · {noteTimestamp(n.createdAt)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* timeline */}

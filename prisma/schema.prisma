@@ -50,6 +50,7 @@ model User {
   leadAssignmentsMade      LeadAssignment[]      @relation("LeadAssignmentAssignedBy")
   sentMessages             Message[]
   leadActivities           LeadActivity[]
+  leadNotes                LeadNote[]
   leadFollowUpsAssigned    LeadFollowUp[]        @relation("LeadFollowUpAssignee")
   leadFollowUpsCreated     LeadFollowUp[]        @relation("LeadFollowUpCreator")
   leadAiSuggestionsUsed    LeadAiSuggestion[]
@@ -1321,6 +1322,7 @@ model Lead {
   aiAnalyses         LeadAiAnalysis[]
   aiSuggestions      LeadAiSuggestion[]
   prioritySnapshots  LeadPrioritySnapshot[]
+  notes              LeadNote[]
 
   @@index([whatsappNumber])
   @@index([segmentId])
@@ -1552,6 +1554,25 @@ model LeadActivity {
   @@index([actorUserId])
   @@index([activityTypeId])
   @@map("lead_activities")
+  @@schema("simple_system")
+}
+
+/// Catatan internal bebas teks per lead (beda dari Lead.note yang single/overwritable, dan
+/// beda dari LeadActivity yang wajib pilih jenis + punya efek samping stage/follow-up) — cuma
+/// log timestamped biasa, ditulis Sales dari panel chat Inbox. Lihat ConversationView.tsx.
+model LeadNote {
+  id           String   @id @default(uuid())
+  leadId       String   @map("lead_id")
+  authorUserId String   @map("author_user_id")
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorUser User @relation(fields: [authorUserId], references: [id])
+
+  @@index([leadId, createdAt])
+  @@index([authorUserId])
+  @@map("lead_notes")
   @@schema("simple_system")
 }
 
