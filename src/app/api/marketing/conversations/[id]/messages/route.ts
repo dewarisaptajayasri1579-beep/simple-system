@@ -3,14 +3,15 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { MESSAGE_SELECT, messageDto } from "@/lib/marketing/inbox"
-import { canActOnLead } from "@/lib/marketing/permissions"
+import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 import { extractWahubMessageId, sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
 
 /**
- * GET  — timeline pesan 1 percakapan (boleh dibuka siapa pun anggota tim).
+ * GET  — timeline pesan 1 percakapan. Role SALES cuma boleh buka percakapan lead yang dia
+ *        PIC-nya (404 kalau bukan) — Manager/SPV tetap transparan lihat semua.
  *        `limit` (maks 200, default 100) ambil pesan TERBARU; `beforeId` untuk load yang lebih lama.
  *        Reset `unreadCustomerCount` HANYA kalau yang buka = PIC lead.
  * POST — kirim balasan (OUTBOUND). Wajib PIC / SPV / Manager (`canActOnLead`) → 403 kalau bukan.
@@ -45,6 +46,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     },
   })
   if (!conversation) return NextResponse.json({ error: "Percakapan tidak ditemukan" }, { status: 404 })
+
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  if (marketingRole === "SALES") {
+    const assigned = await prisma.leadAssignment.findFirst({
+      where: { leadId: conversation.leadId, assignedUserId: user.id, isActive: true },
+      select: { id: true },
+    })
+    if (!assigned) return NextResponse.json({ error: "Percakapan tidak ditemukan" }, { status: 404 })
+  }
 
   const { searchParams } = new URL(request.url)
   const limit = Math.min(200, Math.max(1, Number(searchParams.get("limit")) || 100))

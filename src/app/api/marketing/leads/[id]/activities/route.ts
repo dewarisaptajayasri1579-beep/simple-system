@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!(await canActOnLead(user, id))) return NextResponse.json({ error: "Kamu bukan PIC lead ini." }, { status: 403 })
 
   const body = (await request.json().catch(() => null)) as
-    | { activityTypeId?: unknown; occurredAt?: unknown; note?: unknown; result?: unknown }
+    | { activityTypeId?: unknown; occurredAt?: unknown; note?: unknown; result?: unknown; attachmentUrl?: unknown }
     | null
   const activityTypeId = typeof body?.activityTypeId === "string" ? body.activityTypeId : ""
   if (!activityTypeId) return NextResponse.json({ error: "Jenis aktivitas wajib dipilih" }, { status: 400 })
@@ -31,9 +31,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const occurredAt = typeof body?.occurredAt === "string" && body.occurredAt ? new Date(body.occurredAt) : new Date()
   const note = typeof body?.note === "string" ? body.note.trim() || null : null
   const result = typeof body?.result === "string" ? body.result.trim() || null : null
+  // Diisi dari POST .../recordings kalau aktivitas ini dibuat dari alur "Rekam Panggilan"
+  // (lihat LeadDetailClient.tsx) — nullable/opsional, aktivitas manual biasa tidak punya ini.
+  const attachmentUrl = typeof body?.attachmentUrl === "string" && body.attachmentUrl ? body.attachmentUrl : null
 
   const activity = await prisma.leadActivity.create({
-    data: { leadId: id, activityTypeId, actorUserId: user.id, occurredAt, note, result, source: "MANUAL" },
+    data: { leadId: id, activityTypeId, actorUserId: user.id, occurredAt, note, result, attachmentUrl, source: "MANUAL" },
   })
 
   // geser stage maju kalau aktivitas ini tahap yang lebih tinggi (docs/06 §7)

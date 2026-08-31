@@ -5,8 +5,10 @@ import { prisma } from "@/lib/prisma"
 /**
  * Model Visibilitas & Izin modul Marketing — lihat `marketing-plan-to-do.md`
  * ("Model Visibilitas & Izin"). Ringkas:
- *  - LIHAT: semua anggota Tim (Manager/SPV/Sales) boleh lihat SEMUA lead + full chat.
- *    Tidak ada scope filter untuk operasi baca.
+ *  - LIHAT: Manager/SPV transparan, boleh lihat SEMUA lead + full chat. SALES DIBATASI —
+ *    cuma boleh lihat lead yang dia jadi PIC-nya (list, detail, chat). Enforcement server-side
+ *    di masing-masing route (leads/route.ts, leads/[id]/route.ts, conversations/route.ts,
+ *    conversations/[id]/messages/route.ts) via `resolveMarketingRole` + cek LeadAssignment aktif.
  *  - AKSI: hanya PIC (assignee aktif) lead itu, ATAU SPV/Manager.
  */
 

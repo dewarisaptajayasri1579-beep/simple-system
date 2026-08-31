@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, MessageSquare } from "lucide-react"
+import { ArrowLeft, MessageSquare, Mic, Square } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"

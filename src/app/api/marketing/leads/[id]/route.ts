@@ -6,13 +6,23 @@ import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
 
-/** GET — detail lengkap 1 lead (boleh dibuka siapa pun anggota tim). PATCH — edit field identitas
- *  + segmentasi (cek `canActOnLead` → 403). Perubahan segment ditulis ke LeadSegmentHistory. */
+/** GET — detail lengkap 1 lead. Role SALES cuma boleh buka lead yang dia PIC-nya (404 kalau
+ *  bukan) — Manager/SPV tetap transparan lihat semua. PATCH — edit field identitas + segmentasi
+ *  (cek `canActOnLead` → 403). Perubahan segment ditulis ke LeadSegmentHistory. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getMarketingApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const { id } = await params
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  if (marketingRole === "SALES") {
+    const assigned = await prisma.leadAssignment.findFirst({
+      where: { leadId: id, assignedUserId: user.id, isActive: true },
+      select: { id: true },
+    })
+    if (!assigned) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
+  }
+
   const lead = await prisma.lead.findUnique({
     where: { id },
     include: {
@@ -56,9 +66,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
 
   const convIds = lead.conversations.map((c) => c.id)
-  const [canAct, viewerRole, auditRows, tempRec, buyingPowerRec] = await Promise.all([
+  const [canAct, auditRows, tempRec, buyingPowerRec] = await Promise.all([
     canActOnLead(user, id),
-    resolveMarketingRole(user.id, user.role),
     prisma.auditLog.findMany({
       where: {
         OR: [
@@ -89,7 +98,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     lead: serializeLead(lead),
     pic: activePic,
     canAct,
-    viewerRole,
+    viewerRole: marketingRole,
     isCurrentPic,
     temperatureSuggestion: tempRec
       ? { ...(tempRec.outputJson as Record<string, unknown>), at: tempRec.createdAt.toISOString(), lockedUntil: lockActive ? lead.temperatureLockedUntil!.toISOString() : null }
@@ -249,6 +258,7 @@ function serializeLead(lead: any) {
       note: a.note,
       result: a.result,
       isVoid: a.isVoid,
+      attachmentUrl: a.attachmentUrl,
     })),
     followUps: lead.followUps.map((f: any) => ({
       id: f.id,
