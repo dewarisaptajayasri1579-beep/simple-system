@@ -396,12 +396,6 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
-            }}
             rows={1}
             placeholder={composerPlaceholder}
             disabled={!canSend}
