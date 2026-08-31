@@ -170,7 +170,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                       {(c.lead.priorityLevel === "HIGH" || c.lead.priorityLevel === "TOP") && (
                         <Badge variant="warning" size="sm">Prioritas</Badge>
                       )}
-                      {c.pic && <span className="text-[10px] font-semibold text-slate-400">PIC: {c.pic.name}</span>}
+                      {c.pic && <Badge variant="secondary" size="sm">Sales: {c.pic.name}</Badge>}
                     </div>
                   </div>
                 </Card>

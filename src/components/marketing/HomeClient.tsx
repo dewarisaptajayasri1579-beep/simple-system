@@ -15,6 +15,7 @@ interface WorkItem {
   temperature: string
   stage: string
   segmentName: string | null
+  picName: string | null
   priorityScore: number
   priorityLevel: string
   reason: string
@@ -127,7 +128,10 @@ export const HomeClient: React.FC<{ isSales?: boolean }> = ({ isSales = false })
                         <Badge variant="info" size="sm">Skor {Math.round(w.priorityScore)}</Badge>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">{w.reason}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {w.reason}
+                      {w.picName && ` · Sales: ${w.picName}`}
+                    </p>
                     <div className="flex items-center justify-between gap-2 mt-2">
                       <p className="text-xs font-bold text-slate-700">→ {w.nextAction}</p>
                       {w.conversationId && (

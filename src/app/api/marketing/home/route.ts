@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         lastCustomerMessageAt: true,
         lastInteractionAt: true,
         segment: { select: { name: true } },
+        assignments: { where: { isActive: true }, select: { assignedUser: { select: { id: true, name: true } } } },
       },
     }),
   ])
@@ -109,6 +110,7 @@ export async function GET(request: Request) {
       temperature: r.temperature,
       stage: r.currentActivityStage,
       segmentName: r.segment?.name ?? null,
+      picName: r.assignments[0]?.assignedUser.name ?? null,
       priorityScore: r.priorityScore,
       priorityLevel: r.priorityLevel,
       reason: reasons.join(" · ") || "Pantau",

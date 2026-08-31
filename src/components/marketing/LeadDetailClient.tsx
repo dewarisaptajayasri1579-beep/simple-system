@@ -788,6 +788,9 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               sizeVariant="sm"
             />
           ))}
+          {/* Otomatis dari nomor WhatsApp lead ini — read-only (bukan input bebas) karena nomor
+             ini yang jadi kunci percakapan WA-nya; ubah lewat modul WhatsApp kalau memang salah. */}
+          <Input label="No. Telp" value={lead.whatsappNumber} disabled sizeVariant="sm" />
           <div className="sm:col-span-2">
             <label className="text-xs sm:text-sm font-bold text-slate-700">Segmen</label>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
