@@ -3,13 +3,14 @@ import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
-import { actableLeadIds } from "@/lib/marketing/permissions"
+import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 import { normalizePhoneNumber } from "@/lib/wahub"
 
 /**
- * GET /api/marketing/leads — daftar lead (transparan: default SEMUA lead).
+ * GET /api/marketing/leads — daftar lead. Role SALES DIPAKSA "mine" di server (cuma boleh lihat
+ *  lead miliknya sendiri) — beda dari Manager/SPV yang transparan lihat SEMUA lead.
  *  scope=all|mine · q · segmentId · temperature · stage · outcome · priorityLevel · picUserId
  *  · page/limit (limit maks 100) · sort=priority|recent|created (default priority)
  * Tiap item: PIC, next follow up (OPEN terdekat), idleDays, canAct.
@@ -19,7 +20,8 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Tidak punya akses modul Marketing" }, { status: 401 })
 
   const sp = new URL(request.url).searchParams
-  const scope = sp.get("scope") === "mine" ? "mine" : "all"
+  const marketingRole = await resolveMarketingRole(user.id, user.role)
+  const scope = marketingRole === "SALES" ? "mine" : sp.get("scope") === "mine" ? "mine" : "all"
   const q = (sp.get("q") ?? "").trim()
   const page = Math.max(1, Number(sp.get("page")) || 1)
   const limit = Math.min(100, Math.max(1, Number(sp.get("limit")) || 30))
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
   const where: Prisma.LeadWhereInput = {}
   if (scope === "mine") where.assignments = { some: { assignedUserId: user.id, isActive: true } }
   const picUserId = sp.get("picUserId")
-  if (picUserId) where.assignments = { some: { assignedUserId: picUserId, isActive: true } }
+  if (picUserId && marketingRole !== "SALES") where.assignments = { some: { assignedUserId: picUserId, isActive: true } }
   if (sp.get("segmentId")) where.segmentId = sp.get("segmentId")
   if (sp.get("buyingPowerTierId")) where.buyingPowerTierId = sp.get("buyingPowerTierId")
   if (sp.get("temperature")) where.temperature = sp.get("temperature")!

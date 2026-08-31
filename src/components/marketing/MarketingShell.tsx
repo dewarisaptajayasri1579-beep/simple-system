@@ -66,18 +66,18 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
   // header dikasih tombol kembali ke Inbox.
   const isConversationDetail = /^\/marketing\/inbox\/[^/]+$/.test(pathname)
 
-  // Status koneksi WhatsApp Sales yang login — null = belum tahu, true = READY.
+  // Status koneksi WhatsApp Sales yang login — null = belum tahu, true = minimal 1 nomor READY.
   const [waReady, setWaReady] = useState<boolean | null>(null)
   const checkWa = useCallback(async () => {
     try {
-      const res = await fetch("/api/marketing/whatsapp/status", { cache: "no-store" })
+      const res = await fetch("/api/marketing/whatsapp/connections", { cache: "no-store" })
       if (res.status === 502) return // WAHUB tak merespons — pertahankan status terakhir
       if (!res.ok) {
         setWaReady(false)
         return
       }
       const d = await res.json()
-      setWaReady(d.connection?.status === "READY")
+      setWaReady(Array.isArray(d.connections) && d.connections.some((c: { status: string }) => c.status === "READY"))
     } catch {
       /* jaringan bermasalah — pertahankan status terakhir */
     }
