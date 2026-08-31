@@ -69,7 +69,11 @@ function relTime(iso: string | null) {
   return fmtDate(iso)
 }
 
-export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
+export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: string; title?: string }> = ({
+  isSales = false,
+  forcedOutcome,
+  title = "Lead",
+}) => {
   const [rows, setRows] = useState<LeadRow[]>([])
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
@@ -84,7 +88,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = fals
   const [buyingPowerTierId, setBuyingPowerTierId] = useState("")
   const [temperature, setTemperature] = useState("")
   const [stage, setStage] = useState("")
-  const [outcome, setOutcome] = useState("")
+  const [outcome, setOutcome] = useState(forcedOutcome ?? "")
   const [priorityLevel, setPriorityLevel] = useState("")
   const [picUserId, setPicUserId] = useState("")
   const [sort, setSort] = useState("priority")
@@ -186,13 +190,15 @@ export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = fals
       <MktHeader
         title={
           <>
-            Lead <span className="text-sm font-bold text-slate-400">({total})</span>
+            {title} <span className="text-sm font-bold text-slate-400">({total})</span>
           </>
         }
       >
-        <Button size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setShowAdd(true); setAddErr(null) }}>
-          Tambah Lead
-        </Button>
+        {!forcedOutcome && (
+          <Button size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setShowAdd(true); setAddErr(null) }}>
+            Tambah Lead
+          </Button>
+        )}
         {!isSales && <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />}
       </MktHeader>
 
@@ -244,6 +250,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = fals
             sizeVariant="sm"
           />
         </div>
+        {!forcedOutcome && (
         <div className="w-36">
           <Select
             options={[
@@ -257,6 +264,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean }> = ({ isSales = fals
             sizeVariant="sm"
           />
         </div>
+        )}
         <div className="w-36">
           <Select
             options={[

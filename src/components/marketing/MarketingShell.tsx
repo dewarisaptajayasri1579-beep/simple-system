@@ -9,12 +9,14 @@ import {
   BarChart2,
   CalendarClock,
   Gauge,
+  History,
   LayoutGrid,
   LogOut,
   MessagesSquare,
   Network,
   QrCode,
   Settings,
+  Trophy,
   Users,
 } from "lucide-react"
 
@@ -34,6 +36,8 @@ const NAV: NavItem[] = [
   { label: "Inbox", href: "/marketing/inbox", icon: <MessagesSquare className="w-5 h-5" />, mobile: true },
   { label: "Lead", href: "/marketing/leads", icon: <Users className="w-5 h-5" />, mobile: true },
   { label: "Follow Up", href: "/marketing/follow-up", icon: <CalendarClock className="w-5 h-5" />, mobile: true },
+  { label: "Closing", href: "/marketing/closing", icon: <Trophy className="w-5 h-5" /> },
+  { label: "Client Lama", href: "/marketing/client-lama", icon: <History className="w-5 h-5" /> },
   { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
   { label: "KPI", href: "/marketing/kpi", icon: <Gauge className="w-5 h-5" /> },
   { label: "Dashboard", href: "/marketing/dashboard", icon: <BarChart2 className="w-5 h-5" /> },

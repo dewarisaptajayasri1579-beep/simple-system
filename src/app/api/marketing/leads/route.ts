@@ -35,7 +35,11 @@ export async function GET(request: Request) {
   if (sp.get("buyingPowerTierId")) where.buyingPowerTierId = sp.get("buyingPowerTierId")
   if (sp.get("temperature")) where.temperature = sp.get("temperature")!
   if (sp.get("stage")) where.currentActivityStage = sp.get("stage")!
+  // CLOSING/CLIENT_LAMA punya menu sendiri (/marketing/closing, /marketing/client-lama) — lead
+  // dengan outcome itu sengaja tidak dihitung sebagai "Lead" di daftar ini, kecuali diminta
+  // eksplisit lewat ?outcome=.
   if (sp.get("outcome")) where.outcome = sp.get("outcome")!
+  else where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA"] }
   if (sp.get("priorityLevel")) where.priorityLevel = sp.get("priorityLevel")!
   if (q) {
     where.OR = [

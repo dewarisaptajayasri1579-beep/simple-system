@@ -970,9 +970,25 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
         {canAct && lead.outcome === "OPEN" && (
           <div className="mt-3 flex flex-col gap-2">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button size="sm" variant="success" onClick={() => setWonOpen((v) => !v)}>
                 Tandai WON
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                isLoading={busy}
+                onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "CLOSING" })}
+              >
+                Geser ke Closing
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                isLoading={busy}
+                onClick={() => call(`/api/marketing/leads/${leadId}/outcome`, { outcome: "CLIENT_LAMA" })}
+              >
+                Geser ke Client Lama
               </Button>
             </div>
             {wonOpen && (

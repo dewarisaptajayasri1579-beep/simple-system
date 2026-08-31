@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Send, Sparkles } from "lucide-react"
+import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Pencil, Plus, Send, Sparkles, Trash2, Zap } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
+import { SegmentPicker } from "./SegmentPicker"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
@@ -60,6 +61,13 @@ interface LeadNote {
   author: { id: string; name: string }
 }
 
+interface MessageTemplate {
+  id: string
+  title: string
+  body: string
+  createdBy: { id: string; name: string }
+}
+
 function clockTime(iso: string) {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
 }
@@ -88,6 +96,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [notesOpen, setNotesOpen] = useState(false)
   const [noteDraft, setNoteDraft] = useState("")
   const [savingNote, setSavingNote] = useState(false)
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [templateForm, setTemplateForm] = useState<{ id: string | null; title: string; body: string } | null>(null)
+  const [savingTemplate, setSavingTemplate] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -219,6 +231,67 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
     }
   }
 
+  const loadTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/marketing/message-templates", { cache: "no-store" })
+      const d = await res.json()
+      if (res.ok) setTemplates(d.templates ?? [])
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  useEffect(() => {
+    loadTemplates()
+  }, [loadTemplates])
+
+  const useTemplate = (t: MessageTemplate) => {
+    setDraft(t.body)
+    setTemplatesOpen(false)
+  }
+
+  const saveTemplate = async () => {
+    if (!templateForm || !templateForm.title.trim() || !templateForm.body.trim() || savingTemplate) return
+    setSavingTemplate(true)
+    setError(null)
+    try {
+      const isEdit = Boolean(templateForm.id)
+      const res = await fetch(
+        isEdit ? `/api/marketing/message-templates/${templateForm.id}` : "/api/marketing/message-templates",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: templateForm.title.trim(), body: templateForm.body.trim() }),
+        },
+      )
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Gagal menyimpan template")
+        return
+      }
+      setTemplates((prev) => {
+        if (isEdit) return prev.map((t) => (t.id === d.template.id ? d.template : t)).sort((a, b) => a.title.localeCompare(b.title))
+        return [...prev, d.template].sort((a, b) => a.title.localeCompare(b.title))
+      })
+      setTemplateForm(null)
+    } catch {
+      setError("Gagal menghubungi server saat menyimpan template")
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const deleteTemplate = async (id: string) => {
+    if (!window.confirm("Hapus template ini?")) return
+    setError(null)
+    const res = await fetch(`/api/marketing/message-templates/${id}`, { method: "DELETE" })
+    if (!res.ok) {
+      const d = await res.json().catch(() => null)
+      setError(d?.error || "Gagal menghapus template")
+      return
+    }
+    setTemplates((prev) => prev.filter((t) => t.id !== id))
+  }
+
   const takeOver = async () => {
     if (!meta) return
     setTakingOver(true)
@@ -321,7 +394,6 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
             <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
-            {lead.segmentName && <Badge variant="secondary" size="sm">{lead.segmentName}</Badge>}
             {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
             {meta.whatsappConnectionLabel && <Badge variant="secondary" size="sm">{meta.whatsappConnectionLabel}</Badge>}
           </div>
@@ -330,6 +402,23 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             {lead.whatsappNumber}
             {meta.pic ? ` · PIC: ${meta.pic.name}` : " · belum ada PIC"}
           </p>
+          {/* segmen bisa diganti/dibikin baru langsung dari sini — Aturan Baru: Sales boleh nambah
+              segmen (lihat POST /api/marketing/segments), jadi tidak perlu pindah ke Detail Lead. */}
+          <div className="mt-1.5">
+            <SegmentPicker
+              value={lead.segmentId ?? ""}
+              disabled={!meta.canAct}
+              onChange={async (segmentId) => {
+                setMeta((prev) => (prev ? { ...prev, lead: { ...prev.lead, segmentId: segmentId || null } } : prev))
+                const res = await fetch(`/api/marketing/leads/${lead.id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ segmentId: segmentId || null }),
+                })
+                if (!res.ok) await load()
+              }}
+            />
+          </div>
         </div>
         <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline flex-shrink-0 mt-0.5">
           Detail
@@ -469,6 +558,82 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
                   <span className="text-slate-700">{s.text}</span>
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {meta.canAct && (
+        <div className="pb-2">
+          <button
+            onClick={() => setTemplatesOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600"
+          >
+            <Zap className="w-3.5 h-3.5" /> {templatesOpen ? "Sembunyikan Template" : "Template Pesan"}
+          </button>
+          {templatesOpen && (
+            <div className="mt-2 flex flex-col gap-1.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50">
+              {templates.length === 0 && !templateForm && (
+                <p className="text-xs text-slate-400 px-0.5">Belum ada template.</p>
+              )}
+              {templates.map((t) => (
+                <div key={t.id} className="flex items-start gap-1.5">
+                  <button
+                    onClick={() => useTemplate(t)}
+                    className="flex-1 text-left text-xs p-2.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300"
+                  >
+                    <span className="font-bold text-slate-700">{t.title}</span>
+                    <p className="text-slate-500 mt-0.5 line-clamp-2">{t.body}</p>
+                  </button>
+                  <button
+                    onClick={() => setTemplateForm({ id: t.id, title: t.title, body: t.body })}
+                    className="p-1.5 text-slate-400 hover:text-blue-700 flex-shrink-0"
+                    title="Edit template"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteTemplate(t.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 flex-shrink-0"
+                    title="Hapus template"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {templateForm ? (
+                <div className="flex flex-col gap-1.5 p-2.5 rounded-xl border border-blue-200 bg-white">
+                  <input
+                    value={templateForm.title}
+                    onChange={(e) => setTemplateForm((f) => (f ? { ...f, title: e.target.value } : f))}
+                    placeholder="Judul template (mis. Follow up harga)"
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 outline-none focus:border-blue-500"
+                  />
+                  <textarea
+                    value={templateForm.body}
+                    onChange={(e) => setTemplateForm((f) => (f ? { ...f, body: e.target.value } : f))}
+                    rows={3}
+                    placeholder="Isi pesan…"
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 outline-none focus:border-blue-500 resize-none"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => setTemplateForm(null)} className="text-xs font-bold text-slate-500 px-2 py-1">
+                      Batal
+                    </button>
+                    <Button size="sm" onClick={saveTemplate} isLoading={savingTemplate}>
+                      Simpan
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setTemplateForm({ id: null, title: "", body: "" })}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 px-0.5 py-1 self-start"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Template Baru
+                </button>
+              )}
             </div>
           )}
         </div>

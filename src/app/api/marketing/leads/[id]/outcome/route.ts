@@ -6,13 +6,20 @@ import { canActOnLead } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 
-const VALID = ["OPEN", "WON", "LOST"]
+const VALID = ["OPEN", "WON", "LOST", "CLOSING", "CLIENT_LAMA"]
+// Outcome yang bikin lead keluar dari funnel aktif (dikeluarkan dari hitungan/list Lead biasa,
+// lihat leads/route.ts) & follow up OPEN-nya otomatis ditutup — beda dari WON/LOST cuma soal
+// makna: CLOSING = closing di luar alur Won biasa, CLIENT_LAMA = bukan lead baru sama sekali
+// (nomor lama yang WA lagi), lihat resolveMarketingRole & docs terkait.
+const EXIT_FUNNEL = ["WON", "LOST", "CLOSING", "CLIENT_LAMA"]
 
 /**
- * POST /api/marketing/leads/[id]/outcome — set OPEN/WON/LOST (PIC/SPV/Manager). docs/06 §25-§27.
+ * POST /api/marketing/leads/[id]/outcome — set OPEN/WON/LOST/CLOSING/CLIENT_LAMA (PIC/SPV/Manager).
+ *  docs/06 §25-§27.
  *  WON  → wonAt (+ opsional `wonAt` tanggal, `dealValue` Rp, `wonNote`); tutup follow up OPEN.
  *  LOST → wajib `lostReasonId`, lostAt; tutup follow up OPEN.
- *  OPEN dari WON/LOST = Buka Kembali: bersihkan won/lost, recompute temperatur.
+ *  CLOSING / CLIENT_LAMA → tanpa field tambahan, cuma geser status; tutup follow up OPEN juga.
+ *  OPEN dari salah satu di atas = Buka Kembali: bersihkan won/lost, recompute temperatur.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getMarketingApiUser()
@@ -24,7 +31,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     | null
   const outcome = typeof body?.outcome === "string" ? body.outcome.toUpperCase() : ""
   const lostReasonId = typeof body?.lostReasonId === "string" ? body.lostReasonId : null
-  if (!VALID.includes(outcome)) return NextResponse.json({ error: "Outcome harus OPEN, WON, atau LOST" }, { status: 400 })
+  if (!VALID.includes(outcome)) {
+    return NextResponse.json({ error: "Outcome harus OPEN, WON, LOST, CLOSING, atau CLIENT_LAMA" }, { status: 400 })
+  }
   if (outcome === "LOST" && !lostReasonId) {
     return NextResponse.json({ error: "Pilih alasan LOST dulu." }, { status: 400 })
   }
@@ -53,8 +62,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await prisma.$transaction(async (tx) => {
     await tx.lead.update({ where: { id }, data })
-    // §25/§26 — tutup follow up OPEN saat WON/LOST
-    if (outcome === "WON" || outcome === "LOST") {
+    // §25/§26 — tutup follow up OPEN saat keluar dari funnel aktif (WON/LOST/CLOSING/CLIENT_LAMA)
+    if (EXIT_FUNNEL.includes(outcome)) {
       await tx.leadFollowUp.updateMany({
         where: { leadId: id, status: "OPEN" },
         data: { status: "CANCELLED", cancelledAt: now, resultNote: `Auto: lead ${outcome}` },
