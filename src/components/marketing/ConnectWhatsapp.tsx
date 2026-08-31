@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeftRight, CheckCircle2, Plus, QrCode, Smartphone, Unplug } from "lucide-react"
+import { ArrowLeftRight, CheckCircle2, Pencil, Plus, QrCode, Smartphone, Unplug, X } from "lucide-react"
 
 import { Alert, Button, Card, Input, Spinner } from "@/components/ui"
 import { AppLogo } from "@/components/ui/AppLogo"
@@ -29,20 +29,61 @@ const ConnectionCard: React.FC<{
   connection: ConnectionState
   onReconnect: (id: string) => void
   onDisconnect: (id: string) => void
+  onRename: (id: string, label: string) => Promise<void>
   loading: boolean
   qrDataUrl: string | null
-}> = ({ connection, onReconnect, onDisconnect, loading, qrDataUrl }) => {
+}> = ({ connection, onReconnect, onDisconnect, onRename, loading, qrDataUrl }) => {
   const { status } = connection
+  const [editing, setEditing] = useState(false)
+  const [labelDraft, setLabelDraft] = useState(connection.label ?? "")
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = () => {
+    setLabelDraft(connection.label ?? "")
+    setEditing(true)
+  }
+
+  const saveLabel = async () => {
+    if (!labelDraft.trim()) return
+    setSaving(true)
+    try {
+      await onRename(connection.id, labelDraft.trim())
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card variant="glass" padding="lg" className="w-full flex flex-col items-center gap-4 text-center">
       <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
         {status === "READY" ? <CheckCircle2 className="w-6 h-6" /> : <Smartphone className="w-6 h-6" />}
       </div>
-      <div>
-        <p className="text-sm font-black text-slate-900">{connection.label || "WhatsApp"}</p>
-        {connection.phoneNumber && <p className="text-xs text-slate-500">{connection.phoneNumber}</p>}
-      </div>
+      {editing ? (
+        <div className="flex items-center gap-2 w-full max-w-xs">
+          <Input
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && saveLabel()}
+            sizeVariant="sm"
+            autoFocus
+          />
+          <Button variant="primary" size="sm" isLoading={saving} onClick={saveLabel}>
+            Simpan
+          </Button>
+          <button type="button" onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-600 p-1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div>
+          <button type="button" onClick={startEdit} className="inline-flex items-center gap-1.5 group">
+            <p className="text-sm font-black text-slate-900">{connection.label || "WhatsApp"}</p>
+            <Pencil className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
+          </button>
+          {connection.phoneNumber && <p className="text-xs text-slate-500">{connection.phoneNumber}</p>}
+        </div>
+      )}
 
       <div className="w-full rounded-2xl border border-slate-200/80 bg-white/60 p-4">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Status</p>
@@ -194,6 +235,21 @@ export const ConnectWhatsapp: React.FC = () => {
     }
   }
 
+  const handleRename = async (id: string, label: string) => {
+    setError(null)
+    const res = await fetch(`/api/marketing/whatsapp/connections/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data.error || "Gagal mengubah nama nomor")
+      return
+    }
+    await refreshList()
+  }
+
   const handleDisconnect = async (id: string) => {
     setLoadingId(id)
     setError(null)
@@ -246,6 +302,7 @@ export const ConnectWhatsapp: React.FC = () => {
                 connection={c}
                 onReconnect={handleReconnect}
                 onDisconnect={handleDisconnect}
+                onRename={handleRename}
                 loading={loadingId === c.id}
                 qrDataUrl={qrByConnection[c.id] ?? null}
               />
