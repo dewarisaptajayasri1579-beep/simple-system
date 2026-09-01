@@ -6,10 +6,8 @@ import { usePathname } from "next/navigation"
 import {
   ArrowLeft,
   ArrowLeftRight,
-  BarChart2,
   CalendarClock,
-  FileBarChart,
-  Gauge,
+  ChartNoAxesCombined,
   History,
   LayoutGrid,
   LogOut,
@@ -42,9 +40,7 @@ const NAV: NavItem[] = [
   { label: "Closing", href: "/marketing/closing", icon: <Trophy className="w-5 h-5" /> },
   { label: "Client Lama", href: "/marketing/client-lama", icon: <History className="w-5 h-5" /> },
   { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
-  { label: "KPI", href: "/marketing/kpi", icon: <Gauge className="w-5 h-5" /> },
-  { label: "Dashboard", href: "/marketing/dashboard", icon: <BarChart2 className="w-5 h-5" /> },
-  { label: "Laporan", href: "/marketing/laporan", icon: <FileBarChart className="w-5 h-5" /> },
+  { label: "Analitik", href: "/marketing/analitik", icon: <ChartNoAxesCombined className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/marketing/settings", icon: <Settings className="w-5 h-5" /> },
 ]
 
@@ -228,16 +224,10 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
                     {waBadge(true)}
                   </Link>
                   <Link
-                    href="/marketing/kpi"
+                    href="/marketing/analitik"
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                   >
-                    <Gauge className="w-4 h-4 text-slate-500" /> KPI
-                  </Link>
-                  <Link
-                    href="/marketing/dashboard"
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
-                  >
-                    <BarChart2 className="w-4 h-4 text-slate-500" /> Dashboard
+                    <ChartNoAxesCombined className="w-4 h-4 text-slate-500" /> Analitik
                   </Link>
                   <Link
                     href="/marketing/settings"

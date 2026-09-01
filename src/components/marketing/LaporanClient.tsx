@@ -387,7 +387,7 @@ const SalesPerfTab: React.FC<{ rows: SalesPerfRow[] }> = ({ rows }) => (
   <div>
     <div className="flex items-center justify-between mb-2">
       <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">Scorecard Sales</h2>
-      <Link href="/marketing/dashboard" className="text-xs font-bold text-blue-700">Performa Segmen/Kemampuan Beli → Dashboard</Link>
+      <Link href="/marketing/analitik?tab=dashboard" className="text-xs font-bold text-blue-700">Performa Segmen/Kemampuan Beli → Dashboard</Link>
     </div>
     <TableContainer>
       <Table>

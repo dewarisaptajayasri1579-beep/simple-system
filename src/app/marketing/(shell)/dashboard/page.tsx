@@ -1,5 +1,7 @@
-import { ManagerDashboard } from "@/components/marketing/ManagerDashboard"
+import { redirect } from "next/navigation"
 
+// KPI, Dashboard, dan Laporan digabung jadi 1 hub "Analitik" — halaman ini dipertahankan
+// sebagai redirect supaya link/bookmark lama tetap jalan.
 export default function MarketingDashboardPage() {
-  return <ManagerDashboard />
+  redirect("/marketing/analitik?tab=dashboard")
 }
