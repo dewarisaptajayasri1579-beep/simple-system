@@ -11,6 +11,15 @@ self.addEventListener("push", (event) => {
   } catch (_) {
     data = { title: "Notifikasi", body: event.data ? event.data.text() : "" }
   }
+  // Push "senyap" — bukan pesan baru, cuma perintah nutup notif bertag ini yang sudah dibaca
+  // lewat jalur lain (lihat closeWebPushNotification di notify.ts). Tidak menampilkan apa pun.
+  if (data.closeTag) {
+    event.waitUntil(
+      self.registration.getNotifications({ tag: data.closeTag }).then((list) => list.forEach((n) => n.close())),
+    )
+    return
+  }
+
   const title = data.title || "SEVEN OS — Marketing"
   const options = {
     body: data.body || "",

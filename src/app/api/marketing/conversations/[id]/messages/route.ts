@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { MESSAGE_SELECT, messageDto } from "@/lib/marketing/inbox"
+import { closeWebPushNotification } from "@/lib/marketing/notify"
 import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
@@ -91,6 +92,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   })
   if (cleared.count > 0) {
     publishMarketingEvent({ type: "notification", userId: user.id, at: new Date().toISOString() })
+    // Notif Android/browser bertag percakapan ini mungkin masih nongkrong di tray device lain
+    // (atau device ini sendiri kalau dibuka dari Inbox, bukan tap notifikasinya) — tutup proaktif.
+    void closeWebPushNotification(user.id, `conversation:${id}`).catch(() => {})
   }
 
   return NextResponse.json({
