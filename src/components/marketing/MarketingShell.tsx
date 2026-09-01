@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   CalendarClock,
   ChartNoAxesCombined,
+  ChevronDown,
   History,
   LayoutGrid,
   LogOut,
@@ -23,30 +24,131 @@ import {
 import { NotificationBell } from "./NotificationBell"
 import { PushRegister } from "./PushRegister"
 
-interface NavItem {
+interface NavLeaf {
+  type: "leaf"
   label: string
   href: string
   icon: React.ReactNode
-  /** tampil juga di bottom-nav mobile */
-  mobile?: boolean
 }
+interface NavGroup {
+  type: "group"
+  label: string
+  icon: React.ReactNode
+  children: NavLeaf[]
+}
+type NavNode = NavLeaf | NavGroup
 
-const NAV: NavItem[] = [
-  { label: "Beranda", href: "/marketing", icon: <LayoutGrid className="w-5 h-5" />, mobile: true },
-  { label: "Inbox", href: "/marketing/inbox", icon: <MessagesSquare className="w-5 h-5" />, mobile: true },
-  { label: "Grup", href: "/marketing/groups", icon: <UsersRound className="w-5 h-5" />, mobile: true },
-  { label: "Lead", href: "/marketing/leads", icon: <Users className="w-5 h-5" />, mobile: true },
-  { label: "Follow Up", href: "/marketing/follow-up", icon: <CalendarClock className="w-5 h-5" />, mobile: true },
-  { label: "Closing", href: "/marketing/closing", icon: <Trophy className="w-5 h-5" /> },
-  { label: "Client Lama", href: "/marketing/client-lama", icon: <History className="w-5 h-5" /> },
-  { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
-  { label: "Analitik", href: "/marketing/analitik", icon: <ChartNoAxesCombined className="w-5 h-5" /> },
-  { label: "Pengaturan", href: "/marketing/settings", icon: <Settings className="w-5 h-5" /> },
+const leaf = (label: string, href: string, icon: React.ReactNode): NavLeaf => ({ type: "leaf", label, href, icon })
+
+// Digrupkan supaya sidebar tidak terus bertambah panjang tiap ada menu baru — grup accordion
+// (klik nama grup, sub-menu buka/nutup di tempat), bukan pindah halaman. Bottom-nav mobile
+// TIDAK ikut berubah struktur (lihat MOBILE_NAV di bawah), tetap flat seperti sebelumnya karena
+// ruangnya terbatas buat accordion.
+const NAV: NavNode[] = [
+  leaf("Beranda", "/marketing", <LayoutGrid className="w-5 h-5" />),
+  {
+    type: "group",
+    label: "Percakapan",
+    icon: <MessagesSquare className="w-5 h-5" />,
+    children: [leaf("Inbox", "/marketing/inbox", <MessagesSquare className="w-5 h-5" />), leaf("Grup", "/marketing/groups", <UsersRound className="w-5 h-5" />)],
+  },
+  {
+    type: "group",
+    label: "Lead",
+    icon: <Users className="w-5 h-5" />,
+    children: [
+      leaf("Semua Lead", "/marketing/leads", <Users className="w-5 h-5" />),
+      leaf("Follow Up", "/marketing/follow-up", <CalendarClock className="w-5 h-5" />),
+      leaf("Closing", "/marketing/closing", <Trophy className="w-5 h-5" />),
+      leaf("Client Lama", "/marketing/client-lama", <History className="w-5 h-5" />),
+    ],
+  },
+  {
+    type: "group",
+    label: "Tim & Analitik",
+    icon: <Network className="w-5 h-5" />,
+    children: [leaf("Tim", "/marketing/tim", <Network className="w-5 h-5" />), leaf("Analitik", "/marketing/analitik", <ChartNoAxesCombined className="w-5 h-5" />)],
+  },
+  leaf("Pengaturan", "/marketing/settings", <Settings className="w-5 h-5" />),
+]
+
+// Set fix, terpisah dari NAV desktop — bottom-nav mobile ruangnya terbatas, tidak ikut accordion.
+const MOBILE_NAV: NavLeaf[] = [
+  leaf("Beranda", "/marketing", <LayoutGrid className="w-5 h-5" />),
+  leaf("Inbox", "/marketing/inbox", <MessagesSquare className="w-5 h-5" />),
+  leaf("Grup", "/marketing/groups", <UsersRound className="w-5 h-5" />),
+  leaf("Lead", "/marketing/leads", <Users className="w-5 h-5" />),
+  leaf("Follow Up", "/marketing/follow-up", <CalendarClock className="w-5 h-5" />),
+  leaf("Tim", "/marketing/tim", <Network className="w-5 h-5" />),
 ]
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/marketing") return pathname === "/marketing"
   return pathname === href || pathname.startsWith(href + "/")
+}
+
+function containsActiveChild(pathname: string, group: NavGroup) {
+  return group.children.some((c) => isActivePath(pathname, c.href))
+}
+
+/** 1 baris nav desktop — leaf jadi Link biasa, group jadi tombol accordion (expand/collapse di
+ *  tempat) yang otomatis kebuka kalau salah satu anaknya lagi aktif. Pola sama seperti
+ *  SidebarNavItem di os-template (referensi komponen internal). */
+const MarketingNavItem: React.FC<{ item: NavNode; pathname: string }> = ({ item, pathname }) => {
+  const activeChild = item.type === "group" && containsActiveChild(pathname, item)
+  const [isOpen, setIsOpen] = useState(activeChild)
+
+  if (item.type === "group") {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-2xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+            activeChild ? "text-white bg-white/10" : "text-slate-300 hover:bg-white/10 hover:text-white"
+          }`}
+        >
+          <span className="flex-shrink-0">{item.icon}</span>
+          <span className="truncate flex-1 text-left">{item.label}</span>
+          <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+        {isOpen && (
+          <div className="mt-1 ml-4 pl-4 border-l border-white/10 space-y-1">
+            {item.children.map((child) => {
+              const active = isActivePath(pathname, child.href)
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-colors ${
+                    active ? "bg-gradient-to-r from-[#0544cc] to-[#2563eb] text-white shadow-lg shadow-blue-600/30" : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span className="flex-shrink-0">{child.icon}</span>
+                  <span className="truncate">{child.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const active = isActivePath(pathname, item.href)
+  return (
+    <Link
+      href={item.href}
+      className={`flex items-center gap-3.5 px-3.5 py-3 rounded-2xl font-bold text-sm transition-all duration-200 ${
+        active
+          ? "bg-gradient-to-r from-[#0544cc] to-[#2563eb] text-white shadow-lg shadow-blue-600/30 border border-blue-400/40 translate-x-1"
+          : "text-slate-300 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <span className="flex-shrink-0">{item.icon}</span>
+      <span className="truncate">{item.label}</span>
+    </Link>
+  )
 }
 
 async function doLogout() {
@@ -130,23 +232,9 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
             <span className="text-[10px] text-blue-200 font-semibold tracking-tight mt-0.5">Marketing — Kelola Lead</span>
           </div>
           <nav className="px-3 py-6 space-y-1.5">
-            {NAV.map((item) => {
-              const active = isActivePath(pathname, item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-2xl font-bold text-sm transition-all duration-200 ${
-                    active
-                      ? "bg-gradient-to-r from-[#0544cc] to-[#2563eb] text-white shadow-lg shadow-blue-600/30 border border-blue-400/40 translate-x-1"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              )
-            })}
+            {NAV.map((item) => (
+              <MarketingNavItem key={item.type === "group" ? item.label : item.href} item={item} pathname={pathname} />
+            ))}
           </nav>
         </div>
 
@@ -263,7 +351,7 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
       {/* ---- Bottom nav (mobile) — disembunyikan di halaman detail percakapan ---- */}
       <nav className={`${isChatDetail ? "hidden" : "lg:hidden"} fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1`}>
         <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
-          {NAV.filter((n) => n.mobile).map((item) => {
+          {MOBILE_NAV.map((item) => {
             const active = isActivePath(pathname, item.href)
             return (
               <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-2 py-1 min-w-[58px]">
