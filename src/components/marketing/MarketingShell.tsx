@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   BarChart2,
   CalendarClock,
+  FileBarChart,
   Gauge,
   History,
   LayoutGrid,
@@ -43,6 +44,7 @@ const NAV: NavItem[] = [
   { label: "Tim", href: "/marketing/tim", icon: <Network className="w-5 h-5" />, mobile: true },
   { label: "KPI", href: "/marketing/kpi", icon: <Gauge className="w-5 h-5" /> },
   { label: "Dashboard", href: "/marketing/dashboard", icon: <BarChart2 className="w-5 h-5" /> },
+  { label: "Laporan", href: "/marketing/laporan", icon: <FileBarChart className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/marketing/settings", icon: <Settings className="w-5 h-5" /> },
 ]
 
