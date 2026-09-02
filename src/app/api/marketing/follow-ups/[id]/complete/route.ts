@@ -3,7 +3,9 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
 import { ensureAutoFollowUp } from "@/lib/marketing/auto-follow-up"
+import { closeWebPushNotification } from "@/lib/marketing/notify"
 import { canActOnLead } from "@/lib/marketing/permissions"
+import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { getFollowUpGraceMs } from "@/lib/marketing/settings"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
@@ -80,6 +82,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       reason: "follow up selesai tanpa jadwal berikutnya",
       createdByUserId: user.id,
     }).catch(() => null)
+  }
+
+  // Follow up selesai → notifikasi "jatuh tempo/terlambat" yang udah kekirim buat follow up ini
+  // gak relevan lagi, tandai dibaca + tutup dari tray (pola sama kayak buka percakapan).
+  const clearedNotifs = await prisma.leadNotification.updateMany({
+    where: { entityType: "lead_follow_up", entityId: id, readAt: null },
+    data: { readAt: now, status: "READ" },
+  })
+  if (clearedNotifs.count > 0 && fu.assignedUserId) {
+    publishMarketingEvent({ type: "notification", userId: fu.assignedUserId, at: now.toISOString() })
+    void closeWebPushNotification(fu.assignedUserId, `lead_follow_up:${id}`).catch(() => {})
   }
 
   await recalcLeadDerived(fu.leadId).catch(() => {})
