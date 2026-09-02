@@ -79,6 +79,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     select: { assignedUser: { select: { id: true, name: true } } },
   })
   const canAct = await canActOnLead(user, conversation.leadId)
+  // Follow up OPEN gampang kelewat kalau Sales cuma balas chat dari Inbox tanpa buka Detail
+  // Lead — balas chat TIDAK otomatis menutup follow up (lihat komentar sama di LeadDetailClient),
+  // jadi ditampilkan di sini juga supaya ada nudge buat "Selesaikan".
+  const openFollowUp = await prisma.leadFollowUp.findFirst({
+    where: { leadId: conversation.leadId, status: "OPEN" },
+    orderBy: { scheduledAt: "asc" },
+    select: { id: true, purpose: true, scheduledAt: true },
+  })
 
   if (activeAssignment?.assignedUser.id === user.id && conversation.unreadCustomerCount > 0) {
     await prisma.conversation.update({ where: { id }, data: { unreadCustomerCount: 0 } })
@@ -115,6 +123,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
       pic: activeAssignment?.assignedUser ?? null,
       canAct,
+      openFollowUp: openFollowUp
+        ? { id: openFollowUp.id, purpose: openFollowUp.purpose, scheduledAt: openFollowUp.scheduledAt.toISOString() }
+        : null,
       hasWhatsappConnection: conversation.whatsappConnectionId != null,
       // Status koneksi WA yang dipakai percakapan ini (null = belum tertaut ke koneksi mana pun).
       whatsappStatus: conversation.whatsappConnection?.status ?? null,

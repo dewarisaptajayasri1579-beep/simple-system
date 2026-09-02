@@ -5,6 +5,7 @@ import Link from "next/link"
 import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Pencil, Plus, Send, Sparkles, Trash2, Zap } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
+import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
 import { SegmentPicker } from "./SegmentPicker"
 import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
@@ -48,6 +49,7 @@ interface ConversationMeta {
   }
   pic: { id: string; name: string } | null
   canAct: boolean
+  openFollowUp: { id: string; purpose: string; scheduledAt: string } | null
   hasWhatsappConnection: boolean
   whatsappStatus: string | null
   whatsappConnected: boolean
@@ -96,6 +98,8 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [typing, setTyping] = useState(false)
   const [notes, setNotes] = useState<LeadNote[]>([])
   const [notesOpen, setNotesOpen] = useState(false)
+  const [completingFu, setCompletingFu] = useState(false)
+  const [resultTypes, setResultTypes] = useState<{ id: string; name: string }[]>([])
   const [noteDraft, setNoteDraft] = useState("")
   const [savingNote, setSavingNote] = useState(false)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
@@ -150,6 +154,12 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   useEffect(() => {
     load()
   }, [load])
+  useEffect(() => {
+    fetch("/api/marketing/meta")
+      .then((r) => r.json())
+      .then((d) => d.followUpResultTypes && setResultTypes(d.followUpResultTypes))
+      .catch(() => {})
+  }, [])
   useEffect(() => {
     // Fallback saja — jalur utama update-nya SSE di bawah.
     const t = setInterval(() => load(true), 20000)
@@ -442,6 +452,35 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           Detail
         </Link>
       </div>
+
+      {/* Follow up OPEN gampang kelewat kalau Sales cuma balas chat dari sini tanpa buka Detail
+          Lead — balas chat TIDAK otomatis menutup follow up (butuh isi hasil follow up buat
+          skoring prioritas). Nudge di sini biar tidak nunggak & terus kena pengingat tiap jam. */}
+      {meta.canAct && meta.openFollowUp && (
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs font-semibold text-amber-800">
+              Follow Up terbuka: {meta.openFollowUp.purpose} · {new Date(meta.openFollowUp.scheduledAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+            </p>
+            {!completingFu && (
+              <Button size="sm" onClick={() => setCompletingFu(true)}>
+                Selesaikan
+              </Button>
+            )}
+          </div>
+          {completingFu && (
+            <CompleteFollowUpForm
+              followUpId={meta.openFollowUp.id}
+              resultTypes={resultTypes}
+              onDone={() => {
+                setCompletingFu(false)
+                load()
+              }}
+              onCancel={() => setCompletingFu(false)}
+            />
+          )}
+        </div>
+      )}
 
       {/* catatan internal — freeform, dicap waktu+tanggal otomatis. Ditaruh di sini (bukan di
           paling bawah dekat composer) karena ini yang paling sering diisi Sales sambil chat. */}

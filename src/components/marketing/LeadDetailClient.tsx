@@ -217,6 +217,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       stopWaveform()
     }
   }, [])
+  const fuSectionRef = useRef<HTMLDivElement>(null)
   const [fuOpen, setFuOpen] = useState(false)
   const [fuForm, setFuForm] = useState({ scheduledAt: "", purpose: "", note: "" })
   const [completingFu, setCompletingFu] = useState<string | null>(null)
@@ -617,6 +618,29 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
         )}
       </Card>
 
+      {/* Follow Up OPEN gampang kelewat kalau Sales cuma catat Aktivitas / balas chat dari Inbox
+          — dua-duanya TIDAK otomatis menutup follow up (butuh isi hasil follow up buat skoring
+          prioritas, jadi tidak bisa auto-selesai diam-diam). Banner ini nudge biar tidak nunggak
+          & terus kena notif pengingat tiap jam. */}
+      {canAct && lead.followUps.some((f) => f.status === "OPEN") && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <p className="text-xs sm:text-sm font-semibold text-amber-800">
+            Ada Follow Up yang masih terbuka untuk lead ini — sudah ditindaklanjuti? Tandai selesai supaya tidak terus kena pengingat.
+          </p>
+          <Button
+            size="sm"
+            className="flex-shrink-0"
+            onClick={() => {
+              const openFu = lead.followUps.find((f) => f.status === "OPEN")
+              if (openFu) setCompletingFu(openFu.id)
+              fuSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }}
+          >
+            Selesaikan
+          </Button>
+        </div>
+      )}
+
       {/* Urutan section kolom kiri sengaja diurut dari yang paling sering diupdate Sales:
           Temperatur, Identitas, Aktivitas, Follow Up, Outcome, Riwayat2, baru AI Insight. */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
@@ -917,6 +941,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       </Section>
 
       {/* Follow Up */}
+      <div ref={fuSectionRef}>
       <Section
         title={`Follow Up (${lead.followUps.length})`}
         right={
@@ -1005,6 +1030,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
           </ul>
         )}
       </Section>
+      </div>
 
       {/* Outcome */}
       <Section title="Outcome">
