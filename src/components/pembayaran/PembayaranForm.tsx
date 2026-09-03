@@ -332,13 +332,19 @@ export const PembayaranForm: React.FC<{
             {line?.checked && ppnPortion > 0 && <p className="text-xs text-slate-400">termasuk PPN {formatMoney(ppnPortion, inv.currency)}</p>}
             {isForeign && (
               <>
-                <CurrencyInput
+                {/* BUKAN CurrencyInput — kurs punya pecahan desimal yang penting (mis. "111.108"
+                    IDR per JPY), sedangkan CurrencyInput cuma buat nominal Rupiah bulat dan
+                    membuang titik desimal saat diketik (lihat parseDigits di CurrencyInput.tsx)
+                    — kalau dipakai di sini, "111.108" kesimpan jadi 111108, kurs meledak ~1000x. */}
+                <Input
+                  type="number"
+                  step="0.001"
+                  min={0}
                   sizeVariant="sm"
-                  placeholder="Kurs (1 JPY = ? IDR)"
-                  currencyPrefix="Rp"
-                  value={line?.kursRate ?? 0}
+                  placeholder="Kurs (1 JPY = ? IDR), mis. 111.108"
+                  value={line?.kursRate || ""}
                   disabled={!line?.checked}
-                  onChange={(v) => updateLine(inv.id, { kursRate: v })}
+                  onChange={(e) => updateLine(inv.id, { kursRate: parseFloat(e.target.value) || 0 })}
                 />
                 {line?.checked && (
                   <p className="text-xs text-slate-500">≈ {formatRupiah(cashEquivalent(inv, line))}</p>

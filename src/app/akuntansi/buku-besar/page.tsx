@@ -76,6 +76,24 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
   const totalCredit = periodLines.reduce((s, l) => s + l.credit, 0)
   const saldoAkhir = running
 
+  // "Rekalkulasi Buku Besar" — saldo tiap akun dihitung LANGSUNG dari JournalLine posted (bukan
+  // field cache mana pun, memang tidak ada cache saldo di skema ini), jadi selalu representasi
+  // sumber data yang sebenarnya. Satu query batched (groupBy), bukan loop per akun.
+  const balanceAgg = await prisma.journalLine.groupBy({
+    by: ["accountId"],
+    where: { accountId: { in: accounts.map((a) => a.id) }, journalEntry: { is: { postStatus: "posted", date: { lte: to } } } },
+    _sum: { debit: true, credit: true },
+  })
+  const balanceByAccount = new Map(
+    balanceAgg.map((b) => [
+      b.accountId,
+      accountMovement(accounts.find((a) => a.id === b.accountId)?.type ?? "asset", b._sum.debit ?? 0, b._sum.credit ?? 0),
+    ]),
+  )
+  const recalculated = accounts
+    .map((a) => ({ id: a.id, code: a.code, name: a.name, balance: balanceByAccount.get(a.id) ?? 0 }))
+    .sort((a, b) => a.code.localeCompare(b.code))
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6">
@@ -85,6 +103,41 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
             Mutasi debit/kredit per akun — saldo awal, mutasi bulan berjalan, saldo akhir.
           </p>
         </div>
+
+        <Card variant="panel" padding="none">
+          <details>
+            <summary className="cursor-pointer select-none p-5 sm:p-6 font-bold text-slate-900 text-sm sm:text-base">
+              Rekalkulasi Saldo Semua Akun — per {formatDate(to)}
+              <span className="ml-2 font-normal text-xs text-slate-500">
+                (dihitung langsung dari jurnal posted, bukan angka tersimpan/cache — klik untuk lihat)
+              </span>
+            </summary>
+            <TableContainer className="border-0 rounded-none shadow-none border-t border-slate-100">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Kode</TableHead>
+                    <TableHead>Akun</TableHead>
+                    <TableHead>Saldo (rekalkulasi)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recalculated.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="text-slate-500">{a.code}</TableCell>
+                      <TableCell>
+                        <Link href={`/akuntansi/buku-besar?accountId=${a.id}&month=${month}`} className="font-semibold text-blue-700 hover:underline">
+                          {a.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-bold">{formatRupiah(a.balance)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </details>
+        </Card>
 
         <BukuBesarFilter accountId={accountId} accountOptions={accounts.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))} month={month} />
 
