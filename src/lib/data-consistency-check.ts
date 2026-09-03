@@ -222,7 +222,10 @@ async function checkForeignCurrencyKursOutlier(): Promise<ConsistencyFinding[]> 
   const payments = await prisma.invoicePayment.findMany({
     where: {
       invoice: { currency: { not: "IDR" } },
-      OR: [{ kursRate: { gt: KURS_MAX_PLAUSIBLE } }, { kursRate: { lt: KURS_MIN_PLAUSIBLE, gt: 0 } }],
+      // Payment yang sudah dibatalkan tidak lagi memengaruhi saldo mana pun — kurs janggalnya
+      // cuma arsip, tidak perlu terus muncul sebagai temuan aktif.
+      OR: [{ paymentId: null }, { payment: { is: { postStatus: { not: "voided" } } } }],
+      AND: { OR: [{ kursRate: { gt: KURS_MAX_PLAUSIBLE } }, { kursRate: { lt: KURS_MIN_PLAUSIBLE, gt: 0 } }] },
     },
     select: { id: true, kursRate: true, paymentId: true, invoice: { select: { invoiceNumber: true, currency: true } } },
   })
