@@ -546,22 +546,22 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
     createdByUserId: connection.userId,
   }).catch(() => null)
 
-  const pic = await prisma.leadAssignment.findFirst({
-    where: { leadId, isActive: true },
-    select: { assignedUserId: true },
-  })
-  if (pic) {
-    await createNotification({
-      userId: pic.assignedUserId,
-      type: "NEW_CUSTOMER_MESSAGE",
-      title: `Pesan baru: ${leadName}`,
-      body: bodyText?.slice(0, 120) || `[${messageType.toLowerCase()}]`,
-      entityType: "conversation",
-      entityId: conversation.id,
-      deepLink: `/marketing/inbox/${conversation.id}`,
-      dedupeKey: `newmsg:${conversation.id}:${sentAt.toISOString().slice(0, 16)}`,
-    }).catch(() => {})
-  }
+  // Notif ke pemilik NOMOR WA yang menerima pesan ini (connection.userId), BUKAN ke PIC lead
+  // secara global — 1 customer bisa chat ke beberapa Sales sekaligus di nomor berbeda (semuanya
+  // ke-link ke lead yang sama, lihat findDuplicateLead di atas), dan lead cuma punya 1 PIC. Kalau
+  // notif dipatok ke PIC, Sales yang nomornya justru menerima pesan itu tidak kebagian notif sama
+  // sekali walau dia yang harus balas dari nomornya sendiri. Setiap nomor notif ke pemiliknya
+  // masing-masing, terlepas siapa PIC resminya.
+  await createNotification({
+    userId: connection.userId,
+    type: "NEW_CUSTOMER_MESSAGE",
+    title: `Pesan baru: ${leadName}`,
+    body: bodyText?.slice(0, 120) || `[${messageType.toLowerCase()}]`,
+    entityType: "conversation",
+    entityId: conversation.id,
+    deepLink: `/marketing/inbox/${conversation.id}`,
+    dedupeKey: `newmsg:${conversation.id}:${sentAt.toISOString().slice(0, 16)}`,
+  }).catch(() => {})
 
   await prisma.leadWebhookEvent.updateMany({
     where: { providerEventId: eventId },
