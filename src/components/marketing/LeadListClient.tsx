@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Plus, Search } from "lucide-react"
 
 import {
@@ -82,22 +82,25 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : "all")
-  const [q, setQ] = useState("")
-  const [segmentId, setSegmentId] = useState("")
-  const [buyingPowerTierId, setBuyingPowerTierId] = useState("")
-  const [temperature, setTemperature] = useState("")
-  const [stage, setStage] = useState("")
-  const [outcome, setOutcome] = useState(forcedOutcome ?? "")
-  const [priorityLevel, setPriorityLevel] = useState("")
-  const [picUserId, setPicUserId] = useState("")
-  const [sort, setSort] = useState("priority")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : searchParams.get("scope") === "mine" ? "mine" : "all")
+  const [q, setQ] = useState(searchParams.get("q") ?? "")
+  const [segmentId, setSegmentId] = useState(searchParams.get("segmentId") ?? "")
+  const [buyingPowerTierId, setBuyingPowerTierId] = useState(searchParams.get("buyingPowerTierId") ?? "")
+  const [temperature, setTemperature] = useState(searchParams.get("temperature") ?? "")
+  const [stage, setStage] = useState(searchParams.get("stage") ?? "")
+  const [outcome, setOutcome] = useState(forcedOutcome ?? searchParams.get("outcome") ?? "")
+  const [priorityLevel, setPriorityLevel] = useState(searchParams.get("priorityLevel") ?? "")
+  const [picUserId, setPicUserId] = useState(searchParams.get("picUserId") ?? "")
+  const [sort, setSort] = useState(searchParams.get("sort") ?? "priority")
 
   const [segments, setSegments] = useState<MetaOption[]>([])
   const [buyingPowerTiers, setBuyingPowerTiers] = useState<MetaOption[]>([])
   const [users, setUsers] = useState<MetaOption[]>([])
   const [sources, setSources] = useState<MetaOption[]>([])
-  const router = useRouter()
   const qDebounced = useRef(q)
 
   const [showAdd, setShowAdd] = useState(false)
@@ -151,6 +154,25 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         if (outcome) p.set("outcome", outcome)
         if (priorityLevel) p.set("priorityLevel", priorityLevel)
         if (picUserId) p.set("picUserId", picUserId)
+
+        if (page === 1) {
+          // Simpan filter ke URL (replace, bukan push) supaya kalau user buka Detail Lead lalu
+          // pencet tombol Back, filter yang tadi dipilih masih kepakai — bukan reset ke default.
+          const urlParams = new URLSearchParams()
+          if (!isSales && scope !== "all") urlParams.set("scope", scope)
+          if (qDebounced.current.trim()) urlParams.set("q", qDebounced.current.trim())
+          if (segmentId) urlParams.set("segmentId", segmentId)
+          if (buyingPowerTierId) urlParams.set("buyingPowerTierId", buyingPowerTierId)
+          if (temperature) urlParams.set("temperature", temperature)
+          if (stage) urlParams.set("stage", stage)
+          if (!forcedOutcome && outcome) urlParams.set("outcome", outcome)
+          if (priorityLevel) urlParams.set("priorityLevel", priorityLevel)
+          if (picUserId) urlParams.set("picUserId", picUserId)
+          if (sort !== "priority") urlParams.set("sort", sort)
+          const qs = urlParams.toString()
+          router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+        }
+
         const res = await fetch(`/api/marketing/leads?${p}`, { cache: "no-store" })
         const data = await res.json()
         if (!res.ok) {
@@ -167,7 +189,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         setLoadingMore(false)
       }
     },
-    [scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId],
+    [scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, isSales, forcedOutcome, pathname, router],
   )
 
   useEffect(() => {

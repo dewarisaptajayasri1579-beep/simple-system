@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
@@ -54,13 +55,17 @@ interface WhatsappNumberOption {
 }
 
 export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }) => {
-  const [filter, setFilter] = useState("all")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const [filter, setFilter] = useState(searchParams.get("filter") ?? "all")
   // Sales terkunci ke "mine" (lihat halaman inbox/page.tsx) — backend juga sudah maksa ini
   // (GET /api/marketing/conversations mengabaikan query scope kalau rolenya SALES), toggle-nya
   // sengaja disembunyikan di bawah biar tidak ada UI yang keliatan bisa diklik tapi percuma.
-  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : "all")
-  const [q, setQ] = useState("")
-  const [waConnectionId, setWaConnectionId] = useState("")
+  const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : searchParams.get("scope") === "mine" ? "mine" : "all")
+  const [q, setQ] = useState(searchParams.get("q") ?? "")
+  const [waConnectionId, setWaConnectionId] = useState(searchParams.get("waConnectionId") ?? "")
   const [waNumbers, setWaNumbers] = useState<WhatsappNumberOption[]>([])
   const [items, setItems] = useState<ConversationItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +86,20 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
         const params = new URLSearchParams({ filter, scope, limit: "50" })
         if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
         if (waConnectionId) params.set("waConnectionId", waConnectionId)
+
+        if (!silent) {
+          // Simpan filter ke URL (replace, bukan push) supaya kalau user buka Detail Inbox lalu
+          // pencet tombol Back, filter yang tadi dipilih masih kepakai — bukan reset ke default.
+          // Refresh diam-diam (polling/SSE) sengaja tidak ikut nulis URL biar tidak berisik.
+          const urlParams = new URLSearchParams()
+          if (filter !== "all") urlParams.set("filter", filter)
+          if (!isSales && scope !== "all") urlParams.set("scope", scope)
+          if (qDebounced.current.trim()) urlParams.set("q", qDebounced.current.trim())
+          if (waConnectionId) urlParams.set("waConnectionId", waConnectionId)
+          const qs = urlParams.toString()
+          router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+        }
+
         const res = await fetch(`/api/marketing/conversations?${params}`, { cache: "no-store" })
         const data = await res.json()
         if (!res.ok) {
@@ -93,7 +112,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
         if (!silent) setLoading(false)
       }
     },
-    [filter, scope, waConnectionId],
+    [filter, scope, waConnectionId, isSales, pathname, router],
   )
 
   useEffect(() => {
