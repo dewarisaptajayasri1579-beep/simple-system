@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Akun kamu dinonaktifkan. Hubungi Owner." }, { status: 403 })
   }
 
-  await createSession(user.id)
+  await Promise.all([createSession(user.id), prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })])
 
   return NextResponse.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } })
 }

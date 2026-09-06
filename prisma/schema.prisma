@@ -35,6 +35,9 @@ model User {
   // audit, KPI) tetap utuh. Owner tidak boleh dinonaktifkan. Dikelola di Pengaturan → User.
   isActive     Boolean   @default(true) @map("is_active")
   createdAt    DateTime  @default(now()) @map("created_at")
+  // Kapan terakhir berhasil login (POST /api/auth/login) — dipakai kartu "Login Terakhir" di
+  // modul Monitoring Server. Null = belum pernah login sejak kolom ini ada.
+  lastLoginAt  DateTime? @map("last_login_at")
   sessions     Session[]
 
   // ---- Relasi modul Marketing (Simple Lead) — lihat docs/04-database.md. Reuse User yang
@@ -88,6 +91,23 @@ model SystemDevelopmentItem {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("system_development_items")
+  @@schema("simple_system")
+}
+
+/// Koneksi database eksternal (di luar DB aplikasi ini sendiri) yang dipantau ukurannya di
+/// modul Monitoring Server — mis. DB project lain yang jalan di VPS yang sama. Connection string
+/// disimpan apa adanya (termasuk password) supaya bisa dipakai connect langsung tiap kali kartu
+/// "Database Space" di-refresh — HANYA owner yang bisa tambah/hapus (lihat API), karena isinya
+/// kredensial. DB aplikasi ini sendiri TIDAK disimpan di sini, dihitung langsung lewat koneksi
+/// Prisma yang sudah ada (lihat GET /api/monitoring/databases).
+model MonitoredDatabase {
+  id               String   @id @default(uuid())
+  name             String
+  connectionString String   @map("connection_string")
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("monitored_databases")
   @@schema("simple_system")
 }
 
