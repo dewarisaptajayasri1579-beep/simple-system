@@ -5,6 +5,7 @@ import { BukuBesarFilter } from "@/components/akuntansi/BukuBesarFilter"
 import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { accountMovement } from "@/lib/accounting/coa-balance"
+import { enrichJournalDescriptions } from "@/lib/accounting/journal-description"
 import { monthPeriod } from "@/lib/accounting/month-period"
 import { jakartaTodayDateIso } from "@/lib/datetime"
 
@@ -56,6 +57,15 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
 
   const saldoAwal = saldoAwalAgg ? movement(saldoAwalAgg._sum.debit ?? 0, saldoAwalAgg._sum.credit ?? 0) : 0
 
+  // Keterangan diambil dari JournalEntry.description (sudah spesifik per jenis transaksi — nama
+  // domain/server/client/dst, lihat postJournalEntry di berbagai route), diperkaya lagi lewat
+  // enrichJournalDescriptions untuk Pindah Buku (+ akun asal/tujuan) & Pelunasan Invoice (+ nama
+  // client) — BUKAN dari JournalLine.memo yang isinya generik ("Pindah Buku", "Pelunasan invoice").
+  const uniqueEntries = new Map(
+    periodLines.map((l) => [l.journalEntry.id, { id: l.journalEntry.id, sourceType: l.journalEntry.sourceType, sourceId: l.journalEntry.sourceId, description: l.journalEntry.description }]),
+  )
+  const descByEntryId = await enrichJournalDescriptions([...uniqueEntries.values()])
+
   let running = saldoAwal
   const rows = periodLines.map((l) => {
     running += movement(l.debit, l.credit)
@@ -65,7 +75,7 @@ export default async function BukuBesarPage({ searchParams }: { searchParams: Pr
       journalEntryId: l.journalEntry.id,
       date: l.journalEntry.date,
       entryNumber: l.journalEntry.entryNumber,
-      description: l.memo || l.journalEntry.description,
+      description: descByEntryId.get(l.journalEntry.id) ?? l.journalEntry.description,
       dk: isDebit ? "D" : "K",
       nominal: isDebit ? l.debit : l.credit,
       saldo: running,

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { accountMovement } from "@/lib/accounting/coa-balance"
+import { enrichJournalDescriptions } from "@/lib/accounting/journal-description"
 import { monthPeriod } from "@/lib/accounting/month-period"
 import { jakartaTodayDateIso } from "@/lib/datetime"
 
@@ -37,6 +38,13 @@ export async function GET(request: Request) {
 
   const periodLines = lines.filter((l) => l.journalEntry.date >= from && l.journalEntry.date <= to)
 
+  // Sama pola dengan akuntansi/buku-besar/page.tsx — lihat komentar di sana soal kenapa
+  // description diambil dari JournalEntry (+ enrichJournalDescriptions), bukan JournalLine.memo.
+  const uniqueEntries = new Map(
+    periodLines.map((l) => [l.journalEntry.id, { id: l.journalEntry.id, sourceType: l.journalEntry.sourceType, sourceId: l.journalEntry.sourceId, description: l.journalEntry.description }]),
+  )
+  const descByEntryId = await enrichJournalDescriptions([...uniqueEntries.values()])
+
   let running = saldoAwal
   const rows = periodLines.map((l) => {
     running += movement(l.debit, l.credit)
@@ -46,7 +54,7 @@ export async function GET(request: Request) {
       journalEntryId: l.journalEntry.id,
       date: l.journalEntry.date,
       entryNumber: l.journalEntry.entryNumber,
-      description: l.memo || l.journalEntry.description,
+      description: descByEntryId.get(l.journalEntry.id) ?? l.journalEntry.description,
       dk: isDebit ? "D" : "K",
       nominal: isDebit ? l.debit : l.credit,
       saldo: running,
