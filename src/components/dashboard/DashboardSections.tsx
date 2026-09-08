@@ -601,7 +601,7 @@ export const DomainExpiringSection: React.FC<{
                 tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan domain ${r.name}`, amount: String(r.price ?? 0), domainId: r.id }).toString()}`}
               />
             ) : isOwner ? (
-              <Link href={`/keuangan/kas-keluar?domainId=${r.id}`}>
+              <Link href={`/keuangan/kas-keluar/baru?domainId=${r.id}`}>
                 <Button size="sm" variant="outline">
                   Bayar Sekarang
                 </Button>
@@ -807,7 +807,7 @@ export const ServerDueSection: React.FC<{
                 tagihHref={`/penjualan/baru?${new URLSearchParams({ clientId: r.clientId, description: `Perpanjangan server ${r.name}`, amount: String(r.price ?? 0), serverId: r.id }).toString()}`}
               />
             ) : isOwner ? (
-              <Link href={`/keuangan/kas-keluar?serverId=${r.id}`}>
+              <Link href={`/keuangan/kas-keluar/baru?serverId=${r.id}`}>
                 <Button size="sm" variant="outline">
                   Bayar Sekarang
                 </Button>

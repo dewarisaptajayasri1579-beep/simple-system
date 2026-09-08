@@ -107,7 +107,7 @@ export const RecurringBillPaymentCell: React.FC<{ billId: string; billName: stri
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={() => router.push(`/keuangan/kas-keluar?recurringBillId=${billId}`)}>
+    <Button size="sm" variant="outline" onClick={() => router.push(`/keuangan/kas-keluar/baru?recurringBillId=${billId}`)}>
       Bayar Sekarang
     </Button>
   );

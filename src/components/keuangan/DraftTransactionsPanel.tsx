@@ -8,7 +8,6 @@ import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, type 
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal";
-import { VoidButton } from "@/components/akuntansi/VoidButton";
 
 interface TransactionRow {
   id: string;
@@ -44,31 +43,22 @@ function journalSourceFor(r: TransactionRow): JournalSource {
   return { sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id };
 }
 
-/** Daftar Transaction (Input Pemasukan/Pengeluaran manual, Bayar Server/Domain, Tandai Lunas
- *  Biaya Berkala) — bagian Draft belum masuk saldo akun/laporan sampai di-posting di sini,
- *  bagian Posted terbaru bisa dibatalkan kalau ternyata salah input. Transaksi yang jadi
- *  bagian dari Pembayaran (invoice_payment) tidak muncul di sini — itu dikelola dari menu
- *  Pembayaran sendiri. */
+/** Daftar Transaction draft (Input Pemasukan/Pengeluaran manual, Bayar Server/Domain, Tandai
+ *  Lunas Biaya Berkala) — belum masuk saldo akun/laporan sampai di-posting di sini. Transaksi
+ *  yang sudah posted sengaja TIDAK ditampilkan di panel ini (sudah ada histori lengkapnya di
+ *  masing-masing menu — Kas Keluar/Kas Masuk/dst) — panel ini fokus cuma buat kerjaan yang
+ *  masih perlu ditindaklanjuti (posting). Transaksi yang jadi bagian dari Pembayaran
+ *  (invoice_payment) tidak muncul di sini — itu dikelola dari menu Pembayaran sendiri. */
 export const DraftTransactionsPanel: React.FC = () => {
   const router = useRouter();
-  // Draft & posted di-fetch TERPISAH (bukan 1 fetch semua transaksi lalu difilter/dipotong di
-  // JS) — draft-nya sendiri sudah alami kecil (langsung diposting/dibersihkan), tapi histori
-  // posted bisa jadi ribuan baris; ?take=10 di server memastikan cuma 10 baris terakhir yang
-  // benar-benar ditarik dari database, bukan "tarik semua lalu slice(0, 10)".
   const [draftRows, setDraftRows] = useState<TransactionRow[] | null>(null);
-  const [recentPostedRows, setRecentPostedRows] = useState<TransactionRow[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = () => {
-    const params = "excludePaymentLinked=true";
-    fetch(`/api/transactions?postStatus=draft&${params}`)
+    fetch(`/api/transactions?postStatus=draft&excludePaymentLinked=true`)
       .then((r) => r.json())
       .then(setDraftRows)
-      .catch(() => setError("Gagal memuat transaksi"));
-    fetch(`/api/transactions?postStatus=posted&take=10&${params}`)
-      .then((r) => r.json())
-      .then(setRecentPostedRows)
       .catch(() => setError("Gagal memuat transaksi"));
   };
 
@@ -95,7 +85,7 @@ export const DraftTransactionsPanel: React.FC = () => {
     router.refresh();
   };
 
-  if (!draftRows || !recentPostedRows) return null;
+  if (!draftRows) return null;
 
   const baseColumns: FilterableColumn<TransactionRow>[] = [
     { key: "transactionNumber", header: "No. Bukti", cell: (r) => r.transactionNumber ?? "-" },
@@ -136,28 +126,6 @@ export const DraftTransactionsPanel: React.FC = () => {
     },
   ];
 
-  const postedColumns: FilterableColumn<TransactionRow>[] = [
-    ...baseColumns,
-    { key: "status", header: "Status", cell: () => <StatusBadge type="posted" size="sm" /> },
-    {
-      key: "aksi",
-      header: "Aksi",
-      cell: (r) => (
-        <div className="flex items-center gap-2">
-          <JournalButton
-            title="Jurnal Transaksi"
-            sources={[journalSourceFor(r)]}
-          />
-          <VoidButton
-            voidUrl={`/api/transactions/${r.id}/void`}
-            itemLabel={r.description ?? "transaksi ini"}
-            onVoided={() => setRecentPostedRows((prev) => prev && prev.filter((row) => row.id !== r.id))}
-          />
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-4">
       {error && (
@@ -172,15 +140,6 @@ export const DraftTransactionsPanel: React.FC = () => {
             <CardDescription>{draftRows.length} transaksi belum diposting — belum masuk saldo akun/laporan.</CardDescription>
           </div>
           <FilterableTable columns={draftColumns} rows={draftRows} rowKey={(r) => r.id} />
-        </Card>
-      )}
-      {recentPostedRows.length > 0 && (
-        <Card variant="panel" padding="none">
-          <div className="p-5 sm:p-6">
-            <CardTitle>Transaksi Terbaru</CardTitle>
-            <CardDescription>Sudah diposting — kalau salah input, batalkan di sini.</CardDescription>
-          </div>
-          <FilterableTable columns={postedColumns} rows={recentPostedRows} rowKey={(r) => r.id} />
         </Card>
       )}
     </div>

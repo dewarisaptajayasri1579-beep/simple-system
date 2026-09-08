@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Card,
@@ -18,11 +17,8 @@ import {
 } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { AccountOption } from "./AccountPicker";
-import { KasKeluarForm } from "./KasKeluarForm";
 import { ChevronLeft, Plus, Pencil } from "lucide-react";
 import { type BillItemOption, formatRupiah } from "./kasKeluarShared";
-
-export type { BillItemOption };
 
 interface TransactionRow {
   id: string;
@@ -47,28 +43,22 @@ function formatDate(iso: string) {
 
 /** Kas Keluar — satu pintu buat semua pengeluaran kas/bank, termasuk yang dulu dua menu
  *  terpisah "Bayar Domain"/"Bayar Server" (sekarang jadi salah satu Tipe baris di form).
- *  Riwayat ditaruh di ATAS (paling sering dilihat/dicek ulang) — input-nya di balik tombol
- *  "+ Tambah" yang bisa dibuka lewat modal ATAU halaman penuh terpisah (/kas-keluar/baru),
- *  supaya list-nya tidak ke-geser jauh ke bawah tiap kali form diisi banyak baris. */
+ *  Riwayat ditaruh di ATAS (paling sering dilihat/dicek ulang) — input-nya di halaman
+ *  terpisah (/kas-keluar/baru), supaya list-nya tidak ke-geser jauh ke bawah tiap kali form
+ *  diisi banyak baris. (Sempat dicoba juga versi modal untuk dibandingkan — hasilnya halaman
+ *  terpisah yang dipakai, lihat KasKeluarForm.tsx/KasKeluarNewPagePanel.tsx.)
+ *  domains/servers/maintenances/recurringBills di sini CUMA buat resolve nama di kolom
+ *  Keterangan Riwayat (baris refType domain/server/dst) — bukan buat form lagi. */
 export const KasKeluarPanel: React.FC<{
   accounts: AccountOption[];
   domains: BillItemOption[];
   servers: BillItemOption[];
   maintenances: BillItemOption[];
   recurringBills: BillItemOption[];
-  isOwner: boolean;
-}> = ({ accounts, domains, servers, maintenances, recurringBills, isOwner }) => {
-  const searchParams = useSearchParams();
+}> = ({ accounts, domains, servers, maintenances, recurringBills }) => {
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
   const [error, setError] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
-
-  // Datang dari "Bayar Sekarang" di Dashboard (?domainId=/?serverId=/?recurringBillId=) — modal
-  // langsung kebuka dengan baris pertama ke-prefill (prefill-nya sendiri terjadi di dalam
-  // KasKeluarForm lewat searchParams yang sama).
-  const [modalOpen, setModalOpen] = useState(
-    () => Boolean(searchParams.get("domainId") || searchParams.get("serverId") || searchParams.get("recurringBillId"))
-  );
 
   // Edit draft pengeluaran manual langsung dari tabel riwayat — sama syaratnya dengan PATCH
   // /api/transactions/[id] (draft, tanpa refType Bayar Domain/dst, bukan bagian dari Payment).
@@ -199,13 +189,10 @@ export const KasKeluarPanel: React.FC<{
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Link href="/keuangan/kas-keluar/baru">
-            <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />}>
-              Tambah (Halaman Baru)
+            <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />}>
+              Tambah Kas Keluar
             </Button>
           </Link>
-          <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
-            Tambah (Modal)
-          </Button>
         </div>
       </div>
 
@@ -222,22 +209,6 @@ export const KasKeluarPanel: React.FC<{
         </div>
         <FilterableTable columns={columns} rows={rows ?? []} rowKey={(r) => r.id} pageSize={20} emptyMessage="Belum ada pengeluaran." mobileCardMode />
       </Card>
-
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Input Kas Keluar" size="lg">
-        <KasKeluarForm
-          accounts={accounts}
-          domains={domains}
-          servers={servers}
-          maintenances={maintenances}
-          recurringBills={recurringBills}
-          isOwner={isOwner}
-          onCancel={() => setModalOpen(false)}
-          onSaved={() => {
-            setModalOpen(false);
-            load();
-          }}
-        />
-      </Modal>
 
       <Modal
         isOpen={editingRow !== null}
