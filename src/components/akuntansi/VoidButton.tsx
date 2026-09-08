@@ -8,7 +8,7 @@ export interface VoidButtonProps {
   voidUrl: string;
   itemLabel: string;
   size?: "sm" | "md";
-  onVoided?: () => void;
+  onVoided?: (reason?: string) => void;
 }
 
 /** Tombol "Batalkan" untuk transaksi yang sudah Posted tapi ternyata salah input — bukan
@@ -37,8 +37,8 @@ export const VoidButton: React.FC<VoidButtonProps> = ({ voidUrl, itemLabel, size
       return;
     }
     setOpen(false);
+    onVoided?.(reason.trim() || undefined);
     setReason("");
-    onVoided?.();
     router.refresh();
   };
 

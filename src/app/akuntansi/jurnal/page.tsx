@@ -20,7 +20,7 @@ export default async function JurnalPage() {
     // (mis. "1-0000 Aset") cuma wadah pengelompokan, tidak boleh nampung mutasi langsung.
     prisma.chartOfAccount.findMany({ where: { isParent: false, isActive: true }, orderBy: { code: "asc" } }),
   ])
-  const userNames = await resolveUserNames(entries.map((e) => e.createdBy))
+  const userNames = await resolveUserNames(entries.flatMap((e) => [e.createdBy, e.postedById, e.voidedById]))
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>
@@ -41,6 +41,11 @@ export default async function JurnalPage() {
             sourceType: e.sourceType,
             postStatus: e.postStatus as "draft" | "posted" | "voided",
             createdByName: e.createdBy ? (userNames.get(e.createdBy) ?? null) : null,
+            postedByName: e.postedById ? (userNames.get(e.postedById) ?? null) : null,
+            postedAt: e.postedAt ? e.postedAt.toISOString() : null,
+            voidedByName: e.voidedById ? (userNames.get(e.voidedById) ?? null) : null,
+            voidedAt: e.voidedAt ? e.voidedAt.toISOString() : null,
+            voidReason: e.voidReason,
             lines: e.lines.map((l) => ({
               id: l.id,
               accountCode: l.account.code,

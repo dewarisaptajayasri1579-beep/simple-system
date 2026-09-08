@@ -18,18 +18,22 @@ export const AuditTrail: React.FC<{
   voidReason?: string | null
 }> = ({ createdByName, postedByName, postedAt, voidedByName, voidedAt, voidReason }) => {
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500 font-medium">
-      {createdByName !== undefined && <span>Dibuat oleh: <span className="font-semibold text-slate-700">{createdByName ?? "-"}</span></span>}
-      {postedAt && (
-        <span>
-          Diposting oleh: <span className="font-semibold text-slate-700">{postedByName ?? "-"}</span> · {formatDateTime(postedAt)}
-        </span>
-      )}
+    <div className="text-xs text-slate-500 font-medium space-y-1">
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        {createdByName !== undefined && <span>Dibuat oleh: <span className="font-semibold text-slate-700">{createdByName ?? "-"}</span></span>}
+        {postedAt && (
+          <span>
+            Diposting oleh: <span className="font-semibold text-slate-700">{postedByName ?? "-"}</span> · {formatDateTime(postedAt)}
+          </span>
+        )}
+      </div>
       {voidedAt && (
-        <span className="text-rose-600">
-          Dibatalkan oleh: <span className="font-semibold">{voidedByName ?? "-"}</span> · {formatDateTime(voidedAt)}
-          {voidReason ? ` — ${voidReason}` : ""}
-        </span>
+        <div className="text-rose-600">
+          <div>
+            Dibatalkan oleh: <span className="font-semibold">{voidedByName ?? "-"}</span> · {formatDateTime(voidedAt)}
+          </div>
+          {voidReason && <div className="mt-0.5">Alasan: {voidReason}</div>}
+        </div>
       )}
     </div>
   )

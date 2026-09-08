@@ -17,6 +17,7 @@ import {
   type FilterableColumn,
 } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { AuditTrail } from "@/components/shared/AuditTrail";
 import { VoidButton } from "./VoidButton";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -37,6 +38,11 @@ export interface JurnalEntryRow {
   sourceType: string;
   postStatus: "draft" | "posted" | "voided";
   createdByName: string | null;
+  postedByName: string | null;
+  postedAt: string | null;
+  voidedByName: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
   lines: JurnalLineRow[];
 }
 
@@ -155,6 +161,11 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
       sourceType: data.sourceType,
       postStatus: data.postStatus,
       createdByName: currentUserName,
+      postedByName: null,
+      postedAt: null,
+      voidedByName: null,
+      voidedAt: null,
+      voidReason: null,
       lines: (data.lines as { id: string; accountId: string; debit: number; credit: number; memo: string | null }[]).map((l) => {
         const acc = coaAccounts.find((a) => a.id === l.accountId);
         return { id: l.id, accountCode: acc?.code ?? "", accountName: acc?.name ?? "", debit: l.debit, credit: l.credit, memo: l.memo };
@@ -219,7 +230,15 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
             <VoidButton
               voidUrl={`/api/journal-entries/${e.id}/void`}
               itemLabel={`jurnal ${e.entryNumber}`}
-              onVoided={() => setEntries((prev) => prev.map((row) => (row.id === e.id ? { ...row, postStatus: "voided" } : row)))}
+              onVoided={(reason) =>
+                setEntries((prev) =>
+                  prev.map((row) =>
+                    row.id === e.id
+                      ? { ...row, postStatus: "voided", voidedAt: new Date().toISOString(), voidedByName: currentUserName, voidReason: reason ?? null }
+                      : row
+                  )
+                )
+              }
             />
           )}
         </div>
@@ -249,6 +268,14 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
               <p className="text-xs text-slate-500">{formatDate(viewing.date)} · {SOURCE_LABEL[viewing.sourceType] ?? viewing.sourceType}</p>
               <StatusBadge type={viewing.postStatus} size="sm" />
             </div>
+            <AuditTrail
+              createdByName={viewing.createdByName}
+              postedByName={viewing.postedByName}
+              postedAt={viewing.postedAt}
+              voidedByName={viewing.voidedByName}
+              voidedAt={viewing.voidedAt}
+              voidReason={viewing.voidReason}
+            />
             <div className="rounded-xl border border-slate-200/80 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs font-bold text-slate-600 uppercase">
