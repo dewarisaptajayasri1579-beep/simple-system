@@ -38,3 +38,28 @@ export async function uploadBackupFile(fileName: string, buffer: Buffer, mimeTyp
 
   return { fileId: res.data.id!, webViewLink: res.data.webViewLink ?? null }
 }
+
+/** List file backup terbaru di folder Drive tujuan — dipakai kartu "Backup Terakhir" di
+ *  Monitoring Server supaya kelihatan kapan cron 20:00 WIB (lihat instrumentation.ts) betulan
+ *  berhasil upload, bukan cuma percaya proses cron-nya jalan. Scope "drive.file" cukup buat list
+ *  ini karena semua file di folder dibuat lewat OAuth client yang sama (lihat uploadBackupFile). */
+export async function listRecentBackups(limit = 5) {
+  const folderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID
+  if (!folderId) throw new Error("GOOGLE_DRIVE_BACKUP_FOLDER_ID belum di-set")
+
+  const drive = driveClient()
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false`,
+    orderBy: "createdTime desc",
+    pageSize: limit,
+    fields: "files(id, name, createdTime, size, webViewLink)",
+  })
+
+  return (res.data.files ?? []).map((f) => ({
+    id: f.id!,
+    name: f.name ?? "",
+    createdTime: f.createdTime ?? null,
+    sizeBytes: f.size ? Number(f.size) : null,
+    webViewLink: f.webViewLink ?? null,
+  }))
+}

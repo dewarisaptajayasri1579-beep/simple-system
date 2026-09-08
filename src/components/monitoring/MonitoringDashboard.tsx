@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { HardDrive, Database, Users, Plus, Trash2, RefreshCw } from "lucide-react"
+import { HardDrive, Database, Users, Plus, Trash2, RefreshCw, Archive, ExternalLink } from "lucide-react"
 
-import { Card, CardHeader, CardTitle, CardDescription, Button, Input, Modal, Alert, Spinner } from "@/components/ui"
+import { Card, CardHeader, CardTitle, CardDescription, Button, Input, Modal, Alert, Spinner, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 
 type DiskInfo = {
@@ -33,6 +33,14 @@ type UserRow = {
   lastLoginAt: string | null
 }
 
+type BackupFile = {
+  id: string
+  name: string
+  createdTime: string | null
+  sizeBytes: number | null
+  webViewLink: string | null
+}
+
 function formatDateTime(iso: string | null) {
   if (!iso) return "Belum pernah login"
   return new Intl.DateTimeFormat("id-ID", {
@@ -46,6 +54,22 @@ function formatDateTime(iso: string | null) {
   }).format(new Date(iso))
 }
 
+function formatBytesClient(bytes: number | null) {
+  if (bytes === null || !Number.isFinite(bytes)) return "-"
+  if (bytes === 0) return "0 B"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, exponent)
+  return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
+}
+
+/** Cron backup jalan tiap hari jam 20:00 WIB (lihat instrumentation.ts) — kasih peringatan kalau
+ *  backup terakhir sudah lebih dari ~30 jam yang lalu, artinya minimal 1 siklus harian kelewat. */
+function isBackupStale(iso: string | null) {
+  if (!iso) return true
+  return Date.now() - new Date(iso).getTime() > 30 * 60 * 60 * 1000
+}
+
 export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
   const [disk, setDisk] = useState<DiskInfo | null>(null)
   const [diskError, setDiskError] = useState("")
@@ -53,6 +77,8 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
   const [dbError, setDbError] = useState("")
   const [users, setUsers] = useState<UserRow[] | null>(null)
   const [usersError, setUsersError] = useState("")
+  const [backupFiles, setBackupFiles] = useState<BackupFile[] | null>(null)
+  const [backupError, setBackupError] = useState("")
   const [loading, setLoading] = useState(true)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -65,11 +91,13 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
     setDiskError("")
     setDbError("")
     setUsersError("")
+    setBackupError("")
 
-    const [diskRes, dbRes, usersRes] = await Promise.all([
+    const [diskRes, dbRes, usersRes, backupRes] = await Promise.all([
       fetch("/api/monitoring/disk", { cache: "no-store" }),
       fetch("/api/monitoring/databases", { cache: "no-store" }),
       fetch("/api/monitoring/users", { cache: "no-store" }),
+      fetch("/api/monitoring/backup", { cache: "no-store" }),
     ])
 
     if (diskRes.ok) setDisk(await diskRes.json())
@@ -80,6 +108,9 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
 
     if (usersRes.ok) setUsers(await usersRes.json())
     else setUsersError((await usersRes.json().catch(() => null))?.error || "Gagal memuat user")
+
+    if (backupRes.ok) setBackupFiles((await backupRes.json()).files)
+    else setBackupError((await backupRes.json().catch(() => null))?.error || "Gagal memuat riwayat backup")
   }, [])
 
   useEffect(() => {
@@ -218,6 +249,67 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+      </Card>
+
+      {/* Backup Terakhir */}
+      <Card variant="glass" padding="lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Archive className="w-5 h-5 text-amber-600" /> Backup Terakhir
+          </CardTitle>
+          <CardDescription>Backup data harian (cron 20:00 WIB) yang diupload ke Google Drive.</CardDescription>
+        </CardHeader>
+        {backupError ? (
+          <Alert variant="error">{backupError}</Alert>
+        ) : backupFiles && backupFiles.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-slate-700">
+                Terakhir: <span className="font-black">{formatDateTime(backupFiles[0].createdTime)}</span>
+              </span>
+              {isBackupStale(backupFiles[0].createdTime) ? (
+                <Badge variant="danger">Lebih dari 1 hari, cek cron</Badge>
+              ) : (
+                <Badge variant="success">Up to date</Badge>
+              )}
+            </div>
+            <TableContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nama File</TableHead>
+                    <TableHead>Waktu</TableHead>
+                    <TableHead>Ukuran</TableHead>
+                    <TableHead className="text-right">Link</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {backupFiles.map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className="font-bold">{f.name}</TableCell>
+                      <TableCell>{formatDateTime(f.createdTime)}</TableCell>
+                      <TableCell>{formatBytesClient(f.sizeBytes)}</TableCell>
+                      <TableCell className="text-right">
+                        {f.webViewLink && (
+                          <a
+                            href={f.webViewLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                          >
+                            Buka <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </div>
+        ) : (
+          <Alert variant="warning">Belum ada file backup ditemukan di Google Drive.</Alert>
         )}
       </Card>
 
