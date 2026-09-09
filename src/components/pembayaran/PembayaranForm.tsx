@@ -55,7 +55,13 @@ interface ServerOption {
   price: number | null;
 }
 
-type CostMode = "none" | "manual" | "domain" | "server";
+interface MaintenanceOption {
+  id: string;
+  name: string;
+  price: number | null;
+}
+
+type CostMode = "none" | "manual" | "domain" | "server" | "maintenance";
 
 interface LineState {
   checked: boolean;
@@ -115,6 +121,7 @@ export const PembayaranForm: React.FC<{
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [domains, setDomains] = useState<DomainOption[]>([]);
   const [servers, setServers] = useState<ServerOption[]>([]);
+  const [maintenances, setMaintenances] = useState<MaintenanceOption[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [settlePpn, setSettlePpn] = useState(false);
@@ -146,6 +153,7 @@ export const PembayaranForm: React.FC<{
       setInvoices([]);
       setLines({});
       setDomains([]);
+      setMaintenances([]);
       return;
     }
     setIsLoadingInvoices(true);
@@ -161,7 +169,7 @@ export const PembayaranForm: React.FC<{
             ppnEnabled: boolean;
             dueDate: string | null;
             payments: { amount: number }[];
-            costLinkType: "domain" | "server" | null;
+            costLinkType: "domain" | "server" | "maintenance" | null;
             costLinkId: string | null;
             currency: string;
           }>
@@ -190,15 +198,13 @@ export const PembayaranForm: React.FC<{
             Object.fromEntries(
               rows.map((r) => {
                 // Invoice yang dibuat dari "Tagih Sekarang" bawa costLinkType/costLinkId sendiri —
-                // langsung pilihkan Bayar Domain/Server-nya, staf tidak perlu pilih manual lagi
-                // (nominal HPP tetap wajib diisi manual, itu bukan harga jual).
+                // langsung pilihkan Bayar Domain/Server/Maintenance-nya, staf tidak perlu pilih
+                // manual lagi (nominal HPP tetap wajib diisi manual, itu bukan harga jual).
                 const source = data.find((d) => d.id === r.id);
-                // costLinkType bisa juga "maintenance" (lihat BillingFollowUp/sop.txt) — form ini
-                // belum punya UI "Bayar Maintenance", jadi auto-select cuma buat domain/server;
-                // selain itu jatuh ke "none" (staf isi manual) supaya tidak macet costMode
-                // ke-set ke nilai yang tidak ada input UI-nya.
                 const autoLink =
-                  isOwner && source?.costLinkId && (source.costLinkType === "domain" || source.costLinkType === "server");
+                  isOwner &&
+                  source?.costLinkId &&
+                  (source.costLinkType === "domain" || source.costLinkType === "server" || source.costLinkType === "maintenance");
                 return [
                   r.id,
                   {
@@ -225,6 +231,12 @@ export const PembayaranForm: React.FC<{
           setDomains(Array.isArray(data) ? data.filter((d) => (d.sellPrice ?? 0) > 0) : [])
         )
         .catch(() => {});
+      fetch(`/api/maintenances?clientId=${clientId}`)
+        .then((r) => r.json())
+        .then((data: Array<{ id: string; name: string; price: number | null }>) =>
+          setMaintenances(Array.isArray(data) ? data.filter((m) => (m.price ?? 0) > 0) : [])
+        )
+        .catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
@@ -233,6 +245,10 @@ export const PembayaranForm: React.FC<{
   const accountOptions = useMemo(() => accounts.map((a) => ({ value: a.id, label: a.name })), [accounts]);
   const domainOptions = useMemo(() => domains.map((d) => ({ value: d.id, label: `${d.name} · ${formatRupiah(d.sellPrice ?? 0)}` })), [domains]);
   const serverOptions = useMemo(() => servers.map((s) => ({ value: s.id, label: `${s.name} · ${formatRupiah(s.price ?? 0)}` })), [servers]);
+  const maintenanceOptions = useMemo(
+    () => maintenances.map((m) => ({ value: m.id, label: `${m.name} · ${formatRupiah(m.price ?? 0)}` })),
+    [maintenances]
+  );
 
   const costModeOptions = useMemo(() => {
     const base = [
@@ -240,7 +256,11 @@ export const PembayaranForm: React.FC<{
       { value: "manual", label: "Biaya manual" },
     ];
     if (isOwner) {
-      base.push({ value: "domain", label: "Bayar Domain" }, { value: "server", label: "Bayar Server" });
+      base.push(
+        { value: "domain", label: "Bayar Domain" },
+        { value: "server", label: "Bayar Server" },
+        { value: "maintenance", label: "Bayar Maintenance" }
+      );
     }
     return base;
   }, [isOwner]);
@@ -430,6 +450,34 @@ export const PembayaranForm: React.FC<{
                 />
               </>
             )}
+            {line?.costMode === "maintenance" && (
+              <>
+                <Select
+                  sizeVariant="sm"
+                  options={maintenanceOptions}
+                  value={line.costLinkId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costLinkId: v })}
+                  placeholder="Pilih maintenance"
+                  emptyText="Client ini belum punya maintenance berharga"
+                />
+                <CurrencyInput
+                  sizeVariant="sm"
+                  value={line.costAmount}
+                  disabled={disabled}
+                  placeholder="Biaya (HPP), bukan harga jual"
+                  onChange={(v) => updateLine(inv.id, { costAmount: v })}
+                />
+                <Select
+                  sizeVariant="sm"
+                  options={accountOptions}
+                  value={line.costAccountId}
+                  disabled={disabled}
+                  onChange={(v) => updateLine(inv.id, { costAccountId: v })}
+                  placeholder="Bayar dari akun yang sama"
+                />
+              </>
+            )}
           </div>
         );
       },
@@ -456,9 +504,11 @@ export const PembayaranForm: React.FC<{
       setError("Centang minimal 1 invoice & isi jumlah dibayar");
       return;
     }
-    const missingLink = selected.find(([, l]) => (l.costMode === "domain" || l.costMode === "server") && !l.costLinkId);
+    const missingLink = selected.find(
+      ([, l]) => (l.costMode === "domain" || l.costMode === "server" || l.costMode === "maintenance") && !l.costLinkId
+    );
     if (missingLink) {
-      setError("Ada baris biaya yang belum pilih domain/server-nya");
+      setError("Ada baris biaya yang belum pilih domain/server/maintenance-nya");
       return;
     }
     const missingCost = selected.find(([, l]) => l.costMode !== "none" && (!l.costAmount || l.costAmount <= 0));
@@ -496,7 +546,7 @@ export const PembayaranForm: React.FC<{
             kursRate: l.kursRate,
             costAmount: l.costMode === "none" ? 0 : l.costAmount,
             costLink:
-              l.costMode === "domain" || l.costMode === "server"
+              l.costMode === "domain" || l.costMode === "server" || l.costMode === "maintenance"
                 ? { type: l.costMode, id: l.costLinkId, accountId: l.costAccountId || undefined }
                 : undefined,
           })),
@@ -537,7 +587,7 @@ export const PembayaranForm: React.FC<{
             <CardTitle>Invoice Belum Lunas</CardTitle>
             <CardDescription>
               Centang invoice yang mau dibayar, sesuaikan nominal kalau dicicil sebagian.
-              {isOwner && " Biaya bisa dikaitkan ke Bayar Domain/Server supaya otomatis kecatat lunas di sana juga."}
+              {isOwner && " Biaya bisa dikaitkan ke Bayar Domain/Server/Maintenance supaya otomatis kecatat lunas di sana juga."}
             </CardDescription>
           </div>
           <FilterableTable

@@ -8,7 +8,7 @@ import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { invoicePaymentLines, ppnSettlementLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
-import { markDomainPaid, markServerPaid } from "@/lib/accounting/mark-paid"
+import { markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 import { invoiceCashDue } from "@/lib/invoice-due"
 
@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 interface CostLinkInput {
-  type: "domain" | "server"
+  type: "domain" | "server" | "maintenance"
   id: string
   // Kosong/tidak diisi = pakai `accountId` utama (akun yang menerima pelunasan) — sama pola
   // dengan ppnSettlementAccountId, biar Biaya (HPP) domain/server bisa dibayar dari kas/bank
@@ -72,7 +72,9 @@ export async function POST(request: Request) {
     .map((l) => {
       const rawLink = l.costLink
       const costLink: CostLinkInput | undefined =
-        rawLink && (rawLink.type === "domain" || rawLink.type === "server") && typeof rawLink.id === "string"
+        rawLink &&
+        (rawLink.type === "domain" || rawLink.type === "server" || rawLink.type === "maintenance") &&
+        typeof rawLink.id === "string"
           ? { type: rawLink.type, id: rawLink.id, accountId: typeof rawLink.accountId === "string" && rawLink.accountId ? rawLink.accountId : undefined }
           : undefined
       return {
@@ -91,14 +93,15 @@ export async function POST(request: Request) {
   // jual domain/server (itu harga ke client, beda dengan HPP/biaya modalnya).
   const missingCostAmount = lines.find((l) => l.costLink && l.costAmount <= 0)
   if (missingCostAmount) {
-    return NextResponse.json({ error: "Isi dulu Biaya (HPP) untuk baris yang dikaitkan ke Bayar Domain/Server" }, { status: 400 })
+    return NextResponse.json({ error: "Isi dulu Biaya (HPP) untuk baris yang dikaitkan ke Bayar Domain/Server/Maintenance" }, { status: 400 })
   }
 
-  // Mengaitkan biaya ke "Bayar Domain"/"Bayar Server" langsung menandai record itu lunas +
-  // posting jurnal beban — efeknya sama seperti kartu "Tandai Lunas" di Master Data, yang
-  // sengaja dibatasi Owner saja. Jangan longgarkan cuma karena masuk lewat form Pelunasan.
+  // Mengaitkan biaya ke "Bayar Domain"/"Bayar Server"/"Bayar Maintenance" langsung menandai
+  // record itu lunas + posting jurnal beban — efeknya sama seperti kartu "Tandai Lunas" di
+  // Master Data, yang sengaja dibatasi Owner saja. Jangan longgarkan cuma karena masuk lewat
+  // form Pelunasan.
   if (lines.some((l) => l.costLink) && user.role !== "owner") {
-    return NextResponse.json({ error: "Cuma Owner yang bisa mengaitkan biaya ke Bayar Domain/Server" }, { status: 403 })
+    return NextResponse.json({ error: "Cuma Owner yang bisa mengaitkan biaya ke Bayar Domain/Server/Maintenance" }, { status: 403 })
   }
 
   // Biaya (HPP) domain/server boleh dibayar dari kas/bank yang beda dari yang menerima
@@ -297,6 +300,15 @@ export async function POST(request: Request) {
       } else if (line.costLink?.type === "server") {
         await markServerPaid(tx, {
           serverId: line.costLink.id,
+          accountId: line.costLink.accountId ?? accountId,
+          amount: line.costAmount,
+          paidAt,
+          createdBy: user.id,
+          paymentId: payment.id,
+        })
+      } else if (line.costLink?.type === "maintenance") {
+        await markMaintenancePaid(tx, {
+          maintenanceId: line.costLink.id,
           accountId: line.costLink.accountId ?? accountId,
           amount: line.costAmount,
           paidAt,

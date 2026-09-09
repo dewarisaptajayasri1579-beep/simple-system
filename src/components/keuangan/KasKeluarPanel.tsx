@@ -2,22 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Card,
-  CardTitle,
-  CardDescription,
-  Button,
-  Input,
-  Select,
-  Alert,
-  CurrencyInput,
-  FilterableTable,
-  Modal,
-  type FilterableColumn,
-} from "@/components/ui";
+import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { AccountOption } from "./AccountPicker";
-import { ChevronLeft, Plus, Pencil } from "lucide-react";
+import { KasKeluarRowActions } from "./KasKeluarRowActions";
+import { ChevronLeft, Plus } from "lucide-react";
 import { type BillItemOption, formatRupiah } from "./kasKeluarShared";
 
 interface TransactionRow {
@@ -50,56 +39,13 @@ function formatDate(iso: string) {
  *  domains/servers/maintenances/recurringBills di sini CUMA buat resolve nama di kolom
  *  Keterangan Riwayat (baris refType domain/server/dst) — bukan buat form lagi. */
 export const KasKeluarPanel: React.FC<{
-  accounts: AccountOption[];
   domains: BillItemOption[];
   servers: BillItemOption[];
   maintenances: BillItemOption[];
   recurringBills: BillItemOption[];
-}> = ({ accounts, domains, servers, maintenances, recurringBills }) => {
+}> = ({ domains, servers, maintenances, recurringBills }) => {
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
   const [error, setError] = useState("");
-  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
-
-  // Edit draft pengeluaran manual langsung dari tabel riwayat — sama syaratnya dengan PATCH
-  // /api/transactions/[id] (draft, tanpa refType Bayar Domain/dst, bukan bagian dari Payment).
-  const [editingRow, setEditingRow] = useState<TransactionRow | null>(null);
-  const [editForm, setEditForm] = useState({ description: "", accountId: "", categoryId: "", grossAmount: 0 });
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
-
-  const openEdit = (row: TransactionRow) => {
-    setEditingRow(row);
-    setEditForm({ description: row.description ?? "", accountId: row.accountId, categoryId: row.categoryId ?? "", grossAmount: row.grossAmount });
-    setEditError("");
-  };
-
-  const handleEditSave = async () => {
-    if (!editingRow) return;
-    if (!editForm.accountId) {
-      setEditError("Akun kas/bank wajib dipilih");
-      return;
-    }
-    if (!editForm.grossAmount || editForm.grossAmount <= 0) {
-      setEditError("Nominal tidak valid");
-      return;
-    }
-    setEditSaving(true);
-    setEditError("");
-    const res = await fetch(`/api/transactions/${editingRow.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
-    const data = await res.json().catch(() => null);
-    setEditSaving(false);
-    if (!res.ok) {
-      setEditError(data?.error || "Gagal menyimpan perubahan");
-      return;
-    }
-    setEditingRow(null);
-    window.dispatchEvent(new Event("transactions-changed"));
-    load();
-  };
 
   const load = () => {
     fetch(`/api/transactions?type=expense`)
@@ -113,13 +59,6 @@ export const KasKeluarPanel: React.FC<{
     window.addEventListener("transactions-changed", load);
     return () => window.removeEventListener("transactions-changed", load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    fetch(`/api/categories?kind=expense`)
-      .then((r) => r.json())
-      .then((data) => Array.isArray(data) && setCategoryOptions(data.map((c: { id: string; name: string }) => ({ value: c.id, label: c.name }))))
-      .catch(() => {});
   }, []);
 
   const nameByRefId = new Map<string, string>();
@@ -161,14 +100,13 @@ export const KasKeluarPanel: React.FC<{
     {
       key: "aksi",
       header: "Aksi",
-      cell: (r) =>
-        r.postStatus === "draft" && !r.refType && !r.paymentId ? (
-          <Button size="sm" variant="ghost" onClick={() => openEdit(r)} leftIcon={<Pencil className="w-3.5 h-3.5" />}>
-            Edit
-          </Button>
-        ) : (
-          <span className="text-xs text-slate-400">-</span>
-        ),
+      cell: (r) => (
+        <KasKeluarRowActions
+          transactionId={r.id}
+          transactionNumber={r.transactionNumber ?? "-"}
+          journalSource={r.journalEntryId ? { entryId: r.journalEntryId } : { sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id }}
+        />
+      ),
     },
   ];
 
@@ -209,43 +147,6 @@ export const KasKeluarPanel: React.FC<{
         </div>
         <FilterableTable columns={columns} rows={rows ?? []} rowKey={(r) => r.id} pageSize={20} emptyMessage="Belum ada pengeluaran." mobileCardMode />
       </Card>
-
-      <Modal
-        isOpen={editingRow !== null}
-        onClose={() => setEditingRow(null)}
-        title="Edit Kas Keluar"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setEditingRow(null)}>
-              Batal
-            </Button>
-            <Button onClick={handleEditSave} isLoading={editSaving}>
-              Simpan
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {editError && <Alert variant="error">{editError}</Alert>}
-          <Input label="Keterangan" value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Akun"
-              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-              value={editForm.accountId}
-              onChange={(v) => setEditForm((f) => ({ ...f, accountId: v }))}
-            />
-            <Select
-              label="Kategori Biaya"
-              options={categoryOptions}
-              value={editForm.categoryId}
-              onChange={(v) => setEditForm((f) => ({ ...f, categoryId: v }))}
-              placeholder="Tanpa kategori"
-            />
-          </div>
-          <CurrencyInput label="Nominal" value={editForm.grossAmount} onChange={(v) => setEditForm((f) => ({ ...f, grossAmount: v }))} />
-        </div>
-      </Modal>
     </div>
   );
 };
