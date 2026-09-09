@@ -7,6 +7,7 @@ import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { manualIncomeLines, manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
 import { generateTransactionNumber } from "@/lib/transaction-number"
+import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
 export async function GET(request: Request) {
   const user = await getApiUser()
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
           createdById: user.id,
         },
       })
+      await logTransactionEvent(tx, { transactionId: created.id, action: "created", actorUserId: user.id, metadata: { via: "Kas Keluar manual" } })
 
       const [kasBankCoaCode, expenseCoaCode] = await Promise.all([
         getAccountCoaCode(tx, accountId),
@@ -127,6 +129,7 @@ export async function POST(request: Request) {
         createdById: user.id,
       },
     })
+    await logTransactionEvent(tx, { transactionId: created.id, action: "created", actorUserId: user.id, metadata: { via: "Kas Masuk manual" } })
 
     const [kasBankCoaCode, revenueCoaCode] = await Promise.all([
       getAccountCoaCode(tx, accountId),

@@ -6,6 +6,7 @@ import { COA_CODE, bebanCodeForCategory } from "./coa-seed"
 import { computeDomainExpiryDate } from "@/lib/domain-status"
 import { computeNextDueDate } from "@/lib/recurring-bill-status"
 import { generateTransactionNumber } from "@/lib/transaction-number"
+import { logTransactionEvent } from "./transaction-audit"
 
 /** Dipakai bareng oleh kartu "Bayar Server" (Keuangan) DAN dari baris Biaya di Pelunasan
  *  saat staf mengaitkan biaya ke server tertentu — supaya satu-satunya jalur pencatatan
@@ -37,6 +38,7 @@ export async function markServerPaid(
       createdById: input.createdBy,
     },
   })
+  await logTransactionEvent(tx, { transactionId: transaction.id, action: "created", actorUserId: input.createdBy, metadata: { via: "Bayar Server" } })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
   const journalEntry = await postJournalEntry(tx, {
@@ -81,6 +83,7 @@ export async function markDomainPaid(
       createdById: input.createdBy,
     },
   })
+  await logTransactionEvent(tx, { transactionId: transaction.id, action: "created", actorUserId: input.createdBy, metadata: { via: "Bayar Domain" } })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
   const journalEntry = await postJournalEntry(tx, {
@@ -125,6 +128,7 @@ export async function markMaintenancePaid(
       createdById: input.createdBy,
     },
   })
+  await logTransactionEvent(tx, { transactionId: transaction.id, action: "created", actorUserId: input.createdBy, metadata: { via: "Bayar Maintenance" } })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
   const journalEntry = await postJournalEntry(tx, {
@@ -169,6 +173,12 @@ export async function markRecurringBillPaid(
       paymentId: input.paymentId ?? null,
       createdById: input.createdBy,
     },
+  })
+  await logTransactionEvent(tx, {
+    transactionId: transaction.id,
+    action: "created",
+    actorUserId: input.createdBy,
+    metadata: { via: "Bayar Biaya Berkala" },
   })
 
   const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
@@ -272,6 +282,8 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     const outstanding = signed(transaction) + otherPosted.reduce((s, t) => s + signed(t), 0)
     await tx.kasbon.update({ where: { id: transaction.refId }, data: { status: outstanding <= 0.5 ? "lunas" : "outstanding" } })
   }
+
+  await logTransactionEvent(tx, { transactionId: input.transactionId, action: "posted", actorUserId: input.postedById })
 
   return tx.transaction.update({
     where: { id: input.transactionId },

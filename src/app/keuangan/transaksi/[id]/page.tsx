@@ -5,6 +5,10 @@ import { Card } from "@/components/ui"
 import { TransactionPostingBar } from "@/components/keuangan/TransactionPostingBar"
 import { TransactionDetailFields } from "@/components/keuangan/TransactionDetailFields"
 import { AuditTrail } from "@/components/shared/AuditTrail"
+import { AutoPrint } from "@/components/shared/AutoPrint"
+import { PrintButton } from "@/components/penjualan/PrintButton"
+import { KasKeluarPrintable } from "@/components/keuangan/KasKeluarPrintable"
+import { TransactionActivityLog, type ActivityLogEntry } from "@/components/keuangan/TransactionActivityLog"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { resolveUserNames } from "@/lib/user-names"
@@ -23,17 +27,42 @@ const REF_LABEL: Record<string, string> = {
   kasbon: "Kasbon",
 }
 
-export default async function TransactionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TransactionDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ print?: string }>
+}) {
   const user = await getCurrentUser()
   const { id } = await params
+  const { print } = await searchParams
 
-  const transaction = await prisma.transaction.findUnique({
-    where: { id },
-    include: { account: true, category: true, invoicePayment: { select: { id: true } } },
-  })
+  const [transaction, activityLogs] = await Promise.all([
+    prisma.transaction.findUnique({
+      where: { id },
+      include: { account: true, category: true, invoicePayment: { select: { id: true } } },
+    }),
+    prisma.auditLog.findMany({ where: { entityType: "transaction", entityId: id }, orderBy: { createdAt: "asc" } }),
+  ])
   if (!transaction) notFound()
 
-  const userNames = await resolveUserNames([transaction.createdById, transaction.postedById, transaction.voidedById])
+  const userNames = await resolveUserNames([
+    transaction.createdById,
+    transaction.postedById,
+    transaction.voidedById,
+    ...activityLogs.map((l) => l.actorUserId),
+  ])
+
+  const activityEntries: ActivityLogEntry[] = activityLogs.map((l) => ({
+    id: l.id,
+    action: l.action as ActivityLogEntry["action"],
+    actorName: l.actorUserId ? (userNames.get(l.actorUserId) ?? null) : null,
+    createdAt: l.createdAt.toISOString(),
+    before: (l.beforeJson as ActivityLogEntry["before"]) ?? null,
+    after: (l.afterJson as ActivityLogEntry["after"]) ?? null,
+    reason: (l.metadataJson as { reason?: string } | null)?.reason ?? null,
+  }))
 
   const backHref = transaction.type === "income" ? "/keuangan/kas-masuk" : "/keuangan/kas-keluar"
 
@@ -67,22 +96,31 @@ export default async function TransactionDetailPage({ params }: { params: Promis
       ])
     : [[], []]
 
+  const printLabel = transaction.refType ? (REF_LABEL[transaction.refType] ?? transaction.refType) : transaction.description || transaction.category?.name || "-"
+
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <div className="space-y-6 max-w-2xl mx-auto">
-        <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
-          <ArrowLeft className="w-4 h-4" /> Kembali
-        </Link>
+        {print === "1" && <AutoPrint />}
 
-        <TransactionPostingBar
-          transactionId={transaction.id}
-          postStatus={transaction.postStatus as "draft" | "posted" | "voided"}
-          sources={[source]}
-          managedByPaymentId={managedByPaymentId}
-          isOwner={user.role === "owner"}
-        />
+        <div className="flex items-center justify-between gap-3 no-print">
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="w-4 h-4" /> Kembali
+          </Link>
+          <PrintButton label="Cetak Bukti Kas" />
+        </div>
 
-        <Card variant="panel" padding="lg">
+        <div className="no-print">
+          <TransactionPostingBar
+            transactionId={transaction.id}
+            postStatus={transaction.postStatus as "draft" | "posted" | "voided"}
+            sources={[source]}
+            managedByPaymentId={managedByPaymentId}
+            isOwner={user.role === "owner"}
+          />
+        </div>
+
+        <Card variant="panel" padding="lg" className="no-print">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-xl font-black text-slate-900">{transaction.type === "income" ? "Kas Masuk" : "Kas Keluar"}</h1>
@@ -118,7 +156,23 @@ export default async function TransactionDetailPage({ params }: { params: Promis
               voidReason={transaction.voidReason}
             />
           </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200/60">
+            <TransactionActivityLog entries={activityEntries} />
+          </div>
         </Card>
+
+        <KasKeluarPrintable
+          transactionNumber={transaction.transactionNumber ?? "-"}
+          type={transaction.type as "income" | "expense"}
+          occurredAt={transaction.occurredAt.toISOString()}
+          label={printLabel}
+          accountName={transaction.account.name}
+          categoryName={transaction.category?.name ?? null}
+          grossAmount={transaction.grossAmount}
+          createdByName={transaction.createdById ? (userNames.get(transaction.createdById) ?? null) : null}
+          postStatus={transaction.postStatus as "draft" | "posted" | "voided"}
+        />
       </div>
     </AppLayout>
   )

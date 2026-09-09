@@ -7,6 +7,7 @@ import { manualExpenseLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
 import { markDomainPaid, markServerPaid, markMaintenancePaid, markRecurringBillPaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
+import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
 interface LineInput {
   kind: "manual" | "domain" | "server" | "maintenance" | "recurring_bill"
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
             createdById: user.id,
           },
         })
+        await logTransactionEvent(tx, { transactionId: transaction.id, action: "created", actorUserId: user.id, metadata: { via: "Kas Keluar" } })
         const [kasBankCoaCode, expenseCoaCode] = await Promise.all([
           getAccountCoaCode(tx, accountId),
           getCategoryCoaCode(tx, line.categoryId, "expense"),

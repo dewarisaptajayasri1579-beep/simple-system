@@ -6,6 +6,7 @@ import { postJournalEntry, type TxClient } from "@/lib/accounting/post-journal"
 import { manualExpenseLines, billPaidLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-lookup"
 import { COA_CODE, bebanCodeForCategory } from "@/lib/accounting/coa-seed"
+import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
 /** refType yang aman diedit inline (bukan cuma hapus+input ulang) — semuanya masih draft di
  *  titik ini jadi lastPaidAt/expiryDate/dsb belum ke-update sama sekali (baru kesentuh pas
@@ -89,6 +90,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           grossAmount,
           netAmount: grossAmount,
         },
+      })
+      await logTransactionEvent(tx, {
+        transactionId: id,
+        action: "updated",
+        actorUserId: user.id,
+        before: { accountId: transaction.accountId, categoryId: transaction.categoryId, description: transaction.description, grossAmount: transaction.grossAmount },
+        after: { accountId: saved.accountId, categoryId: saved.categoryId, description: saved.description, grossAmount: saved.grossAmount },
       })
 
       const [kasBankCoaCode, expenseCoaCode] = await Promise.all([getAccountCoaCode(tx, accountId), resolveExpenseCoaCode(tx)])

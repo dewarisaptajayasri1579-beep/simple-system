@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { voidJournalEntryBySource, voidJournalEntryById } from "@/lib/accounting/post-journal"
+import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
 /** Batalkan Transaction yang sudah posted (manual Keuangan, atau hasil "Bayar Server/Domain"/
  *  "Tandai Lunas" Biaya Berkala) — Owner-only. Transaksi yang bagian dari Pembayaran dibatalkan
@@ -35,6 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const sourceId = transaction.refType && transaction.refId ? transaction.refId : transaction.id
       await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
     }
+    await logTransactionEvent(tx, { transactionId: id, action: "voided", actorUserId: user.id, metadata: voidReason ? { reason: voidReason } : undefined })
     return tx.transaction.update({
       where: { id },
       data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
