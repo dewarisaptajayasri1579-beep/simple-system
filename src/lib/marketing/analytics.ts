@@ -51,10 +51,14 @@ export async function buildTeamAggregates(): Promise<TeamMemberStats[]> {
       where: { status: "OPEN", scheduledAt: { lt: sot } },
       _count: true,
     }),
-    prisma.leadAssignment.groupBy({
-      by: ["assignedUserId"],
-      where: { isActive: true, lead: { outcome: "WON", wonAt: { gte: som } } },
-      _count: true,
+    // Won bulan ini diatribusikan ke `closedByUserId` (PIC pada detik closing), SAMA dengan
+    // Laporan Performa Sales — bukan ke PIC aktif sekarang, supaya takeover setelah deal tidak
+    // memindahkan kredit closing. Fallback ke PIC aktif cuma buat baris lama sebelum kolom itu
+    // ada. Sengaja findMany + hitung di JS (bukan groupBy) karena butuh fallback dua kolom;
+    // jumlahnya terbatas (cuma WON bulan berjalan).
+    prisma.lead.findMany({
+      where: { outcome: "WON", wonAt: { gte: som } },
+      select: { closedByUserId: true, assignments: { where: { isActive: true }, select: { assignedUserId: true } } },
     }),
     prisma.leadFollowUp.groupBy({
       by: ["assignedUserId"],
@@ -78,7 +82,11 @@ export async function buildTeamAggregates(): Promise<TeamMemberStats[]> {
   const mHot = map(hot as never)
   const mToday = map(fuToday as never)
   const mOverdue = map(fuOverdue as never)
-  const mWon = map(won as never)
+  const mWon = new Map<string, number>()
+  for (const l of won) {
+    const uid = l.closedByUserId ?? l.assignments[0]?.assignedUserId
+    if (uid) mWon.set(uid, (mWon.get(uid) ?? 0) + 1)
+  }
   const mDone = map(fuDone as never)
   const mOnTime = map(fuOnTime as never)
 
