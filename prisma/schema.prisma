@@ -1320,6 +1320,12 @@ model Lead {
   wonAt                  DateTime? @map("won_at")
   wonNote                String?   @map("won_note")
   dealValue              Int?      @map("deal_value") // nilai deal (Rupiah), diisi saat Tandai Won
+  // PIC pada DETIK lead keluar dari funnel (WON/LOST/CLOSING/CLIENT_LAMA) — snapshot, bukan
+  // relasi FK (pola sama dengan Transaction.createdById dkk, lihat lib/user-names.ts). Dipakai
+  // Laporan Performa Sales buat atribusi won/lost/dealValue, supaya kredit closing TIDAK ikut
+  // pindah kalau lead-nya di-takeover/reassign SETELAH deal (dulu atribusinya ke PIC aktif saat
+  // query jalan, jadi bisa berubah retroaktif). Di-null-kan lagi saat lead dibuka kembali (OPEN).
+  closedByUserId         String?   @map("closed_by_user_id")
   lostAt                 DateTime? @map("lost_at")
   lostReasonId           String?   @map("lost_reason_id")
   // AI tidak boleh auto-ubah temperatur selama lock ini aktif (docs/06 §6, manual override).
@@ -1357,6 +1363,7 @@ model Lead {
   @@index([lastChatAt])
   @@index([createdAt])
   @@index([lostReasonId])
+  @@index([closedByUserId])
   // Scan cron alert "lead belum direspon" (outcome OPEN + belum di-alert + pesan customer lama).
   @@index([outcome, waGroupAlertedAt, lastCustomerMessageAt])
   @@map("leads")

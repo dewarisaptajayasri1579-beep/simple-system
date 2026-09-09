@@ -42,6 +42,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!lead) return NextResponse.json({ error: "Lead tidak ditemukan" }, { status: 404 })
   if (!(await canActOnLead(user, id))) return NextResponse.json({ error: "Kamu bukan PIC lead ini." }, { status: 403 })
 
+  // Snapshot PIC pada detik lead keluar dari funnel — dikunci di sini supaya kredit closing di
+  // Laporan Performa Sales tidak ikut pindah kalau lead-nya di-takeover/reassign setelah deal.
+  // Yang dicatat PIC aktif (pemilik lead), BUKAN `user.id` — SPV/Manager boleh menandai Won atas
+  // nama Sales-nya, dan kreditnya harus tetap jatuh ke Sales itu.
+  const activePic = EXIT_FUNNEL.includes(outcome)
+    ? await prisma.leadAssignment.findFirst({ where: { leadId: id, isActive: true }, select: { assignedUserId: true } })
+    : null
+
   const now = new Date()
   const wonAt =
     outcome === "WON" && typeof body?.wonAt === "string" && !Number.isNaN(new Date(body.wonAt).getTime())
@@ -53,12 +61,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : null
   const wonNote = outcome === "WON" && typeof body?.wonNote === "string" ? body.wonNote.trim() || null : null
 
+  const closedByUserId = EXIT_FUNNEL.includes(outcome) ? (activePic?.assignedUserId ?? null) : null
   const data =
     outcome === "WON"
-      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null }
+      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null, closedByUserId }
       : outcome === "LOST"
-        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null }
-        : { outcome, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null }
+        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null, closedByUserId }
+        : { outcome, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null, closedByUserId }
 
   await prisma.$transaction(async (tx) => {
     await tx.lead.update({ where: { id }, data })

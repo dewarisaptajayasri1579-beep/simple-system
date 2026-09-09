@@ -25,6 +25,10 @@ export const MARKETING_SETTING_DEFAULTS = {
   "escalation.negotiation_idle_days": 3,
   // Alert ke grup WA Marketing kalau pesan customer belum dibalas > sekian menit. 0 = mati.
   "escalation.wa_group_unreplied_minutes": 0,
+  // Ambil Alih (takeover) oleh sesama Sales cuma boleh kalau pesan customer sudah nggantung
+  // segini menit — bukan bebas kapan saja (dulu tanpa syarat, jadi celah rebutan lead).
+  // SPV/Manager tidak kena batas ini. 0 = matikan syaratnya (bebas ambil alih lagi).
+  "takeover.unreplied_minutes": 10,
   // temperature (docs/06 §6, §4.1) — automation_mode: 0 = SUGGEST_ONLY, 1 = AUTO_WITH_GUARDRAIL
   "temperature.override_lock_hours": 24,
   "temperature.automation_mode": 0,

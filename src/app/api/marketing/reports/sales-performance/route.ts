@@ -40,7 +40,12 @@ export async function GET(request: Request) {
   const [leads, fuCompleted, fuOnTime, activityCounts] = await Promise.all([
     prisma.lead.findMany({
       where: leadWhere,
-      select: { outcome: true, dealValue: true, assignments: { where: { isActive: true }, select: { assignedUserId: true } } },
+      select: {
+        outcome: true,
+        dealValue: true,
+        closedByUserId: true,
+        assignments: { where: { isActive: true }, select: { assignedUserId: true } },
+      },
     }),
     prisma.leadFollowUp.groupBy({
       by: ["assignedUserId"],
@@ -64,9 +69,15 @@ export async function GET(request: Request) {
   for (const uid of userIds) perSales.set(uid, { leads: 0, won: 0, lost: 0, dealValueSum: 0 })
   for (const lead of leads) {
     const pic = lead.assignments[0]?.assignedUserId
-    if (!pic || !perSales.has(pic)) continue
-    const s = perSales.get(pic)!
-    s.leads += 1
+    // "Lead ditangani" ikut PIC aktif sekarang (siapa yang pegang), tapi kredit WON/LOST +
+    // dealValue ikut `closedByUserId` — PIC pada detik lead itu closing (lihat outcome/route.ts).
+    // Tanpa ini, takeover/reassign setelah deal memindahkan kredit closing secara retroaktif.
+    // Fallback ke PIC aktif cuma buat baris lama yang closing sebelum kolom ini ada.
+    if (pic && perSales.has(pic)) perSales.get(pic)!.leads += 1
+
+    const creditUserId = lead.closedByUserId ?? pic
+    if (!creditUserId || !perSales.has(creditUserId)) continue
+    const s = perSales.get(creditUserId)!
     if (lead.outcome === "WON") {
       s.won += 1
       s.dealValueSum += lead.dealValue ?? 0
