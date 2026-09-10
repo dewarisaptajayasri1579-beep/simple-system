@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma"
  *  - `filter`: all | unread | priority | hot
  *  - `waConnectionId`: filter ke satu nomor WA (WhatsappConnection) tertentu — dipakai kalau
  *    sales/manager punya >1 nomor dan mau pisahin Inbox per nomor.
- *  - `q`: cari nama / perusahaan / nomor WA
+ *  - `q`: cari nama / perusahaan / nomor WA, ATAU isi pesan (Message.body) di percakapan itu
  *  - `page` / `limit` (offset pagination, limit maks 100)
  * Tiap item bawa `canAct` (boleh balas/aksi atau tidak) supaya UI tak perlu cek ulang.
  */
@@ -35,18 +35,26 @@ export async function GET(request: Request) {
   if (scope === "mine") leadWhere.assignments = { some: { assignedUserId: user.id, isActive: true } }
   if (filter === "hot") leadWhere.temperature = "HOT"
   if (filter === "priority") leadWhere.priorityLevel = { in: ["HIGH", "TOP"] }
+
+  const and: Prisma.ConversationWhereInput[] = []
+  if (Object.keys(leadWhere).length > 0) and.push({ lead: leadWhere })
+  if (filter === "unread") and.push({ unreadCustomerCount: { gt: 0 } })
+  if (waConnectionId) and.push({ whatsappConnectionId: waConnectionId })
+  // `q` sengaja di-OR di level Conversation (bukan ikut ke leadWhere di atas) — biar bisa cocok
+  // dari isi pesan (Message.body) juga, bukan cuma field Lead. Kalau ikut leadWhere, hasilnya
+  // jadi AND dengan filter lain, jadi harus taruh di array `and` sebagai 1 kondisi OR terpisah.
   if (q) {
-    leadWhere.OR = [
-      { displayName: { contains: q, mode: "insensitive" } },
-      { companyName: { contains: q, mode: "insensitive" } },
-      { whatsappNumber: { contains: q.replace(/[^0-9]/g, "") || q } },
-    ]
+    and.push({
+      OR: [
+        { lead: { displayName: { contains: q, mode: "insensitive" } } },
+        { lead: { companyName: { contains: q, mode: "insensitive" } } },
+        { lead: { whatsappNumber: { contains: q.replace(/[^0-9]/g, "") || q } } },
+        { messages: { some: { body: { contains: q, mode: "insensitive" } } } },
+      ],
+    })
   }
 
-  const where: Prisma.ConversationWhereInput = {}
-  if (Object.keys(leadWhere).length > 0) where.lead = leadWhere
-  if (filter === "unread") where.unreadCustomerCount = { gt: 0 }
-  if (waConnectionId) where.whatsappConnectionId = waConnectionId
+  const where: Prisma.ConversationWhereInput = and.length > 0 ? { AND: and } : {}
 
   const [total, rows] = await Promise.all([
     prisma.conversation.count({ where }),

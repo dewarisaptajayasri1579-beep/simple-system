@@ -47,6 +47,9 @@ export async function GET(request: Request) {
       { companyName: { contains: q, mode: "insensitive" } },
       { contactName: { contains: q, mode: "insensitive" } },
       { whatsappNumber: { contains: q.replace(/[^0-9]/g, "") || q } },
+      // Cocok juga dari isi pesan (Message.body) di percakapan manapun milik lead ini — bukan
+      // cuma field Lead-nya sendiri.
+      { conversations: { some: { messages: { some: { body: { contains: q, mode: "insensitive" } } } } } },
     ]
   }
 

@@ -227,7 +227,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Cari nama, perusahaan, kontak, nomor…"
+        placeholder="Cari nama, perusahaan, kontak, nomor, atau isi chat…"
         leftIcon={<Search className="w-4 h-4" />}
         sizeVariant="md"
       />

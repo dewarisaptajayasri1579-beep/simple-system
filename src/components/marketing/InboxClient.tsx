@@ -147,7 +147,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Cari nama, perusahaan, atau nomor…"
+        placeholder="Cari nama, perusahaan, nomor, atau isi chat…"
         leftIcon={<Search className="w-4 h-4" />}
         sizeVariant="md"
       />
