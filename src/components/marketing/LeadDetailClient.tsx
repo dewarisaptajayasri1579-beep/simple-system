@@ -507,9 +507,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
 
   return (
     <div className="flex flex-col gap-3 max-w-6xl">
-      <Link href="/marketing/leads" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800">
+      {/* router.back() (bukan Link href hardcoded ke "/marketing/leads" tanpa query) — biar
+          filter yang dipilih di list (PIC, segmen, dst, tersimpan di URL lewat router.replace
+          di LeadListClient) tetap kepakai pas balik, bukan reset ke default. */}
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800"
+      >
         <ArrowLeft className="w-4 h-4" /> Semua Lead
-      </Link>
+      </button>
 
       {error && <Alert variant="error">{error}</Alert>}
 
