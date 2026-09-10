@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -166,6 +166,7 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
   children,
 }) => {
   const pathname = usePathname() || "/marketing"
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "?"
   // Halaman detail percakapan (/marketing/inbox/<id> atau /marketing/groups/<id>) — mode fokus:
@@ -267,13 +268,16 @@ export const MarketingShell: React.FC<{ userName: string; roleLabel: string; chi
         <header className="h-16 glass-header sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between border-b border-white/60">
           <div className="flex items-center gap-2 min-w-0">
             {isChatDetail && (
-              <Link
-                href={isGroupDetail ? "/marketing/groups" : "/marketing/inbox"}
+              // router.back() (bukan Link href hardcoded) — InboxClient nyimpen filter (nomor WA,
+              // scope, pencarian) ke URL lewat router.replace, jadi balik harus ke URL persis itu
+              // biar filternya gak ke-reset (sama kasus dengan LeadDetailClient).
+              <button
+                onClick={() => router.back()}
                 aria-label={isGroupDetail ? "Kembali ke Grup" : "Kembali ke Inbox"}
                 className="w-9 h-9 -ml-1.5 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />
-              </Link>
+              </button>
             )}
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-extrabold text-slate-800 leading-tight">
