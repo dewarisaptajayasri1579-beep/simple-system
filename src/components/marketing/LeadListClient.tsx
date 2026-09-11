@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui"
+import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
 import { MktHeader, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
 
 interface LeadRow {
@@ -195,6 +196,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   useEffect(() => {
     load()
   }, [load])
+
+  // Kembalikan posisi scroll kalau user datang dari Back (mis. habis buka Detail Lead) — baru
+  // dijalankan setelah barisnya ter-render, lihat catatan di useListScrollRestore.
+  useListScrollRestore(!loading && rows.length > 0)
 
   useEffect(() => {
     const t = setTimeout(() => {

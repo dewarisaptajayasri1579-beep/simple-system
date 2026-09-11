@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
+import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
 import { FilterPills, MktHeader, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
@@ -118,6 +119,10 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
   useEffect(() => {
     load()
   }, [load])
+
+  // Kembalikan posisi scroll kalau user datang dari Back (mis. habis buka salah satu percakapan)
+  // — baru dijalankan setelah barisnya ter-render, lihat catatan di useListScrollRestore.
+  useListScrollRestore(!loading && items.length > 0)
 
   useEffect(() => {
     const t = setTimeout(() => {
