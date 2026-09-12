@@ -6,6 +6,7 @@ import { Button, Alert } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
 import { VoidButton } from "@/components/akuntansi/VoidButton";
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton";
 
 interface ExistingTransaction {
   id: string;
@@ -40,21 +41,6 @@ export const RecurringBillPaymentCell: React.FC<{ billId: string; billName: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billId]);
 
-  const handlePostExisting = async () => {
-    if (!existing) return;
-    setBusy(true);
-    setError("");
-    const res = await fetch(`/api/transactions/${existing.id}/post`, { method: "POST" });
-    const data = await res.json().catch(() => null);
-    setBusy(false);
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting");
-      return;
-    }
-    load();
-    router.refresh();
-  };
-
   const handleDeleteDraft = async () => {
     if (!existing) return;
     if (!confirm("Hapus draft transaksi ini?")) return;
@@ -87,19 +73,25 @@ export const RecurringBillPaymentCell: React.FC<{ billId: string; billName: stri
             title={`Jurnal — ${billName}`}
             sources={existing.journalEntryId ? [{ entryId: existing.journalEntryId }] : [{ sourceType: "recurring_bill", sourceId: billId }]}
             postUrl={existing.postStatus === "draft" ? `/api/transactions/${existing.id}/post` : undefined}
+            previewKind="transaction"
+            previewId={existing.id}
           />
           {existing.postStatus === "draft" && (
             <>
-              <Button size="sm" variant="primary" onClick={handlePostExisting} isLoading={busy}>
-                Posting
-              </Button>
+              <PostingConfirmButton previewKind="transaction" previewId={existing.id} postUrl={`/api/transactions/${existing.id}/post`} onPosted={load} />
               <Button size="sm" variant="outline" className="!text-rose-700 !border-rose-300 hover:!bg-rose-50" onClick={handleDeleteDraft} isLoading={busy}>
                 Hapus
               </Button>
             </>
           )}
           {existing.postStatus === "posted" && (
-            <VoidButton voidUrl={`/api/transactions/${existing.id}/void`} itemLabel={`pembayaran ${billName}`} onVoided={load} />
+            <VoidButton
+              voidUrl={`/api/transactions/${existing.id}/void`}
+              itemLabel={`pembayaran ${billName}`}
+              previewKind="transaction-void"
+              previewId={existing.id}
+              onVoided={load}
+            />
           )}
         </div>
       </div>

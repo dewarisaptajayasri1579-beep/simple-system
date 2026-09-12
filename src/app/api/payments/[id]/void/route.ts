@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { voidJournalEntryBySource, voidJournalEntryById } from "@/lib/accounting/post-journal"
+import { assertAccountsNotNegative, snapshotAccountBalances } from "@/lib/accounting/cash-guard"
 
 /** Batalkan payment yang sudah posted (salah input) — Owner-only. Semua Transaction yang
  *  dibuat bareng payment ini (pelunasan tiap invoice + costLink Bayar Domain/Server kalau ada)
@@ -26,42 +27,50 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => null)
   const voidReason = typeof body?.reason === "string" ? body.reason.trim() || null : null
 
-  const voided = await prisma.$transaction(async (tx) => {
-    // Void Payment-nya duluan (sebelum recompute status invoice di bawah) supaya query
-    // "payment yang masih posted" tidak ikut menghitung payment ini lagi.
-    const result = await tx.payment.update({
-      where: { id },
-      data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
-      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
-    })
-
-    const transactions = await tx.transaction.findMany({ where: { paymentId: id, postStatus: "posted" } })
-    for (const t of transactions) {
-      if (t.journalEntryId) {
-        await voidJournalEntryById(tx, t.journalEntryId, user.id, voidReason ?? undefined)
-      } else {
-        const sourceType = t.refType ?? "invoice_payment"
-        const sourceId = t.refType && t.refId ? t.refId : t.id
-        await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
-      }
-      await tx.transaction.update({
-        where: { id: t.id },
+  try {
+    const voided = await prisma.$transaction(async (tx) => {
+      // Void Payment-nya duluan (sebelum recompute status invoice di bawah) supaya query
+      // "payment yang masih posted" tidak ikut menghitung payment ini lagi.
+      const result = await tx.payment.update({
+        where: { id },
         data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
+        include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
       })
-    }
 
-    for (const ip of payment.invoicePayments) {
-      const postedPayments = await tx.invoicePayment.findMany({
-        where: { invoiceId: ip.invoiceId, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
-      })
-      const totalPaid = postedPayments.reduce((sum, p) => sum + p.amount, 0)
-      const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: ip.invoiceId } })
-      const newStatus = totalPaid >= invoice.totalAmount - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
-      await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
-    }
+      const transactions = await tx.transaction.findMany({ where: { paymentId: id, postStatus: "posted" } })
+      const before = await snapshotAccountBalances(tx, [payment.accountId, ...transactions.map((t) => t.accountId)])
+      for (const t of transactions) {
+        if (t.journalEntryId) {
+          await voidJournalEntryById(tx, t.journalEntryId, user.id, voidReason ?? undefined)
+        } else {
+          const sourceType = t.refType ?? "invoice_payment"
+          const sourceId = t.refType && t.refId ? t.refId : t.id
+          await voidJournalEntryBySource(tx, { sourceType: sourceType as never, sourceId, voidedById: user.id, voidReason: voidReason ?? undefined })
+        }
+        await tx.transaction.update({
+          where: { id: t.id },
+          data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
+        })
+      }
 
-    return result
-  })
+      for (const ip of payment.invoicePayments) {
+        const postedPayments = await tx.invoicePayment.findMany({
+          where: { invoiceId: ip.invoiceId, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
+        })
+        const totalPaid = postedPayments.reduce((sum, p) => sum + p.amount, 0)
+        const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: ip.invoiceId } })
+        const newStatus = totalPaid >= invoice.totalAmount - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
+        await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
+      }
 
-  return NextResponse.json(voided)
+      // Void pembayaran = uang yang sudah masuk ditarik kembali, jadi saldo akun bisa jatuh minus
+      // kalau uangnya sudah terpakai — ikut dijaga sama seperti pengeluaran.
+      await assertAccountsNotNegative(tx, [payment.accountId, ...transactions.map((t) => t.accountId)], before)
+
+      return result
+    })
+    return NextResponse.json(voided)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal membatalkan pembayaran" }, { status: 400 })
+  }
 }

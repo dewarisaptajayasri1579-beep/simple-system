@@ -89,6 +89,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 title={`Jurnal — ${invoice.invoiceNumber}`}
                 sources={[{ sourceType: "invoice", sourceId: invoice.id }]}
                 postUrl={invoice.postStatus === "draft" ? `/api/invoices/${invoice.id}/post` : undefined}
+                previewKind="invoice"
+                previewId={invoice.id}
               />
             )}
             {invoice.postStatus === "draft" && <InvoiceDeleteButton invoiceId={invoice.id} />}

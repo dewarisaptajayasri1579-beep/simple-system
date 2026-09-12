@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
+import { assertKasBankCoaNotNegative, snapshotKasBankCoaBalances } from "@/lib/accounting/cash-guard"
 
 /** Batalkan jurnal MANUAL yang sudah posted — Owner-only. Jurnal otomatis (invoice/pembayaran/
  *  transaksi/dst) dibatalkan lewat transaksi induknya (endpoint void masing-masing), bukan
@@ -22,11 +23,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => null)
   const voidReason = typeof body?.reason === "string" ? body.reason.trim() || null : null
 
-  const voided = await prisma.journalEntry.update({
-    where: { id },
-    data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
-    include: { lines: { include: { account: true } } },
-  })
-
-  return NextResponse.json(voided)
+  try {
+    const voided = await prisma.$transaction(async (tx) => {
+      const before = await snapshotKasBankCoaBalances(tx, id)
+      const result = await tx.journalEntry.update({
+        where: { id },
+        data: { postStatus: "voided", voidedAt: new Date(), voidedById: user.id, voidReason },
+        include: { lines: { include: { account: true } } },
+      })
+      // Membatalkan jurnal yang MENAMBAH kas/bank sama efeknya dengan pengeluaran — saldo buku
+      // besar Kas & Bank ikut dijaga supaya tidak minus.
+      await assertKasBankCoaNotNegative(tx, id, before)
+      return result
+    })
+    return NextResponse.json(voided)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal membatalkan jurnal" }, { status: 400 })
+  }
 }

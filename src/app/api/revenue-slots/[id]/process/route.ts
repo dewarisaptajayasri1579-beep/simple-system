@@ -8,6 +8,7 @@ import { accountTransferLines, manualExpenseLines } from "@/lib/accounting/journ
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { COA_CODE } from "@/lib/accounting/coa-seed"
 import { generateTransferNumber, generateTransactionNumber } from "@/lib/transaction-number"
+import { assertAccountsNotNegative, snapshotAccountBalances } from "@/lib/accounting/cash-guard"
 
 interface Bucket {
   label: string
@@ -72,6 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const before = await snapshotAccountBalances(tx, [sourceAccountId])
       const amounts: Record<string, number> = {}
       let transferFeeTotal = 0
 
@@ -150,6 +152,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
 
       const pctByLabel = Object.fromEntries(buckets.map((b) => [b.label, b.pct]))
+
+      // Semua Pindah Buku + biaya admin di atas keluar dari akun sumber (rekening penerima
+      // pembayaran) — dijaga supaya saldonya tidak jatuh minus. Dicek sekali di akhir, setelah
+      // semua transfer & biaya posted, bukan per bucket.
+      await assertAccountsNotNegative(tx, [sourceAccountId], before)
 
       return tx.revenueSlot.update({
         where: { id: slot.id },

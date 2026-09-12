@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Card, CardTitle, CardDescription, Button, Alert, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton";
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal";
 
 interface TransactionRow {
@@ -50,9 +50,7 @@ function journalSourceFor(r: TransactionRow): JournalSource {
  *  masih perlu ditindaklanjuti (posting). Transaksi yang jadi bagian dari Pembayaran
  *  (invoice_payment) tidak muncul di sini — itu dikelola dari menu Pembayaran sendiri. */
 export const DraftTransactionsPanel: React.FC = () => {
-  const router = useRouter();
   const [draftRows, setDraftRows] = useState<TransactionRow[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = () => {
@@ -70,20 +68,6 @@ export const DraftTransactionsPanel: React.FC = () => {
     window.addEventListener("transactions-changed", load);
     return () => window.removeEventListener("transactions-changed", load);
   }, []);
-
-  const handlePost = async (id: string) => {
-    setBusy(id);
-    setError("");
-    const res = await fetch(`/api/transactions/${id}/post`, { method: "POST" });
-    const data = await res.json().catch(() => null);
-    setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting transaksi");
-      return;
-    }
-    load();
-    router.refresh();
-  };
 
   if (!draftRows) return null;
 
@@ -117,10 +101,10 @@ export const DraftTransactionsPanel: React.FC = () => {
             title="Jurnal Transaksi"
             sources={[journalSourceFor(r)]}
             postUrl={`/api/transactions/${r.id}/post`}
+            previewKind="transaction"
+            previewId={r.id}
           />
-          <Button size="sm" variant="primary" onClick={() => handlePost(r.id)} isLoading={busy === r.id}>
-            Posting
-          </Button>
+          <PostingConfirmButton previewKind="transaction" previewId={r.id} postUrl={`/api/transactions/${r.id}/post`} onPosted={load} />
         </div>
       ),
     },

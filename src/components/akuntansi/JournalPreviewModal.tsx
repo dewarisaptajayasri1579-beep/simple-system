@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, Button, Alert } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PostingConfirmButton } from "./PostingConfirmButton";
+import type { PostingPreviewKind } from "./PostingPreview";
 
 interface JournalLineRow {
   id: string;
@@ -42,6 +44,10 @@ export interface JournalPreviewModalProps {
    *  seperti update Invoice.status/lastPaidAt ikut jalan). */
   postUrl?: string;
   postLabel?: string;
+  /** Diisi bareng postUrl — supaya tombol Posting di sini ikut lewat dialog konfirmasi
+   *  (resume inputan + saldo kas/bank setelah posting), tidak langsung eksekusi. */
+  previewKind?: PostingPreviewKind;
+  previewId?: string;
 }
 
 function formatRupiah(n: number) {
@@ -51,7 +57,7 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
 }
 
-export const JournalPreviewModal: React.FC<JournalPreviewModalProps> = ({ open, onClose, title, sources, postUrl, postLabel }) => {
+export const JournalPreviewModal: React.FC<JournalPreviewModalProps> = ({ open, onClose, title, sources, postUrl, postLabel, previewKind, previewId }) => {
   const router = useRouter();
   const [entries, setEntries] = useState<JournalEntryRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,9 +144,20 @@ export const JournalPreviewModal: React.FC<JournalPreviewModalProps> = ({ open, 
 
         {hasDraft && postUrl && (
           <div className="flex justify-end pt-2">
-            <Button variant="primary" onClick={handlePost} isLoading={posting}>
-              {postLabel ?? "Posting"}
-            </Button>
+            {previewKind && previewId ? (
+              <PostingConfirmButton
+                previewKind={previewKind}
+                previewId={previewId}
+                postUrl={postUrl}
+                label={postLabel ?? "Posting"}
+                size="md"
+                onPosted={onClose}
+              />
+            ) : (
+              <Button variant="primary" onClick={handlePost} isLoading={posting}>
+                {postLabel ?? "Posting"}
+              </Button>
+            )}
           </div>
         )}
       </div>

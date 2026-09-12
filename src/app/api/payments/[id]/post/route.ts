@@ -4,6 +4,7 @@ import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { finalizeTransactionPosting } from "@/lib/accounting/mark-paid"
 import { invoiceCashDue } from "@/lib/invoice-due"
+import { assertAccountsNotNegative, snapshotAccountBalances } from "@/lib/accounting/cash-guard"
 
 /** Posting Payment draft: semua Transaction yang dibuat bareng payment ini (pelunasan tiap
  *  invoice, plus costLink Bayar Domain/Server kalau ada) ikut diposting sekaligus, baru di
@@ -30,49 +31,59 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     )
   }
 
-  const posted = await prisma.$transaction(async (tx) => {
-    const draftTransactions = await tx.transaction.findMany({ where: { paymentId: id, postStatus: "draft" } })
-    for (const t of draftTransactions) {
-      await finalizeTransactionPosting(tx, { transactionId: t.id, postedById: user.id })
-    }
+  try {
+    const posted = await prisma.$transaction(async (tx) => {
+      const draftTransactions = await tx.transaction.findMany({ where: { paymentId: id, postStatus: "draft" } })
+      const before = await snapshotAccountBalances(tx, [payment.accountId, ...draftTransactions.map((t) => t.accountId)])
+      for (const t of draftTransactions) {
+        await finalizeTransactionPosting(tx, { transactionId: t.id, postedById: user.id })
+      }
 
-    // "Slotting Omset" — draft otomatis begitu payment ini posted, supaya langsung antre di menu
-    // Keuangan > Slotting Omset untuk direview/diproses staf. initialCostAmount = SUM(cost) semua
-    // Transaction payment ini (HPP + proporsi PPN yang sudah dipotong saat pembayaran diinput,
-    // lihat computeSplit di payments/route.ts) — bukan cuma HPP murni, tapi basis yang sama
-    // dipakai netAmount Transaction, supaya konsisten dengan yang staf lihat di sana.
-    await tx.revenueSlot.create({
-      data: {
-        paymentId: id,
-        grossAmount: payment.totalAmount,
-        initialCostAmount: draftTransactions.reduce((sum, t) => sum + t.cost, 0),
-      },
-    })
-
-    // Tandai payment lebih dulu agar query total pembayaran di bawah ikut menghitung
-    // payment ini. Sebelumnya update ini dilakukan setelah perhitungan sehingga payment
-    // yang baru diposting masih berstatus draft dan invoice keliru tetap "unpaid".
-    const result = await tx.payment.update({
-      where: { id },
-      data: { postStatus: "posted", postedAt: new Date(), postedById: user.id },
-      include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
-    })
-
-    // Recompute status tiap invoice yang dibayar payment ini, berdasarkan SEMUA payment yang
-    // sudah posted (termasuk payment ini, yang baris Transaction-nya baru saja diposting di
-    // atas) — payment lain yang masih draft tetap tidak ikut terhitung.
-    for (const ip of payment.invoicePayments) {
-      const postedPayments = await tx.invoicePayment.findMany({
-        where: { invoiceId: ip.invoiceId, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
+      // "Slotting Omset" — draft otomatis begitu payment ini posted, supaya langsung antre di menu
+      // Keuangan > Slotting Omset untuk direview/diproses staf. initialCostAmount = SUM(cost) semua
+      // Transaction payment ini (HPP + proporsi PPN yang sudah dipotong saat pembayaran diinput,
+      // lihat computeSplit di payments/route.ts) — bukan cuma HPP murni, tapi basis yang sama
+      // dipakai netAmount Transaction, supaya konsisten dengan yang staf lihat di sana.
+      await tx.revenueSlot.create({
+        data: {
+          paymentId: id,
+          grossAmount: payment.totalAmount,
+          initialCostAmount: draftTransactions.reduce((sum, t) => sum + t.cost, 0),
+        },
       })
-      const totalPaid = postedPayments.reduce((sum, p) => sum + p.amount, 0)
-      const cashDue = invoiceCashDue(ip.invoice, payment.client.isPemungutPpn)
-      const newStatus = totalPaid >= cashDue - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
-      await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
-    }
 
-    return result
-  })
+      // Tandai payment lebih dulu agar query total pembayaran di bawah ikut menghitung
+      // payment ini. Sebelumnya update ini dilakukan setelah perhitungan sehingga payment
+      // yang baru diposting masih berstatus draft dan invoice keliru tetap "unpaid".
+      const result = await tx.payment.update({
+        where: { id },
+        data: { postStatus: "posted", postedAt: new Date(), postedById: user.id },
+        include: { client: true, account: true, invoicePayments: { include: { invoice: true } } },
+      })
 
-  return NextResponse.json(posted)
+      // Recompute status tiap invoice yang dibayar payment ini, berdasarkan SEMUA payment yang
+      // sudah posted (termasuk payment ini, yang baris Transaction-nya baru saja diposting di
+      // atas) — payment lain yang masih draft tetap tidak ikut terhitung.
+      for (const ip of payment.invoicePayments) {
+        const postedPayments = await tx.invoicePayment.findMany({
+          where: { invoiceId: ip.invoiceId, OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] },
+        })
+        const totalPaid = postedPayments.reduce((sum, p) => sum + p.amount, 0)
+        const cashDue = invoiceCashDue(ip.invoice, payment.client.isPemungutPpn)
+        const newStatus = totalPaid >= cashDue - 0.5 ? "paid" : totalPaid > 0 ? "partial" : "unpaid"
+        await tx.invoice.update({ where: { id: ip.invoiceId }, data: { status: newStatus } })
+      }
+
+      // Payment umumnya menambah saldo, tapi baris Biaya (costLink Bayar Domain/Server/
+      // Maintenance) yang ikut diposting di atas bisa bikin efek bersihnya negatif — jadi tetap
+      // dijaga supaya kas/bank tidak minus. Dicek di akhir, setelah SEMUA baris payment ini
+      // posted, bukan per baris (urutan posting per baris bisa minus sesaat padahal totalnya aman).
+      await assertAccountsNotNegative(tx, [payment.accountId, ...draftTransactions.map((t) => t.accountId)], before)
+
+      return result
+    })
+    return NextResponse.json(posted)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal posting pembayaran" }, { status: 400 })
+  }
 }

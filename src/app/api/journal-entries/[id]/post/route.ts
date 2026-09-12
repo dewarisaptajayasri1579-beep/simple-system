@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { finalizeJournalEntryById } from "@/lib/accounting/post-journal"
+import { assertKasBankCoaNotNegative, snapshotKasBankCoaBalances } from "@/lib/accounting/cash-guard"
 
 /** Posting jurnal manual draft — Owner-only, sama seperti pembuatannya. */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!entry) return NextResponse.json({ error: "Jurnal tidak ditemukan" }, { status: 404 })
   if (entry.postStatus !== "draft") return NextResponse.json({ error: "Jurnal ini bukan draft (sudah diposting/dibatalkan)" }, { status: 400 })
 
-  const posted = await prisma.$transaction(async (tx) => finalizeJournalEntryById(tx, id, user.id))
-
-  return NextResponse.json(posted)
+  try {
+    const posted = await prisma.$transaction(async (tx) => {
+      const before = await snapshotKasBankCoaBalances(tx, id)
+      const result = await finalizeJournalEntryById(tx, id, user.id)
+      // Jurnal manual tidak lewat Transaction, jadi saldo Account tidak bergerak — yang bergerak
+      // saldo akun COA Kas & Bank di Buku Besar. Itu yang dijaga supaya tidak minus.
+      await assertKasBankCoaNotNegative(tx, id, before)
+      return result
+    })
+    return NextResponse.json(posted)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal posting jurnal" }, { status: 400 })
+  }
 }

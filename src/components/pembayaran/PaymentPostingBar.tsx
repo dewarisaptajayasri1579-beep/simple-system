@@ -6,6 +6,7 @@ import { Button, Alert } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { JournalButton } from "@/components/akuntansi/JournalButton";
 import { VoidButton } from "@/components/akuntansi/VoidButton";
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton";
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal";
 
 export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft" | "posted" | "voided"; sources: JournalSource[] }> = ({
@@ -15,23 +16,8 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
 }) => {
   const router = useRouter();
   const [status, setStatus] = useState(postStatus);
-  const [posting, setPosting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-
-  const handlePost = async () => {
-    setPosting(true);
-    setError("");
-    const res = await fetch(`/api/payments/${paymentId}/post`, { method: "POST" });
-    const data = await res.json().catch(() => null);
-    setPosting(false);
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting pembayaran");
-      return;
-    }
-    setStatus("posted");
-    router.refresh();
-  };
 
   const handleDelete = async () => {
     if (!confirm("Hapus draft pembayaran ini? Kalau salah input, ini cara paling gampang untuk input ulang dari awal.")) return;
@@ -56,12 +42,17 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
           title="Jurnal Pembayaran"
           sources={sources}
           postUrl={status === "draft" ? `/api/payments/${paymentId}/post` : undefined}
+          previewKind="payment"
+          previewId={paymentId}
         />
         {status === "draft" && (
           <>
-            <Button size="sm" variant="primary" onClick={handlePost} isLoading={posting}>
-              Posting
-            </Button>
+            <PostingConfirmButton
+              previewKind="payment"
+              previewId={paymentId}
+              postUrl={`/api/payments/${paymentId}/post`}
+              onPosted={() => setStatus("posted")}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -74,7 +65,13 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
           </>
         )}
         {status === "posted" && (
-          <VoidButton voidUrl={`/api/payments/${paymentId}/void`} itemLabel="pembayaran ini" onVoided={() => setStatus("voided")} />
+          <VoidButton
+            voidUrl={`/api/payments/${paymentId}/void`}
+            itemLabel="pembayaran ini"
+            previewKind="payment-void"
+            previewId={paymentId}
+            onVoided={() => setStatus("voided")}
+          />
         )}
       </div>
       {error && (

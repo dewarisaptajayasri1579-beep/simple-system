@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { finalizeTransactionPosting } from "@/lib/accounting/mark-paid"
+import { assertAccountsNotNegative, snapshotAccountBalances } from "@/lib/accounting/cash-guard"
 
 /** Posting Transaction draft — dipakai untuk transaksi manual Keuangan (Input Pemasukan/
  *  Pengeluaran) dan hasil "Bayar Server"/"Bayar Domain"/"Tandai Lunas" Biaya Berkala. Transaksi
@@ -23,7 +24,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     )
   }
 
-  const posted = await prisma.$transaction(async (tx) => finalizeTransactionPosting(tx, { transactionId: id, postedById: user.id }))
-
-  return NextResponse.json(posted)
+  try {
+    const posted = await prisma.$transaction(async (tx) => {
+      const before = await snapshotAccountBalances(tx, [transaction.accountId])
+      const result = await finalizeTransactionPosting(tx, { transactionId: id, postedById: user.id })
+      // Pengeluaran mengurangi saldo akun — dijaga supaya kas/bank tidak pernah minus. Dicek di
+      // akhir (setelah transaksi ini posted) supaya yang dilihat saldo akhir yang sebenarnya.
+      if (transaction.type === "expense") await assertAccountsNotNegative(tx, [transaction.accountId], before)
+      return result
+    })
+    return NextResponse.json(posted)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal posting transaksi" }, { status: 400 })
+  }
 }

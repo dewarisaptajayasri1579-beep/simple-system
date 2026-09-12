@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, Button, Input, CurrencyInput, Alert, Badge, Modal } from "@/components/ui"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton"
 
 export interface SlottingOmsetDetailProps {
   isOwner: boolean
@@ -61,11 +62,9 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
   const [newDescription, setNewDescription] = useState("")
   const [newAmount, setNewAmount] = useState(0)
   const [isAddingLine, setIsAddingLine] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
   const [isSkipping, setIsSkipping] = useState(false)
   const [error, setError] = useState("")
   const [feeOverrides, setFeeOverrides] = useState<Record<BucketKey, boolean>>(settingsPreview.defaultFeeApplies)
-  const [confirmProcessOpen, setConfirmProcessOpen] = useState(false)
   const [confirmSkipOpen, setConfirmSkipOpen] = useState(false)
 
   const totalCost = slot.initialCostAmount + costLines.reduce((s, l) => s + l.amount, 0)
@@ -124,32 +123,20 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
     router.refresh()
   }
 
-  const handleProcess = async () => {
-    setConfirmProcessOpen(false)
-    setIsProcessing(true)
-    setError("")
-    const res = await fetch(`/api/revenue-slots/${slot.id}/process`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feeOverrides }),
-    })
-    const data = await res.json()
-    setIsProcessing(false)
-    if (!res.ok) {
-      setError(data.error || "Gagal proses Slotting Omset")
-      return
-    }
-    router.refresh()
+  // Hasil proses dipakai langsung buat update tampilan (tanpa nunggu refresh selesai) — bentuk
+  // respons-nya = RevenueSlot yang sudah "processed" dari POST /api/revenue-slots/[id]/process.
+  const handleProcessed = (data: unknown) => {
+    const slotResult = data as Partial<SlottingOmsetDetailProps["slot"]>
     setSlot((prev) => ({
       ...prev,
       status: "processed",
-      netAmount: data.netAmount,
-      operasionalAmount: data.operasionalAmount,
-      direksiAmount: data.direksiAmount,
-      bonusAmount: data.bonusAmount,
-      hppReserveAmount: data.hppReserveAmount,
-      labaDitahanAmount: data.labaDitahanAmount,
-      transferFeeTotal: data.transferFeeTotal,
+      netAmount: slotResult.netAmount ?? prev.netAmount,
+      operasionalAmount: slotResult.operasionalAmount ?? prev.operasionalAmount,
+      direksiAmount: slotResult.direksiAmount ?? prev.direksiAmount,
+      bonusAmount: slotResult.bonusAmount ?? prev.bonusAmount,
+      hppReserveAmount: slotResult.hppReserveAmount ?? prev.hppReserveAmount,
+      labaDitahanAmount: slotResult.labaDitahanAmount ?? prev.labaDitahanAmount,
+      transferFeeTotal: slotResult.transferFeeTotal ?? prev.transferFeeTotal,
     }))
   }
 
@@ -322,29 +309,20 @@ export const SlottingOmsetDetail: React.FC<SlottingOmsetDetailProps> = ({ isOwne
             <Button variant="ghost" onClick={() => setConfirmSkipOpen(true)} isLoading={isSkipping}>
               Tidak Split
             </Button>
-            <Button variant="primary" onClick={() => setConfirmProcessOpen(true)} isLoading={isProcessing} disabled={netAmount <= 0}>
-              Proses
-            </Button>
+            <PostingConfirmButton
+              previewKind="revenue-slot"
+              previewId={slot.id}
+              postUrl={`/api/revenue-slots/${slot.id}/process`}
+              postBody={{ feeOverrides }}
+              previewFeeOverrides={feeOverrides}
+              label="Proses"
+              size="md"
+              disabled={netAmount <= 0}
+              onPosted={handleProcessed}
+            />
           </div>
         )}
       </Card>
-
-      <Modal isOpen={confirmProcessOpen} onClose={() => setConfirmProcessOpen(false)} title="Proses Slotting Omset?" size="sm">
-        <div className="space-y-4">
-          <p className="text-sm text-slate-600 font-medium">
-            Slotting Omset <span className="font-bold text-slate-800">{slot.payment.paymentNumber}</span> — Laba Bersih{" "}
-            <span className="font-bold text-slate-800">{formatRupiah(netAmount)}</span> akan dipindah ke 5 rekening tujuan.
-          </p>
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setConfirmProcessOpen(false)}>
-              Batal
-            </Button>
-            <Button variant="primary" onClick={handleProcess} isLoading={isProcessing}>
-              Ya, Proses
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       <Modal isOpen={confirmSkipOpen} onClose={() => setConfirmSkipOpen(false)} title="Tandai Tidak Di-split?" size="sm">
         <div className="space-y-4">

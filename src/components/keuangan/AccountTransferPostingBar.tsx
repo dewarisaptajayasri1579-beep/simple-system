@@ -6,6 +6,7 @@ import { Button, Alert } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { VoidButton } from "@/components/akuntansi/VoidButton"
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton"
 
 /** Posting/Hapus/Batalkan 1 Pindah Buku — sama pola dengan TransactionPostingBar, cuma lebih
  *  sederhana (Pindah Buku tidak pernah jadi bagian dari Payment). */
@@ -17,23 +18,8 @@ export const AccountTransferPostingBar: React.FC<{
 }> = ({ transferId, postStatus, journalEntryId, isOwner }) => {
   const router = useRouter()
   const [status, setStatus] = useState(postStatus)
-  const [posting, setPosting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
-
-  const handlePost = async () => {
-    setPosting(true)
-    setError("")
-    const res = await fetch(`/api/account-transfers/${transferId}/post`, { method: "POST" })
-    const data = await res.json().catch(() => null)
-    setPosting(false)
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting Pindah Buku")
-      return
-    }
-    setStatus("posted")
-    router.refresh()
-  }
 
   const handleDelete = async () => {
     if (!confirm("Hapus draft Pindah Buku ini? Kalau salah input, ini cara paling gampang untuk input ulang dari awal.")) return
@@ -58,12 +44,17 @@ export const AccountTransferPostingBar: React.FC<{
           title="Jurnal Pindah Buku"
           sources={[journalEntryId ? { entryId: journalEntryId } : { sourceType: "transfer", sourceId: transferId }]}
           postUrl={status === "draft" ? `/api/account-transfers/${transferId}/post` : undefined}
+          previewKind="account-transfer"
+          previewId={transferId}
         />
         {status === "draft" && (
           <>
-            <Button size="sm" variant="primary" onClick={handlePost} isLoading={posting}>
-              Posting
-            </Button>
+            <PostingConfirmButton
+              previewKind="account-transfer"
+              previewId={transferId}
+              postUrl={`/api/account-transfers/${transferId}/post`}
+              onPosted={() => setStatus("posted")}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -76,7 +67,13 @@ export const AccountTransferPostingBar: React.FC<{
           </>
         )}
         {status === "posted" && isOwner && (
-          <VoidButton voidUrl={`/api/account-transfers/${transferId}/void`} itemLabel="Pindah Buku ini" onVoided={() => setStatus("voided")} />
+          <VoidButton
+            voidUrl={`/api/account-transfers/${transferId}/void`}
+            itemLabel="Pindah Buku ini"
+            previewKind="account-transfer-void"
+            previewId={transferId}
+            onVoided={() => setStatus("voided")}
+          />
         )}
       </div>
       {error && (

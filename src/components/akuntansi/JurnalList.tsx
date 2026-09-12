@@ -19,6 +19,7 @@ import {
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AuditTrail } from "@/components/shared/AuditTrail";
 import { VoidButton } from "./VoidButton";
+import { PostingConfirmButton } from "./PostingConfirmButton";
 import { Plus, Trash2 } from "lucide-react";
 
 export interface JurnalLineRow {
@@ -98,7 +99,6 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
     const match = entries.find((e) => e.id === entryId);
     if (match) setViewing(match);
   }, [searchParams, entries]);
-  const [posting, setPosting] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
@@ -176,20 +176,6 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
     router.refresh();
   };
 
-  const handlePost = async (id: string) => {
-    setPosting(id);
-    setError("");
-    const res = await fetch(`/api/journal-entries/${id}/post`, { method: "POST" });
-    const data = await res.json();
-    setPosting(null);
-    if (!res.ok) {
-      setError(data.error || "Gagal posting jurnal");
-      return;
-    }
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, postStatus: "posted" } : e)));
-    router.refresh();
-  };
-
   const columns: FilterableColumn<JurnalEntryRow>[] = [
     { key: "entryNumber", header: "No. Jurnal", filterValue: (e) => e.entryNumber, cellClassName: "font-mono font-semibold", cell: (e) => e.entryNumber },
     { key: "date", header: "Tanggal", cell: (e) => formatDate(e.date) },
@@ -222,14 +208,19 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
             Lihat
           </Button>
           {e.postStatus === "draft" && e.sourceType === "manual" && isOwner && (
-            <Button size="sm" variant="primary" onClick={() => handlePost(e.id)} isLoading={posting === e.id}>
-              Posting
-            </Button>
+            <PostingConfirmButton
+              previewKind="journal-entry"
+              previewId={e.id}
+              postUrl={`/api/journal-entries/${e.id}/post`}
+              onPosted={() => setEntries((prev) => prev.map((row) => (row.id === e.id ? { ...row, postStatus: "posted" } : row)))}
+            />
           )}
           {e.postStatus === "posted" && e.sourceType === "manual" && isOwner && (
             <VoidButton
               voidUrl={`/api/journal-entries/${e.id}/void`}
               itemLabel={`jurnal ${e.entryNumber}`}
+              previewKind="journal-entry-void"
+              previewId={e.id}
               onVoided={(reason) =>
                 setEntries((prev) =>
                   prev.map((row) =>

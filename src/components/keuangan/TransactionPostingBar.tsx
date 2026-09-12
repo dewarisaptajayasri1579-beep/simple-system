@@ -7,6 +7,7 @@ import { Button, Alert } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 import { JournalButton } from "@/components/akuntansi/JournalButton"
 import { VoidButton } from "@/components/akuntansi/VoidButton"
+import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton"
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal"
 
 /** Posting/Hapus/Batalkan 1 Transaction (Kas Keluar/Kas Masuk manual, atau hasil Bayar
@@ -23,23 +24,8 @@ export const TransactionPostingBar: React.FC<{
 }> = ({ transactionId, postStatus, sources, managedByPaymentId, isOwner }) => {
   const router = useRouter()
   const [status, setStatus] = useState(postStatus)
-  const [posting, setPosting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
-
-  const handlePost = async () => {
-    setPosting(true)
-    setError("")
-    const res = await fetch(`/api/transactions/${transactionId}/post`, { method: "POST" })
-    const data = await res.json().catch(() => null)
-    setPosting(false)
-    if (!res.ok) {
-      setError(data?.error || "Gagal posting transaksi")
-      return
-    }
-    setStatus("posted")
-    router.refresh()
-  }
 
   const handleDelete = async () => {
     if (!confirm("Hapus draft transaksi ini? Kalau salah input, ini cara paling gampang untuk input ulang dari awal.")) return
@@ -60,7 +46,7 @@ export const TransactionPostingBar: React.FC<{
     <div className="no-print space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge type={status} size="sm" />
-        <JournalButton title="Jurnal Transaksi" sources={sources} postUrl={!managedByPaymentId && status === "draft" ? `/api/transactions/${transactionId}/post` : undefined} />
+        <JournalButton title="Jurnal Transaksi" sources={sources} postUrl={!managedByPaymentId && status === "draft" ? `/api/transactions/${transactionId}/post` : undefined} previewKind="transaction" previewId={transactionId} />
         {managedByPaymentId ? (
           <Link href={`/pembayaran/${managedByPaymentId}`} className="text-xs font-semibold text-blue-600 hover:underline">
             Bagian dari kwitansi Pembayaran — kelola di sana
@@ -69,9 +55,12 @@ export const TransactionPostingBar: React.FC<{
           <>
             {status === "draft" && (
               <>
-                <Button size="sm" variant="primary" onClick={handlePost} isLoading={posting}>
-                  Posting
-                </Button>
+                <PostingConfirmButton
+                  previewKind="transaction"
+                  previewId={transactionId}
+                  postUrl={`/api/transactions/${transactionId}/post`}
+                  onPosted={() => setStatus("posted")}
+                />
                 <Button
                   size="sm"
                   variant="outline"
@@ -84,7 +73,13 @@ export const TransactionPostingBar: React.FC<{
               </>
             )}
             {status === "posted" && isOwner && (
-              <VoidButton voidUrl={`/api/transactions/${transactionId}/void`} itemLabel="transaksi ini" onVoided={() => setStatus("voided")} />
+              <VoidButton
+                voidUrl={`/api/transactions/${transactionId}/void`}
+                itemLabel="transaksi ini"
+                previewKind="transaction-void"
+                previewId={transactionId}
+                onVoided={() => setStatus("voided")}
+              />
             )}
           </>
         )}
