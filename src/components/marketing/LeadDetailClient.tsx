@@ -7,8 +7,9 @@ import { ArrowLeft, MessageSquare, Mic, RefreshCw, Square } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+import { PriorityPinButton } from "./PriorityPinButton"
 import { SegmentPicker } from "./SegmentPicker"
-import { tempBadgeVariant } from "./ui"
+import { OutcomeBadge, PriorityPinBadge, tempBadgeVariant } from "./ui"
 
 interface Opt {
   id: string
@@ -40,6 +41,9 @@ interface LeadDetail {
   lostReason: Opt | null
   buyingPowerTier: Opt | null
   buyingPowerNote: string | null
+  priorityPinnedAt: string | null
+  priorityPinNote: string | null
+  priorityPinnedByName: string | null
   buyingPowerSource: string
   dealValue: number | null
   wonNote: string | null
@@ -530,7 +534,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               <h1 className="text-lg font-black text-slate-900">{lead.displayName}</h1>
               <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
               {lead.segment && <Badge variant="secondary" size="sm">{lead.segment.name}</Badge>}
-              {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
+              <OutcomeBadge outcome={lead.outcome} lostReason={lead.lostReason?.name} />
+              <PriorityPinBadge pinnedAt={lead.priorityPinnedAt} note={lead.priorityPinNote} />
             </div>
             <p className="text-sm text-slate-500 mt-0.5">
               {lead.companyName ? `${lead.companyName} · ` : ""}
@@ -541,7 +546,16 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               {lead.conversations[0]?.whatsappConnectionLabel && ` · masuk lewat ${lead.conversations[0].whatsappConnectionLabel}`}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+            <PriorityPinButton
+              leadId={leadId}
+              pinnedAt={lead.priorityPinnedAt}
+              pinNote={lead.priorityPinNote}
+              pinnedByName={lead.priorityPinnedByName}
+              currentPicId={pic?.id ?? null}
+              viewerRole={viewerRole}
+              onDone={() => load()}
+            />
             {canAct && (
               <Button
                 size="sm"

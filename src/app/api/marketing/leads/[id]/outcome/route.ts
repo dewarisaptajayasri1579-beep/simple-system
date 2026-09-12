@@ -62,12 +62,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const wonNote = outcome === "WON" && typeof body?.wonNote === "string" ? body.wonNote.trim() || null : null
 
   const closedByUserId = EXIT_FUNNEL.includes(outcome) ? (activePic?.assignedUserId ?? null) : null
+  // Tanda "Prioritas SPV" ikut dilepas begitu lead keluar funnel — kalau tidak, lead yang sudah
+  // Won/Lost tetap nangkring di paling atas daftar Sales dan menutupi yang masih perlu dikejar.
+  const priorityPinReset = EXIT_FUNNEL.includes(outcome)
+    ? { priorityPinnedAt: null, priorityPinnedById: null, priorityPinNote: null }
+    : {}
   const data =
     outcome === "WON"
-      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null, closedByUserId }
+      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null, closedByUserId, ...priorityPinReset }
       : outcome === "LOST"
-        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null, closedByUserId }
-        : { outcome, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null, closedByUserId }
+        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
+        : { outcome, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
 
   await prisma.$transaction(async (tx) => {
     await tx.lead.update({ where: { id }, data })

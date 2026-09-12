@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/marketing/audit"
 import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { recalcLeadPriority } from "@/lib/marketing/priority"
 import { prisma } from "@/lib/prisma"
+import { resolveUserNames } from "@/lib/user-names"
 
 /** GET — detail lengkap 1 lead. Role SALES cuma boleh buka lead yang dia PIC-nya (404 kalau
  *  bukan) — Manager/SPV tetap transparan lihat semua. PATCH — edit field identitas + segmentasi
@@ -98,10 +99,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   ])
   const activePic = lead.assignments.find((a) => a.isActive)?.assignedUser ?? null
   const isCurrentPic = activePic?.id === user.id
+  // Nama penanda prioritas — priorityPinnedById disimpan sebagai id mentah (bukan relasi FK),
+  // lihat catatan di schema.prisma.
+  const pinnedByName = lead.priorityPinnedById
+    ? ((await resolveUserNames([lead.priorityPinnedById])).get(lead.priorityPinnedById) ?? null)
+    : null
   const lockActive = lead.temperatureLockedUntil != null && lead.temperatureLockedUntil.getTime() > Date.now()
 
   return NextResponse.json({
-    lead: serializeLead(lead),
+    lead: serializeLead({ ...lead, priorityPinnedByName: pinnedByName }),
     pic: activePic,
     canAct,
     viewerRole: marketingRole,
@@ -224,6 +230,9 @@ function serializeLead(lead: any) {
     currentActivityStage: lead.currentActivityStage,
     priorityScore: lead.priorityScore,
     priorityLevel: lead.priorityLevel,
+    priorityPinnedAt: lead.priorityPinnedAt?.toISOString() ?? null,
+    priorityPinNote: lead.priorityPinNote ?? null,
+    priorityPinnedByName: lead.priorityPinnedByName ?? null,
     segment: lead.segment,
     source: lead.source,
     lostReason: lead.lostReason,

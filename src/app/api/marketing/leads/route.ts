@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/marketing/audit"
 import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
+import { resolveUserNames } from "@/lib/user-names"
 import { normalizePhoneNumber } from "@/lib/wahub"
 
 /**
@@ -41,6 +42,8 @@ export async function GET(request: Request) {
   if (sp.get("outcome")) where.outcome = sp.get("outcome")!
   else where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA"] }
   if (sp.get("priorityLevel")) where.priorityLevel = sp.get("priorityLevel")!
+  // ?pinned=1 — cuma lead yang ditandai prioritas oleh SPV/Manager (filter pill "Prioritas SPV").
+  if (sp.get("pinned") === "1") where.priorityPinnedAt = { not: null }
   if (q) {
     where.OR = [
       { displayName: { contains: q, mode: "insensitive" } },
@@ -53,14 +56,18 @@ export async function GET(request: Request) {
     ]
   }
 
+  // Lead yang ditandai SPV selalu di baris paling atas, APA PUN pilihan sortirnya — itu seluruh
+  // gunanya penanda ini. `nulls: "last"` wajib: di Postgres, ORDER BY ... DESC menaruh NULL
+  // duluan, jadi tanpa ini yang TIDAK ditandai malah naik ke atas.
+  const pinnedFirst: Prisma.LeadOrderByWithRelationInput = { priorityPinnedAt: { sort: "desc", nulls: "last" } }
   const orderBy: Prisma.LeadOrderByWithRelationInput[] =
     sort === "recent"
-      ? [{ lastInteractionAt: { sort: "desc", nulls: "last" } }]
+      ? [pinnedFirst, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
       : sort === "chat"
-        ? [{ lastChatAt: { sort: "desc", nulls: "last" } }]
+        ? [pinnedFirst, { lastChatAt: { sort: "desc", nulls: "last" } }]
         : sort === "created"
-          ? [{ createdAt: "desc" }]
-          : [{ priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
+          ? [pinnedFirst, { createdAt: "desc" }]
+          : [pinnedFirst, { priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
 
   const [total, rows] = await Promise.all([
     prisma.lead.count({ where }),
@@ -79,6 +86,9 @@ export async function GET(request: Request) {
         priorityScore: true,
         priorityLevel: true,
         outcome: true,
+        priorityPinnedAt: true,
+        priorityPinnedById: true,
+        priorityPinNote: true,
         lastInteractionAt: true,
         lastChatAt: true,
         firstContactAt: true,
@@ -92,7 +102,7 @@ export async function GET(request: Request) {
   ])
 
   const leadIds = rows.map((r) => r.id)
-  const [assignments, nextFollowUps, lastActivities, actable] = await Promise.all([
+  const [assignments, nextFollowUps, lastActivities, actable, pinnerNames] = await Promise.all([
     prisma.leadAssignment.findMany({
       where: { leadId: { in: leadIds }, isActive: true },
       select: { leadId: true, assignedUser: { select: { id: true, name: true } } },
@@ -109,6 +119,7 @@ export async function GET(request: Request) {
       select: { leadId: true, occurredAt: true, note: true, activityType: { select: { name: true } } },
     }),
     actableLeadIds(user, leadIds),
+    resolveUserNames(rows.map((r) => r.priorityPinnedById)),
   ])
   const picByLead = new Map(assignments.map((a) => [a.leadId, a.assignedUser]))
   const nextFuByLead = new Map(nextFollowUps.map((g) => [g.leadId, g._min.scheduledAt]))
@@ -129,6 +140,9 @@ export async function GET(request: Request) {
       priorityLevel: r.priorityLevel,
       outcome: r.outcome,
       lostReasonName: r.lostReason?.name ?? null,
+      priorityPinnedAt: r.priorityPinnedAt?.toISOString() ?? null,
+      priorityPinNote: r.priorityPinNote ?? null,
+      priorityPinnedByName: r.priorityPinnedById ? (pinnerNames.get(r.priorityPinnedById) ?? null) : null,
       segmentName: r.segment?.name ?? null,
       buyingPowerTierName: r.buyingPowerTier?.name ?? null,
       note: r.note ?? null,

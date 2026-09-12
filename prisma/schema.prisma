@@ -1305,6 +1305,17 @@ model Lead {
   currentActivityStage   String    @default("NONE") @map("current_activity_stage") // "NONE" | "DISCUSSION" | "ZOOM_DEMO" | "PROPOSAL" | "NEGOTIATION"
   priorityScore          Float     @default(0) @map("priority_score") // 0-100, lihat LeadPrioritySnapshot untuk breakdown
   priorityLevel          String    @default("LOW") @map("priority_level") // "LOW" | "MONITOR" | "HIGH" | "TOP"
+  // Tanda prioritas MANUAL dari SPV/Manager ("Tandai Prioritas") — SENGAJA field terpisah, bukan
+  // menaikkan priorityScore: skor itu dihitung ulang Priority Engine tiap ada event (lihat
+  // priority.ts §15), jadi angka yang dipaksa manusia pasti ketimpa sendiri beberapa jam kemudian.
+  // Lead yang ditandai naik ke paling atas daftar Lead/Inbox/Follow Up apa pun skornya, sampai
+  // tandanya dilepas atau lead-nya keluar funnel (WON/LOST). Pola sama dengan
+  // temperatureLockedUntil: keputusan manusia tidak boleh ditimpa mesin.
+  priorityPinnedAt       DateTime? @map("priority_pinned_at")
+  // Snapshot id user yang menandai, BUKAN relasi FK — pola sama dengan closedByUserId di bawah
+  // (nama di-resolve lewat lib/user-names.ts).
+  priorityPinnedById     String?   @map("priority_pinned_by_id")
+  priorityPinNote        String?   @map("priority_pin_note")
   firstContactAt         DateTime  @default(now()) @map("first_contact_at")
   lastInteractionAt      DateTime? @map("last_interaction_at")
   lastCustomerMessageAt  DateTime? @map("last_customer_message_at")
@@ -1359,6 +1370,10 @@ model Lead {
   @@index([temperature])
   @@index([outcome])
   @@index([priorityScore])
+  // Dipakai buat urutan "yang ditandai naik ke atas" + filter "Prioritas SPV" di daftar
+  // Lead/Inbox/Follow Up, jadi wajib ada indexnya sejak awal (lihat CLAUDE.md).
+  @@index([priorityPinnedAt])
+  @@index([priorityPinnedById])
   @@index([lastInteractionAt])
   @@index([lastChatAt])
   @@index([createdAt])

@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma"
  *    PIC-nya user ini. Role SALES DIPAKSA "mine" di server — beda dari Manager/SPV, Sales cuma
  *    boleh lihat Inbox miliknya sendiri, apa pun query `scope` yang dikirim client (lihat
  *    InboxClient.tsx yang juga sudah sembunyikan toggle-nya, tapi enforcement aslinya di sini).
- *  - `filter`: all | unread | priority | hot
+ *  - `filter`: all | unread | priority | hot | pinned (ditandai prioritas SPV)
  *  - `waConnectionId`: filter ke satu nomor WA (WhatsappConnection) tertentu — dipakai kalau
  *    sales/manager punya >1 nomor dan mau pisahin Inbox per nomor.
  *  - `q`: cari nama / perusahaan / nomor WA, ATAU isi pesan (Message.body) di percakapan itu
@@ -39,6 +39,7 @@ export async function GET(request: Request) {
   const and: Prisma.ConversationWhereInput[] = []
   if (Object.keys(leadWhere).length > 0) and.push({ lead: leadWhere })
   if (filter === "unread") and.push({ unreadCustomerCount: { gt: 0 } })
+  if (filter === "pinned") and.push({ lead: { priorityPinnedAt: { not: null } } })
   if (waConnectionId) and.push({ whatsappConnectionId: waConnectionId })
   // `q` sengaja di-OR di level Conversation (bukan ikut ke leadWhere di atas) — biar bisa cocok
   // dari isi pesan (Message.body) juga, bukan cuma field Lead. Kalau ikut leadWhere, hasilnya
@@ -60,7 +61,14 @@ export async function GET(request: Request) {
     prisma.conversation.count({ where }),
     prisma.conversation.findMany({
       where,
-      orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      // Lead yang ditandai prioritas SPV naik ke paling atas Inbox, di atas percakapan terbaru
+      // sekalipun. `nulls: "last"` wajib — DESC di Postgres menaruh NULL duluan (lihat catatan
+      // yang sama di api/marketing/leads/route.ts).
+      orderBy: [
+        { lead: { priorityPinnedAt: { sort: "desc", nulls: "last" } } },
+        { lastMessageAt: { sort: "desc", nulls: "last" } },
+        { createdAt: "desc" },
+      ],
       skip: (page - 1) * limit,
       take: limit,
       select: {
@@ -76,6 +84,8 @@ export async function GET(request: Request) {
             temperature: true,
             priorityLevel: true,
             outcome: true,
+            priorityPinnedAt: true,
+            priorityPinNote: true,
             segment: { select: { name: true } },
             lostReason: { select: { name: true } },
           },
@@ -107,6 +117,8 @@ export async function GET(request: Request) {
       priorityLevel: r.lead.priorityLevel,
       outcome: r.lead.outcome,
       lostReasonName: r.lead.lostReason?.name ?? null,
+      priorityPinnedAt: r.lead.priorityPinnedAt?.toISOString() ?? null,
+      priorityPinNote: r.lead.priorityPinNote ?? null,
       segmentName: r.lead.segment?.name ?? null,
     },
     pic: picByLead.get(r.leadId) ?? null,

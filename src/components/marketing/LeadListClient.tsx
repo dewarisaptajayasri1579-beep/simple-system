@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { MktHeader, OutcomeBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+import { MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
 
 interface LeadRow {
   id: string
@@ -36,6 +36,9 @@ interface LeadRow {
   priorityLevel: string
   outcome: string
   lostReasonName: string | null
+  priorityPinnedAt: string | null
+  priorityPinNote: string | null
+  priorityPinnedByName: string | null
   segmentName: string | null
   buyingPowerTierName: string | null
   note: string | null
@@ -366,8 +369,15 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                             {l.displayName}
                           </Link>
                           <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} />
+                          <PriorityPinBadge pinnedAt={l.priorityPinnedAt} note={l.priorityPinNote} compact />
                         </div>
                         <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
+                        {l.priorityPinnedAt && l.priorityPinNote && (
+                          <div className="text-xs font-bold text-amber-700 truncate max-w-[220px] mt-0.5">
+                            ⭐ {l.priorityPinNote}
+                            {l.priorityPinnedByName ? <span className="font-medium text-amber-600"> — {l.priorityPinnedByName}</span> : null}
+                          </div>
+                        )}
                         {l.note && <div className="text-xs text-amber-700 italic truncate max-w-[220px] mt-0.5">📌 {l.note}</div>}
                       </TableCell>
                       <TableCell className="text-slate-600">
@@ -413,11 +423,15 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-bold text-slate-800 truncate">{l.displayName}</p>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <PriorityPinBadge pinnedAt={l.priorityPinnedAt} note={l.priorityPinNote} compact />
                         <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} />
                         <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
                       </div>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
+                    {l.priorityPinnedAt && l.priorityPinNote && (
+                      <p className="text-xs font-bold text-amber-700 truncate mt-0.5">⭐ {l.priorityPinNote}</p>
+                    )}
                     {l.note && <p className="text-xs text-amber-700 italic truncate mt-0.5">📌 {l.note}</p>}
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {l.segmentName && <Badge variant="secondary" size="sm">{l.segmentName}</Badge>}

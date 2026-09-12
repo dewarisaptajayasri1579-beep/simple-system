@@ -28,7 +28,16 @@ export function followUpDto(f: any) {
   return {
     id: f.id,
     leadId: f.leadId,
-    lead: f.lead ? { id: f.lead.id, displayName: f.lead.displayName, companyName: f.lead.companyName, temperature: f.lead.temperature } : null,
+    lead: f.lead
+      ? {
+          id: f.lead.id,
+          displayName: f.lead.displayName,
+          companyName: f.lead.companyName,
+          temperature: f.lead.temperature,
+          priorityPinnedAt: f.lead.priorityPinnedAt?.toISOString() ?? null,
+          priorityPinNote: f.lead.priorityPinNote ?? null,
+        }
+      : null,
     scheduledAt: f.scheduledAt.toISOString(),
     purpose: f.purpose,
     note: f.note,

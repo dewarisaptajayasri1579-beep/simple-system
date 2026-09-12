@@ -8,6 +8,7 @@ import { canActOnLead, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
+import { resolveUserNames } from "@/lib/user-names"
 import { extractWahubMessageId, sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
 
 /**
@@ -43,6 +44,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           currentActivityStage: true,
           segment: { select: { id: true, name: true } },
           lostReason: { select: { name: true } },
+          priorityPinnedAt: true,
+          priorityPinnedById: true,
+          priorityPinNote: true,
         },
       },
     },
@@ -119,12 +123,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         priorityLevel: conversation.lead.priorityLevel,
         outcome: conversation.lead.outcome,
         lostReasonName: conversation.lead.lostReason?.name ?? null,
+        priorityPinnedAt: conversation.lead.priorityPinnedAt?.toISOString() ?? null,
+        priorityPinNote: conversation.lead.priorityPinNote ?? null,
+        priorityPinnedByName: conversation.lead.priorityPinnedById
+          ? ((await resolveUserNames([conversation.lead.priorityPinnedById])).get(conversation.lead.priorityPinnedById) ?? null)
+          : null,
         currentActivityStage: conversation.lead.currentActivityStage,
         segmentId: conversation.lead.segment?.id ?? null,
         segmentName: conversation.lead.segment?.name ?? null,
       },
       pic: activeAssignment?.assignedUser ?? null,
       canAct,
+      viewerRole: marketingRole,
       openFollowUp: openFollowUp
         ? { id: openFollowUp.id, purpose: openFollowUp.purpose, scheduledAt: openFollowUp.scheduledAt.toISOString() }
         : null,

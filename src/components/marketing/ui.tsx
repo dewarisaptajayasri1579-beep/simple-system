@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { Star } from "lucide-react"
 
 import { Badge, type BadgeProps } from "@/components/ui"
 
@@ -150,6 +151,28 @@ export const OutcomeBadge: React.FC<{ outcome: string; lostReason?: string | nul
     <Badge variant={outcomeBadgeVariant(outcome)} size={size} className="flex-shrink-0">
       {outcome === "LOST" && lostReason ? `${label} · ${lostReason}` : label}
     </Badge>
+  )
+}
+
+/** Penanda "Prioritas SPV" — lead yang ditandai SPV/Manager lewat tombol Tandai Prioritas.
+ *  Sengaja dibedakan tajam dari badge lain (kuning + ikon bintang) karena tujuannya memang untuk
+ *  menarik mata duluan di daftar yang isinya ratusan baris. Alasan dari SPV ikut ditempel supaya
+ *  Sales tahu kenapa didahulukan tanpa harus buka detail. */
+export const PriorityPinBadge: React.FC<{ pinnedAt: string | null; note?: string | null; compact?: boolean }> = ({
+  pinnedAt,
+  note,
+  compact,
+}) => {
+  if (!pinnedAt) return null
+  return (
+    <span
+      title={note ? `Prioritas SPV — ${note}` : "Ditandai prioritas oleh SPV/Manager"}
+      className="inline-flex items-center gap-1 flex-shrink-0 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800"
+    >
+      <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+      Prioritas
+      {!compact && note ? <span className="font-bold normal-case tracking-normal">· {note}</span> : null}
+    </span>
   )
 }
 

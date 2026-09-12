@@ -42,11 +42,25 @@ export async function GET(request: Request) {
   const [rows, total, cToday, cUpcoming, cOverdue] = await Promise.all([
     prisma.leadFollowUp.findMany({
       where,
-      orderBy: bucket === "done" ? { completedAt: "desc" } : { scheduledAt: "asc" },
+      // Lead yang ditandai prioritas SPV naik ke atas di tiap bucket — di daftar Follow Up yang
+      // isinya ratusan baris, itu satu-satunya cara tugas titipan SPV tidak tenggelam.
+      orderBy:
+        bucket === "done"
+          ? [{ completedAt: "desc" as const }]
+          : [{ lead: { priorityPinnedAt: { sort: "desc" as const, nulls: "last" as const } } }, { scheduledAt: "asc" as const }],
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        lead: { select: { id: true, displayName: true, companyName: true, temperature: true } },
+        lead: {
+          select: {
+            id: true,
+            displayName: true,
+            companyName: true,
+            temperature: true,
+            priorityPinnedAt: true,
+            priorityPinNote: true,
+          },
+        },
         resultType: { select: { code: true, name: true } },
         assignedUser: { select: { id: true, name: true } },
       },

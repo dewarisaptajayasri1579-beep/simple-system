@@ -5,7 +5,7 @@ import Link from "next/link"
 
 import { Alert, Button, Card, SkeletonList } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
-import { FilterPills, MktHeader, ScopeToggle } from "./ui"
+import { FilterPills, MktHeader, PriorityPinBadge, ScopeToggle } from "./ui"
 
 interface Opt {
   id: string
@@ -15,7 +15,14 @@ interface Opt {
 interface FollowUp {
   id: string
   leadId: string
-  lead: { id: string; displayName: string; companyName: string | null; temperature: string } | null
+  lead: {
+    id: string
+    displayName: string
+    companyName: string | null
+    temperature: string
+    priorityPinnedAt: string | null
+    priorityPinNote: string | null
+  } | null
   scheduledAt: string
   purpose: string
   note: string | null
@@ -127,9 +134,12 @@ export const FollowUpBoard: React.FC<{ isSales?: boolean }> = ({ isSales = false
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <Link href={`/marketing/leads/${f.leadId}`} className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate">
-                        {f.lead?.displayName ?? "Lead"}
-                      </Link>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Link href={`/marketing/leads/${f.leadId}`} className="text-sm font-bold text-slate-800 hover:text-blue-700 truncate">
+                          {f.lead?.displayName ?? "Lead"}
+                        </Link>
+                        <PriorityPinBadge pinnedAt={f.lead?.priorityPinnedAt ?? null} note={f.lead?.priorityPinNote} compact />
+                      </div>
                       <span className="text-[11px] text-slate-400 font-semibold flex-shrink-0">{fmt(f.scheduledAt)}</span>
                     </div>
                     <p className="text-xs text-slate-600 mt-0.5">{f.purpose}</p>

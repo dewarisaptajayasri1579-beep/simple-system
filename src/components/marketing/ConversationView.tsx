@@ -6,8 +6,9 @@ import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Pencil, 
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+import { PriorityPinButton } from "./PriorityPinButton"
 import { SegmentPicker } from "./SegmentPicker"
-import { OutcomeBadge, tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { OutcomeBadge, PriorityPinBadge, tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface Message {
@@ -44,12 +45,16 @@ interface ConversationMeta {
     priorityLevel: string
     outcome: string
     lostReasonName: string | null
+    priorityPinnedAt: string | null
+    priorityPinNote: string | null
+    priorityPinnedByName: string | null
     currentActivityStage: string
     segmentId: string | null
     segmentName: string | null
   }
   pic: { id: string; name: string } | null
   canAct: boolean
+  viewerRole: string
   openFollowUp: { id: string; purpose: string; scheduledAt: string } | null
   hasWhatsappConnection: boolean
   whatsappStatus: string | null
@@ -428,6 +433,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
             <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
             <OutcomeBadge outcome={lead.outcome} lostReason={lead.lostReasonName} />
+            <PriorityPinBadge pinnedAt={lead.priorityPinnedAt} note={lead.priorityPinNote} />
             {meta.whatsappConnectionLabel && <Badge variant="secondary" size="sm">{meta.whatsappConnectionLabel}</Badge>}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -453,9 +459,22 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             />
           </div>
         </div>
-        <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline flex-shrink-0 mt-0.5">
-          Detail
-        </Link>
+        <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+          {/* SPV/Manager sering menemukan lead yang perlu didahulukan justru saat membaca chat,
+              bukan saat membuka Detail Lead — jadi tombolnya disediakan di sini juga. */}
+          <PriorityPinButton
+            leadId={lead.id}
+            pinnedAt={lead.priorityPinnedAt}
+            pinNote={lead.priorityPinNote}
+            pinnedByName={lead.priorityPinnedByName}
+            currentPicId={meta.pic?.id ?? null}
+            viewerRole={meta.viewerRole}
+            onDone={() => load(true)}
+          />
+          <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline">
+            Detail
+          </Link>
+        </div>
       </div>
 
       {/* Follow up OPEN gampang kelewat kalau Sales cuma balas chat dari sini tanpa buka Detail

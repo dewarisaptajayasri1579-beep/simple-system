@@ -7,7 +7,7 @@ import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { FilterPills, MktHeader, OutcomeBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { FilterPills, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface ConversationItem {
@@ -21,6 +21,8 @@ interface ConversationItem {
     priorityLevel: string
     outcome: string
     lostReasonName: string | null
+    priorityPinnedAt: string | null
+    priorityPinNote: string | null
     segmentName: string | null
   }
   pic: { id: string; name: string } | null
@@ -35,6 +37,7 @@ const FILTERS = [
   { key: "all", label: "Semua" },
   { key: "unread", label: "Belum Dibalas" },
   { key: "priority", label: "Prioritas" },
+  { key: "pinned", label: "⭐ Ditandai SPV" },
   { key: "hot", label: "Hot" },
 ]
 
@@ -204,6 +207,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                         {/* status lead (Won/Lost/dst) langsung kelihatan di daftar — sebelumnya
                             baru ketahuan setelah percakapannya dibuka. */}
                         <OutcomeBadge outcome={c.lead.outcome} lostReason={c.lead.lostReasonName} />
+                        <PriorityPinBadge pinnedAt={c.lead.priorityPinnedAt} note={c.lead.priorityPinNote} compact />
                       </div>
                       <span className="text-[11px] text-slate-400 font-semibold flex-shrink-0">{relativeTime(c.lastMessageAt)}</span>
                     </div>
@@ -230,6 +234,9 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                         <Badge variant="warning" size="sm">Prioritas</Badge>
                       )}
                       {c.pic && <Badge variant="secondary" size="sm">Sales: {c.pic.name}</Badge>}
+                      {c.lead.priorityPinnedAt && c.lead.priorityPinNote && (
+                        <span className="text-[10px] font-bold text-amber-700 truncate">⭐ {c.lead.priorityPinNote}</span>
+                      )}
                     </div>
                   </div>
                 </Card>
