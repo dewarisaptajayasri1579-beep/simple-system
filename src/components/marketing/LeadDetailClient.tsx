@@ -122,6 +122,19 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })
 }
 
+// WAJIB didefinisikan di module scope, JANGAN dipindah ke dalam body LeadDetailClient: kalau
+// komponen dibuat ulang tiap render, React menganggapnya tipe komponen baru dan me-remount
+// seluruh isinya tiap keystroke — input di dalamnya kehilangan fokus & kursor lompat ke awal.
+const Section: React.FC<{ title: string; children: React.ReactNode; right?: React.ReactNode }> = ({ title, children, right }) => (
+  <Card variant="feature" padding="md">
+    <div className="flex items-center justify-between mb-2.5">
+      <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">{title}</h2>
+      {right}
+    </div>
+    {children}
+  </Card>
+)
+
 export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -494,16 +507,6 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
     rj && typeof rj === "object" && Array.isArray((rj as Record<string, unknown>).modifiers)
       ? ((rj as Record<string, unknown>).modifiers as string[])
       : []
-
-  const Section: React.FC<{ title: string; children: React.ReactNode; right?: React.ReactNode }> = ({ title, children, right }) => (
-    <Card variant="feature" padding="md">
-      <div className="flex items-center justify-between mb-2.5">
-        <h2 className="text-xs font-black uppercase tracking-wide text-slate-500">{title}</h2>
-        {right}
-      </div>
-      {children}
-    </Card>
-  )
 
   return (
     <div className="flex flex-col gap-3 max-w-6xl">

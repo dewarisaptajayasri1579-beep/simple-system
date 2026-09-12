@@ -106,7 +106,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [templateForm, setTemplateForm] = useState<{ id: string | null; title: string; body: string } | null>(null)
   const [savingTemplate, setSavingTemplate] = useState(false)
-  const bottomRef = useRef<HTMLDivElement | null>(null)
+  const timelineRef = useRef<HTMLDivElement | null>(null)
   const draftRef = useRef<HTMLTextAreaElement | null>(null)
   const lastCountRef = useRef(0)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -187,7 +187,11 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
       lastCountRef.current = messages.length
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      // Scroll kontainer timeline-nya sendiri, BUKAN `bottomRef.scrollIntoView()` — scrollIntoView
+      // ikut nge-scroll semua ancestor termasuk window, jadi pas pesan baru masuk sementara user
+      // lagi ngetik di panel Catatan/composer, halamannya ke-jump dan kursor ketikan lari.
+      const el = timelineRef.current
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
     }
   }, [messages])
 
@@ -526,7 +530,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       </div>
 
       {/* timeline */}
-      <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
+      <div ref={timelineRef} className="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
         {hasMoreOlder && (
           <button
             onClick={loadOlder}
@@ -578,7 +582,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
+        <div />
       </div>
 
       {/* composer / banner */}
