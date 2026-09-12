@@ -250,6 +250,7 @@ interface Row {
   aktivitasTerakhir: string | null
   aktivitasTerakhirAt: string | null
   aktivitasTerakhirNote: string | null
+  aktivitasTerakhirOleh: string | null
   hasilFuTerakhir: string | null
   hasilFuTerakhirAt: string | null
   hasilFuTerakhirNote: string | null
@@ -309,6 +310,7 @@ function csvResponse(rows: Row[], fromIso: string, toIso: string) {
     "Aktivitas Terakhir",
     "Tanggal Aktivitas",
     "Catatan Aktivitas",
+    "Pelaku Aktivitas",
     "Hasil FU Terakhir",
     "Tanggal Hasil FU",
     "Catatan Hasil FU",
@@ -353,6 +355,7 @@ function csvResponse(rows: Row[], fromIso: string, toIso: string) {
         r.aktivitasTerakhir,
         fmtWib(r.aktivitasTerakhirAt),
         r.aktivitasTerakhirNote,
+        r.aktivitasTerakhirOleh,
         r.hasilFuTerakhir ? `${r.hasilFuTerakhir}${r.hasilFuTepatWaktu === false ? " (telat)" : ""}` : "",
         fmtWib(r.hasilFuTerakhirAt),
         r.hasilFuTerakhirNote,
