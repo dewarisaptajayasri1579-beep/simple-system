@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 
-import { Alert, Card, Input, Select, SkeletonList, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui"
+import { Alert, Button, Card, Input, Select, SkeletonList, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/components/ui"
+import { Download } from "lucide-react"
+
+import { LeadReportTab, type LeadReportRow } from "./LeadReportTab"
 import { FilterPills, MktHeader } from "./ui"
 
 function rpShort(n: number): string {
@@ -35,7 +38,7 @@ const RankBar: React.FC<{ label: string; value: number; max: number; suffix?: st
 )
 
 type Opt = { id: string; name: string }
-type Tab = "volume" | "kualitas" | "performa-sales"
+type Tab = "volume" | "kualitas" | "performa-sales" | "daftar-lead"
 
 interface VolumeData {
   trend: { date: string; count: number }[]
@@ -88,6 +91,12 @@ export const LaporanClient: React.FC = () => {
   const [volume, setVolume] = useState<VolumeData | null>(null)
   const [quality, setQuality] = useState<QualityData | null>(null)
   const [salesPerf, setSalesPerf] = useState<SalesPerfRow[] | null>(null)
+  const [leadRows, setLeadRows] = useState<LeadReportRow[] | null>(null)
+  const [leadTotal, setLeadTotal] = useState(0)
+  const [leadPage, setLeadPage] = useState(1)
+  const [leadHasMore, setLeadHasMore] = useState(false)
+  const [leadLoadingMore, setLeadLoadingMore] = useState(false)
+  const [outcome, setOutcome] = useState("")
 
   useEffect(() => {
     fetch("/api/marketing/meta")
@@ -107,8 +116,9 @@ export const LaporanClient: React.FC = () => {
     if (salesId) p.set("salesId", salesId)
     if (segmentId) p.set("segmentId", segmentId)
     if (sourceId) p.set("sourceId", sourceId)
+    if (outcome) p.set("outcome", outcome)
     return p.toString()
-  }, [from, to, salesId, segmentId, sourceId])
+  }, [from, to, salesId, segmentId, sourceId, outcome])
 
   const load = useCallback(async () => {
     setError(null)
@@ -127,11 +137,21 @@ export const LaporanClient: React.FC = () => {
         setQuality(d)
         if (!from) setFrom(d.filters.from)
         if (!to) setTo(d.filters.to)
-      } else {
+      } else if (tab === "performa-sales") {
         const res = await fetch(`/api/marketing/reports/sales-performance?${query()}`, { cache: "no-store" })
         const d = await res.json()
         if (!res.ok) throw new Error(d.error || "Gagal memuat laporan")
         setSalesPerf(d.rows)
+        if (!from) setFrom(d.filters.from)
+        if (!to) setTo(d.filters.to)
+      } else {
+        const res = await fetch(`/api/marketing/reports/leads?${query()}&limit=50&page=1`, { cache: "no-store" })
+        const d = await res.json()
+        if (!res.ok) throw new Error(d.error || "Gagal memuat laporan")
+        setLeadRows(d.rows)
+        setLeadTotal(d.total)
+        setLeadPage(1)
+        setLeadHasMore(d.hasMore)
         if (!from) setFrom(d.filters.from)
         if (!to) setTo(d.filters.to)
       }
@@ -189,12 +209,53 @@ export const LaporanClient: React.FC = () => {
             />
           </div>
         </div>
-        {(salesId || segmentId || sourceId) && (
+        {tab === "daftar-lead" && (
+          <div className="w-44">
+            <label className="text-xs sm:text-sm font-bold text-slate-700">Status</label>
+            <div className="mt-1.5">
+              <Select
+                options={[
+                  { value: "", label: "Semua Status" },
+                  { value: "OPEN", label: "Open" },
+                  { value: "WON", label: "Won" },
+                  { value: "LOST", label: "Lost" },
+                  { value: "CLOSING", label: "Closing" },
+                  { value: "CLIENT_LAMA", label: "Client Lama" },
+                ]}
+                value={outcome}
+                onChange={setOutcome}
+                sizeVariant="sm"
+              />
+            </div>
+          </div>
+        )}
+        {tab === "daftar-lead" && leadTotal > 1000 && (
+          <p className="text-xs font-semibold text-amber-700 pb-2 w-full sm:w-auto">
+            {leadTotal.toLocaleString("id-ID")} lead di rentang ini — export cuma memuat 1.000 baris teratas
+            (paling baru). Persempit tanggalnya kalau butuh semuanya.
+          </p>
+        )}
+        {tab === "daftar-lead" && (
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<Download className="w-3.5 h-3.5" />}
+            onClick={() => {
+              // Unduhan lewat navigasi biasa, bukan fetch+blob — biar browser yang menangani
+              // nama file dari Content-Disposition & progress bar bawaannya.
+              window.location.href = `/api/marketing/reports/leads?${query()}&format=csv`
+            }}
+          >
+            Export Excel
+          </Button>
+        )}
+        {(salesId || segmentId || sourceId || outcome) && (
           <button
             onClick={() => {
               setSalesId("")
               setSegmentId("")
               setSourceId("")
+              setOutcome("")
             }}
             className="text-xs font-bold text-blue-700 pb-2"
           >
@@ -208,6 +269,7 @@ export const LaporanClient: React.FC = () => {
           { key: "volume", label: "Volume" },
           { key: "kualitas", label: "Kualitas Lead" },
           { key: "performa-sales", label: "Performa Sales" },
+          { key: "daftar-lead", label: "Daftar Lead" },
         ]}
         value={tab}
         onChange={(k) => setTab(k as Tab)}
@@ -218,6 +280,32 @@ export const LaporanClient: React.FC = () => {
       {tab === "volume" && (volume ? <VolumeTab data={volume} fmtDate={fmtDate} /> : <SkeletonList rows={6} />)}
       {tab === "kualitas" && (quality ? <QualityTab data={quality} /> : <SkeletonList rows={6} />)}
       {tab === "performa-sales" && (salesPerf ? <SalesPerfTab rows={salesPerf} /> : <SkeletonList rows={6} />)}
+      {tab === "daftar-lead" &&
+        (leadRows ? (
+          <LeadReportTab
+            rows={leadRows}
+            total={leadTotal}
+            hasMore={leadHasMore}
+            loadingMore={leadLoadingMore}
+            onLoadMore={async () => {
+              setLeadLoadingMore(true)
+              try {
+                const next = leadPage + 1
+                const res = await fetch(`/api/marketing/reports/leads?${query()}&limit=50&page=${next}`, { cache: "no-store" })
+                const d = await res.json()
+                if (res.ok) {
+                  setLeadRows((prev) => [...(prev ?? []), ...d.rows])
+                  setLeadPage(next)
+                  setLeadHasMore(d.hasMore)
+                }
+              } finally {
+                setLeadLoadingMore(false)
+              }
+            }}
+          />
+        ) : (
+          <SkeletonList rows={6} />
+        ))}
     </div>
   )
 }
