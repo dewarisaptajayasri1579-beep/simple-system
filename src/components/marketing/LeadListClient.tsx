@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { MktHeader, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+import { MktHeader, OutcomeBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
 
 interface LeadRow {
   id: string
@@ -35,6 +35,7 @@ interface LeadRow {
   priorityScore: number
   priorityLevel: string
   outcome: string
+  lostReasonName: string | null
   segmentName: string | null
   buyingPowerTierName: string | null
   note: string | null
@@ -358,9 +359,14 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                   {rows.map((l) => (
                     <TableRow key={l.id}>
                       <TableCell>
-                        <Link href={`/marketing/leads/${l.id}`} className="font-bold text-slate-800 hover:text-blue-700">
-                          {l.displayName}
-                        </Link>
+                        {/* Status (Won/Lost/dst) ditaruh nempel nama, bukan cuma di kolom Outcome
+                            paling kanan yang sering ketutup scroll horizontal. */}
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/marketing/leads/${l.id}`} className="font-bold text-slate-800 hover:text-blue-700">
+                            {l.displayName}
+                          </Link>
+                          <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} />
+                        </div>
                         <div className="text-xs text-slate-400">{l.companyName || l.whatsappNumber}</div>
                         {l.note && <div className="text-xs text-amber-700 italic truncate max-w-[220px] mt-0.5">📌 {l.note}</div>}
                       </TableCell>
@@ -389,7 +395,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                       <TableCell className="text-slate-500">{relTime(l.lastChatAt)}</TableCell>
                       <TableCell className="text-slate-500">{fmtDate(l.nextFollowUpAt)}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" size="sm">{l.outcome}</Badge>
+                        <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} /> {l.outcome === "OPEN" ? <span className="text-slate-400">Open</span> : null}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -406,7 +412,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                   <Card variant="solid" padding="sm" hoverable className="!rounded-2xl">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-bold text-slate-800 truncate">{l.displayName}</p>
-                      <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} />
+                        <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
+                      </div>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
                     {l.note && <p className="text-xs text-amber-700 italic truncate mt-0.5">📌 {l.note}</p>}
@@ -415,7 +424,6 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                       {l.buyingPowerTierName && <Badge variant="success" size="sm">💰 {l.buyingPowerTierName}</Badge>}
                       <Badge variant="secondary" size="sm">{STAGE_LABEL[l.currentActivityStage] ?? l.currentActivityStage}</Badge>
                       <Badge variant="info" size="sm">Skor {Math.round(l.priorityScore)}</Badge>
-                      {l.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{l.outcome}</Badge>}
                       {l.pic && <span className="text-[10px] font-semibold text-slate-400">PIC: {l.pic.name}</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">

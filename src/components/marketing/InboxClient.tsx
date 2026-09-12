@@ -7,7 +7,7 @@ import { Search } from "lucide-react"
 
 import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { FilterPills, MktHeader, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { FilterPills, MktHeader, OutcomeBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface ConversationItem {
@@ -19,6 +19,8 @@ interface ConversationItem {
     whatsappNumber: string
     temperature: string
     priorityLevel: string
+    outcome: string
+    lostReasonName: string | null
     segmentName: string | null
   }
   pic: { id: string; name: string } | null
@@ -194,10 +196,15 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-slate-800 truncate">
-                        {c.lead.displayName}
-                        {c.lead.companyName ? <span className="font-medium text-slate-400"> · {c.lead.companyName}</span> : null}
-                      </p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate">
+                          {c.lead.displayName}
+                          {c.lead.companyName ? <span className="font-medium text-slate-400"> · {c.lead.companyName}</span> : null}
+                        </p>
+                        {/* status lead (Won/Lost/dst) langsung kelihatan di daftar — sebelumnya
+                            baru ketahuan setelah percakapannya dibuka. */}
+                        <OutcomeBadge outcome={c.lead.outcome} lostReason={c.lead.lostReasonName} />
+                      </div>
                       <span className="text-[11px] text-slate-400 font-semibold flex-shrink-0">{relativeTime(c.lastMessageAt)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">

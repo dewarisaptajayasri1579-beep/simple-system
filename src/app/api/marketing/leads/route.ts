@@ -86,6 +86,7 @@ export async function GET(request: Request) {
         note: true,
         segment: { select: { name: true } },
         buyingPowerTier: { select: { name: true } },
+        lostReason: { select: { name: true } },
       },
     }),
   ])
@@ -127,6 +128,7 @@ export async function GET(request: Request) {
       priorityScore: r.priorityScore,
       priorityLevel: r.priorityLevel,
       outcome: r.outcome,
+      lostReasonName: r.lostReason?.name ?? null,
       segmentName: r.segment?.name ?? null,
       buyingPowerTierName: r.buyingPowerTier?.name ?? null,
       note: r.note ?? null,

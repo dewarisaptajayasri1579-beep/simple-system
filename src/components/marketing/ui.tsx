@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import type { BadgeProps } from "@/components/ui"
+import { Badge, type BadgeProps } from "@/components/ui"
 
 /** Panggil `fn` setiap tab kembali fokus / online — biar polling terasa instan saat user
  *  balik ke halaman, tanpa perlu SSE. */
@@ -116,6 +116,41 @@ export const STAGE_LABEL: Record<string, string> = {
   ZOOM_DEMO: "Zoom/Demo",
   PROPOSAL: "Penawaran",
   NEGOTIATION: "Negosiasi",
+}
+
+export const OUTCOME_LABEL: Record<string, string> = {
+  OPEN: "Open",
+  WON: "Won",
+  LOST: "Lost",
+  CLOSING: "Closing",
+  CLIENT_LAMA: "Client Lama",
+}
+
+export function outcomeBadgeVariant(o: string): BadgeProps["variant"] {
+  if (o === "WON") return "success"
+  if (o === "LOST") return "danger"
+  if (o === "CLOSING") return "info"
+  if (o === "CLIENT_LAMA") return "outline"
+  return "secondary"
+}
+
+/** Status akhir lead (Won/Lost/Closing/Client Lama) — dipakai di daftar Lead, Inbox, dan header
+ *  percakapan supaya penandanya seragam & kelihatan di depan, bukan kekunci di kolom paling kanan.
+ *  Sengaja render `null` saat OPEN: mayoritas lead statusnya OPEN, kalau ikut dibadge malah jadi
+ *  noise dan yang Lost/Won justru tenggelam. `lostReason` ikut ditempel biar tahu alasannya
+ *  tanpa harus buka detail. */
+export const OutcomeBadge: React.FC<{ outcome: string; lostReason?: string | null; size?: BadgeProps["size"] }> = ({
+  outcome,
+  lostReason,
+  size = "sm",
+}) => {
+  if (!outcome || outcome === "OPEN") return null
+  const label = OUTCOME_LABEL[outcome] ?? outcome
+  return (
+    <Badge variant={outcomeBadgeVariant(outcome)} size={size} className="flex-shrink-0">
+      {outcome === "LOST" && lostReason ? `${label} · ${lostReason}` : label}
+    </Badge>
+  )
 }
 
 /** Header halaman: judul + aksi kanan. */

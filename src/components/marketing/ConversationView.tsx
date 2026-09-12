@@ -7,7 +7,7 @@ import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Pencil, 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
 import { SegmentPicker } from "./SegmentPicker"
-import { tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { OutcomeBadge, tempBadgeVariant, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface Message {
@@ -43,6 +43,7 @@ interface ConversationMeta {
     temperature: string
     priorityLevel: string
     outcome: string
+    lostReasonName: string | null
     currentActivityStage: string
     segmentId: string | null
     segmentName: string | null
@@ -426,7 +427,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
             <Badge variant={tempBadgeVariant(lead.temperature)} size="sm">{lead.temperature}</Badge>
-            {lead.outcome !== "OPEN" && <Badge variant="secondary" size="sm">{lead.outcome}</Badge>}
+            <OutcomeBadge outcome={lead.outcome} lostReason={lead.lostReasonName} />
             {meta.whatsappConnectionLabel && <Badge variant="secondary" size="sm">{meta.whatsappConnectionLabel}</Badge>}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
