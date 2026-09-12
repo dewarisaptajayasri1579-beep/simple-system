@@ -13,9 +13,22 @@ function formatRupiah(n: number): string {
  *  prisma.$transaction — wajib pakai `tx`, bukan client global, supaya yang dilihat adalah
  *  saldo SETELAH perubahan yang belum di-commit di transaksi ini (posting yang sedang jalan).
  *  Kalau pakai prisma global, perubahan itu belum kelihatan dan guard-nya jadi tidak ada
- *  gunanya. Rumusnya sengaja dijaga identik dengan yang di account-balance.ts. */
+ *  gunanya. Rumusnya sengaja dijaga identik dengan yang di account-balance.ts: saldo Buku Besar
+ *  akun COA rekening ini. Aman dipakai sebagai guard karena tiap endpoint posting menulis
+ *  jurnalnya DULU (finalizeTransactionPosting/postJournalEntry) baru memanggil assert di akhir
+ *  $transaction yang sama, jadi efek aksi yang sedang berjalan sudah ikut terhitung. */
 export async function computeAccountBalanceTx(tx: TxClient, accountId: string): Promise<number> {
-  const [account, txByType, transferOut, transferIn] = await Promise.all([
+  const account = await tx.account.findUniqueOrThrow({ where: { id: accountId }, select: { coaAccountId: true } })
+  if (account.coaAccountId) {
+    const agg = await tx.journalLine.aggregate({
+      where: { accountId: account.coaAccountId, journalEntry: { postStatus: "posted" } },
+      _sum: { debit: true, credit: true },
+    })
+    return (agg._sum.debit ?? 0) - (agg._sum.credit ?? 0)
+  }
+
+  // Cadangan: akun kas/bank yang belum punya akun COA (lihat account-balance.ts).
+  const [acc, txByType, transferOut, transferIn] = await Promise.all([
     tx.account.findUniqueOrThrow({ where: { id: accountId } }),
     tx.transaction.groupBy({
       by: ["type"],
@@ -31,7 +44,7 @@ export async function computeAccountBalanceTx(tx: TxClient, accountId: string): 
     0
   )
   const transferDelta = (transferIn._sum.amount ?? 0) - (transferOut._sum.amount ?? 0)
-  return account.openingBalance + delta + transferDelta
+  return acc.openingBalance + delta + transferDelta
 }
 
 /** Saldo akun SEBELUM aksi ini dieksekusi — dipanggil di awal prisma.$transaction, hasilnya
@@ -109,11 +122,11 @@ export async function snapshotKasBankCoaBalances(tx: TxClient, journalEntryId: s
   return snapshot
 }
 
-/** Padanan assertAccountsNotNegative untuk JURNAL MANUAL. Jurnal manual tidak lewat
- *  Transaction/AccountTransfer, jadi tidak menggerakkan saldo Account (lihat
- *  computeAccountBalance) — yang bergerak adalah saldo akun COA Kas & Bank di Buku Besar.
- *  Jadi itu yang dijaga: baris jurnal yang menyentuh "1-1000 Kas & Bank" atau anak-anaknya tidak
- *  boleh bikin saldo akun itu minus. */
+/** Padanan assertAccountsNotNegative untuk JURNAL MANUAL: jurnal manual tidak lewat
+ *  Transaction/AccountTransfer, jadi akun kas/bank yang tersentuh dicari dari baris jurnalnya
+ *  (anak "1-1000 Kas & Bank"), bukan dari accountId transaksi. Sejak saldo kas/bank dibaca dari
+ *  Buku Besar (lihat account-balance.ts), angka yang dijaga di sini sama persis dengan yang
+ *  dijaga assertAccountsNotNegative — bedanya cuma cara menemukan akunnya. */
 export async function assertKasBankCoaNotNegative(
   tx: TxClient,
   journalEntryId: string,
