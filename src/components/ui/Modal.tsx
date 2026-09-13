@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 export interface ModalProps {
@@ -24,6 +25,17 @@ export const Modal: React.FC<ModalProps> = ({
   size = "md",
   closeOnBackdropClick = true,
 }) => {
+  // Dirender lewat portal ke <body>, BUKAN di tempat asalnya di pohon komponen. Alasannya:
+  // `position: fixed` berhenti mengacu ke layar begitu ada leluhur yang punya `backdrop-filter`
+  // atau `transform` — keduanya bikin containing block baru (spek CSS). Semua Card glass di app
+  // ini punya `backdrop-filter: blur(...)` (lihat globals.css .glass-*), jadi modal yang kebetulan
+  // dirender di dalam sebuah Card jadi terkurung di dalam kotak Card itu: backdrop-nya cuma
+  // menutup area Card, posisinya meleset, dan bagian yang keluar kotak ke-clip sehingga tidak bisa
+  // diklik sama sekali. Portal memutus rantai leluhur itu, jadi Modal selalu benar di mana pun
+  // dipasang. Pola yang sama sudah dipakai dropdown Select.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -42,7 +54,7 @@ export const Modal: React.FC<ModalProps> = ({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizeClasses = {
     sm: "max-w-md",
@@ -52,8 +64,11 @@ export const Modal: React.FC<ModalProps> = ({
     full: "max-w-[95vw] h-[90vh]",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+  return createPortal(
+    // `no-print`: sebelum pakai portal, modal ikut tersembunyi saat print karena leluhurnya
+    // memang tidak ikut dicetak. Setelah dipindah ke <body>, kaitan itu putus — tanpa ini,
+    // cetak halaman (nota/invoice) yang kebetulan lagi buka modal jadi ikut mencetak overlaynya.
+    <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
@@ -99,6 +114,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
