@@ -225,7 +225,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .catch(() => {})
   }
 
-  await prisma.conversation.update({ where: { id }, data: { lastMessageAt: sentAt } })
+  // Balasan terkirim = pesan customer yang menunggu sudah pasti dibaca. Dulu counternya cuma
+  // di-nol saat PIC MEMBUKA percakapan, jadi Sales yang langsung balas (tanpa scroll ke atas /
+  // tanpa jadi PIC aktif) meninggalkan badge nyangkut selamanya.
+  await prisma.conversation.update({ where: { id }, data: { lastMessageAt: sentAt, unreadCustomerCount: 0 } })
   publishMarketingEvent({
     type: "message",
     conversationId: id,

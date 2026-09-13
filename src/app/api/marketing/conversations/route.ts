@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
+import { UNREPLIED_LEAD_WHERE } from "@/lib/marketing/inbox"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -38,7 +39,10 @@ export async function GET(request: Request) {
 
   const and: Prisma.ConversationWhereInput[] = []
   if (Object.keys(leadWhere).length > 0) and.push({ lead: leadWhere })
-  if (filter === "unread") and.push({ unreadCustomerCount: { gt: 0 } })
+  // "Belum Dibalas" = benar-benar belum dibalas (bandingkan waktu pesan customer vs balasan
+  // Sales), BUKAN unreadCustomerCount yang cuma turun kalau PIC membuka percakapannya —
+  // lihat UNREPLIED_LEAD_WHERE.
+  if (filter === "unread") and.push({ lead: UNREPLIED_LEAD_WHERE })
   if (filter === "pinned") and.push({ lead: { priorityPinnedAt: { not: null } } })
   if (waConnectionId) and.push({ whatsappConnectionId: waConnectionId })
   // `q` sengaja di-OR di level Conversation (bukan ikut ke leadWhere di atas) — biar bisa cocok

@@ -406,7 +406,13 @@ export async function handleMarketingWhatsappWebhook(localSessionId: string, pay
         rawProviderPayload: message as object,
       },
     })
-    await prisma.conversation.update({ where: { id: outConv.id }, data: { lastMessageAt: outSentAt } })
+    // Sales membalas langsung dari HP-nya (bukan lewat sistem) — pesan customer yang menunggu
+    // otomatis dianggap sudah dibaca, sama seperti balasan lewat Inbox. Ini jalur yang paling
+    // sering dipakai, dan dulu tidak pernah menurunkan counternya sama sekali.
+    await prisma.conversation.update({
+      where: { id: outConv.id },
+      data: { lastMessageAt: outSentAt, unreadCustomerCount: 0 },
+    })
     await prisma.lead.update({
       where: { id: outLeadId },
       data: { lastSalesMessageAt: outSentAt, lastInteractionAt: outSentAt, lastChatAt: outSentAt, waGroupAlertedAt: null },

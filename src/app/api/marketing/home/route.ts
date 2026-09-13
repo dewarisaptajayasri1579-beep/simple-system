@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { endOfToday, startOfToday } from "@/lib/marketing/follow-up"
 import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
+import { UNREPLIED_LEAD_WHERE } from "@/lib/marketing/inbox"
 import { prisma } from "@/lib/prisma"
 
 const STAGE_LABEL: Record<string, string> = {
@@ -39,7 +40,9 @@ export async function GET(request: Request) {
     prisma.leadFollowUp.count({ where: { ...mineFuFilter, status: "OPEN", scheduledAt: { gte: sot, lte: eot } } }),
     prisma.leadFollowUp.count({ where: { ...mineFuFilter, status: "OPEN", scheduledAt: { lt: sot } } }),
     prisma.conversation.count({
-      where: { unreadCustomerCount: { gt: 0 }, ...(scope === "mine" ? { lead: mineLeadFilter } : {}) },
+      // Sama definisinya dengan filter "Belum Dibalas" di Inbox (UNREPLIED_LEAD_WHERE) — dulu
+      // pakai unreadCustomerCount, jadi angkanya beda jauh dengan isi Inbox-nya sendiri.
+      where: { lead: { ...UNREPLIED_LEAD_WHERE, ...(scope === "mine" ? mineLeadFilter : {}) } },
     }),
     prisma.lead.findMany({
       where: { ...mineLeadFilter, outcome: "OPEN" },

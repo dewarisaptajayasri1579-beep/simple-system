@@ -1,3 +1,4 @@
+import { UNREPLIED_LEAD_WHERE } from "@/lib/marketing/inbox"
 import { prisma } from "@/lib/prisma"
 import { startOfToday } from "@/lib/marketing/follow-up"
 
@@ -71,7 +72,8 @@ export async function buildTeamAggregates(): Promise<TeamMemberStats[]> {
       _count: true,
     }),
     prisma.conversation.findMany({
-      where: { unreadCustomerCount: { gt: 0 } },
+      // Definisi "belum dibalas" yang sama dengan Inbox & Beranda (lihat UNREPLIED_LEAD_WHERE).
+      where: { lead: UNREPLIED_LEAD_WHERE },
       select: { lead: { select: { assignments: { where: { isActive: true }, select: { assignedUserId: true } } } } },
     }),
   ])
