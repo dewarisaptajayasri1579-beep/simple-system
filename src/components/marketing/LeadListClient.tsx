@@ -12,6 +12,7 @@ import {
   Card,
   Input,
   Modal,
+  Pagination,
   Select,
   SkeletonList,
   Table,
@@ -52,6 +53,9 @@ interface LeadRow {
   canAct: boolean
 }
 
+/** Jumlah baris per halaman — dipakai bareng oleh query & komponen Pagination. */
+const PAGE_SIZE = 50
+
 interface MetaOption {
   id: string
   name: string
@@ -81,9 +85,6 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
 }) => {
   const [rows, setRows] = useState<LeadRow[]>([])
   const [total, setTotal] = useState(0)
-  const [pageNo, setPageNo] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,6 +102,11 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   const [priorityLevel, setPriorityLevel] = useState(searchParams.get("priorityLevel") ?? "")
   const [picUserId, setPicUserId] = useState(searchParams.get("picUserId") ?? "")
   const [sort, setSort] = useState(searchParams.get("sort") ?? "priority")
+  // Nomor halaman ikut disimpan di URL, sama seperti filter — dulu daftarnya pakai tombol "Muat
+  // lebih banyak" yang menumpuk baris di memori doang, jadi begitu user buka Detail Lead lalu
+  // pencet Back, semua tumpukan itu hilang dan balik ke halaman 1 (padahal filternya kembali
+  // benar). Dengan nomor halaman di URL, Back memulihkan halaman yang sama persis.
+  const [page, setPage] = useState(Math.max(1, Number(searchParams.get("page")) || 1))
 
   const [segments, setSegments] = useState<MetaOption[]>([])
   const [buyingPowerTiers, setBuyingPowerTiers] = useState<MetaOption[]>([])
@@ -146,11 +152,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   }, [])
 
   const load = useCallback(
-    async (page = 1) => {
-      if (page === 1) setLoading(true)
-      else setLoadingMore(true)
+    async () => {
+      setLoading(true)
       try {
-        const p = new URLSearchParams({ scope, sort, limit: "50", page: String(page) })
+        const p = new URLSearchParams({ scope, sort, limit: String(PAGE_SIZE), page: String(page) })
         if (qDebounced.current.trim()) p.set("q", qDebounced.current.trim())
         if (segmentId) p.set("segmentId", segmentId)
         if (buyingPowerTierId) p.set("buyingPowerTierId", buyingPowerTierId)
@@ -160,9 +165,9 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         if (priorityLevel) p.set("priorityLevel", priorityLevel)
         if (picUserId) p.set("picUserId", picUserId)
 
-        if (page === 1) {
-          // Simpan filter ke URL (replace, bukan push) supaya kalau user buka Detail Lead lalu
-          // pencet tombol Back, filter yang tadi dipilih masih kepakai — bukan reset ke default.
+        {
+          // Simpan filter + halaman ke URL (replace, bukan push) supaya kalau user buka Detail
+          // Lead lalu pencet tombol Back, yang tadi dipilih masih kepakai — bukan reset ke default.
           const urlParams = new URLSearchParams()
           if (!isSales && scope !== "all") urlParams.set("scope", scope)
           if (qDebounced.current.trim()) urlParams.set("q", qDebounced.current.trim())
@@ -174,6 +179,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
           if (priorityLevel) urlParams.set("priorityLevel", priorityLevel)
           if (picUserId) urlParams.set("picUserId", picUserId)
           if (sort !== "priority") urlParams.set("sort", sort)
+          if (page > 1) urlParams.set("page", String(page))
           const qs = urlParams.toString()
           router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
         }
@@ -185,21 +191,30 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
           return
         }
         setError(null)
-        setRows((prev) => (page === 1 ? data.leads : [...prev, ...data.leads]))
+        setRows(data.leads)
         setTotal(data.total)
-        setPageNo(data.page)
-        setHasMore(data.hasMore)
       } finally {
         setLoading(false)
-        setLoadingMore(false)
       }
     },
-    [scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, isSales, forcedOutcome, pathname, router],
+    [page, scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, isSales, forcedOutcome, pathname, router],
   )
 
   useEffect(() => {
     load()
   }, [load])
+
+  // Ganti filter = hasil barunya beda total, jadi halaman balik ke 1. Render pertama dilewati
+  // supaya halaman yang dipulihkan dari URL (kasus Back) tidak ikut kereset ke 1.
+  const filterSig = JSON.stringify([scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId])
+  const firstRenderRef = useRef(true)
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false
+      return
+    }
+    setPage(1)
+  }, [filterSig])
 
   // Kembalikan posisi scroll kalau user datang dari Back (mis. habis buka Detail Lead) — baru
   // dijalankan setelah barisnya ter-render, lihat catatan di useListScrollRestore.
@@ -208,7 +223,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   useEffect(() => {
     const t = setTimeout(() => {
       qDebounced.current = q
-      load()
+      // Kata kunci baru = hasil baru, mulai lagi dari halaman 1. Kalau kebetulan sudah di
+      // halaman 1, setPage tidak mengubah apa-apa jadi load() dipanggil manual.
+      if (page !== 1) setPage(1)
+      else load()
     }, 350)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -449,11 +467,20 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
               </li>
             ))}
           </ul>
-          {hasMore && (
-            <Button variant="secondary" fullWidth isLoading={loadingMore} onClick={() => load(pageNo + 1)}>
-              Muat lebih banyak ({rows.length}/{total})
-            </Button>
-          )}
+          <Card variant="solid" padding="none" className="!rounded-2xl">
+            <Pagination
+              page={page}
+              totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              totalItems={total}
+              pageSize={PAGE_SIZE}
+              onPageChange={(next) => {
+                setPage(next)
+                // Pindah halaman = konten ganti total; tetap di posisi scroll lama bikin user
+                // mendarat di tengah daftar baru tanpa konteks.
+                window.scrollTo({ top: 0, behavior: "smooth" })
+              }}
+            />
+          </Card>
         </>
       )}
 

@@ -38,6 +38,9 @@ const RankBar: React.FC<{ label: string; value: number; max: number; suffix?: st
 )
 
 type Opt = { id: string; name: string }
+/** Baris per halaman tab Daftar Lead — dipakai bareng query & komponen Pagination. */
+const LEAD_PAGE_SIZE = 50
+
 type Tab = "volume" | "kualitas" | "performa-sales" | "daftar-lead"
 
 interface VolumeData {
@@ -94,8 +97,6 @@ export const LaporanClient: React.FC = () => {
   const [leadRows, setLeadRows] = useState<LeadReportRow[] | null>(null)
   const [leadTotal, setLeadTotal] = useState(0)
   const [leadPage, setLeadPage] = useState(1)
-  const [leadHasMore, setLeadHasMore] = useState(false)
-  const [leadLoadingMore, setLeadLoadingMore] = useState(false)
   const [outcome, setOutcome] = useState("")
 
   useEffect(() => {
@@ -145,13 +146,11 @@ export const LaporanClient: React.FC = () => {
         if (!from) setFrom(d.filters.from)
         if (!to) setTo(d.filters.to)
       } else {
-        const res = await fetch(`/api/marketing/reports/leads?${query()}&limit=50&page=1`, { cache: "no-store" })
+        const res = await fetch(`/api/marketing/reports/leads?${query()}&limit=${LEAD_PAGE_SIZE}&page=${leadPage}`, { cache: "no-store" })
         const d = await res.json()
         if (!res.ok) throw new Error(d.error || "Gagal memuat laporan")
         setLeadRows(d.rows)
         setLeadTotal(d.total)
-        setLeadPage(1)
-        setLeadHasMore(d.hasMore)
         if (!from) setFrom(d.filters.from)
         if (!to) setTo(d.filters.to)
       }
@@ -159,11 +158,16 @@ export const LaporanClient: React.FC = () => {
       setError(err instanceof Error ? err.message : "Gagal memuat laporan")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, query])
+  }, [tab, query, leadPage])
 
   useEffect(() => {
     load()
   }, [load])
+
+  // Ganti filter/tab = hasilnya beda, halamannya balik ke 1.
+  useEffect(() => {
+    setLeadPage(1)
+  }, [from, to, salesId, segmentId, sourceId, outcome, tab])
 
   return (
     <div className="flex flex-col gap-6">
@@ -285,22 +289,11 @@ export const LaporanClient: React.FC = () => {
           <LeadReportTab
             rows={leadRows}
             total={leadTotal}
-            hasMore={leadHasMore}
-            loadingMore={leadLoadingMore}
-            onLoadMore={async () => {
-              setLeadLoadingMore(true)
-              try {
-                const next = leadPage + 1
-                const res = await fetch(`/api/marketing/reports/leads?${query()}&limit=50&page=${next}`, { cache: "no-store" })
-                const d = await res.json()
-                if (res.ok) {
-                  setLeadRows((prev) => [...(prev ?? []), ...d.rows])
-                  setLeadPage(next)
-                  setLeadHasMore(d.hasMore)
-                }
-              } finally {
-                setLeadLoadingMore(false)
-              }
+            page={leadPage}
+            pageSize={LEAD_PAGE_SIZE}
+            onPageChange={(next) => {
+              setLeadPage(next)
+              window.scrollTo({ top: 0, behavior: "smooth" })
             }}
           />
         ) : (

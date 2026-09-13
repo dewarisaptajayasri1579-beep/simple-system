@@ -4,9 +4,9 @@ import Link from "next/link"
 
 import {
   Badge,
-  Button,
   Card,
   ColumnVisibilityMenu,
+  Pagination,
   Table,
   TableBody,
   TableCell,
@@ -141,10 +141,10 @@ const Trunc: React.FC<{ text: string | null; width?: string }> = ({ text, width 
 export const LeadReportTab: React.FC<{
   rows: LeadReportRow[]
   total: number
-  hasMore: boolean
-  loadingMore: boolean
-  onLoadMore: () => void
-}> = ({ rows, total, hasMore, loadingMore, onLoadMore }) => {
+  page: number
+  pageSize: number
+  onPageChange: (page: number) => void
+}> = ({ rows, total, page, pageSize, onPageChange }) => {
   const { isVisible, toggle } = useColumnVisibility("marketing-laporan-lead", COLUMNS)
 
   const terbalas = rows.filter((r) => r.responseMinutes != null)
@@ -227,14 +227,14 @@ export const LeadReportTab: React.FC<{
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Ringkasan ini dihitung dari baris yang sedang tampil saja — jumlah totalnya sudah ada
+            di Pagination bawah, jadi di sini sengaja diberi label "halaman ini" biar tidak
+            disangka angka seluruh rentang tanggal. */}
         <div className="flex items-center gap-4 flex-wrap text-xs font-bold text-slate-500">
-          <span>
-            Menampilkan <span className="text-slate-800">{rows.length}</span> dari{" "}
-            <span className="text-slate-800">{total}</span> lead
-          </span>
+          <span className="text-slate-400">Halaman ini:</span>
           {avgResponse != null && (
             <span>
-              Rata-rata balasan pertama: <span className={responseColor(avgResponse)}>{fmtResponse(avgResponse)}</span>
+              rata-rata balasan pertama <span className={responseColor(avgResponse)}>{fmtResponse(avgResponse)}</span>
             </span>
           )}
           {belumDibalas > 0 && <span className="text-rose-600">{belumDibalas} lead belum pernah dibalas</span>}
@@ -271,11 +271,15 @@ export const LeadReportTab: React.FC<{
         </TableContainer>
       )}
 
-      {hasMore && (
-        <Button variant="secondary" fullWidth isLoading={loadingMore} onClick={onLoadMore}>
-          Muat lebih banyak ({rows.length}/{total})
-        </Button>
-      )}
+      <Card variant="solid" padding="none" className="!rounded-2xl">
+        <Pagination
+          page={page}
+          totalPages={Math.max(1, Math.ceil(total / pageSize))}
+          totalItems={total}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+        />
+      </Card>
     </div>
   )
 }
