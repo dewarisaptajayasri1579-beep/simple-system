@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 
-import { Alert, Badge, Card, Input, Select, SkeletonList } from "@/components/ui"
+import { Alert, Badge, Button, Card, Input, Select, SkeletonList } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
 import { FilterPills, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
@@ -29,9 +29,13 @@ interface ConversationItem {
   whatsappConnectionLabel: string | null
   lastMessageAt: string | null
   lastMessagePreview: { body: string | null; direction: string } | null
+  /** Cuma terisi saat ada kata kunci pencarian: pesan di dalam chat yang cocok. */
+  matchedMessage: { body: string | null; direction: string; sentAt: string } | null
   unreadCustomerCount: number
   canAct: boolean
 }
+
+const PAGE_SIZE = 50
 
 const FILTERS = [
   { key: "all", label: "Semua" },
@@ -40,6 +44,25 @@ const FILTERS = [
   { key: "pinned", label: "⭐ Ditandai SPV" },
   { key: "hot", label: "Hot" },
 ]
+
+/** Potong isi pesan di sekitar kata yang dicari, lalu tandai bagian yang cocok — kalau pesannya
+ *  panjang, yang penting bagian yang bikin baris ini muncul tetap kelihatan, bukan kepotong di
+ *  awal kalimat. */
+function highlightSnippet(body: string, term: string) {
+  const idx = body.toLowerCase().indexOf(term.toLowerCase())
+  if (idx < 0) return <>{body.length > 120 ? `${body.slice(0, 120)}…` : body}</>
+  const start = Math.max(0, idx - 40)
+  const end = Math.min(body.length, idx + term.length + 60)
+  return (
+    <>
+      {start > 0 && "…"}
+      {body.slice(start, idx)}
+      <mark className="bg-amber-200 text-slate-900 rounded px-0.5">{body.slice(idx, idx + term.length)}</mark>
+      {body.slice(idx + term.length, end)}
+      {end < body.length && "…"}
+    </>
+  )
+}
 
 function relativeTime(iso: string | null) {
   if (!iso) return ""
@@ -74,9 +97,15 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
   const [waConnectionId, setWaConnectionId] = useState(searchParams.get("waConnectionId") ?? "")
   const [waNumbers, setWaNumbers] = useState<WhatsappNumberOption[]>([])
   const [items, setItems] = useState<ConversationItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const qDebounced = useRef(q)
+  // Halaman ke berapa yang sedang tampil — dipakai refresh diam-diam (SSE/polling) supaya tidak
+  // mengecilkan daftar balik ke 50 baris pertama saat user sudah menekan "Muat lebih banyak".
+  const pageRef = useRef(1)
 
   useEffect(() => {
     fetch("/api/marketing/conversations/whatsapp-numbers", { cache: "no-store" })
@@ -89,7 +118,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
     async (silent = false) => {
       if (!silent) setLoading(true)
       try {
-        const params = new URLSearchParams({ filter, scope, limit: "50" })
+        const params = new URLSearchParams({ filter, scope, limit: String(PAGE_SIZE) })
         if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
         if (waConnectionId) params.set("waConnectionId", waConnectionId)
 
@@ -113,13 +142,54 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
           return
         }
         setError(null)
-        setItems(data.conversations)
+        setTotal(data.total)
+        if (silent) {
+          // Refresh diam-diam cuma menyegarkan halaman pertama (di situ semua chat yang baru
+          // masuk muncul, karena urutannya pesan terbaru di atas). Baris dari halaman berikutnya
+          // yang sudah dimuat user dipertahankan di bawahnya, jangan sampai hilang sendiri.
+          setItems((prev) => {
+            const freshIds = new Set((data.conversations as ConversationItem[]).map((c) => c.id))
+            return [...data.conversations, ...prev.filter((c) => !freshIds.has(c.id))]
+          })
+        } else {
+          pageRef.current = 1
+          setItems(data.conversations)
+          setHasMore(data.hasMore)
+        }
       } finally {
         if (!silent) setLoading(false)
       }
     },
     [filter, scope, waConnectionId, isSales, pathname, router],
   )
+
+  /** "Muat lebih banyak" — ambil halaman berikutnya lalu sambung ke bawah (dedupe by id, karena
+   *  percakapan bisa pindah halaman kalau ada chat baru masuk sambil daftar dibuka). */
+  const loadMore = useCallback(async () => {
+    const next = pageRef.current + 1
+    setLoadingMore(true)
+    try {
+      const params = new URLSearchParams({ filter, scope, limit: String(PAGE_SIZE), page: String(next) })
+      if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
+      if (waConnectionId) params.set("waConnectionId", waConnectionId)
+
+      const res = await fetch(`/api/marketing/conversations?${params}`, { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Gagal memuat")
+        return
+      }
+      pageRef.current = next
+      setTotal(data.total)
+      setHasMore(data.hasMore)
+      setItems((prev) => {
+        const seen = new Set(prev.map((c) => c.id))
+        return [...prev, ...(data.conversations as ConversationItem[]).filter((c) => !seen.has(c.id))]
+      })
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [filter, scope, waConnectionId])
 
   useEffect(() => {
     load()
@@ -150,7 +220,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
 
   return (
     <div className="flex flex-col gap-4">
-      <MktHeader title="Inbox">
+      <MktHeader title={total > 0 ? `Inbox (${total})` : "Inbox"}>
         {!isSales && <ScopeToggle value={scope === "mine" ? "mine" : "all"} onChange={(v) => setScope(v)} order={["all", "mine"]} />}
       </MktHeader>
 
@@ -225,6 +295,18 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
                         )}
                       </div>
                     </div>
+                    {/* Saat mencari, preview "pesan terakhir" di atas sering bukan pesan yang bikin
+                        baris ini muncul — jadi pesan yang cocok ditampilkan terpisah di bawahnya. */}
+                    {c.matchedMessage?.body && qDebounced.current.trim() && (
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                        <span className="font-bold text-amber-700">
+                          {c.matchedMessage.direction === "OUTBOUND" ? "Kamu" : "Customer"}
+                          {" · "}
+                          {relativeTime(c.matchedMessage.sentAt)}
+                        </span>{" "}
+                        {highlightSnippet(c.matchedMessage.body, qDebounced.current.trim())}
+                      </p>
+                    )}
                     <div className="flex items-center gap-1.5 mt-1">
                       {c.whatsappConnectionLabel && (
                         <Badge variant="secondary" size="sm">{c.whatsappConnectionLabel}</Badge>
@@ -244,6 +326,12 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
             </li>
           ))}
         </ul>
+      )}
+
+      {!loading && hasMore && (
+        <Button variant="secondary" fullWidth isLoading={loadingMore} onClick={loadMore}>
+          Muat lebih banyak ({items.length}/{total})
+        </Button>
       )}
     </div>
   )

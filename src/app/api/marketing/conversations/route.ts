@@ -100,6 +100,25 @@ export async function GET(request: Request) {
     }),
   ])
 
+  // Kalau sedang mencari, ambil pesan yang COCOK dengan kata kunci buat tiap percakapan di
+  // halaman ini — supaya staf lihat kenapa sebuah baris muncul (preview default cuma pesan
+  // TERAKHIR, yang sering bukan pesan yang cocok). Satu query untuk semua baris (bukan per baris
+  // di loop), lalu dikelompokkan di JS — lihat aturan N+1 di CLAUDE.md.
+  const matchedByConversation = new Map<string, { body: string | null; direction: string; sentAt: string }>()
+  if (q && rows.length > 0) {
+    const matches = await prisma.message.findMany({
+      where: { conversationId: { in: rows.map((r) => r.id) }, body: { contains: q, mode: "insensitive" } },
+      orderBy: { sentAt: "desc" },
+      select: { conversationId: true, body: true, direction: true, sentAt: true },
+    })
+    for (const m of matches) {
+      // orderBy desc + hanya simpan yang pertama ketemu = pesan cocok TERBARU per percakapan.
+      if (!matchedByConversation.has(m.conversationId)) {
+        matchedByConversation.set(m.conversationId, { body: m.body, direction: m.direction, sentAt: m.sentAt.toISOString() })
+      }
+    }
+  }
+
   const leadIds = [...new Set(rows.map((r) => r.leadId))]
   const [assignments, actable] = await Promise.all([
     prisma.leadAssignment.findMany({
@@ -129,6 +148,8 @@ export async function GET(request: Request) {
     whatsappConnectionLabel: r.whatsappConnection?.label ?? r.whatsappConnection?.phoneNumber ?? null,
     lastMessageAt: r.lastMessageAt?.toISOString() ?? null,
     lastMessagePreview: r.messages[0] ?? null,
+    /** Hanya terisi saat `q` dipakai: pesan di dalam chat yang cocok dengan kata kunci. */
+    matchedMessage: matchedByConversation.get(r.id) ?? null,
     unreadCustomerCount: r.unreadCustomerCount,
     canAct: actable.has(r.leadId),
   }))
