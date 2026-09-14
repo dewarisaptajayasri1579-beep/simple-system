@@ -123,6 +123,7 @@ export const OUTCOME_LABEL: Record<string, string> = {
   OPEN: "Open",
   WON: "Won",
   LOST: "Lost",
+  NOT_RELEVANT: "Bukan Prospek",
   CLOSING: "Closing",
   CLIENT_LAMA: "Client Lama",
 }
@@ -130,6 +131,7 @@ export const OUTCOME_LABEL: Record<string, string> = {
 export function outcomeBadgeVariant(o: string): BadgeProps["variant"] {
   if (o === "WON") return "success"
   if (o === "LOST") return "danger"
+  if (o === "NOT_RELEVANT") return "secondary"
   if (o === "CLOSING") return "info"
   if (o === "CLIENT_LAMA") return "outline"
   return "secondary"

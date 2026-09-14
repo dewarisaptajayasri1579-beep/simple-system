@@ -317,6 +317,18 @@ export const SettingsClient: React.FC = () => {
             ]}
           />
           <MarketingMasterList
+            title="Alasan Bukan Prospek (lead nyasar — tidak dihitung sebagai kalah)"
+            endpoint="/api/marketing/disqualify-reasons"
+            listKey="disqualifyReasons"
+            canDelete
+            fields={[
+              { key: "code", label: "Kode", type: "text", createOnly: true },
+              { key: "name", label: "Nama", type: "text" },
+              { key: "sortOrder", label: "Urut", type: "number", width: "60px" },
+              { key: "isActive", label: "Aktif", type: "bool" },
+            ]}
+          />
+          <MarketingMasterList
             title="Alasan LOST"
             endpoint="/api/marketing/lost-reasons"
             listKey="lostReasons"

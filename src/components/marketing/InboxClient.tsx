@@ -43,6 +43,7 @@ const FILTERS = [
   { key: "priority", label: "Prioritas" },
   { key: "pinned", label: "⭐ Ditandai SPV" },
   { key: "hot", label: "Hot" },
+  { key: "not_relevant", label: "Bukan Prospek" },
 ]
 
 /** Potong isi pesan di sekitar kata yang dicari, lalu tandai bagian yang cocok — kalau pesannya

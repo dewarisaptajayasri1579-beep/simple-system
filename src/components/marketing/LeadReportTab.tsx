@@ -87,7 +87,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "skor", label: "Skor Prioritas" },
   { key: "prioritasSpv", label: "Prioritas SPV" },
   { key: "status", label: "Status" },
-  { key: "alasanLost", label: "Alasan Lost" },
+  { key: "alasanLost", label: "Alasan Lost / Bukan Prospek" },
   { key: "nilaiDeal", label: "Nilai Deal" },
   { key: "umur", label: "Umur (hari)" },
 ]

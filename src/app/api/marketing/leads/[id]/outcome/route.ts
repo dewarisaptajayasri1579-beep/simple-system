@@ -6,18 +6,23 @@ import { canActOnLead } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 
-const VALID = ["OPEN", "WON", "LOST", "CLOSING", "CLIENT_LAMA"]
+const VALID = ["OPEN", "WON", "LOST", "NOT_RELEVANT", "CLOSING", "CLIENT_LAMA"]
 // Outcome yang bikin lead keluar dari funnel aktif (dikeluarkan dari hitungan/list Lead biasa,
 // lihat leads/route.ts) & follow up OPEN-nya otomatis ditutup — beda dari WON/LOST cuma soal
 // makna: CLOSING = closing di luar alur Won biasa, CLIENT_LAMA = bukan lead baru sama sekali
 // (nomor lama yang WA lagi), lihat resolveMarketingRole & docs terkait.
-const EXIT_FUNNEL = ["WON", "LOST", "CLOSING", "CLIENT_LAMA"]
+const EXIT_FUNNEL = ["WON", "LOST", "NOT_RELEVANT", "CLOSING", "CLIENT_LAMA"]
 
 /**
  * POST /api/marketing/leads/[id]/outcome — set OPEN/WON/LOST/CLOSING/CLIENT_LAMA (PIC/SPV/Manager).
  *  docs/06 §25-§27.
  *  WON  → wonAt (+ opsional `wonAt` tanggal, `dealValue` Rp, `wonNote`); tutup follow up OPEN.
  *  LOST → wajib `lostReasonId`, lostAt; tutup follow up OPEN.
+ *  NOT_RELEVANT ("Bukan Prospek") → wajib `disqualifyReasonId`, disqualifiedAt; tutup follow up
+ *    OPEN. Lead nyasar yang tidak pernah jadi calon pembeli (salah paham iklan, cari barang yang
+ *    tidak kita jual, salah sambung, spam). SENGAJA bukan LOST: win rate dihitung won/(won+lost),
+ *    jadi kalau nyasar ikut masuk LOST, angka Sales turun seolah kalah bersaing padahal tidak
+ *    pernah ada persaingannya — dan ranking alasan kalah jadi ketutupan lead nyasar.
  *  CLOSING / CLIENT_LAMA → tanpa field tambahan, cuma geser status; tutup follow up OPEN juga.
  *  OPEN dari salah satu di atas = Buka Kembali: bersihkan won/lost, recompute temperatur.
  */
@@ -27,15 +32,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const body = (await request.json().catch(() => null)) as
-    | { outcome?: unknown; lostReasonId?: unknown; dealValue?: unknown; wonNote?: unknown; wonAt?: unknown }
+    | { outcome?: unknown; lostReasonId?: unknown; disqualifyReasonId?: unknown; dealValue?: unknown; wonNote?: unknown; wonAt?: unknown }
     | null
   const outcome = typeof body?.outcome === "string" ? body.outcome.toUpperCase() : ""
   const lostReasonId = typeof body?.lostReasonId === "string" ? body.lostReasonId : null
+  const disqualifyReasonId = typeof body?.disqualifyReasonId === "string" ? body.disqualifyReasonId : null
   if (!VALID.includes(outcome)) {
-    return NextResponse.json({ error: "Outcome harus OPEN, WON, LOST, CLOSING, atau CLIENT_LAMA" }, { status: 400 })
+    return NextResponse.json({ error: "Outcome harus OPEN, WON, LOST, NOT_RELEVANT, CLOSING, atau CLIENT_LAMA" }, { status: 400 })
   }
   if (outcome === "LOST" && !lostReasonId) {
     return NextResponse.json({ error: "Pilih alasan LOST dulu." }, { status: 400 })
+  }
+  if (outcome === "NOT_RELEVANT" && !disqualifyReasonId) {
+    return NextResponse.json({ error: "Pilih alasan kenapa bukan prospek dulu." }, { status: 400 })
   }
 
   const lead = await prisma.lead.findUnique({ where: { id }, select: { outcome: true } })
@@ -69,10 +78,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     : {}
   const data =
     outcome === "WON"
-      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null, closedByUserId, ...priorityPinReset }
+      ? { outcome, wonAt, dealValue, wonNote, lostAt: null, lostReasonId: null, disqualifiedAt: null, disqualifyReasonId: null, closedByUserId, ...priorityPinReset }
       : outcome === "LOST"
-        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
-        : { outcome, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
+        ? { outcome, lostAt: now, lostReasonId, wonAt: null, dealValue: null, wonNote: null, disqualifiedAt: null, disqualifyReasonId: null, closedByUserId, ...priorityPinReset }
+        : outcome === "NOT_RELEVANT"
+          ? { outcome, disqualifiedAt: now, disqualifyReasonId, wonAt: null, lostAt: null, lostReasonId: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
+          : // OPEN (Buka Kembali) / CLOSING / CLIENT_LAMA — bersihkan semua jejak penutupan.
+            { outcome, wonAt: null, lostAt: null, lostReasonId: null, disqualifiedAt: null, disqualifyReasonId: null, dealValue: null, wonNote: null, closedByUserId, ...priorityPinReset }
 
   await prisma.$transaction(async (tx) => {
     await tx.lead.update({ where: { id }, data })

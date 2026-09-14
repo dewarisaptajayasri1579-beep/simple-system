@@ -1248,6 +1248,25 @@ model LeadSource {
   @@schema("simple_system")
 }
 
+/// Alasan lead DIDISKUALIFIKASI (outcome NOT_RELEVANT) — SENGAJA master terpisah dari
+/// LeadLostReason. "Lost" = pernah jadi calon lalu kalah (harga/kompetitor/waktu), sedangkan
+/// "Bukan Prospek" = tidak pernah jadi calon sama sekali (nyasar dari iklan, cari barang yang
+/// memang tidak kita jual, salah sambung, spam). Kalau dicampur, dua hal itu tidak bisa dipisah
+/// lagi di laporan: ranking "alasan kalah" jadi ketutupan lead nyasar, dan win rate Sales ikut
+/// tergerus seolah mereka kalah bersaing padahal tidak pernah ada persaingannya.
+model LeadDisqualifyReason {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  leads Lead[]
+
+  @@map("lead_disqualify_reasons")
+  @@schema("simple_system")
+}
+
 model LeadLostReason {
   id       String  @id @default(uuid())
   code     String  @unique
@@ -1301,7 +1320,7 @@ model Lead {
   buyingPowerSource      String    @default("MANUAL") @map("buying_power_source") // "MANUAL" | "AI"
   temperature            String    @default("COLD") @map("temperature") // "COLD" | "WARM" | "HOT"
   temperatureSource      String    @default("MANUAL") @map("temperature_source") // "MANUAL" | "AI" | "RULE"
-  outcome                String    @default("OPEN") // "OPEN" | "WON" | "LOST"
+  outcome                String    @default("OPEN") // "OPEN" | "WON" | "LOST" | "NOT_RELEVANT" | "CLOSING" | "CLIENT_LAMA"
   currentActivityStage   String    @default("NONE") @map("current_activity_stage") // "NONE" | "DISCUSSION" | "ZOOM_DEMO" | "PROPOSAL" | "NEGOTIATION"
   priorityScore          Float     @default(0) @map("priority_score") // 0-100, lihat LeadPrioritySnapshot untuk breakdown
   priorityLevel          String    @default("LOW") @map("priority_level") // "LOW" | "MONITOR" | "HIGH" | "TOP"
@@ -1339,6 +1358,11 @@ model Lead {
   closedByUserId         String?   @map("closed_by_user_id")
   lostAt                 DateTime? @map("lost_at")
   lostReasonId           String?   @map("lost_reason_id")
+  // outcome NOT_RELEVANT ("Bukan Prospek") — lead nyasar yang tidak pernah jadi calon pembeli.
+  // Dipisah dari lostAt/lostReasonId supaya laporan konversi & ranking alasan kalah tidak
+  // tercampur; lihat catatan di model LeadDisqualifyReason.
+  disqualifiedAt         DateTime? @map("disqualified_at")
+  disqualifyReasonId     String?   @map("disqualify_reason_id")
   // AI tidak boleh auto-ubah temperatur selama lock ini aktif (docs/06 §6, manual override).
   temperatureLockedUntil DateTime? @map("temperature_locked_until")
   // Diisi saat lead ini sudah di-alert ke grup WA Marketing karena pesan customer belum dibalas;
@@ -1350,6 +1374,7 @@ model Lead {
   segment        Segment?             @relation(fields: [segmentId], references: [id])
   source         LeadSource?          @relation(fields: [sourceId], references: [id])
   lostReason     LeadLostReason?      @relation(fields: [lostReasonId], references: [id])
+  disqualifyReason LeadDisqualifyReason? @relation(fields: [disqualifyReasonId], references: [id])
   buyingPowerTier LeadBuyingPowerTier? @relation(fields: [buyingPowerTierId], references: [id])
 
   segmentHistory     LeadSegmentHistory[]
@@ -1378,6 +1403,7 @@ model Lead {
   @@index([lastChatAt])
   @@index([createdAt])
   @@index([lostReasonId])
+  @@index([disqualifyReasonId])
   @@index([closedByUserId])
   // Scan cron alert "lead belum direspon" (outcome OPEN + belum di-alert + pesan customer lama).
   @@index([outcome, waGroupAlertedAt, lastCustomerMessageAt])

@@ -9,7 +9,7 @@ import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } fro
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
 import { PriorityPinButton } from "./PriorityPinButton"
 import { SegmentPicker } from "./SegmentPicker"
-import { OutcomeBadge, PriorityPinBadge, tempBadgeVariant } from "./ui"
+import { OUTCOME_LABEL, outcomeBadgeVariant, OutcomeBadge, PriorityPinBadge, tempBadgeVariant } from "./ui"
 
 interface Opt {
   id: string
@@ -39,6 +39,7 @@ interface LeadDetail {
   segment: Opt | null
   source: Opt | null
   lostReason: Opt | null
+  disqualifyReason: Opt | null
   buyingPowerTier: Opt | null
   buyingPowerNote: string | null
   priorityPinnedAt: string | null
@@ -164,6 +165,8 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
   const [resultTypes, setResultTypes] = useState<Opt[]>([])
   const [users, setUsers] = useState<Opt[]>([])
   const [lostPick, setLostPick] = useState("")
+  const [disqualifyReasons, setDisqualifyReasons] = useState<Opt[]>([])
+  const [disqualifyPick, setDisqualifyPick] = useState("")
   const [wonOpen, setWonOpen] = useState(false)
   const [wonForm, setWonForm] = useState({ at: "", value: "", note: "" })
 
@@ -355,6 +358,7 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       .then((d) => {
         if (d.buyingPowerTiers) setBuyingPowerTiers(d.buyingPowerTiers)
         if (d.lostReasons) setLostReasons(d.lostReasons)
+        if (d.disqualifyReasons) setDisqualifyReasons(d.disqualifyReasons)
         if (d.activityTypes) setActivityTypes(d.activityTypes)
         if (d.followUpResultTypes) setResultTypes(d.followUpResultTypes)
         if (d.users) setUsers(d.users)
@@ -1058,14 +1062,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
       {/* Outcome */}
       <Section title="Outcome">
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={lead.outcome === "WON" ? "success" : lead.outcome === "LOST" ? "danger" : "secondary"}>
-            {lead.outcome}
-          </Badge>
+          <Badge variant={outcomeBadgeVariant(lead.outcome)}>{OUTCOME_LABEL[lead.outcome] ?? lead.outcome}</Badge>
           {lead.outcome === "WON" && lead.dealValue != null && (
             <span className="text-xs text-slate-500">Nilai: {rupiah(lead.dealValue)}</span>
           )}
           {lead.outcome === "LOST" && lead.lostReason && (
             <span className="text-xs text-slate-500">Alasan: {lead.lostReason.name}</span>
+          )}
+          {lead.outcome === "NOT_RELEVANT" && lead.disqualifyReason && (
+            <span className="text-xs text-slate-500">Alasan: {lead.disqualifyReason.name}</span>
           )}
         </div>
 
@@ -1153,6 +1158,39 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
                 Set LOST
               </Button>
             </div>
+            {/* "Bukan Prospek" sengaja dipisah dari LOST: LOST = pernah jadi calon lalu kalah,
+                ini = tidak pernah jadi calon (nyasar dari iklan, salah sambung, spam). Yang ini
+                TIDAK ikut hitungan win rate sama sekali. */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  options={[
+                    { value: "", label: "Kenapa bukan prospek…" },
+                    ...disqualifyReasons.map((r) => ({ value: r.id, label: r.name })),
+                  ]}
+                  value={disqualifyPick}
+                  onChange={setDisqualifyPick}
+                  sizeVariant="sm"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                isLoading={busy}
+                disabled={!disqualifyPick}
+                onClick={() =>
+                  call(`/api/marketing/leads/${leadId}/outcome`, {
+                    outcome: "NOT_RELEVANT",
+                    disqualifyReasonId: disqualifyPick,
+                  })
+                }
+              >
+                Bukan Prospek
+              </Button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              &quot;Bukan Prospek&quot; buat lead nyasar — tidak dihitung sebagai kalah, jadi win rate kamu tidak turun.
+            </p>
           </div>
         )}
 

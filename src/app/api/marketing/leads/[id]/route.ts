@@ -30,6 +30,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       segment: { select: { id: true, name: true } },
       source: { select: { id: true, name: true } },
       lostReason: { select: { id: true, name: true } },
+      disqualifyReason: { select: { id: true, name: true } },
       buyingPowerTier: { select: { id: true, name: true } },
       assignments: {
         orderBy: { startedAt: "desc" },
@@ -236,6 +237,7 @@ function serializeLead(lead: any) {
     segment: lead.segment,
     source: lead.source,
     lostReason: lead.lostReason,
+    disqualifyReason: lead.disqualifyReason ?? null,
     buyingPowerTier: lead.buyingPowerTier,
     buyingPowerNote: lead.buyingPowerNote ?? null,
     buyingPowerSource: lead.buyingPowerSource,

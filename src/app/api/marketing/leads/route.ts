@@ -40,7 +40,9 @@ export async function GET(request: Request) {
   // dengan outcome itu sengaja tidak dihitung sebagai "Lead" di daftar ini, kecuali diminta
   // eksplisit lewat ?outcome=.
   if (sp.get("outcome")) where.outcome = sp.get("outcome")!
-  else where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA"] }
+  // NOT_RELEVANT ikut disembunyikan dari daftar Lead aktif — lead nyasar bukan pekerjaan yang
+  // perlu dikejar, tapi tetap bisa dibuka lewat filter Status "Bukan Prospek".
+  else where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA", "NOT_RELEVANT"] }
   if (sp.get("priorityLevel")) where.priorityLevel = sp.get("priorityLevel")!
   // ?pinned=1 — cuma lead yang ditandai prioritas oleh SPV/Manager (filter pill "Prioritas SPV").
   if (sp.get("pinned") === "1") where.priorityPinnedAt = { not: null }

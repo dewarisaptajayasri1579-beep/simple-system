@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   if (sourceId) leadWhere.sourceId = sourceId
   if (salesId) leadWhere.assignments = { some: { isActive: true, assignedUserId: salesId } }
 
-  const [totalCohort, byPriority, byTemp, byStage, byOutcome, byLostReason, lostReasons] = await Promise.all([
+  const [totalCohort, byPriority, byTemp, byStage, byOutcome, byLostReason, lostReasons, byDisqualifyReason, disqualifyReasons] = await Promise.all([
     prisma.lead.count({ where: leadWhere }),
     prisma.lead.groupBy({ by: ["priorityLevel"], where: leadWhere, _count: true }),
     prisma.lead.groupBy({ by: ["temperature"], where: leadWhere, _count: true }),
@@ -46,6 +46,14 @@ export async function GET(request: Request) {
       _count: true,
     }),
     prisma.leadLostReason.findMany({ select: { id: true, name: true } }),
+    // Alasan "Bukan Prospek" dirangking terpisah dari alasan LOST — campur dua-duanya bikin
+    // alasan kalah bersaing yang sebenarnya ketutupan lead nyasar.
+    prisma.lead.groupBy({
+      by: ["disqualifyReasonId"],
+      where: { ...leadWhere, outcome: "NOT_RELEVANT", disqualifyReasonId: { not: null } },
+      _count: true,
+    }),
+    prisma.leadDisqualifyReason.findMany({ select: { id: true, name: true } }),
   ])
 
   const countOf = (rows: { _count: unknown }[], keyName: string, key: string) =>
@@ -81,6 +89,12 @@ export async function GET(request: Request) {
       .map((r) => ({ name: reasonName.get(r.lostReasonId) ?? "—", count: typeof r._count === "number" ? r._count : 0 }))
       .sort((a, b) => b.count - a.count)
 
+  const disqualifyName = new Map(disqualifyReasons.map((r) => [r.id, r.name]))
+  const disqualifyReasonBreakdown = // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (byDisqualifyReason as any[])
+      .map((r) => ({ name: disqualifyName.get(r.disqualifyReasonId) ?? "—", count: typeof r._count === "number" ? r._count : 0 }))
+      .sort((a, b) => b.count - a.count)
+
   return NextResponse.json({
     filters: { from: fromIso, to: toIso, salesId, segmentId, sourceId },
     totalCohort,
@@ -91,7 +105,9 @@ export async function GET(request: Request) {
       open: countOf(byOutcome as never, "outcome", "OPEN"),
       won: countOf(byOutcome as never, "outcome", "WON"),
       lost: countOf(byOutcome as never, "outcome", "LOST"),
+      notRelevant: countOf(byOutcome as never, "outcome", "NOT_RELEVANT"),
     },
     lostReasons: lostReasonBreakdown,
+    disqualifyReasons: disqualifyReasonBreakdown,
   })
 }

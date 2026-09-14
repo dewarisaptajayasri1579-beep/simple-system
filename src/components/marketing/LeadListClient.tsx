@@ -307,6 +307,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
               { value: "OPEN", label: "Open" },
               { value: "WON", label: "Won" },
               { value: "LOST", label: "Lost" },
+              { value: "NOT_RELEVANT", label: "Bukan Prospek" },
             ]}
             value={outcome}
             onChange={setOutcome}

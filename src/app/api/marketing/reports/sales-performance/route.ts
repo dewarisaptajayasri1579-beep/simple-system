@@ -65,15 +65,21 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ]) as [any[], any[], any[], any[]]
 
-  const perSales = new Map<string, { leads: number; won: number; lost: number; dealValueSum: number }>()
-  for (const uid of userIds) perSales.set(uid, { leads: 0, won: 0, lost: 0, dealValueSum: 0 })
+  const perSales = new Map<string, { leads: number; won: number; lost: number; dealValueSum: number; notRelevant: number }>()
+  for (const uid of userIds) perSales.set(uid, { leads: 0, won: 0, lost: 0, dealValueSum: 0, notRelevant: 0 })
   for (const lead of leads) {
     const pic = lead.assignments[0]?.assignedUserId
     // "Lead ditangani" ikut PIC aktif sekarang (siapa yang pegang), tapi kredit WON/LOST +
     // dealValue ikut `closedByUserId` — PIC pada detik lead itu closing (lihat outcome/route.ts).
     // Tanpa ini, takeover/reassign setelah deal memindahkan kredit closing secara retroaktif.
     // Fallback ke PIC aktif cuma buat baris lama yang closing sebelum kolom ini ada.
-    if (pic && perSales.has(pic)) perSales.get(pic)!.leads += 1
+    // Lead nyasar (NOT_RELEVANT) TIDAK dihitung sebagai lead yang ditangani — dia tidak pernah
+    // jadi calon pembeli, jadi kalau ikut masuk penyebut, rasio konversi Sales ikut turun cuma
+    // gara-gara iklannya salah sasaran. Dihitung terpisah biar tetap kelihatan volumenya.
+    if (pic && perSales.has(pic)) {
+      if (lead.outcome === "NOT_RELEVANT") perSales.get(pic)!.notRelevant += 1
+      else perSales.get(pic)!.leads += 1
+    }
 
     const creditUserId = lead.closedByUserId ?? pic
     if (!creditUserId || !perSales.has(creditUserId)) continue
@@ -96,7 +102,7 @@ export async function GET(request: Request) {
   const respByUser = await avgResponseTimeByUser(userIds, days)
 
   const rows = users.map((u) => {
-    const s = perSales.get(u.id) ?? { leads: 0, won: 0, lost: 0, dealValueSum: 0 }
+    const s = perSales.get(u.id) ?? { leads: 0, won: 0, lost: 0, dealValueSum: 0, notRelevant: 0 }
     const fuDone = mFuCompleted.get(u.id) ?? 0
     const fuOn = mFuOnTime.get(u.id) ?? 0
     const resp = respByUser.get(u.id)
@@ -104,6 +110,7 @@ export async function GET(request: Request) {
       userId: u.id,
       name: u.name,
       leads: s.leads,
+      notRelevant: s.notRelevant,
       won: s.won,
       lost: s.lost,
       winRate: s.won + s.lost > 0 ? Math.round((s.won / (s.won + s.lost)) * 100) : null,

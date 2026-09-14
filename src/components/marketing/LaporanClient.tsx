@@ -223,6 +223,7 @@ export const LaporanClient: React.FC = () => {
                   { value: "OPEN", label: "Open" },
                   { value: "WON", label: "Won" },
                   { value: "LOST", label: "Lost" },
+                  { value: "NOT_RELEVANT", label: "Bukan Prospek" },
                   { value: "CLOSING", label: "Closing" },
                   { value: "CLIENT_LAMA", label: "Client Lama" },
                 ]}

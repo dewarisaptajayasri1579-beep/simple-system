@@ -77,6 +77,7 @@ export async function GET(request: Request) {
         segment: { select: { name: true } },
         source: { select: { name: true } },
         lostReason: { select: { name: true } },
+        disqualifyReason: { select: { name: true } },
       },
     }),
   ])
@@ -215,7 +216,8 @@ export async function GET(request: Request) {
       priorityPinnedAt: l.priorityPinnedAt?.toISOString() ?? null,
       priorityPinNote: l.priorityPinNote,
       outcome: l.outcome,
-      lostReason: l.lostReason?.name ?? null,
+      // Satu kolom buat dua-duanya — outcome-nya mutual eksklusif, jadi tidak mungkin bentrok.
+      lostReason: l.lostReason?.name ?? l.disqualifyReason?.name ?? null,
       dealValue: l.dealValue,
       umurHari: Math.floor((Date.now() - l.firstContactAt.getTime()) / 86400000),
     }
@@ -321,7 +323,7 @@ function csvResponse(rows: Row[], fromIso: string, toIso: string) {
     "Skor Prioritas",
     "Prioritas SPV",
     "Status",
-    "Alasan Lost",
+    "Alasan Lost / Bukan Prospek",
     "Nilai Deal",
     "Umur (hari)",
   ]

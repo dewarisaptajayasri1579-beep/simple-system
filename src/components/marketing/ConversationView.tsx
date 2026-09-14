@@ -106,6 +106,9 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [notesOpen, setNotesOpen] = useState(false)
   const [completingFu, setCompletingFu] = useState(false)
   const [resultTypes, setResultTypes] = useState<{ id: string; name: string }[]>([])
+  const [disqualifyReasons, setDisqualifyReasons] = useState<{ id: string; name: string }[]>([])
+  const [disqualifyOpen, setDisqualifyOpen] = useState(false)
+  const [disqualifyBusy, setDisqualifyBusy] = useState(false)
   const [noteDraft, setNoteDraft] = useState("")
   const [savingNote, setSavingNote] = useState(false)
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
@@ -163,7 +166,10 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   useEffect(() => {
     fetch("/api/marketing/meta")
       .then((r) => r.json())
-      .then((d) => d.followUpResultTypes && setResultTypes(d.followUpResultTypes))
+      .then((d) => {
+        if (d.followUpResultTypes) setResultTypes(d.followUpResultTypes)
+        if (d.disqualifyReasons) setDisqualifyReasons(d.disqualifyReasons)
+      })
       .catch(() => {})
   }, [])
   useEffect(() => {
@@ -471,11 +477,58 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             viewerRole={meta.viewerRole}
             onDone={() => load(true)}
           />
+          {/* Lead nyasar paling sering ketahuan justru saat baca chatnya, bukan di Detail Lead —
+              jadi tombolnya disediakan di sini juga supaya tidak perlu pindah halaman dulu. */}
+          {meta.canAct && lead.outcome === "OPEN" && disqualifyReasons.length > 0 && (
+            <button
+              onClick={() => setDisqualifyOpen((v) => !v)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-700"
+            >
+              Bukan Prospek
+            </button>
+          )}
           <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline">
             Detail
           </Link>
         </div>
       </div>
+
+      {disqualifyOpen && (
+        <div className="border-b border-slate-200 py-2 flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500">Kenapa bukan prospek?</span>
+          {disqualifyReasons.map((r) => (
+            <Button
+              key={r.id}
+              size="sm"
+              variant="secondary"
+              isLoading={disqualifyBusy}
+              onClick={async () => {
+                setDisqualifyBusy(true)
+                try {
+                  const res = await fetch(`/api/marketing/leads/${lead.id}/outcome`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ outcome: "NOT_RELEVANT", disqualifyReasonId: r.id }),
+                  })
+                  const d = await res.json()
+                  if (!res.ok) setError(d.error || "Gagal menandai")
+                  else {
+                    setDisqualifyOpen(false)
+                    load(true)
+                  }
+                } finally {
+                  setDisqualifyBusy(false)
+                }
+              }}
+            >
+              {r.name}
+            </Button>
+          ))}
+          <button onClick={() => setDisqualifyOpen(false)} className="text-xs font-bold text-slate-400 hover:text-slate-700">
+            Batal
+          </button>
+        </div>
+      )}
 
       {/* Follow up OPEN gampang kelewat kalau Sales cuma balas chat dari sini tanpa buka Detail
           Lead — balas chat TIDAK otomatis menutup follow up (butuh isi hasil follow up buat

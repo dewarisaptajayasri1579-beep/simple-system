@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma"
  *    PIC-nya user ini. Role SALES DIPAKSA "mine" di server — beda dari Manager/SPV, Sales cuma
  *    boleh lihat Inbox miliknya sendiri, apa pun query `scope` yang dikirim client (lihat
  *    InboxClient.tsx yang juga sudah sembunyikan toggle-nya, tapi enforcement aslinya di sini).
- *  - `filter`: all | unread | priority | hot | pinned (ditandai prioritas SPV)
+ *  - `filter`: all | unread | priority | hot | pinned (ditandai prioritas SPV) | not_relevant
  *  - `waConnectionId`: filter ke satu nomor WA (WhatsappConnection) tertentu — dipakai kalau
  *    sales/manager punya >1 nomor dan mau pisahin Inbox per nomor.
  *  - `q`: cari nama / perusahaan / nomor WA, ATAU isi pesan (Message.body) di percakapan itu
@@ -44,6 +44,10 @@ export async function GET(request: Request) {
   // lihat UNREPLIED_LEAD_WHERE.
   if (filter === "unread") and.push({ lead: UNREPLIED_LEAD_WHERE })
   if (filter === "pinned") and.push({ lead: { priorityPinnedAt: { not: null } } })
+  // Lead nyasar (NOT_RELEVANT) tidak ikut Inbox aktif — itu seluruh gunanya ditandai. Tetap bisa
+  // dibuka lewat filter "Bukan Prospek" kalau perlu dicek ulang / dibuka kembali.
+  if (filter === "not_relevant") and.push({ lead: { outcome: "NOT_RELEVANT" } })
+  else and.push({ lead: { outcome: { not: "NOT_RELEVANT" } } })
   if (waConnectionId) and.push({ whatsappConnectionId: waConnectionId })
   // `q` sengaja di-OR di level Conversation (bukan ikut ke leadWhere di atas) — biar bisa cocok
   // dari isi pesan (Message.body) juga, bukan cuma field Lead. Kalau ikut leadWhere, hasilnya

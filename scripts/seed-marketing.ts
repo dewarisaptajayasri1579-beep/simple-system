@@ -108,6 +108,24 @@ async function main() {
     console.log(`LeadLostReason ${l.code} - ${l.name}`)
   }
 
+  // Alasan "Bukan Prospek" (outcome NOT_RELEVANT) — lead nyasar, bukan kalah bersaing.
+  const disqualifyReasons = [
+    { code: "WRONG_PRODUCT", name: "Salah produk / bukan yang kita jual", sortOrder: 1 },
+    { code: "NOT_TARGET", name: "Bukan target pasar", sortOrder: 2 },
+    { code: "JUST_ASKING", name: "Cuma tanya-tanya", sortOrder: 3 },
+    { code: "WRONG_NUMBER", name: "Salah sambung", sortOrder: 4 },
+    { code: "SPAM", name: "Spam / iklan masuk", sortOrder: 5 },
+    { code: "OTHER", name: "Lainnya", sortOrder: 9 },
+  ]
+  for (const d of disqualifyReasons) {
+    await prisma.leadDisqualifyReason.upsert({
+      where: { code: d.code },
+      update: { name: d.name, sortOrder: d.sortOrder },
+      create: d,
+    })
+    console.log(`LeadDisqualifyReason ${d.code} - ${d.name}`)
+  }
+
   console.log("Seed Marketing selesai.")
 }
 
