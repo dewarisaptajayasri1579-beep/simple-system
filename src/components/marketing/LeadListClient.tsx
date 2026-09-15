@@ -24,7 +24,8 @@ import {
   TableRow,
 } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+import { DateRangeFilter, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+import type { DateRangePreset } from "@/lib/marketing/date-range"
 
 interface LeadRow {
   id: string
@@ -102,6 +103,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   const [priorityLevel, setPriorityLevel] = useState(searchParams.get("priorityLevel") ?? "")
   const [picUserId, setPicUserId] = useState(searchParams.get("picUserId") ?? "")
   const [sort, setSort] = useState(searchParams.get("sort") ?? "priority")
+  // Filter tanggal MASUK lead (firstContactAt) — lihat DateRangeFilter & date-range.ts.
+  const [dateRange, setDateRange] = useState<DateRangePreset>((searchParams.get("dateRange") as DateRangePreset) ?? "all")
+  const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") ?? "")
+  const [dateTo, setDateTo] = useState(searchParams.get("dateTo") ?? "")
   // Nomor halaman ikut disimpan di URL, sama seperti filter — dulu daftarnya pakai tombol "Muat
   // lebih banyak" yang menumpuk baris di memori doang, jadi begitu user buka Detail Lead lalu
   // pencet Back, semua tumpukan itu hilang dan balik ke halaman 1 (padahal filternya kembali
@@ -164,6 +169,11 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         if (outcome) p.set("outcome", outcome)
         if (priorityLevel) p.set("priorityLevel", priorityLevel)
         if (picUserId) p.set("picUserId", picUserId)
+        if (dateRange !== "all") p.set("dateRange", dateRange)
+        if (dateRange === "custom") {
+          if (dateFrom) p.set("dateFrom", dateFrom)
+          if (dateTo) p.set("dateTo", dateTo)
+        }
 
         {
           // Simpan filter + halaman ke URL (replace, bukan push) supaya kalau user buka Detail
@@ -179,6 +189,11 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
           if (priorityLevel) urlParams.set("priorityLevel", priorityLevel)
           if (picUserId) urlParams.set("picUserId", picUserId)
           if (sort !== "priority") urlParams.set("sort", sort)
+          if (dateRange !== "all") urlParams.set("dateRange", dateRange)
+          if (dateRange === "custom") {
+            if (dateFrom) urlParams.set("dateFrom", dateFrom)
+            if (dateTo) urlParams.set("dateTo", dateTo)
+          }
           if (page > 1) urlParams.set("page", String(page))
           const qs = urlParams.toString()
           router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
@@ -197,7 +212,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         setLoading(false)
       }
     },
-    [page, scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, isSales, forcedOutcome, pathname, router],
+    [page, scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, dateRange, dateFrom, dateTo, isSales, forcedOutcome, pathname, router],
   )
 
   useEffect(() => {
@@ -206,7 +221,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
 
   // Ganti filter = hasil barunya beda total, jadi halaman balik ke 1. Render pertama dilewati
   // supaya halaman yang dipulihkan dari URL (kasus Back) tidak ikut kereset ke 1.
-  const filterSig = JSON.stringify([scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId])
+  const filterSig = JSON.stringify([scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, dateRange, dateFrom, dateTo])
   const firstRenderRef = useRef(true)
   useEffect(() => {
     if (firstRenderRef.current) {
@@ -260,6 +275,18 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
       />
 
       <div className="flex flex-wrap gap-2">
+        {/* Tanggal ditaruh paling depan — dari semua filter di baris ini, ini yang paling sering
+            dipakai buat pertanyaan harian ("lead hari ini berapa?"). Basisnya tanggal MASUK. */}
+        <DateRangeFilter
+          preset={dateRange}
+          from={dateFrom}
+          to={dateTo}
+          onChange={(next) => {
+            setDateRange(next.preset)
+            setDateFrom(next.from)
+            setDateTo(next.to)
+          }}
+        />
         <div className="w-40">
           <Select options={[{ value: "", label: "Semua Segmen" }, ...opt(segments)]} value={segmentId} onChange={setSegmentId} sizeVariant="sm" />
         </div>

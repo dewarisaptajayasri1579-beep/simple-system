@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
+import { dateRangeFilterFromParams } from "@/lib/marketing/date-range"
 import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { UNREPLIED_LEAD_WHERE } from "@/lib/marketing/inbox"
 import { prisma } from "@/lib/prisma"
@@ -15,6 +16,7 @@ import { prisma } from "@/lib/prisma"
  *  - `filter`: all | unread | priority | hot | pinned (ditandai prioritas SPV) | not_relevant
  *  - `waConnectionId`: filter ke satu nomor WA (WhatsappConnection) tertentu — dipakai kalau
  *    sales/manager punya >1 nomor dan mau pisahin Inbox per nomor.
+ *  - `dateRange` (+ `dateFrom`/`dateTo` kalau custom): saring by chat terakhir, kalender Jakarta
  *  - `q`: cari nama / perusahaan / nomor WA, ATAU isi pesan (Message.body) di percakapan itu
  *  - `page` / `limit` (offset pagination, limit maks 100)
  * Tiap item bawa `canAct` (boleh balas/aksi atau tidak) supaya UI tak perlu cek ulang.
@@ -49,6 +51,10 @@ export async function GET(request: Request) {
   if (filter === "not_relevant") and.push({ lead: { outcome: "NOT_RELEVANT" } })
   else and.push({ lead: { outcome: { not: "NOT_RELEVANT" } } })
   if (waConnectionId) and.push({ whatsappConnectionId: waConnectionId })
+  // Filter rentang tanggal — basisnya CHAT TERAKHIR (lastMessageAt), karena yang dicari di Inbox
+  // memang "percakapan yang ada kabarnya hari ini/minggu ini", bukan kapan leadnya masuk.
+  const dateFilter = dateRangeFilterFromParams(searchParams)
+  if (dateFilter) and.push({ lastMessageAt: dateFilter })
   // `q` sengaja di-OR di level Conversation (bukan ikut ke leadWhere di atas) — biar bisa cocok
   // dari isi pesan (Message.body) juga, bukan cuma field Lead. Kalau ikut leadWhere, hasilnya
   // jadi AND dengan filter lain, jadi harus taruh di array `and` sebagai 1 kondisi OR terpisah.

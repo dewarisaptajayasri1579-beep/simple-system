@@ -1,9 +1,10 @@
 "use client"
 
 import React from "react"
-import { Star } from "lucide-react"
+import { CalendarDays, Star } from "lucide-react"
 
-import { Badge, type BadgeProps } from "@/components/ui"
+import { Badge, Input, Select, type BadgeProps } from "@/components/ui"
+import { DATE_RANGE_LABEL, type DateRangePreset } from "@/lib/marketing/date-range"
 
 /** Panggil `fn` setiap tab kembali fokus / online — biar polling terasa instan saat user
  *  balik ke halaman, tanpa perlu SSE. */
@@ -177,6 +178,51 @@ export const PriorityPinBadge: React.FC<{ pinnedAt: string | null; note?: string
     </span>
   )
 }
+
+/**
+ * Filter rentang tanggal (Hari Ini / Kemarin / Minggu Ini / Bulan Ini / pilih sendiri).
+ * Dipakai di daftar Lead (basis: tanggal lead MASUK) & Inbox (basis: chat terakhir).
+ *
+ * Yang disimpan ke URL cuma nama presetnya, bukan tanggal hasil hitungan — jadi "Hari Ini" tetap
+ * berarti hari ini waktu halamannya dibuka lagi besok, bukan tanggal yang beku. Tanggal custom
+ * baru ikut disimpan kalau presetnya memang "custom" (lihat resolveDateRangePreset).
+ */
+export const DateRangeFilter: React.FC<{
+  preset: DateRangePreset
+  from: string
+  to: string
+  onChange: (next: { preset: DateRangePreset; from: string; to: string }) => void
+  className?: string
+}> = ({ preset, from, to, onChange, className = "" }) => (
+  <div className={`flex items-center gap-1.5 flex-wrap ${className}`}>
+    <Select
+      options={(Object.keys(DATE_RANGE_LABEL) as DateRangePreset[]).map((k) => ({ value: k, label: DATE_RANGE_LABEL[k] }))}
+      value={preset}
+      onChange={(v) => onChange({ preset: v as DateRangePreset, from, to })}
+      sizeVariant="sm"
+      leftIcon={<CalendarDays className="w-4 h-4" />}
+    />
+    {preset === "custom" && (
+      <>
+        <Input
+          type="date"
+          value={from}
+          onChange={(e) => onChange({ preset, from: e.target.value, to })}
+          sizeVariant="sm"
+          className="w-36"
+        />
+        <span className="text-xs font-bold text-slate-400">s/d</span>
+        <Input
+          type="date"
+          value={to}
+          onChange={(e) => onChange({ preset, from, to: e.target.value })}
+          sizeVariant="sm"
+          className="w-36"
+        />
+      </>
+    )}
+  </div>
+)
 
 /** Header halaman: judul + aksi kanan. */
 export const MktHeader: React.FC<{ title: React.ReactNode; children?: React.ReactNode }> = ({ title, children }) => (

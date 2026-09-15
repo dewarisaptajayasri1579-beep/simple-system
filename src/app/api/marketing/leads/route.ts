@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client"
 
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { logAudit } from "@/lib/marketing/audit"
+import { dateRangeFilterFromParams } from "@/lib/marketing/date-range"
 import { actableLeadIds, resolveMarketingRole } from "@/lib/marketing/permissions"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
@@ -46,6 +47,11 @@ export async function GET(request: Request) {
   if (sp.get("priorityLevel")) where.priorityLevel = sp.get("priorityLevel")!
   // ?pinned=1 — cuma lead yang ditandai prioritas oleh SPV/Manager (filter pill "Prioritas SPV").
   if (sp.get("pinned") === "1") where.priorityPinnedAt = { not: null }
+  // Filter rentang tanggal — basisnya tanggal lead MASUK (firstContactAt), bukan createdAt/
+  // lastChatAt. Preset ("today"/"week"/…) dihitung di sini pakai kalender Jakarta, bukan dikirim
+  // client sebagai tanggal jadi, supaya "Hari Ini" tetap benar walau tab-nya dibuka sejak kemarin.
+  const dateFilter = dateRangeFilterFromParams(sp)
+  if (dateFilter) where.firstContactAt = dateFilter
   if (q) {
     where.OR = [
       { displayName: { contains: q, mode: "insensitive" } },

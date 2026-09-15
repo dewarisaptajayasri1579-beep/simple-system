@@ -7,7 +7,8 @@ import { Search } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { FilterPills, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
+import { DateRangeFilter, FilterPills, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, useMarketingStream, useVisibilityRefresh } from "./ui"
+import type { DateRangePreset } from "@/lib/marketing/date-range"
 import { WhatsappStatusBanner } from "./WhatsappStatusBanner"
 
 interface ConversationItem {
@@ -96,6 +97,10 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
   const [scope, setScope] = useState<"all" | "mine">(isSales ? "mine" : searchParams.get("scope") === "mine" ? "mine" : "all")
   const [q, setQ] = useState(searchParams.get("q") ?? "")
   const [waConnectionId, setWaConnectionId] = useState(searchParams.get("waConnectionId") ?? "")
+  // Filter tanggal CHAT TERAKHIR — lihat DateRangeFilter & date-range.ts.
+  const [dateRange, setDateRange] = useState<DateRangePreset>((searchParams.get("dateRange") as DateRangePreset) ?? "all")
+  const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") ?? "")
+  const [dateTo, setDateTo] = useState(searchParams.get("dateTo") ?? "")
   const [waNumbers, setWaNumbers] = useState<WhatsappNumberOption[]>([])
   const [items, setItems] = useState<ConversationItem[]>([])
   const [total, setTotal] = useState(0)
@@ -122,6 +127,11 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
         const params = new URLSearchParams({ filter, scope, limit: String(PAGE_SIZE) })
         if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
         if (waConnectionId) params.set("waConnectionId", waConnectionId)
+        if (dateRange !== "all") params.set("dateRange", dateRange)
+        if (dateRange === "custom") {
+          if (dateFrom) params.set("dateFrom", dateFrom)
+          if (dateTo) params.set("dateTo", dateTo)
+        }
 
         if (!silent) {
           // Simpan filter ke URL (replace, bukan push) supaya kalau user buka Detail Inbox lalu
@@ -132,6 +142,11 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
           if (!isSales && scope !== "all") urlParams.set("scope", scope)
           if (qDebounced.current.trim()) urlParams.set("q", qDebounced.current.trim())
           if (waConnectionId) urlParams.set("waConnectionId", waConnectionId)
+          if (dateRange !== "all") urlParams.set("dateRange", dateRange)
+          if (dateRange === "custom") {
+            if (dateFrom) urlParams.set("dateFrom", dateFrom)
+            if (dateTo) urlParams.set("dateTo", dateTo)
+          }
           const qs = urlParams.toString()
           router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
         }
@@ -161,7 +176,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
         if (!silent) setLoading(false)
       }
     },
-    [filter, scope, waConnectionId, isSales, pathname, router],
+    [filter, scope, waConnectionId, dateRange, dateFrom, dateTo, isSales, pathname, router],
   )
 
   /** "Muat lebih banyak" — ambil halaman berikutnya lalu sambung ke bawah (dedupe by id, karena
@@ -173,6 +188,11 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
       const params = new URLSearchParams({ filter, scope, limit: String(PAGE_SIZE), page: String(next) })
       if (qDebounced.current.trim()) params.set("q", qDebounced.current.trim())
       if (waConnectionId) params.set("waConnectionId", waConnectionId)
+      if (dateRange !== "all") params.set("dateRange", dateRange)
+      if (dateRange === "custom") {
+        if (dateFrom) params.set("dateFrom", dateFrom)
+        if (dateTo) params.set("dateTo", dateTo)
+      }
 
       const res = await fetch(`/api/marketing/conversations?${params}`, { cache: "no-store" })
       const data = await res.json()
@@ -190,7 +210,7 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
     } finally {
       setLoadingMore(false)
     }
-  }, [filter, scope, waConnectionId])
+  }, [filter, scope, waConnectionId, dateRange, dateFrom, dateTo])
 
   useEffect(() => {
     load()
@@ -234,6 +254,17 @@ export const InboxClient: React.FC<{ isSales?: boolean }> = ({ isSales = false }
       />
 
       <FilterPills options={FILTERS} value={filter} onChange={setFilter} />
+
+      <DateRangeFilter
+        preset={dateRange}
+        from={dateFrom}
+        to={dateTo}
+        onChange={(next) => {
+          setDateRange(next.preset)
+          setDateFrom(next.from)
+          setDateTo(next.to)
+        }}
+      />
 
       {waNumbers.length > 1 && (
         <Select
