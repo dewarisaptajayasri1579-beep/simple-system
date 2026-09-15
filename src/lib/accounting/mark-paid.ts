@@ -195,6 +195,82 @@ export async function markRecurringBillPaid(
   return { transaction, bill }
 }
 
+export type RenewableRefType = "server" | "domain" | "recurring_bill" | "maintenance"
+
+/**
+ * Majukan tanggal perpanjangan Server/Domain/Biaya Berkala/Maintenance setelah dibayar.
+ *
+ * Dipisah jadi fungsi sendiri karena ada DUA jalur yang harus menghasilkan tanggal yang sama
+ * persis: (1) posting transaksi beban "Bayar Domain/Server/..." lewat finalizeTransactionPosting,
+ * dan (2) perpanjangan TANPA biaya (lihat markRenewedWithoutCost) — mis. Maintenance yang murni
+ * jasa kita sendiri, tidak ada uang keluar ke pihak ketiga sama sekali. Kalau rumus tanggalnya
+ * dikembar-dua, cepat atau lambat keduanya drift.
+ */
+export async function advanceRenewalDates(
+  tx: TxClient,
+  input: { refType: RenewableRefType; refId: string; paidAt: Date }
+) {
+  if (input.refType === "server") {
+    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi, sama pola dengan Domain di bawah —
+    // begitu dibayar, INI yang dimajukan sesuai siklus periode (bukan lastPaidAt/tanggal bayar),
+    // supaya telat bayar tidak menggeser siklus jatuh tempo berikutnya.
+    const server = await tx.server.findUnique({ where: { id: input.refId }, include: { period: true } })
+    // Server BARU (belum pernah punya expiryDate/lastPaidAt) — computeNextDueDate(null, ...)
+    // balikin null, jadi fallback-nya HARUS tetap dianggurin lewat computeNextDueDate lagi
+    // (anchor = tanggal bayar ini), bukan dipakai mentah-mentah sebagai expiryDate. Kalau dipakai
+    // mentah, expiryDate == lastPaidAt (hari ini) dan langsung ke-anggap "expired" beberapa hari
+    // kemudian — bug yang sempat kejadian di Domain (lihat catatan sama di bawah).
+    const previousAnchor = server?.expiryDate ?? server?.lastPaidAt ?? input.paidAt
+    const nextExpiry = computeNextDueDate(previousAnchor, server?.period?.name, server?.periodCount) ?? input.paidAt
+    await tx.server.update({
+      where: { id: input.refId },
+      data: { lastPaidAt: input.paidAt, expiryDate: nextExpiry, lastCheckinAt: null },
+    })
+    return
+  }
+  if (input.refType === "domain") {
+    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi — begitu dibayar, INI yang
+    // ditambah 1 tahun (bukan lastPaidAt/tanggal bayar), supaya telat bayar tidak menggeser
+    // siklus jatuh tempo tahun depan. Kalau belum pernah kesetel (domain baru), jatuh ke
+    // lastPaidAt lama, atau tanggal bayar/aktivasi ini kalau benar-benar baru pertama kali.
+    // lastPaidAt sendiri tetap murni "kapan terakhir dibayar" — dua field, dua arti beda.
+    const domain = await tx.domain.findUnique({ where: { id: input.refId }, select: { expiryDate: true, lastPaidAt: true } })
+    // Domain BARU (belum pernah punya expiryDate/lastPaidAt) — computeDomainExpiryDate(null)
+    // balikin null, jadi anchor-nya jatuh ke tanggal bayar ini SUPAYA TETAP DITAMBAH 1 TAHUN lagi
+    // (bukan dipakai mentah sebagai expiryDate — itu bikin expiryDate == lastPaidAt hari ini,
+    // langsung ke-anggap "expired" beberapa hari kemudian walau baru saja dibayar/didaftarkan).
+    const previousAnchor = domain?.expiryDate ?? domain?.lastPaidAt ?? input.paidAt
+    const nextExpiry = computeDomainExpiryDate(previousAnchor) ?? input.paidAt
+    await tx.domain.update({ where: { id: input.refId }, data: { lastPaidAt: input.paidAt, expiryDate: nextExpiry } })
+    return
+  }
+  if (input.refType === "recurring_bill") {
+    await tx.recurringBill.update({ where: { id: input.refId }, data: { lastPaidAt: input.paidAt, lastCheckinAt: null } })
+    return
+  }
+  await tx.maintenance.update({ where: { id: input.refId }, data: { lastPaidAt: input.paidAt } })
+}
+
+/**
+ * Tandai Domain/Server/Maintenance/Biaya Berkala sudah diperpanjang, TANPA mencatat biaya apa pun.
+ *
+ * Perlu jalur sendiri karena tidak semua perpanjangan menimbulkan uang keluar: Maintenance itu
+ * jasa kita sendiri (tidak ada yang dibayar ke pihak ketiga), dan domain/server pun kadang sudah
+ * ikut terbayar di transaksi lain. Dulu satu-satunya cara memajukan tanggalnya adalah lewat
+ * markDomainPaid/markServerPaid/markMaintenancePaid yang MEWAJIBKAN nominal > 0 — jadi kalau HPP-
+ * nya memang nol, stafnya tidak punya pilihan selain membiarkannya, dan itemnya nyangkut terus di
+ * daftar jatuh tempo dashboard walau invoicenya sudah lunas.
+ *
+ * Sengaja TIDAK membuat Transaction/jurnal: nilainya nol, jadi tidak ada yang perlu dibukukan.
+ * Jejaknya ditinggalkan lewat AuditLog di pemanggil.
+ */
+export async function markRenewedWithoutCost(
+  tx: TxClient,
+  input: { refType: RenewableRefType; refId: string; paidAt: Date }
+) {
+  await advanceRenewalDates(tx, input)
+}
+
 /** Posting 1 Transaction draft (manual Keuangan, atau hasil markServerPaid/markDomainPaid/
  *  recurring-bill mark-paid) — flip Transaction + jurnal terkait jadi posted, baru di titik
  *  ini efeknya berlaku: saldo akun ikut terhitung (lewat filter postStatus di
@@ -235,40 +311,14 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     throw new Error(`Jurnal untuk transaksi "${transaction.description ?? transaction.id}" tidak ketemu — tidak bisa diposting`)
   }
 
-  if (transaction.refType === "server" && transaction.refId) {
-    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi, sama pola dengan Domain di bawah —
-    // begitu dibayar, INI yang dimajukan sesuai siklus periode (bukan lastPaidAt/tanggal bayar),
-    // supaya telat bayar tidak menggeser siklus jatuh tempo berikutnya.
-    const server = await tx.server.findUnique({ where: { id: transaction.refId }, include: { period: true } })
-    // Server BARU (belum pernah punya expiryDate/lastPaidAt) — computeNextDueDate(null, ...)
-    // balikin null, jadi fallback-nya HARUS tetap dianggurin lewat computeNextDueDate lagi
-    // (anchor = tanggal bayar ini), bukan dipakai mentah-mentah sebagai expiryDate. Kalau dipakai
-    // mentah, expiryDate == lastPaidAt (hari ini) dan langsung ke-anggap "expired" beberapa hari
-    // kemudian — bug yang sempat kejadian di Domain (lihat catatan sama di bawah).
-    const previousAnchor = server?.expiryDate ?? server?.lastPaidAt ?? transaction.occurredAt
-    const nextExpiry = computeNextDueDate(previousAnchor, server?.period?.name, server?.periodCount) ?? transaction.occurredAt
-    await tx.server.update({
-      where: { id: transaction.refId },
-      data: { lastPaidAt: transaction.occurredAt, expiryDate: nextExpiry, lastCheckinAt: null },
-    })
-  } else if (transaction.refType === "domain" && transaction.refId) {
-    // expiryDate ("Tgl Berakhir") adalah acuan renewal resmi — begitu dibayar, INI yang
-    // ditambah 1 tahun (bukan lastPaidAt/tanggal bayar), supaya telat bayar tidak menggeser
-    // siklus jatuh tempo tahun depan. Kalau belum pernah kesetel (domain baru), jatuh ke
-    // lastPaidAt lama, atau tanggal bayar/aktivasi ini kalau benar-benar baru pertama kali.
-    // lastPaidAt sendiri tetap murni "kapan terakhir dibayar" — dua field, dua arti beda.
-    const domain = await tx.domain.findUnique({ where: { id: transaction.refId }, select: { expiryDate: true, lastPaidAt: true } })
-    // Domain BARU (belum pernah punya expiryDate/lastPaidAt) — computeDomainExpiryDate(null)
-    // balikin null, jadi anchor-nya jatuh ke tanggal bayar ini SUPAYA TETAP DITAMBAH 1 TAHUN lagi
-    // (bukan dipakai mentah sebagai expiryDate — itu bikin expiryDate == lastPaidAt hari ini,
-    // langsung ke-anggap "expired" beberapa hari kemudian walau baru saja dibayar/didaftarkan).
-    const previousAnchor = domain?.expiryDate ?? domain?.lastPaidAt ?? transaction.occurredAt
-    const nextExpiry = computeDomainExpiryDate(previousAnchor) ?? transaction.occurredAt
-    await tx.domain.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, expiryDate: nextExpiry } })
-  } else if (transaction.refType === "recurring_bill" && transaction.refId) {
-    await tx.recurringBill.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt, lastCheckinAt: null } })
-  } else if (transaction.refType === "maintenance" && transaction.refId) {
-    await tx.maintenance.update({ where: { id: transaction.refId }, data: { lastPaidAt: transaction.occurredAt } })
+  if (
+    transaction.refId &&
+    (transaction.refType === "server" ||
+      transaction.refType === "domain" ||
+      transaction.refType === "recurring_bill" ||
+      transaction.refType === "maintenance")
+  ) {
+    await advanceRenewalDates(tx, { refType: transaction.refType, refId: transaction.refId, paidAt: transaction.occurredAt })
   } else if (transaction.refType === "kasbon" && transaction.refId) {
     // Hitung ulang sisa Kasbon dari SEMUA leg (pencairan expense + pelunasan income) yang sudah
     // posted, termasuk transaction ini sendiri (masih berstatus "draft" di DB di titik ini,

@@ -8,7 +8,7 @@ import { postJournalEntry } from "@/lib/accounting/post-journal"
 import { invoicePaymentLines, ppnSettlementLines } from "@/lib/accounting/journal-rules"
 import { getAccountCoaCode } from "@/lib/accounting/coa-lookup"
 import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
-import { markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
+import { markRenewedWithoutCost, markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 import { invoiceCashDue } from "@/lib/invoice-due"
 
@@ -89,19 +89,27 @@ export async function POST(request: Request) {
 
   if (lines.length === 0) return NextResponse.json({ error: "Pilih minimal 1 invoice untuk dibayar" }, { status: 400 })
 
-  // Biaya (HPP) domain/server yang dikaitkan wajib diisi manual — BUKAN diambil dari harga
-  // jual domain/server (itu harga ke client, beda dengan HPP/biaya modalnya).
-  const missingCostAmount = lines.find((l) => l.costLink && l.costAmount <= 0)
-  if (missingCostAmount) {
-    return NextResponse.json({ error: "Isi dulu Biaya (HPP) untuk baris yang dikaitkan ke Bayar Domain/Server/Maintenance" }, { status: 400 })
-  }
+  // Biaya (HPP) domain/server yang dikaitkan diisi manual — BUKAN diambil dari harga jual
+  // domain/server (itu harga ke client, beda dengan HPP/biaya modalnya).
+  //
+  // HPP 0 SENGAJA DIIZINKAN: tidak semua perpanjangan menimbulkan uang keluar — Maintenance itu
+  // jasa kita sendiri, dan domain/server kadang sudah ikut terbayar di transaksi lain. Dulu
+  // nominal 0 ditolak mentah-mentah, jadi staf tidak punya cara menandai item itu sudah
+  // diperpanjang, dan item-nya nyangkut terus di daftar jatuh tempo dashboard walau invoicenya
+  // sudah lunas (kejadian di Maintenance Naba & Blesscafe). Sekarang HPP 0 = perpanjang saja,
+  // tanpa transaksi beban & tanpa jurnal (lihat markRenewedWithoutCost).
+  const costLinked = lines.filter((l) => l.costLink)
 
-  // Mengaitkan biaya ke "Bayar Domain"/"Bayar Server"/"Bayar Maintenance" langsung menandai
-  // record itu lunas + posting jurnal beban — efeknya sama seperti kartu "Tandai Lunas" di
-  // Master Data, yang sengaja dibatasi Owner saja. Jangan longgarkan cuma karena masuk lewat
-  // form Pelunasan.
-  if (lines.some((l) => l.costLink) && user.role !== "owner") {
-    return NextResponse.json({ error: "Cuma Owner yang bisa mengaitkan biaya ke Bayar Domain/Server/Maintenance" }, { status: 403 })
+  // Batas Owner cuma berlaku untuk yang BENAR-BENAR mencatat biaya: itu bikin Transaction +
+  // jurnal beban, sama seperti kartu "Tandai Lunas" di Master Data yang memang dikunci Owner.
+  // Perpanjangan tanpa biaya tidak membukukan apa pun, jadi tidak perlu dikunci — dulu admin
+  // sama sekali tidak bisa mengaitkan, akibatnya pembayaran yang dia input tidak pernah
+  // memajukan tanggal servernya tanpa peringatan apa pun (kejadian di VPS Aneka Dharma).
+  if (costLinked.some((l) => l.costAmount > 0) && user.role !== "owner") {
+    return NextResponse.json(
+      { error: "Cuma Owner yang bisa mencatat Biaya (HPP) ke Bayar Domain/Server/Maintenance. Kosongkan biayanya kalau cuma mau menandai sudah diperpanjang." },
+      { status: 403 }
+    )
   }
 
   // Biaya (HPP) domain/server boleh dibayar dari kas/bank yang beda dari yang menerima
@@ -288,7 +296,14 @@ export async function POST(request: Request) {
       // efeknya kalau dipakai lewat kartu "Bayar Domain"/"Bayar Server" di Keuangan. Defaultnya
       // dari kas yang sama dengan yang baru saja menerima pelunasan ini, tapi boleh beda kalau
       // staf pilih akun lain (costLink.accountId, mis. biaya domain dibayar dari kas kecil).
-      if (line.costLink?.type === "domain") {
+      // HPP 0 = perpanjang saja, tidak ada yang dibukukan (lihat catatan di validasi atas).
+      if (line.costLink && line.costAmount <= 0) {
+        await markRenewedWithoutCost(tx, {
+          refType: line.costLink.type,
+          refId: line.costLink.id,
+          paidAt,
+        })
+      } else if (line.costLink?.type === "domain") {
         await markDomainPaid(tx, {
           domainId: line.costLink.id,
           accountId: line.costLink.accountId ?? accountId,

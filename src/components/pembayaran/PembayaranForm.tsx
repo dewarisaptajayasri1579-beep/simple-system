@@ -13,6 +13,7 @@ import {
   Alert,
   FilterableTable,
   CurrencyInput,
+  Modal,
   type FilterableColumn,
 } from "@/components/ui";
 import { jakartaTodayDateIso } from "@/lib/datetime";
@@ -41,6 +42,11 @@ interface InvoiceRow {
   // "IDR" | "JPY" dkk (lihat Invoice.currency) — kalau bukan IDR, "Jumlah Dibayar" di sini masih
   // dalam currency invoice, butuh input Kurs terpisah buat tahu kas riil (IDR) yang masuk.
   currency: string;
+  // Kaitan perpanjangan bawaan dari invoice ("Tagih Sekarang") — disimpan di state supaya saat
+  // submit bisa dicek: invoice yang PUNYA kaitan tapi kaitannya dimatikan staf harus dikonfirmasi
+  // dulu, bukan lolos diam-diam (lihat skippedRenewal di handleSubmit).
+  costLinkType: "domain" | "server" | "maintenance" | null;
+  costLinkId: string | null;
 }
 
 interface DomainOption {
@@ -117,6 +123,9 @@ export const PembayaranForm: React.FC<{
   const [paidAt, setPaidAt] = useState(jakartaTodayDateIso());
   const [notes, setNotes] = useState("");
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  // Konfirmasi "yakin tidak diperpanjang?" — lihat skippedRenewal di handleSubmit.
+  const [pendingSkipRenewal, setPendingSkipRenewal] = useState<string[] | null>(null);
+  const [skipRenewalConfirmed, setSkipRenewalConfirmed] = useState(false);
   const [lines, setLines] = useState<Record<string, LineState>>({});
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [domains, setDomains] = useState<DomainOption[]>([]);
@@ -190,6 +199,8 @@ export const PembayaranForm: React.FC<{
                 remaining: Math.max(0, cashDue - paid),
                 isPemungutInvoice,
                 currency: inv.currency,
+                costLinkType: inv.costLinkType,
+                costLinkId: inv.costLinkId,
               };
             })
             .filter((r) => r.remaining > 0.5);
@@ -202,7 +213,6 @@ export const PembayaranForm: React.FC<{
                 // manual lagi (nominal HPP tetap wajib diisi manual, itu bukan harga jual).
                 const source = data.find((d) => d.id === r.id);
                 const autoLink =
-                  isOwner &&
                   source?.costLinkId &&
                   (source.costLinkType === "domain" || source.costLinkType === "server" || source.costLinkType === "maintenance");
                 return [
@@ -250,20 +260,20 @@ export const PembayaranForm: React.FC<{
     [maintenances]
   );
 
-  const costModeOptions = useMemo(() => {
-    const base = [
+  // Pilihan kaitan tersedia untuk SEMUA role. Dulu cuma Owner, dan akibatnya pembayaran yang
+  // diinput admin tidak pernah memajukan tanggal perpanjangan Domain/Server/Maintenance-nya —
+  // tanpa peringatan apa pun (lihat VPS Aneka Dharma). Batas Owner sekarang cuma berlaku untuk
+  // MENGISI nominal HPP-nya (itu yang bikin transaksi beban + jurnal), divalidasi di server.
+  const costModeOptions = useMemo(
+    () => [
       { value: "none", label: "Tanpa biaya" },
       { value: "manual", label: "Biaya manual" },
-    ];
-    if (isOwner) {
-      base.push(
-        { value: "domain", label: "Bayar Domain" },
-        { value: "server", label: "Bayar Server" },
-        { value: "maintenance", label: "Bayar Maintenance" }
-      );
-    }
-    return base;
-  }, [isOwner]);
+      { value: "domain", label: "Perpanjang Domain" },
+      { value: "server", label: "Perpanjang Server" },
+      { value: "maintenance", label: "Perpanjang Maintenance" },
+    ],
+    []
+  );
 
   const updateLine = (id: string, patch: Partial<LineState>) =>
     setLines((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -410,7 +420,7 @@ export const PembayaranForm: React.FC<{
                   sizeVariant="sm"
                   value={line.costAmount}
                   disabled={disabled}
-                  placeholder="Biaya (HPP), bukan harga jual"
+                  placeholder="Biaya (HPP) — kosongkan kalau tidak ada biaya"
                   onChange={(v) => updateLine(inv.id, { costAmount: v })}
                 />
                 <Select
@@ -437,7 +447,7 @@ export const PembayaranForm: React.FC<{
                   sizeVariant="sm"
                   value={line.costAmount}
                   disabled={disabled}
-                  placeholder="Biaya (HPP), bukan harga jual"
+                  placeholder="Biaya (HPP) — kosongkan kalau tidak ada biaya"
                   onChange={(v) => updateLine(inv.id, { costAmount: v })}
                 />
                 <Select
@@ -465,7 +475,7 @@ export const PembayaranForm: React.FC<{
                   sizeVariant="sm"
                   value={line.costAmount}
                   disabled={disabled}
-                  placeholder="Biaya (HPP), bukan harga jual"
+                  placeholder="Biaya (HPP) — kosongkan kalau tidak ada biaya"
                   onChange={(v) => updateLine(inv.id, { costAmount: v })}
                 />
                 <Select
@@ -511,9 +521,26 @@ export const PembayaranForm: React.FC<{
       setError("Ada baris biaya yang belum pilih domain/server/maintenance-nya");
       return;
     }
-    const missingCost = selected.find(([, l]) => l.costMode !== "none" && (!l.costAmount || l.costAmount <= 0));
+    // HPP wajib cuma buat "Biaya manual". Kaitan perpanjangan boleh bernominal 0 — Maintenance
+    // itu jasa sendiri, tidak ada uang keluar; yang penting tanggal perpanjangannya maju.
+    const missingCost = selected.find(([, l]) => l.costMode === "manual" && (!l.costAmount || l.costAmount <= 0));
     if (missingCost) {
-      setError("Ada baris biaya yang belum diisi nominal HPP-nya");
+      setError("Ada baris Biaya manual yang belum diisi nominalnya");
+      return;
+    }
+
+    // Invoice yang membawa kaitan perpanjangan (dari "Tagih Sekarang") tapi kaitannya dimatikan
+    // staf — ini persis skenario yang bikin Domain/Server/Maintenance nyangkut di dashboard walau
+    // invoicenya lunas. Jangan diloloskan diam-diam: minta konfirmasi eksplisit dulu.
+    // Flag konfirmasi berlaku sekali jalan saja.
+    const confirmedOnce = skipRenewalConfirmed;
+    if (confirmedOnce) setSkipRenewalConfirmed(false);
+    const skippedRenewal = selected.filter(([invoiceId, l]) => {
+      const inv = invoices.find((i) => i.id === invoiceId);
+      return Boolean(inv?.costLinkId && inv.costLinkType) && l.costMode === "none";
+    });
+    if (skippedRenewal.length > 0 && !confirmedOnce) {
+      setPendingSkipRenewal(skippedRenewal.map(([invoiceId]) => invoices.find((i) => i.id === invoiceId)?.invoiceNumber ?? invoiceId));
       return;
     }
     const missingKurs = selected.find(([invoiceId, l]) => {
@@ -587,7 +614,7 @@ export const PembayaranForm: React.FC<{
             <CardTitle>Invoice Belum Lunas</CardTitle>
             <CardDescription>
               Centang invoice yang mau dibayar, sesuaikan nominal kalau dicicil sebagian.
-              {isOwner && " Biaya bisa dikaitkan ke Bayar Domain/Server/Maintenance supaya otomatis kecatat lunas di sana juga."}
+              {" Pilih \u201cPerpanjang Domain/Server/Maintenance\u201d supaya tanggal jatuh temponya ikut maju. Nominal biaya boleh dikosongkan kalau tidak ada uang keluar; mengisinya (bikin jurnal beban) cuma bisa Owner."}
             </CardDescription>
           </div>
           <FilterableTable
@@ -639,6 +666,46 @@ export const PembayaranForm: React.FC<{
           </div>
         </Card>
       )}
+
+      {/* Invoice yang isinya perpanjangan Domain/Server/Maintenance tapi kaitannya dimatikan —
+          inilah yang selama ini bikin item nyangkut di daftar jatuh tempo dashboard walau
+          invoicenya sudah lunas. Sengaja menghalangi, bukan sekadar tulisan kecil: yang terjadi
+          sebelumnya persis "lolos tanpa ada yang sadar". */}
+      <Modal
+        isOpen={pendingSkipRenewal !== null}
+        onClose={() => setPendingSkipRenewal(null)}
+        title="Tidak sekalian diperpanjang?"
+        size="sm"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-600 font-medium">
+            Invoice {pendingSkipRenewal?.join(", ")} ini tagihan perpanjangan Domain/Server/Maintenance, tapi kaitannya
+            di-set <b>Tanpa biaya</b>. Kalau dilanjutkan, invoicenya jadi lunas tapi{" "}
+            <b>tanggal perpanjangannya tidak maju</b> — itemnya akan tetap muncul di daftar jatuh tempo dashboard.
+          </p>
+          <p className="text-xs text-slate-500 font-medium">
+            Mau diperpanjang? Tutup dialog ini, lalu ganti pilihannya jadi &quot;Perpanjang Domain/Server/Maintenance&quot;.
+            Nominal biayanya boleh dikosongkan kalau memang tidak ada uang keluar — tanggalnya tetap maju.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setPendingSkipRenewal(null)}>
+              Kembali &amp; perbaiki
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPendingSkipRenewal(null);
+                setSkipRenewalConfirmed(true);
+                // Lanjutkan submit yang tadi tertahan — sekali jalan, flag di-reset lagi di
+                // handleSubmit supaya konfirmasi berikutnya tetap ditanyakan.
+                setTimeout(() => handleSubmit(), 0);
+              }}
+            >
+              Lanjut tanpa perpanjang
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
