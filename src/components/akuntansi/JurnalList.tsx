@@ -91,6 +91,9 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
   const searchParams = useSearchParams();
   const [entries, setEntries] = useState(initialEntries);
   const [viewing, setViewing] = useState<JurnalEntryRow | null>(null);
+  const [deleting, setDeleting] = useState<JurnalEntryRow | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Dari Buku Besar, klik No. Bukti -> /akuntansi/jurnal?entryId=... -> auto-buka modal jurnal ini.
   useEffect(() => {
@@ -214,6 +217,16 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
               postUrl={`/api/journal-entries/${e.id}/post`}
               onPosted={() => setEntries((prev) => prev.map((row) => (row.id === e.id ? { ...row, postStatus: "posted" } : row)))}
             />
+          )}
+          {/* Hapus HANYA untuk jurnal manual yang masih draft — draft belum pernah masuk
+              saldo/laporan mana pun, jadi tidak ada jejak yang hilang. Yang sudah diposting
+              wajib lewat Batalkan (void) supaya barisnya tetap ada di Jurnal Umum, dan jurnal
+              otomatis (dari transaksi/pembayaran) dihapus lewat transaksi induknya. Aturan yang
+              sama sudah dijaga di DELETE /api/journal-entries/[id]. */}
+          {e.postStatus === "draft" && e.sourceType === "manual" && isOwner && (
+            <Button size="sm" variant="ghost" onClick={() => setDeleting(e)} leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
+              Hapus
+            </Button>
           )}
           {e.postStatus === "posted" && e.sourceType === "manual" && isOwner && (
             <VoidButton
@@ -351,6 +364,48 @@ export const JurnalList: React.FC<{ entries: JurnalEntryRow[]; coaAccounts: CoaO
             </Button>
             <Button variant="primary" onClick={handleSave} isLoading={isSaving} disabled={!isBalanced}>
               Simpan Jurnal
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Konfirmasi hapus — nomor & isi jurnalnya ditampilkan ulang supaya tidak salah baris. */}
+      <Modal isOpen={deleting !== null} onClose={() => setDeleting(null)} title="Hapus jurnal manual?" size="sm">
+        <div className="flex flex-col gap-3">
+          {deleteError && <Alert variant="error">{deleteError}</Alert>}
+          <p className="text-sm text-slate-600 font-medium">
+            Hapus <b>{deleting?.entryNumber}</b> — {deleting?.description}?
+          </p>
+          <p className="text-xs text-slate-500 font-medium">
+            Jurnal ini masih draft, belum pernah masuk ke saldo maupun laporan apa pun, jadi aman dihapus dan tidak
+            meninggalkan lubang di Jurnal Umum. Tidak bisa dibatalkan.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDeleting(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={deletingBusy}
+              onClick={async () => {
+                if (!deleting) return;
+                setDeletingBusy(true);
+                setDeleteError(null);
+                try {
+                  const res = await fetch(`/api/journal-entries/${deleting.id}`, { method: "DELETE" });
+                  const d = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    setDeleteError(d.error || "Gagal menghapus jurnal");
+                    return;
+                  }
+                  setEntries((prev) => prev.filter((row) => row.id !== deleting.id));
+                  setDeleting(null);
+                } finally {
+                  setDeletingBusy(false);
+                }
+              }}
+            >
+              Hapus
             </Button>
           </div>
         </div>
