@@ -16,6 +16,7 @@ export async function register() {
   const { runMarketingUnrepliedWaGroupAlert } = await import("@/lib/cron/marketing-unreplied-wa-group")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
+  const { runVpsMonitoringRefresh } = await import("@/lib/cron/vps-monitoring")
   const { registerWahubWebhook } = await import("@/lib/wahub")
 
   // Daftarkan ulang webhook WAHUB (sesi WA khusus simple-system) tiap kali server start.
@@ -123,7 +124,19 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
+  // Sync aplikasi dari Coolify API, cek expiry domain (RDAP), cek terakhir diakses (log Traefik)
+  // untuk modul Monitoring Server "VPS Lain" — jam 03:00 WIB (di luar jam cron lain).
+  cron.schedule(
+    "0 3 * * *",
+    () => {
+      runVpsMonitoringRefresh()
+        .then((r) => console.log(`[cron] vps-monitoring selesai: ${r.vpsCount} VPS, ${r.coolifySynced} app di-sync, ${r.domainsChecked} domain expiry, ${r.accessChecked} last-access`))
+        .catch((e) => console.error("[cron] vps-monitoring gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database (20:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database (20:00), vps-monitoring (03:00) WIB"
   )
 }

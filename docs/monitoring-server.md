@@ -6,16 +6,20 @@
 
 ## 1. Ringkasan
 
-Modul Monitoring Server menampilkan 4 kartu di `/monitoring`:
+Modul Monitoring Server punya 2 tab di `/monitoring`:
+
+**Tab "Server Ini"** — 4 kartu buat server tempat aplikasi ini sendiri jalan:
 
 1. **Disk Space** — penggunaan disk server tempat aplikasi ini jalan.
 2. **Database Space** — ukuran database aplikasi ini sendiri + database eksternal yang ditambahkan manual.
 3. **Backup Terakhir** — file backup harian terbaru yang ada di Google Drive.
 4. **Login Terakhir** — kapan tiap user terakhir login ke aplikasi.
 
+**Tab "VPS Lain"** — daftar VPS lain (mis. VPS Coolify terpisah) beserta aplikasi di masing-masing VPS: disk space & backup terakhir per VPS (lewat SSH), dan per aplikasi: domain, git repo, terakhir diakses, terakhir backup, kapan domain habis. Lihat bagian 6.
+
 Akses modul ini dikontrol lewat `User.modules` (kolom array di tabel `users`) — user harus punya `"monitoring"` di array itu, atau role `owner` (owner selalu bypass semua gate modul). Lihat `getCurrentUser("monitoring")` di [current-user.ts](../src/lib/current-user.ts) dan helper `canViewMonitoring()` di [monitoring.ts](../src/lib/monitoring.ts) yang dipakai semua API route di bawah `/api/monitoring/*`.
 
-Asumsi penting: **aplikasi ini jalan di server/VPS yang sama dengan yang mau dipantau** (bukan SSH ke server terpisah). Kalau suatu saat app dipindah ke server lain dari server yang mau dipantau, bagian Disk Space perlu diubah dari `exec` lokal jadi SSH remote.
+Asumsi penting untuk tab "Server Ini": **aplikasi ini jalan di server/VPS yang sama dengan yang mau dipantau** (bukan SSH ke server terpisah) — bagian Disk Space di tab ini pakai `exec` lokal, bukan SSH. Untuk VPS *lain* (tab "VPS Lain"), SSH memang dipakai sejak awal — lihat bagian 6.
 
 ---
 
@@ -53,7 +57,57 @@ Asumsi penting: **aplikasi ini jalan di server/VPS yang sama dengan yang mau dip
 
 ---
 
-## 6. File Peta Cepat
+## 6. VPS Lain & Aplikasi
+
+Tab kedua di `/monitoring` (di samping "Server Ini" yang isinya 4 kartu di atas) — buat mantau **VPS lain** (mis. 3 VPS Coolify terpisah) beserta aplikasi di masing-masing VPS.
+
+### 6.1 Model data
+
+- `VpsServer` (`prisma/schema.prisma`) — 1 baris per VPS. Kredensial SSH (`sshPassword`/`sshPrivateKey`, isi salah satu) dan Coolify API (`coolifyApiUrl`+`coolifyApiToken`, opsional) disimpan plaintext — sama pola risiko yang diterima seperti `MonitoredDatabase.connectionString` (lihat bagian 3). **Cuma Owner** yang bisa tambah/edit/hapus.
+- `Application` — 1 baris per aplikasi di bawah sebuah `VpsServer`. `coolifyUuid` dipakai buat matching upsert saat sync dari Coolify supaya tidak dobel.
+
+### 6.2 Disk Space & Backup per VPS (live, lewat SSH)
+
+- **File:** [`src/lib/monitoring/ssh.ts`](../src/lib/monitoring/ssh.ts), dipanggil dari `GET /api/monitoring/vps`.
+- 1 koneksi SSH per VPS (pakai `ssh2`, sudah jadi dependency) tiap kali tab "VPS Lain" di-load/refresh — jalankan `df -kP <diskPath>` buat disk usage, dan kalau `backupCheckPath` diisi, `ls -t` + `stat -c %Y` buat file terbaru di folder itu (dianggap proxy backup terakhir VPS itu). Diasumsikan VPS remote Linux (beda dari cek disk lokal yang portabel ke macOS untuk dev).
+- Best-effort: kalau SSH gagal connect (kredensial salah, firewall, dst), kartu VPS itu nampilin error tapi tidak bikin VPS lain gagal (`Promise.all` per VPS).
+
+### 6.3 Aplikasi — git repo & domain (auto-sync dari Coolify API)
+
+- **File:** [`src/lib/monitoring/coolify.ts`](../src/lib/monitoring/coolify.ts).
+- Kalau `VpsServer.coolifyApiUrl`+`coolifyApiToken` diisi, tombol "Sync dari Coolify" (atau cron harian) manggil `GET {coolifyApiUrl}/applications` — API resmi Coolify yang balikin `git_repository`, `git_branch`, `domains` per aplikasi. Field ini di-upsert ke `Application` (match by `coolifyUuid`), **field manual** (`backupLocation`, `notes`, `lastBackupAt`, `domainExpiresAt` override) **tidak pernah ditimpa** oleh sync.
+- VPS tanpa kredensial Coolify: aplikasi ditambah manual lewat tombol "Aplikasi" di kartu VPS-nya.
+
+### 6.4 Domain habis (expiry) — RDAP, best-effort
+
+- **File:** [`src/lib/monitoring/rdap.ts`](../src/lib/monitoring/rdap.ts).
+- Tiap domain aplikasi di-lookup ke `https://rdap.org/domain/<domain>` (RDAP, pengganti WHOIS, gratis tanpa API key) buat cari event `expiration`. Ada heuristik kecil (bukan Public Suffix List penuh) buat ambil "registrable domain" dari FQDN (mis. `app.contoh.co.id` → `contoh.co.id`) supaya lookup-nya benar untuk domain `.co.id` dkk.
+- **Tidak semua TLD/ccTLD support RDAP** — kalau lookup gagal/kosong, field `domainExpiresAt` tetap kosong dan bisa diisi **manual** lewat form Edit Aplikasi (override, tidak akan ditimpa cron kalau sudah diisi manual... catatan: saat ini cron TETAP menimpa kalau RDAP berhasil dapat tanggal baru — kalau butuh override permanen yang tidak pernah disentuh cron, isi manual lalu jangan expect RDAP re-check lain menimpanya kecuali RDAP juga berhasil dapat tanggal).
+
+### 6.5 Terakhir diakses — log akses Traefik, best-effort
+
+- **File:** [`src/lib/monitoring/traefik-access.ts`](../src/lib/monitoring/traefik-access.ts).
+- Coolify pakai Traefik sebagai reverse proxy default (nama container default `coolify-proxy`, bisa diubah lewat field "Nama Container Proxy" di Edit VPS kalau beda). 1 SSH call per VPS ambil `docker logs <container> --since 24h`, di-grep per domain aplikasi, ambil timestamp request terakhir (support format JSON access log Traefik & Common Log Format).
+- **Asumsi/keterbatasan:** kalau access log Traefik di VPS itu tidak aktif (default Coolify mungkin tidak selalu nyalakan access log), field ini akan tetap kosong — bukan bug, memang tidak ada sumber datanya. Tidak ada fallback manual untuk field ini karena sifatnya "live traffic", beda dari expiry/backup yang make sense diisi manual.
+
+### 6.6 Cron harian & trigger manual
+
+- **File:** [`src/lib/cron/vps-monitoring.ts`](../src/lib/cron/vps-monitoring.ts), didaftarkan di [`instrumentation.ts`](../instrumentation.ts) jam **03:00 WIB**.
+- Urutan: sync Coolify tiap VPS yang ada kredensialnya → kumpulkan semua domain unik → RDAP lookup paralel → per VPS, 1x cek log Traefik buat semua aplikasi di VPS itu sekaligus (bukan per-aplikasi, hindari banyak koneksi SSH).
+- Trigger manual: tombol "Sync & Cek Sekarang" di tab VPS Lain (`POST /api/monitoring/vps/refresh-checks`, owner-only) — jalanin fungsi yang sama on-demand.
+
+### 6.7 Peta cepat
+
+| Bagian | API Route | Lib |
+|---|---|---|
+| List VPS + live disk/backup | `GET/POST /api/monitoring/vps`, `PATCH/DELETE .../[id]` | `src/lib/monitoring/ssh.ts` |
+| Sync Coolify per VPS | `POST /api/monitoring/vps/[id]/sync-coolify` | `src/lib/monitoring/coolify.ts` |
+| Sync & cek manual (semua VPS) | `POST /api/monitoring/vps/refresh-checks` | `src/lib/cron/vps-monitoring.ts` |
+| CRUD Aplikasi manual | `POST /api/monitoring/applications`, `PATCH/DELETE .../[id]` | - |
+
+UI: [`src/components/monitoring/VpsMonitoring.tsx`](../src/components/monitoring/VpsMonitoring.tsx), dirender sebagai tab "VPS Lain" di dalam [`MonitoringDashboard.tsx`](../src/components/monitoring/MonitoringDashboard.tsx) (tab "Server Ini" isinya 4 kartu di bagian 1-5 dokumen ini, tidak berubah).
+
+## 7. File Peta Cepat
 
 | Bagian | API Route | UI |
 |---|---|---|

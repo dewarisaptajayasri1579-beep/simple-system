@@ -123,6 +123,63 @@ model Session {
   @@schema("simple_system")
 }
 
+/// VPS lain (di luar server tempat app ini sendiri jalan) yang mau dipantau lewat modul
+/// Monitoring Server — mis. VPS Coolify terpisah. Kredensial SSH & Coolify API disimpan apa
+/// adanya (plaintext), sama pola risiko yang diterima seperti MonitoredDatabase.connectionString
+/// di atas — HANYA owner yang bisa tambah/edit/hapus (lihat API). Disk space & backup terakhir
+/// dicek LIVE tiap load halaman lewat SSH (lihat src/lib/monitoring/ssh.ts); sync Coolify (git
+/// repo & domain per Application) serta cek expiry domain (RDAP) & terakhir diakses (log Traefik)
+/// jalan lewat cron harian (src/lib/cron/vps-monitoring.ts), bisa juga dipicu manual dari UI.
+model VpsServer {
+  id                 String        @id @default(uuid())
+  name               String
+  host               String
+  sshPort            Int           @default(22) @map("ssh_port")
+  sshUser            String        @map("ssh_user")
+  sshPassword        String?       @map("ssh_password")
+  sshPrivateKey      String?       @map("ssh_private_key")
+  diskPath           String        @default("/") @map("disk_path")
+  backupCheckPath    String?       @map("backup_check_path")
+  proxyContainerName String        @default("coolify-proxy") @map("proxy_container_name")
+  coolifyApiUrl      String?       @map("coolify_api_url")
+  coolifyApiToken    String?       @map("coolify_api_token")
+  createdById        String?       @map("created_by_id")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  applications       Application[]
+
+  @@map("vps_servers")
+  @@schema("simple_system")
+}
+
+/// Aplikasi yang jalan di sebuah VpsServer. `gitRepository`/`gitBranch`/`domain` bisa ke-isi
+/// otomatis lewat sync Coolify API (lihat coolifyUuid, dipakai buat matching upsert supaya
+/// sync berulang tidak bikin duplikat) — field lain (backupLocation, notes, lastBackupAt,
+/// domainExpiresAt sebagai override manual) murni input user dan tidak pernah ditimpa oleh sync.
+model Application {
+  id                    String    @id @default(uuid())
+  vpsServerId           String    @map("vps_server_id")
+  vpsServer             VpsServer @relation(fields: [vpsServerId], references: [id], onDelete: Cascade)
+  name                  String
+  domain                String?
+  gitRepository         String?   @map("git_repository")
+  gitBranch             String?   @map("git_branch")
+  coolifyUuid           String?   @map("coolify_uuid")
+  backupLocation        String?   @map("backup_location")
+  lastBackupAt          DateTime? @map("last_backup_at")
+  lastAccessedAt        DateTime? @map("last_accessed_at")
+  domainExpiresAt       DateTime? @map("domain_expires_at")
+  domainExpiryCheckedAt DateTime? @map("domain_expiry_checked_at")
+  notes                 String?
+  createdById           String?   @map("created_by_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([vpsServerId])
+  @@unique([vpsServerId, coolifyUuid])
+  @@map("applications")
+  @@schema("simple_system")
+}
+
 // ---------------------------------------------------------------------------
 // Master data hasil migrasi dari aplikasi lama (lihat scripts/migrate-legacy.ts)
 // ---------------------------------------------------------------------------

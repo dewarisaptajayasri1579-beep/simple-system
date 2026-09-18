@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { HardDrive, Database, Users, Plus, Trash2, RefreshCw, Archive, ExternalLink } from "lucide-react"
 
-import { Card, CardHeader, CardTitle, CardDescription, Button, Input, Modal, Alert, Spinner, Badge } from "@/components/ui"
+import { Card, CardHeader, CardTitle, CardDescription, Button, Input, Modal, Alert, Spinner, Badge, Tabs, TabList, Tab, TabPanels, TabPanel } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
+import { VpsMonitoring } from "@/components/monitoring/VpsMonitoring"
 
 type DiskInfo = {
   totalBytes: number
@@ -170,6 +171,13 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
         </Button>
       </div>
 
+      <Tabs defaultValue="server-ini">
+        <TabList>
+          <Tab value="server-ini">Server Ini</Tab>
+          <Tab value="vps-lain">VPS Lain</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel value="server-ini" className="flex flex-col gap-6">
       {/* Disk Space */}
       <Card variant="glass" padding="lg">
         <CardHeader>
@@ -348,6 +356,13 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
           </TableContainer>
         )}
       </Card>
+          </TabPanel>
+
+          <TabPanel value="vps-lain">
+            <VpsMonitoring isOwner={isOwner} />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
 
       <Modal
         isOpen={isAddOpen}
