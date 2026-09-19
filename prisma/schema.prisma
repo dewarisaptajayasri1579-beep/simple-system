@@ -204,6 +204,12 @@ model Application {
   /// null kalau activityQuery kosong atau dari tebakan Traefik log (yang tidak tahu identitas user).
   lastAccessedBy        String?   @map("last_accessed_by")
   coolifyUuid           String?   @map("coolify_uuid")
+  /// Nama project Coolify (mis. "My first project") — Coolify punya hierarki Project > Environment
+  /// > Resource, tapi endpoint list /applications & /databases cuma kasih environment_id (angka),
+  /// bukan nama project langsung. Diresolve pas sync lewat /projects + /projects/{uuid} (lihat
+  /// fetchProjectNameByEnvironmentId() di src/lib/monitoring/coolify.ts), dipakai buat badge +
+  /// search "Project" di monitoring (VPS dengan banyak project butuh ini buat nyari cepat).
+  coolifyProjectName    String?   @map("coolify_project_name")
   backupLocation        String?   @map("backup_location")
   lastBackupAt          DateTime? @map("last_backup_at")
   lastAccessedAt        DateTime? @map("last_accessed_at")

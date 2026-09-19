@@ -10,6 +10,7 @@ export type CoolifyApplication = {
   git_branch: string | null
   fqdn: string | null
   server_uuid: string
+  environment_id: number
 }
 
 export type CoolifyEnvVar = {
@@ -26,6 +27,37 @@ export type CoolifyDatabase = {
   /// check) — dari GET /databases, sudah ikut di response list-nya, tidak perlu call terpisah.
   status: string
   last_online_at: string | null
+  environment_id: number
+}
+
+type CoolifyProject = { id: number; uuid: string; name: string }
+type CoolifyProjectDetail = { environments: { id: number }[] }
+
+/** Coolify punya hierarki Project > Environment > Resource, tapi list /applications & /databases
+ *  cuma kasih `environment_id` (angka) — nama project baru muncul lewat GET /projects/{uuid}
+ *  (nested `environments[]`). Panggilannya sebanyak jumlah PROJECT (bukan jumlah aplikasi/
+ *  database), jadi tetap murah walau resource-nya banyak. Best-effort: gagal (mis. token belum
+ *  punya scope) balikin Map kosong, project name di aplikasi/database itu simply null. */
+async function fetchProjectNameByEnvironmentId(apiBase: string, apiToken: string): Promise<Map<number, string>> {
+  const result = new Map<number, string>()
+  try {
+    const projects = (await coolifyGet(apiBase, apiToken, "/projects")) as CoolifyProject[]
+    if (!Array.isArray(projects)) return result
+
+    await Promise.all(
+      projects.map(async (p) => {
+        try {
+          const detail = (await coolifyGet(apiBase, apiToken, `/projects/${p.uuid}`)) as CoolifyProjectDetail
+          for (const env of detail.environments ?? []) result.set(env.id, p.name)
+        } catch (e) {
+          console.error(`[coolify] gagal ambil detail project "${p.name}":`, e)
+        }
+      })
+    )
+  } catch (e) {
+    console.error("[coolify] gagal ambil daftar project:", e)
+  }
+  return result
 }
 
 /** Terima URL Coolify apa adanya (mis. cuma domain root "https://coolify.contoh.com", dengan
@@ -177,6 +209,9 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   const token = decryptSecret(vps.coolifyApiToken)
 
   const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, token)
+  // Sekali panggil buat semua project di Coolify VPS ini (bukan per aplikasi/database) — lihat
+  // fetchProjectNameByEnvironmentId(). Dipakai buat badge + search "Project" di monitoring.
+  const projectByEnvId = await fetchProjectNameByEnvironmentId(apiBase, token)
 
   let databases: CoolifyDatabase[] = []
   try {
@@ -199,6 +234,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
             // string yang valid dulu supaya `new Date(...)` di formatter UI (formatDateTimeId)
             // tidak parsing-dependent-browser.
             lastOnlineAt: db.last_online_at ? new Date(`${db.last_online_at.replace(" ", "T")}Z`).toISOString() : null,
+            projectName: projectByEnvId.get(db.environment_id) ?? null,
           })),
         },
       })
@@ -240,6 +276,8 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
       }
     }
 
+    const coolifyProjectName = projectByEnvId.get(app.environment_id) ?? null
+
     await prisma.application.upsert({
       where: { vpsServerId_coolifyUuid: { vpsServerId: vps.id, coolifyUuid: app.uuid } },
       create: {
@@ -251,12 +289,14 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         gitBranch: app.git_branch || null,
         databaseInfo,
         databaseUuid,
+        coolifyProjectName,
       },
       update: {
         name: app.name || app.uuid,
         domain,
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
+        coolifyProjectName,
         ...(databaseInfo ? { databaseInfo, databaseUuid } : {}),
         ...(activity?.lastAccessedAt ? { lastAccessedAt: activity.lastAccessedAt, lastAccessedBy: activity.lastAccessedBy } : {}),
       },

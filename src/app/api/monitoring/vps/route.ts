@@ -22,6 +22,7 @@ type CoolifyDatabaseCacheEntry = {
   databaseType: string
   status: string | null
   lastOnlineAt: string | null
+  projectName: string | null
 }
 
 /** Ukuran database yang BENAR itu named volume-nya (mis. "postgres-data-<uuid>"), BUKAN
@@ -101,6 +102,7 @@ export async function GET() {
           lastOnlineAt: db.lastOnlineAt,
           dbBackupAt: dbBackup?.createdTime ?? null,
           dbBackupLink: dbBackup?.webViewLink ?? null,
+          projectName: db.projectName,
         }
       })
 
@@ -172,6 +174,7 @@ export async function GET() {
             lastAccessedBy: app.lastAccessedBy,
             lastAccessedIp: app.lastAccessedIp,
             lastAccessedCity: app.lastAccessedCity,
+            coolifyProjectName: app.coolifyProjectName,
             domainExpiresAt,
             domainExpiryCheckedAt: app.domainExpiryCheckedAt,
             notes: app.notes,

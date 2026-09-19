@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users } from "lucide-react"
+import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users, Search } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -33,6 +33,7 @@ export type AppRow = {
   lastAccessedBy: string | null
   lastAccessedIp: string | null
   lastAccessedCity: string | null
+  coolifyProjectName: string | null
   domainExpiresAt: string | null
   domainExpiryCheckedAt: string | null
   notes: string | null
@@ -87,6 +88,7 @@ export type VpsRow = {
     lastOnlineAt: string | null
     dbBackupAt: string | null
     dbBackupLink: string | null
+    projectName: string | null
   }[]
 }
 
@@ -372,6 +374,7 @@ export const VpsServerCard: React.FC<{
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
+  const [search, setSearch] = useState("")
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneResult, setPruneResult] = useState<{
     ok: boolean
@@ -607,6 +610,17 @@ export const VpsServerCard: React.FC<{
   const health = computeVpsHealth(vps)
   const healthBadgeVariant = health.level === "kritis" ? "danger" : health.level === "perhatian" ? "warning" : "success"
   const healthLabel = health.level === "kritis" ? "Kritis" : health.level === "perhatian" ? "Perhatian" : "Sehat"
+
+  // Filter client-side (data per VPS sudah kebawa semua di 1 request) — cukup buat skala
+  // puluhan/ratusan baris, dan VPS dengan banyak project Coolify jadi gampang dicari tanpa perlu
+  // grouping/section terpisah per project (lihat percakapan monitoring).
+  const searchTerm = search.trim().toLowerCase()
+  const filteredApplications = searchTerm
+    ? vps.applications.filter((app) => [app.name, app.domain, app.coolifyProjectName].some((v) => v?.toLowerCase().includes(searchTerm)))
+    : vps.applications
+  const filteredDatabases = searchTerm
+    ? vps.databases.filter((db) => [db.name, db.projectName].some((v) => v?.toLowerCase().includes(searchTerm)))
+    : vps.databases
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md overflow-hidden">
@@ -959,6 +973,15 @@ export const VpsServerCard: React.FC<{
             )}
           </div>
 
+          {(vps.applications.length > 0 || vps.databases.length > 0) && (
+            <Input
+              placeholder="Cari nama aplikasi/database, domain, atau project Coolify…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          )}
+
           <TableContainer>
             <Table>
               <TableHeader>
@@ -973,14 +996,14 @@ export const VpsServerCard: React.FC<{
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vps.applications.length === 0 ? (
+                {filteredApplications.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
-                      Belum ada aplikasi terdaftar di VPS ini.
+                      {vps.applications.length === 0 ? "Belum ada aplikasi terdaftar di VPS ini." : "Tidak ada aplikasi yang cocok dengan pencarian."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  vps.applications.map((app, index) => (
+                  filteredApplications.map((app, index) => (
                     <TableRow key={app.id}>
                       <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
                       <TableCell>
@@ -989,6 +1012,11 @@ export const VpsServerCard: React.FC<{
                           {app.hasCoolifySync && (
                             <Badge variant="info" size="sm">
                               Coolify
+                            </Badge>
+                          )}
+                          {app.coolifyProjectName && (
+                            <Badge variant="secondary" size="sm">
+                              {app.coolifyProjectName}
                             </Badge>
                           )}
                         </div>
@@ -1112,16 +1140,28 @@ export const VpsServerCard: React.FC<{
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vps.databases.map((db, index) => (
+                    {filteredDatabases.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-slate-400 text-xs font-semibold py-6">
+                          Tidak ada database yang cocok dengan pencarian.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredDatabases.map((db, index) => (
                       <TableRow key={db.uuid}>
                         <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-900">{db.name}</span>
                             {db.isActive ? (
                               <Badge variant="success" size="sm">Aktif</Badge>
                             ) : (
                               <Badge variant="danger" size="sm">Stop</Badge>
+                            )}
+                            {db.projectName && (
+                              <Badge variant="secondary" size="sm">
+                                {db.projectName}
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
@@ -1150,7 +1190,8 @@ export const VpsServerCard: React.FC<{
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
