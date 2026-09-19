@@ -46,6 +46,7 @@ export async function GET() {
           domain: app.domain,
           gitRepository: app.gitRepository,
           gitBranch: app.gitBranch,
+          databaseInfo: app.databaseInfo,
           backupLocation: app.backupLocation,
           lastBackupAt: app.lastBackupAt,
           lastAccessedAt: app.lastAccessedAt,

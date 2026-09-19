@@ -10,6 +10,18 @@ export type CoolifyApplication = {
   server_uuid: string
 }
 
+export type CoolifyEnvVar = {
+  key: string
+  value?: string | null
+  real_value?: string | null
+}
+
+export type CoolifyDatabase = {
+  uuid: string
+  name: string
+  database_type: string
+}
+
 /** Terima URL Coolify apa adanya (mis. cuma domain root "https://coolify.contoh.com", dengan
  *  atau tanpa trailing slash) — user sering tidak tahu/ingat path API resminya harus diakhiri
  *  "/api/v1". Kalau path itu belum ada, tambahkan otomatis; kalau sudah ada, biarkan. */
@@ -18,14 +30,30 @@ function normalizeCoolifyApiUrl(url: string): string {
   return /\/api\/v\d+$/.test(trimmed) ? trimmed : `${trimmed}/api/v1`
 }
 
-export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
-  const base = normalizeCoolifyApiUrl(apiUrl)
-  const res = await fetch(`${base}/applications`, {
+async function coolifyGet(apiBase: string, apiToken: string, path: string): Promise<unknown> {
+  const res = await fetch(`${apiBase}${path}`, {
     headers: { Authorization: `Bearer ${apiToken}` },
     signal: AbortSignal.timeout(10000),
   })
-  if (!res.ok) throw new Error(`Coolify API error ${res.status} (${base}/applications)`)
-  const data = await res.json()
+  if (!res.ok) throw new Error(`Coolify API error ${res.status} (${apiBase}${path})`)
+  return res.json()
+}
+
+export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
+  const data = await coolifyGet(normalizeCoolifyApiUrl(apiUrl), apiToken, "/applications")
+  return Array.isArray(data) ? data : []
+}
+
+/** Butuh permission token `read:sensitive` (selain `read`) — tanpa itu, Coolify tidak
+ *  mengirimkan field value/real_value sama sekali (bukan disensor, memang tidak ada di response),
+ *  jadi fungsi ini balikin array kosong secara alami, tidak error. */
+async function fetchApplicationEnvs(apiBase: string, apiToken: string, appUuid: string): Promise<CoolifyEnvVar[]> {
+  const data = await coolifyGet(apiBase, apiToken, `/applications/${appUuid}/envs`)
+  return Array.isArray(data) ? data : []
+}
+
+async function fetchDatabases(apiBase: string, apiToken: string): Promise<CoolifyDatabase[]> {
+  const data = await coolifyGet(apiBase, apiToken, "/databases")
   return Array.isArray(data) ? data : []
 }
 
@@ -39,21 +67,93 @@ export function firstCleanDomain(domains: string | null | undefined): string | n
   return first.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/:\d+$/, "") || null
 }
 
+const DB_TYPE_LABELS: Record<string, string> = {
+  "standalone-postgresql": "PostgreSQL",
+  "standalone-mysql": "MySQL",
+  "standalone-mariadb": "MariaDB",
+  "standalone-mongodb": "MongoDB",
+  "standalone-redis": "Redis",
+  "standalone-keydb": "KeyDB",
+  "standalone-dragonfly": "Dragonfly",
+  "standalone-clickhouse": "ClickHouse",
+}
+
+function prettifyDatabaseType(type: string): string {
+  return DB_TYPE_LABELS[type] || type.replace(/^standalone-/, "").replace(/(^|-)([a-z])/g, (_, sep, c) => (sep ? " " : "") + c.toUpperCase())
+}
+
+/** Cari env var yang namanya nunjuk ke connection string database (DATABASE_URL, DB_URL,
+ *  POSTGRES_URL, dst — cocok pola apa pun yang diakhiri/mengandung salah satu kata kunci ini),
+ *  ambil value paling "asli" yang tersedia. Kalau token belum punya read:sensitive, semua env
+ *  tidak punya value sama sekali, jadi otomatis balikin null (tidak error). */
+function findDatabaseUrlValue(envs: CoolifyEnvVar[]): string | null {
+  const pattern = /(DATABASE_URL|DB_URL|POSTGRES_URL|MYSQL_URL|MONGO(?:DB)?_URL|REDIS_URL)/i
+  const candidate = envs.find((e) => pattern.test(e.key))
+  const value = candidate?.real_value ?? candidate?.value
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+/** Ambil hostname dari connection string apa pun yang valid sebagai URL (postgres://, mysql://,
+ *  redis://, dst — parser bawaan JS tidak peduli scheme-nya asal formatnya URL standar). */
+function extractHost(connectionString: string): string | null {
+  try {
+    return new URL(connectionString).hostname || null
+  } catch {
+    return null
+  }
+}
+
+/** Coolify biasanya pakai UUID resource database sebagai alias hostname-nya di internal Docker
+ *  network — jadi cocokkan dengan cek apakah UUID database itu muncul sebagai bagian dari
+ *  hostname yang dipakai aplikasi buat connect. Best-effort: kalau tidak ketemu, return null,
+ *  field databaseInfo aplikasi itu simply tidak ke-isi (bukan error). */
+function matchDatabaseByHost(host: string, databases: CoolifyDatabase[]): CoolifyDatabase | null {
+  return databases.find((db) => host.includes(db.uuid)) ?? null
+}
+
 export type SyncCoolifyVps = { id: string; coolifyApiUrl: string | null; coolifyApiToken: string | null }
 
 /** Sync aplikasi dari Coolify API ke tabel Application milik satu VpsServer. Match by
- *  (vpsServerId, coolifyUuid) — upsert supaya sync berulang tidak bikin duplikat. HANYA field
- *  yang datang dari Coolify (name, domain, gitRepository, gitBranch) yang ditimpa — field manual
- *  (backupLocation, notes, lastBackupAt, domainExpiresAt) tidak pernah disentuh di sini. */
+ *  (vpsServerId, coolifyUuid) — upsert supaya sync berulang tidak bikin duplikat. Field yang
+ *  datang dari Coolify (name, domain, gitRepository, gitBranch, databaseInfo) yang ditimpa —
+ *  field manual (backupLocation, notes, lastBackupAt, domainExpiresAt) tidak pernah disentuh.
+ *  `databaseInfo` cuma ditimpa kalau berhasil ketemu match baru (gagal ketemu = biarkan nilai
+ *  lama, bukan dihapus — supaya kegagalan sesaat, mis. token belum diupdate read:sensitive-nya,
+ *  tidak menghapus data yang sudah pernah berhasil ke-sync). */
 export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ synced: number }> {
   if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { synced: 0 }
 
-  const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, decryptSecret(vps.coolifyApiToken))
+  const apiBase = normalizeCoolifyApiUrl(vps.coolifyApiUrl)
+  const token = decryptSecret(vps.coolifyApiToken)
+
+  const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, token)
+
+  let databases: CoolifyDatabase[] = []
+  try {
+    databases = await fetchDatabases(apiBase, token)
+  } catch {
+    // Best-effort — kalau gagal (mis. instance Coolify lama tanpa endpoint ini), lanjut tanpa info database.
+  }
+
   let synced = 0
 
   for (const app of apps) {
     if (!app.uuid) continue
     const domain = firstCleanDomain(app.domains)
+
+    let databaseInfo: string | null = null
+    if (databases.length > 0) {
+      try {
+        const envs = await fetchApplicationEnvs(apiBase, token, app.uuid)
+        const dbUrl = findDatabaseUrlValue(envs)
+        const host = dbUrl ? extractHost(dbUrl) : null
+        const matched = host ? matchDatabaseByHost(host, databases) : null
+        if (matched) databaseInfo = `${prettifyDatabaseType(matched.database_type)} — ${matched.name}`
+      } catch {
+        // Best-effort — satu aplikasi gagal ambil env tidak boleh gagalkan sync aplikasi lain.
+      }
+    }
+
     await prisma.application.upsert({
       where: { vpsServerId_coolifyUuid: { vpsServerId: vps.id, coolifyUuid: app.uuid } },
       create: {
@@ -63,12 +163,14 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         domain,
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
+        databaseInfo,
       },
       update: {
         name: app.name || app.uuid,
         domain,
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
+        ...(databaseInfo ? { databaseInfo } : {}),
       },
     })
     synced += 1

@@ -163,6 +163,12 @@ model Application {
   domain                String?
   gitRepository         String?   @map("git_repository")
   gitBranch             String?   @map("git_branch")
+  /// Label database yang dipakai aplikasi ini, mis. "PostgreSQL — postgres-simple-system" —
+  /// diisi otomatis waktu sync Coolify dengan cocokkan host di env var *_DATABASE_URL aplikasi
+  /// ke salah satu resource Database di Coolify (lihat matchApplicationDatabase() di
+  /// src/lib/monitoring/coolify.ts). SENGAJA cuma nama/jenis database yang disimpan — password/
+  /// connection string lengkap dari env var TIDAK PERNAH ditulis ke sini atau ke tabel lain.
+  databaseInfo          String?   @map("database_info")
   coolifyUuid           String?   @map("coolify_uuid")
   backupLocation        String?   @map("backup_location")
   lastBackupAt          DateTime? @map("last_backup_at")

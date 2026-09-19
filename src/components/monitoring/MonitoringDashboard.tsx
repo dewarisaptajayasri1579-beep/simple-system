@@ -560,12 +560,14 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
           <Input
             label="SSH Password"
             isPassword
+            autoComplete="new-password"
             helperText="Isi salah satu: password atau private key"
             value={vpsForm.sshPassword}
             onChange={(e) => setVpsForm({ ...vpsForm, sshPassword: e.target.value })}
           />
           <Input
             label="SSH Private Key"
+            autoComplete="new-password"
             placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
             value={vpsForm.sshPrivateKey}
             onChange={(e) => setVpsForm({ ...vpsForm, sshPrivateKey: e.target.value })}
@@ -601,6 +603,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
             <Input
               label="Coolify API Token (opsional)"
               isPassword
+              autoComplete="new-password"
               value={vpsForm.coolifyApiToken}
               onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
             />

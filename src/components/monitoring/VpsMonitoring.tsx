@@ -23,6 +23,7 @@ export type AppRow = {
   domain: string | null
   gitRepository: string | null
   gitBranch: string | null
+  databaseInfo: string | null
   backupLocation: string | null
   lastBackupAt: string | null
   lastAccessedAt: string | null
@@ -376,6 +377,7 @@ export const VpsServerCard: React.FC<{
                   <TableHead>Aplikasi</TableHead>
                   <TableHead>Domain</TableHead>
                   <TableHead>Git</TableHead>
+                  <TableHead>Database</TableHead>
                   <TableHead>Terakhir Diakses</TableHead>
                   <TableHead>Terakhir Backup</TableHead>
                   <TableHead>Domain Habis</TableHead>
@@ -385,7 +387,7 @@ export const VpsServerCard: React.FC<{
               <TableBody>
                 {vps.applications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 8 : 7} className="text-center text-slate-400 text-xs font-semibold py-6">
                       Belum ada aplikasi terdaftar di VPS ini.
                     </TableCell>
                   </TableRow>
@@ -428,6 +430,7 @@ export const VpsServerCard: React.FC<{
                           <span className="text-slate-400 text-xs">-</span>
                         )}
                       </TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{app.databaseInfo || <span className="text-slate-400">-</span>}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">
                         {formatDateTimeId(app.lastBackupAt)}
@@ -498,6 +501,7 @@ export const VpsServerCard: React.FC<{
           <Input
             label="SSH Password"
             isPassword
+            autoComplete="new-password"
             placeholder="Kosongkan kalau tidak diubah"
             helperText="Isi salah satu: password atau private key"
             value={vpsForm.sshPassword}
@@ -505,6 +509,7 @@ export const VpsServerCard: React.FC<{
           />
           <Textarea
             label="SSH Private Key"
+            autoComplete="new-password"
             placeholder="Kosongkan kalau tidak diubah"
             value={vpsForm.sshPrivateKey}
             onChange={(e) => setVpsForm({ ...vpsForm, sshPrivateKey: e.target.value })}
@@ -541,6 +546,7 @@ export const VpsServerCard: React.FC<{
             <Input
               label="Coolify API Token (opsional)"
               isPassword
+              autoComplete="new-password"
               placeholder="Kosongkan kalau tidak diubah"
               value={vpsForm.coolifyApiToken}
               onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
