@@ -287,8 +287,9 @@ export function DiskMiniBar({ disk, diskError }: { disk: DiskInfo | null; diskEr
   if (diskError) return <span className="text-[11px] font-semibold text-rose-600">Disk error</span>
   if (!disk) return null
   return (
-    <div className="flex items-center gap-1.5 w-28">
-      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+    <div className="flex items-center gap-1.5" title={`Disk: ${disk.usedPct}%`}>
+      <span className="text-[10px] font-bold text-slate-400 uppercase w-7 flex-shrink-0">Disk</span>
+      <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
         <div
           className={`h-full rounded-full ${disk.usedPct >= 90 ? "bg-rose-500" : disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
           style={{ width: `${Math.min(disk.usedPct, 100)}%` }}
@@ -305,8 +306,9 @@ function UsageMiniBar({ label, pct, error }: { label: string; pct: number | null
   if (error) return <span className="text-[11px] font-semibold text-rose-600">{label} error</span>
   if (pct === null) return null
   return (
-    <div className="flex items-center gap-1.5 w-20" title={`${label}: ${pct.toFixed(0)}%`}>
-      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+    <div className="flex items-center gap-1.5" title={`${label}: ${pct.toFixed(0)}%`}>
+      <span className="text-[10px] font-bold text-slate-400 uppercase w-7 flex-shrink-0">{label}</span>
+      <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
         <div
           className={`h-full rounded-full ${pct >= 90 ? "bg-rose-500" : pct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
           style={{ width: `${Math.min(pct, 100)}%` }}
