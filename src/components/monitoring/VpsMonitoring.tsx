@@ -62,6 +62,7 @@ export type VpsRow = {
   dockerDiskCheckedAt: string | null
   applications: AppRow[]
   registeredDomains: { name: string; tracked: boolean; active: boolean | null; expiryDate: string | null }[]
+  orphanDatabases: { uuid: string; name: string; databaseType: string; diskUsage: { size: string; virtualSize: string } | null }[]
 }
 
 export type DockerDiskEntry = {
@@ -839,6 +840,39 @@ export const VpsServerCard: React.FC<{
               </TableBody>
             </Table>
           </TableContainer>
+
+          {vps.orphanDatabases.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Database Tanpa Aplikasi</span>
+              <p className="text-[11px] text-slate-500 font-medium -mt-1">
+                Database di Coolify yang tidak dipakai aplikasi manapun di sini (tidak ke-connect lewat DATABASE_URL aplikasi mana pun).
+              </p>
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Nama Database</TableHead>
+                      <TableHead>Tipe</TableHead>
+                      <TableHead>Ukuran Disk</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vps.orphanDatabases.map((db, index) => (
+                      <TableRow key={db.uuid}>
+                        <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
+                        <TableCell className="font-bold text-slate-900">{db.name}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{db.databaseType}</TableCell>
+                        <TableCell className="text-xs">
+                          <DiskContribution usage={db.diskUsage} totalBytes={vps.disk?.totalBytes} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </div>
+          )}
         </div>
       )}
 

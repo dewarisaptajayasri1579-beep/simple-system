@@ -84,7 +84,7 @@ const DB_TYPE_LABELS: Record<string, string> = {
   "standalone-clickhouse": "ClickHouse",
 }
 
-function prettifyDatabaseType(type: string): string {
+export function prettifyDatabaseType(type: string): string {
   return DB_TYPE_LABELS[type] || type.replace(/^standalone-/, "").replace(/(^|-)([a-z])/g, (_, sep, c) => (sep ? " " : "") + c.toUpperCase())
 }
 
@@ -166,8 +166,18 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   try {
     databases = await fetchDatabases(apiBase, token)
     // Cuma update kalau fetch-nya BENERAN berhasil — supaya kegagalan sesaat (instance Coolify
-    // lama tanpa endpoint ini, network blip, dst) tidak menimpa angka lama jadi 0.
-    await prisma.vpsServer.update({ where: { id: vps.id }, data: { coolifyDatabaseCount: databases.length } }).catch(() => {})
+    // lama tanpa endpoint ini, network blip, dst) tidak menimpa angka/daftar lama jadi kosong.
+    // Daftar mentahnya (coolifyDatabasesCache) dipakai buat nunjukkin database yang TIDAK
+    // ke-match ke aplikasi manapun — lihat GET /api/monitoring/vps.
+    await prisma.vpsServer
+      .update({
+        where: { id: vps.id },
+        data: {
+          coolifyDatabaseCount: databases.length,
+          coolifyDatabasesCache: databases.map((db) => ({ uuid: db.uuid, name: db.name, databaseType: db.database_type })),
+        },
+      })
+      .catch(() => {})
   } catch {
     // Best-effort — kalau gagal (mis. instance Coolify lama tanpa endpoint ini), lanjut tanpa info database.
   }

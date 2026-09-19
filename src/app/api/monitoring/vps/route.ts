@@ -5,6 +5,7 @@ import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { resolveDomainExpiry } from "@/lib/domain-status"
 import { canViewMonitoring } from "@/lib/monitoring"
+import { prettifyDatabaseType } from "@/lib/monitoring/coolify"
 import { registrableDomain } from "@/lib/monitoring/rdap"
 import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry, type VolumeDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
@@ -14,6 +15,8 @@ type DockerDiskCache = {
   containers: ContainerDiskEntry[] | null
   volumes: VolumeDiskEntry[] | null
 }
+
+type CoolifyDatabaseCacheEntry = { uuid: string; name: string; databaseType: string }
 
 /** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
  *  ~1-2 detik) tiap request, tapi breakdown disk Docker (lambat, ~20-25 detik) dibaca dari CACHE
@@ -59,6 +62,25 @@ export async function GET() {
       const live = await getVpsDiskAndBackup(vps)
       const cache = (vps.dockerDiskCache as unknown as DockerDiskCache | null) ?? null
 
+      // Database Coolify yang tidak ke-match ke aplikasi manapun (mis. dibuat berdiri sendiri,
+      // tanpa aplikasi yang connect via DATABASE_URL) tidak akan pernah muncul lewat
+      // `applications[].databaseInfo` — lihat percakapan monitoring ("os-template" ternyata cuma
+      // database tanpa aplikasi). Cocokkan daftar mentah hasil sync (coolifyDatabasesCache) ke
+      // UUID yang SUDAH kepakai aplikasi, sisanya ("orphan") ditampilkan terpisah.
+      const usedDatabaseUuids = new Set(vps.applications.map((a) => a.databaseUuid).filter((u): u is string => Boolean(u)))
+      const coolifyDatabases = (vps.coolifyDatabasesCache as unknown as CoolifyDatabaseCacheEntry[] | null) ?? []
+      const orphanDatabases = coolifyDatabases
+        .filter((db) => !usedDatabaseUuids.has(db.uuid))
+        .map((db) => {
+          const container = cache?.containers?.find((c) => c.containerName === db.uuid)
+          return {
+            uuid: db.uuid,
+            name: db.name,
+            databaseType: prettifyDatabaseType(db.databaseType),
+            diskUsage: container ? { size: container.size, virtualSize: container.virtualSize } : null,
+          }
+        })
+
       const rootDomainNames = [...new Set(vps.applications.map((a) => a.domain).filter((d): d is string => Boolean(d)).map((d) => registrableDomain(d).toLowerCase()))]
       const registeredDomains = rootDomainNames.map((name) => {
         const row = domainByName.get(name)
@@ -92,6 +114,7 @@ export async function GET() {
         dockerVolumes: cache?.volumes ?? null,
         dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
         registeredDomains,
+        orphanDatabases,
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
           const dbContainer = app.databaseUuid ? cache?.containers?.find((c) => c.containerName === app.databaseUuid) : undefined

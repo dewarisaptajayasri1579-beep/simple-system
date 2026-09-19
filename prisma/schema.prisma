@@ -147,6 +147,11 @@ model VpsServer {
   /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di
   /// src/lib/monitoring/coolify.ts). Null kalau belum pernah sync sama sekali.
   coolifyDatabaseCount Int?        @map("coolify_database_count")
+  /// Daftar mentah resource Database dari GET /databases Coolify (lihat syncCoolifyApplications()
+  /// di src/lib/monitoring/coolify.ts) — bentuknya { uuid, name, databaseType }[]. Dipakai buat
+  /// nampilin database yang TIDAK dipakai aplikasi manapun (tidak ke-match lewat DATABASE_URL env
+  /// var aplikasi mana pun) supaya tidak hilang begitu saja dari monitoring.
+  coolifyDatabasesCache Json?      @map("coolify_databases_cache")
   /// Cache hasil `docker system df` + `docker ps -s` (lihat getVpsDockerDiskUsage() di
   /// src/lib/monitoring/ssh.ts) — bentuknya { dockerDisk: DockerDiskEntry[], appDiskUsage:
   /// AppContainerDisk[] }. SENGAJA di-cache (bukan live tiap load halaman) karena command ini
