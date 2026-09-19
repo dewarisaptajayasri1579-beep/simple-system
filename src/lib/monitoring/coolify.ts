@@ -89,6 +89,18 @@ async function coolifyPost(apiBase: string, apiToken: string, path: string, body
   return text ? JSON.parse(text) : null
 }
 
+async function coolifyPatch(apiBase: string, apiToken: string, path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(`${apiBase}${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Coolify API error ${res.status} (${apiBase}${path}): ${text}`)
+  return text ? JSON.parse(text) : null
+}
+
 export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
   const data = await coolifyGet(normalizeCoolifyApiUrl(apiUrl), apiToken, "/applications")
   return Array.isArray(data) ? data : []
@@ -325,7 +337,9 @@ async function ensureS3Storage(
 
   const created = (await coolifyPost(apiBase, token, "/s3-storages", {
     name: "Cloudflare R2 (auto)",
-    description: "Dibuat otomatis oleh ensureDatabaseBackups() — bucket sama dengan backup database app ini sendiri.",
+    // Coolify validasi field description-nya ketat (tolak em dash "-" unicode dan karakter non-ASCII
+    // lain dengan pesan generik "format is invalid") -- sengaja ASCII polos di sini.
+    description: "Auto-created by simple-system monitoring, same R2 bucket as this app's own backup.",
     endpoint: `https://${requiredEnv("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
     bucket: requiredEnv("R2_BACKUP_BUCKET"),
     region: "auto",
@@ -376,4 +390,30 @@ export async function ensureDatabaseBackups(
   }
 
   return { created }
+}
+
+/** Trigger 1 backup EKSEKUSI SEKARANG dari jadwal backup yang SUDAH ADA — beda dari
+ *  ensureDatabaseBackups() di atas (yang cuma bikin JADWAL). Coolify REST API TIDAK punya
+ *  endpoint "run backup" khusus; caranya PATCH jadwal backup yang sudah ada dengan `backup_now:
+ *  true` (lihat https://next.coolify.io/docs/api/endpoints/databases/update-database-backup) —
+ *  ini men-trigger 1 eksekusi tambahan tanpa mengubah jadwal reguler-nya. Butuh jadwal backup
+ *  sudah ada duluan (dari ensureDatabaseBackups atau dibuat manual di Coolify); kalau belum ada
+ *  sama sekali, balikin error yang jelas. */
+export async function triggerDatabaseBackupNow(vps: SyncCoolifyVps, databaseUuid: string): Promise<{ ok: boolean; error?: string }> {
+  if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { ok: false, error: "VPS ini belum diisi Coolify API URL/token" }
+
+  const apiBase = normalizeCoolifyApiUrl(vps.coolifyApiUrl)
+  const token = decryptSecret(vps.coolifyApiToken)
+
+  try {
+    const schedules = (await coolifyGet(apiBase, token, `/databases/${databaseUuid}/backups`)) as { uuid: string }[]
+    if (!Array.isArray(schedules) || schedules.length === 0) {
+      return { ok: false, error: "Database ini belum punya jadwal backup sama sekali — sync ulang dulu (auto-setup jadwal) atau buat manual di Coolify." }
+    }
+
+    await coolifyPatch(apiBase, token, `/databases/${databaseUuid}/backups/${schedules[0].uuid}`, { backup_now: true })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Gagal trigger backup" }
+  }
 }

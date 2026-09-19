@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users, Search } from "lucide-react"
+import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users, Search, DatabaseBackup } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -27,6 +27,7 @@ export type AppRow = {
   activityQuery: string | null
   backupLocation: string | null
   lastBackupAt: string | null
+  databaseUuid: string | null
   dbBackupAt: string | null
   dbBackupLink: string | null
   lastAccessedAt: string | null
@@ -375,6 +376,7 @@ export const VpsServerCard: React.FC<{
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
   const [search, setSearch] = useState("")
+  const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneResult, setPruneResult] = useState<{
     ok: boolean
@@ -487,6 +489,22 @@ export const VpsServerCard: React.FC<{
     } finally {
       setSyncing(false)
       setCheckingDockerDisk(false)
+    }
+  }
+
+  const handleBackupNow = async (databaseUuid: string) => {
+    if (!confirm("Trigger backup sekarang buat database ini? File hasil backup butuh beberapa saat sebelum kelihatan di kolom DB Backup.")) return
+    setBackingUpDbUuid(databaseUuid)
+    try {
+      const res = await fetch(`/api/monitoring/vps/${vps.id}/databases/${databaseUuid}/backup-now`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        alert(data?.error || "Gagal trigger backup")
+        return
+      }
+      alert("Backup sudah di-trigger, jalan di background di Coolify. Cek lagi beberapa menit lagi.")
+    } finally {
+      setBackingUpDbUuid(null)
     }
   }
 
@@ -1048,23 +1066,36 @@ export const VpsServerCard: React.FC<{
                         )}
                       </TableCell>
                       <TableCell>
-                        {app.dbBackupAt ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.dbBackupAt)}</span>
-                            {app.dbBackupLink && (
-                              <a
-                                href={app.dbBackupLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {app.dbBackupAt ? (
+                            <>
+                              <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.dbBackupAt)}</span>
+                              {app.dbBackupLink && (
+                                <a
+                                  href={app.dbBackupLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
+                          )}
+                          {isOwner && app.databaseUuid && (
+                            <button
+                              onClick={() => handleBackupNow(app.databaseUuid!)}
+                              disabled={backingUpDbUuid === app.databaseUuid}
+                              className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label="Backup Sekarang"
+                              title="Backup Sekarang"
+                            >
+                              <DatabaseBackup className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {app.lastAccessedAt ? (
@@ -1088,9 +1119,9 @@ export const VpsServerCard: React.FC<{
                             href={`https://${app.domain}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
                           >
-                            {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                            <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
                           </a>
                         ) : (
                           <div className="text-slate-400 text-xs">Tanpa domain</div>
@@ -1171,23 +1202,36 @@ export const VpsServerCard: React.FC<{
                           <DiskContribution usage={db.diskUsage} totalBytes={vps.disk?.totalBytes} />
                         </TableCell>
                         <TableCell>
-                          {db.dbBackupAt ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(db.dbBackupAt)}</span>
-                              {db.dbBackupLink && (
-                                <a
-                                  href={db.dbBackupLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {db.dbBackupAt ? (
+                              <>
+                                <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(db.dbBackupAt)}</span>
+                                {db.dbBackupLink && (
+                                  <a
+                                    href={db.dbBackupLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
+                            )}
+                            {isOwner && (
+                              <button
+                                onClick={() => handleBackupNow(db.uuid)}
+                                disabled={backingUpDbUuid === db.uuid}
+                                className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Backup Sekarang"
+                                title="Backup Sekarang"
+                              >
+                                <DatabaseBackup className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       ))

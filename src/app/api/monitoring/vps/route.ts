@@ -168,6 +168,7 @@ export async function GET() {
             activityQuery: app.activityQuery,
             backupLocation: app.backupLocation,
             lastBackupAt: app.lastBackupAt,
+            databaseUuid: app.databaseUuid,
             dbBackupAt: dbBackup?.createdTime ?? null,
             dbBackupLink: dbBackup?.webViewLink ?? null,
             lastAccessedAt: app.lastAccessedAt,
