@@ -178,7 +178,7 @@ function dockerDiskProgressLabel(pct: number): string {
 }
 
 function DomainExpiryBadge({ iso }: { iso: string | null }) {
-  if (!iso) return <span className="text-blue-400 text-xs font-semibold">Belum diketahui</span>
+  if (!iso) return <span className="text-slate-400 text-xs font-semibold">Belum diketahui</span>
   const days = Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000)
   const label = `${formatDateOnlyId(iso)}${days >= 0 ? ` (${days} hari lagi)` : " (lewat)"}`
   const variant = days < 0 ? "danger" : days < 30 ? "danger" : days < 90 ? "warning" : "success"
@@ -240,13 +240,13 @@ function repoDisplayName(url: string): string {
  *  writable layer (biasanya cuma beberapa KB, kurang bermakna buat non-teknis) SENGAJA tidak
  *  ditampilkan, cuma dipakai buat tooltip. Warna teks kontras (slate-700), bukan abu-abu pudar. */
 function DiskContribution({ usage, totalBytes }: { usage: { size: string; virtualSize: string } | null; totalBytes: number | undefined }) {
-  if (!usage) return <span className="text-blue-400">-</span>
+  if (!usage) return <span className="text-slate-400">-</span>
   const virtualBytes = parseDockerSize(usage.virtualSize)
   const pct = totalBytes ? (virtualBytes / totalBytes) * 100 : null
   return (
     <span className="font-semibold text-slate-700" title={`Writable layer: ${usage.size}`}>
       ~{usage.virtualSize}
-      {pct !== null && <span className="text-blue-500"> ({pct < 0.1 ? "<0.1" : pct.toFixed(1)}% dari total)</span>}
+      {pct !== null && <span className="text-slate-500"> ({pct < 0.1 ? "<0.1" : pct.toFixed(1)}% dari total)</span>}
     </span>
   )
 }
@@ -290,7 +290,7 @@ export function DiskMiniBar({ disk, diskError }: { disk: DiskInfo | null; diskEr
   if (!disk) return null
   return (
     <div className="flex items-center gap-1.5" title={`Disk: ${disk.usedPct}%`}>
-      <span className="text-[10px] font-bold text-blue-400 uppercase w-7 flex-shrink-0">Disk</span>
+      <span className="text-[10px] font-bold text-slate-400 uppercase w-7 flex-shrink-0">Disk</span>
       <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
         <div
           className={`h-full rounded-full ${disk.usedPct >= 90 ? "bg-rose-500" : disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
@@ -309,7 +309,7 @@ function UsageMiniBar({ label, pct, error }: { label: string; pct: number | null
   if (pct === null) return null
   return (
     <div className="flex items-center gap-1.5" title={`${label}: ${pct.toFixed(0)}%`}>
-      <span className="text-[10px] font-bold text-blue-400 uppercase w-7 flex-shrink-0">{label}</span>
+      <span className="text-[10px] font-bold text-slate-400 uppercase w-7 flex-shrink-0">{label}</span>
       <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
         <div
           className={`h-full rounded-full ${pct >= 90 ? "bg-rose-500" : pct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
@@ -634,7 +634,7 @@ export const VpsServerCard: React.FC<{
           </div>
           <div className="min-w-0">
             <div className="font-black text-slate-900 truncate">{vps.name}</div>
-            <div className="text-xs font-semibold text-blue-500 truncate">
+            <div className="text-xs font-semibold text-slate-500 truncate">
               {vps.hasCoolify ? "Coolify · " : ""}
               {vps.applications.length} aplikasi · {vps.databases.length} database
             </div>
@@ -657,11 +657,11 @@ export const VpsServerCard: React.FC<{
         <div className="px-4 sm:px-5 pb-5 flex flex-col gap-4 border-t border-slate-200/80 pt-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-200/80 bg-white/60 px-4 py-3">
-              <div className="text-[11px] font-bold text-blue-500 uppercase tracking-wide">Aplikasi</div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Aplikasi</div>
               <div className="text-xl font-black text-slate-800">{vps.applications.length}</div>
             </div>
             <div className="rounded-xl border border-slate-200/80 bg-white/60 px-4 py-3">
-              <div className="text-[11px] font-bold text-blue-500 uppercase tracking-wide">Database (Coolify)</div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Database (Coolify)</div>
               <div className="text-xl font-black text-slate-800">{vps.coolifyDatabaseCount ?? "-"}</div>
             </div>
           </div>
@@ -686,7 +686,7 @@ export const VpsServerCard: React.FC<{
 
           {vps.uptimeSeconds !== null && (
             <span
-              className="text-[11px] text-blue-400 font-medium -mb-1"
+              className="text-[11px] text-slate-400 font-medium -mb-1"
               title="Lama VPS menyala tanpa reboot sejak boot/restart terakhir."
             >
               Uptime: {formatUptime(vps.uptimeSeconds)}
@@ -696,7 +696,7 @@ export const VpsServerCard: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <span
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
                 title="Rata-rata beban CPU 1 menit terakhir dibagi jumlah core, dalam persen. Lebih dari 100% berarti ada proses yang antre nunggu giliran CPU (VPS mulai keteteran)."
               >
                 <Cpu className="w-3.5 h-3.5" /> CPU
@@ -712,17 +712,17 @@ export const VpsServerCard: React.FC<{
                     />
                   </div>
                   <span className="text-xs font-semibold text-slate-700">
-                    {vps.cpu.loadPct1m.toFixed(0)}% <span className="text-blue-400 font-medium">({vps.cpu.cores} core)</span>
+                    {vps.cpu.loadPct1m.toFixed(0)}% <span className="text-slate-400 font-medium">({vps.cpu.cores} core)</span>
                   </span>
                   <span
-                    className="text-[11px] text-blue-400 font-medium"
+                    className="text-[11px] text-slate-400 font-medium"
                     title="Rata-rata beban CPU yang sama, tapi dihitung dari jendela waktu 5 menit dan 15 menit terakhir — buat lihat tren (naik/turun/stabil), bukan cuma sesaat."
                   >
                     5m: {vps.cpu.loadPct5m.toFixed(0)}% · 15m: {vps.cpu.loadPct15m.toFixed(0)}%
                   </span>
                   {vps.cpu.processesRunning !== null && vps.cpu.processesTotal !== null && (
                     <span
-                      className="text-[11px] text-blue-400 font-medium"
+                      className="text-[11px] text-slate-400 font-medium"
                       title="'Jalan' = proses yang benar-benar sedang dieksekusi CPU detik ini. 'Total' = semua proses + thread yang ada di sistem (termasuk yang lagi idle/nunggu)."
                     >
                       Proses: {vps.cpu.processesRunning} jalan / {vps.cpu.processesTotal} total
@@ -751,12 +751,12 @@ export const VpsServerCard: React.FC<{
                   )}
                 </>
               ) : (
-                <span className="text-xs font-medium text-blue-400">-</span>
+                <span className="text-xs font-medium text-slate-400">-</span>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
               <span
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
                 title="Memori yang beneran terpakai (Total dikurangi MemAvailable) — cache/buffer OS yang masih bisa dilepas kapan saja TIDAK dihitung 'terpakai', beda dari sekadar MemFree yang sering kelihatan rendah padahal sebagian besar cuma cache."
               >
                 <MemoryStick className="w-3.5 h-3.5" /> RAM
@@ -776,12 +776,12 @@ export const VpsServerCard: React.FC<{
                   </span>
                 </>
               ) : (
-                <span className="text-xs font-medium text-blue-400">-</span>
+                <span className="text-xs font-medium text-slate-400">-</span>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
               <span
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide"
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
                 title="Ruang disk yang dipakai sebagai 'RAM cadangan' saat RAM fisik penuh. Baca/tulis disk jauh lebih lambat dari RAM, jadi swap terpakai tinggi = performa VPS ikut melambat drastis, bukan sekadar indikator ruang kosong."
               >
                 <MemoryStick className="w-3.5 h-3.5" /> Swap
@@ -799,13 +799,13 @@ export const VpsServerCard: React.FC<{
                   </span>
                 </>
               ) : (
-                <span className="text-xs font-medium text-blue-400">Tidak ada swap</span>
+                <span className="text-xs font-medium text-slate-400">Tidak ada swap</span>
               )}
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
               <HardDrive className="w-3.5 h-3.5" /> Disk Space ({vps.diskPath})
             </span>
             {vps.diskError ? (
@@ -816,14 +816,14 @@ export const VpsServerCard: React.FC<{
                 <span className="text-xs font-semibold text-slate-700">
                   {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
                   {vps.dockerDisk && (
-                    <span className="ml-2 font-medium text-blue-500">
+                    <span className="ml-2 font-medium text-slate-500">
                       <span className="text-blue-600 font-bold">■</span> Volumes ·{" "}
                       <span className="text-amber-600 font-bold">■</span> Sampah image ·{" "}
-                      <span className="text-blue-400 font-bold">■</span> Lainnya
+                      <span className="text-slate-400 font-bold">■</span> Lainnya
                     </span>
                   )}
                 </span>
-                <span className="text-[11px] text-blue-400 font-medium">
+                <span className="text-[11px] text-slate-400 font-medium">
                   Data aplikasi/domain/database disync {timeAgoId(vps.dockerDiskCheckedAt)}
                 </span>
               </div>
@@ -832,7 +832,7 @@ export const VpsServerCard: React.FC<{
 
           {vps.registeredDomains.length > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <Globe className="w-3.5 h-3.5" /> Domain Utama
               </span>
               <div className="flex flex-wrap items-center gap-3">
@@ -854,12 +854,12 @@ export const VpsServerCard: React.FC<{
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-blue-500 uppercase tracking-wide">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <HardDrive className="w-3.5 h-3.5" /> Disk Docker (breakdown)
               </span>
               <div className="flex items-center gap-2">
                 {!checkingDockerDisk && (
-                  <span className="text-[11px] text-blue-400 font-medium">Diperiksa {timeAgoId(vps.dockerDiskCheckedAt)}</span>
+                  <span className="text-[11px] text-slate-400 font-medium">Diperiksa {timeAgoId(vps.dockerDiskCheckedAt)}</span>
                 )}
                 {isOwner && (
                   <>
@@ -905,7 +905,7 @@ export const VpsServerCard: React.FC<{
                 <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-blue-600 rounded-full transition-all duration-200" style={{ width: `${dockerDiskProgress}%` }} />
                 </div>
-                <span className="text-[11px] text-blue-400">Bisa ~30-90 detik (3 command Docker sekaligus lewat SSH + sudo), tergantung beban Docker daemon & jumlah image/volume di VPS-nya.</span>
+                <span className="text-[11px] text-slate-400">Bisa ~30-90 detik (3 command Docker sekaligus lewat SSH + sudo), tergantung beban Docker daemon & jumlah image/volume di VPS-nya.</span>
               </div>
             ) : vps.dockerDisk ? (
               <div className="flex flex-col gap-3">
@@ -933,11 +933,11 @@ export const VpsServerCard: React.FC<{
                           {hasSampah ? (
                             <span className="text-amber-600"> · {sampahLabel} sampah</span>
                           ) : (
-                            <span className="text-blue-400"> · tidak ada sampah</span>
+                            <span className="text-slate-400"> · tidak ada sampah</span>
                           )}
                         </span>
                       </div>
-                      <span className="pl-[7.5rem] text-[11px] text-blue-500 font-medium">{meta.description}</span>
+                      <span className="pl-[7.5rem] text-[11px] text-slate-500 font-medium">{meta.description}</span>
                       {d.type === "Local Volumes" && vps.dockerVolumes && vps.dockerVolumes.length > 0 && (
                         <div className="pl-[7.5rem] mt-1 flex flex-col gap-0.5">
                           {[...vps.dockerVolumes]
@@ -947,7 +947,7 @@ export const VpsServerCard: React.FC<{
                               const isCache = BUILDKIT_CACHE_VOLUME_RE.test(v.name)
                               return (
                                 <div key={v.name} className="flex items-center justify-between gap-2 text-[11px]">
-                                  <span className={`font-medium truncate ${isCache ? "text-amber-700" : "text-blue-500"}`} title={v.name}>
+                                  <span className={`font-medium truncate ${isCache ? "text-amber-700" : "text-slate-500"}`} title={v.name}>
                                     {v.name}
                                     {isCache ? <span className="text-amber-600"> · cache builder, aman dihapus</span> : null}
                                   </span>
@@ -956,7 +956,7 @@ export const VpsServerCard: React.FC<{
                               )
                             })}
                           {vps.dockerVolumes.length > 8 && (
-                            <span className="text-[11px] text-blue-400">+{vps.dockerVolumes.length - 8} volume lainnya</span>
+                            <span className="text-[11px] text-slate-400">+{vps.dockerVolumes.length - 8} volume lainnya</span>
                           )}
                         </div>
                       )}
@@ -965,7 +965,7 @@ export const VpsServerCard: React.FC<{
                 })}
               </div>
             ) : (
-              <span className="text-xs font-medium text-blue-400">
+              <span className="text-xs font-medium text-slate-400">
                 {vps.hasCoolify
                   ? `Belum pernah dicek${isOwner ? ' — klik "Sync & Cek Sekarang".' : ', minta Owner klik "Sync & Cek Sekarang".'}`
                   : `Belum pernah dicek${isOwner ? ' — klik "Cek Sekarang".' : ', minta Owner klik "Cek Sekarang".'}`}
@@ -998,14 +998,14 @@ export const VpsServerCard: React.FC<{
               <TableBody>
                 {filteredApplications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-blue-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
                       {vps.applications.length === 0 ? "Belum ada aplikasi terdaftar di VPS ini." : "Tidak ada aplikasi yang cocok dengan pencarian."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredApplications.map((app, index) => (
                     <TableRow key={app.id}>
-                      <TableCell className="text-blue-400 font-semibold">{index + 1}</TableCell>
+                      <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{app.name}</span>
@@ -1035,11 +1035,11 @@ export const VpsServerCard: React.FC<{
                             <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
                           </a>
                         ) : (
-                          <span className="text-blue-400 text-xs">Tanpa git</span>
+                          <span className="text-slate-400 text-xs">Tanpa git</span>
                         )}
-                        {app.gitBranch && <div className="text-[11px] text-blue-500 font-medium">branch: {app.gitBranch}</div>}
+                        {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
                         <div className="text-xs font-semibold text-slate-700 mt-1.5">
-                          {app.databaseInfo || <span className="text-blue-400 font-normal">Tanpa database</span>}
+                          {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
                         </div>
                         {app.databaseInfo && (
                           <div className="text-xs mt-0.5">
@@ -1063,23 +1063,23 @@ export const VpsServerCard: React.FC<{
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs font-medium text-blue-400">Belum ada backup</span>
+                          <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
                         )}
                       </TableCell>
                       <TableCell>
                         {app.lastAccessedAt ? (
                           <>
                             <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</span>
-                            {app.lastAccessedBy && <div className="text-[11px] text-blue-500 font-medium truncate max-w-[140px]">{app.lastAccessedBy}</div>}
+                            {app.lastAccessedBy && <div className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">{app.lastAccessedBy}</div>}
                             {app.lastAccessedIp && (
-                              <div className="text-[11px] text-blue-400 font-medium truncate max-w-[140px]">
+                              <div className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
                                 {app.lastAccessedIp}
                                 {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
                               </div>
                             )}
                           </>
                         ) : (
-                          <span className="text-xs font-medium text-blue-400">Belum diketahui</span>
+                          <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -1093,7 +1093,7 @@ export const VpsServerCard: React.FC<{
                             {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
                           </a>
                         ) : (
-                          <div className="text-blue-400 text-xs">Tanpa domain</div>
+                          <div className="text-slate-400 text-xs">Tanpa domain</div>
                         )}
                         <div className="mt-1">
                           <DomainExpiryBadge iso={app.domainExpiresAt} />
@@ -1126,7 +1126,7 @@ export const VpsServerCard: React.FC<{
 
           {vps.databases.length > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-blue-500 uppercase tracking-wide">Database</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Database</span>
               <TableContainer>
                 <Table>
                   <TableHeader>
@@ -1142,14 +1142,14 @@ export const VpsServerCard: React.FC<{
                   <TableBody>
                     {filteredDatabases.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-blue-400 text-xs font-semibold py-6">
+                        <TableCell colSpan={6} className="text-center text-slate-400 text-xs font-semibold py-6">
                           Tidak ada database yang cocok dengan pencarian.
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredDatabases.map((db, index) => (
                       <TableRow key={db.uuid}>
-                        <TableCell className="text-blue-400 font-semibold">{index + 1}</TableCell>
+                        <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-900">{db.name}</span>
@@ -1186,7 +1186,7 @@ export const VpsServerCard: React.FC<{
                               )}
                             </div>
                           ) : (
-                            <span className="text-xs font-medium text-blue-400">Belum ada backup</span>
+                            <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
                           )}
                         </TableCell>
                       </TableRow>
