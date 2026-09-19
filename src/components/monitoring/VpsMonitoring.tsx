@@ -1015,7 +1015,7 @@ export const VpsServerCard: React.FC<{
                             </Badge>
                           )}
                           {app.coolifyProjectName && (
-                            <Badge variant="secondary" size="sm">
+                            <Badge variant="primary" size="sm">
                               {app.coolifyProjectName}
                             </Badge>
                           )}
@@ -1159,7 +1159,7 @@ export const VpsServerCard: React.FC<{
                               <Badge variant="danger" size="sm">Stop</Badge>
                             )}
                             {db.projectName && (
-                              <Badge variant="secondary" size="sm">
+                              <Badge variant="primary" size="sm">
                                 {db.projectName}
                               </Badge>
                             )}
