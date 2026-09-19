@@ -274,6 +274,14 @@ export const VpsServerCard: React.FC<{
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
+  const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
+  const [pruneResult, setPruneResult] = useState<{
+    ok: boolean
+    systemReclaimed: string | null
+    buildxOk: boolean
+    buildxOutput: string
+    error?: string
+  } | null>(null)
   const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 70000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
@@ -391,25 +399,17 @@ export const VpsServerCard: React.FC<{
     }
   }
 
-  const handlePruneUnused = async () => {
-    if (
-      !confirm(
-        `Bersihkan image lama, container berhenti, network nganggur, dan cache build BuildKit di VPS "${vps.name}"?\n\nINI TIDAK akan menghapus volume/data aplikasi & database sama sekali — cuma yang benar-benar tidak terpakai.`
-      )
-    ) {
-      return
-    }
+  const runPruneUnused = async () => {
+    setPruneConfirmOpen(false)
     setPruning(true)
     try {
       const res = await fetch(`/api/monitoring/vps/${vps.id}/prune-unused`, { method: "POST" })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        alert(data?.error || "Gagal jalankan cleanup")
+        setPruneResult({ ok: false, systemReclaimed: null, buildxOk: false, buildxOutput: "", error: data?.error || "Gagal jalankan cleanup" })
         return
       }
-      const buildxSummary = data.buildxOk ? "dibersihkan (cek breakdown volume di bawah buat angka sebelum/sesudahnya)" : "GAGAL — lihat detail di bawah"
-      const debugOutput = !data.buildxOk && data.buildxOutput ? `\n\n--- detail cache build (debug) ---\n${data.buildxOutput}` : ""
-      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${buildxSummary}${debugOutput}`)
+      setPruneResult({ ok: true, systemReclaimed: data.systemReclaimed ?? null, buildxOk: !!data.buildxOk, buildxOutput: data.buildxOutput ?? "" })
       await handleCheckDockerDisk()
     } finally {
       setPruning(false)
@@ -601,7 +601,7 @@ export const VpsServerCard: React.FC<{
                 )}
                 {isOwner && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={handlePruneUnused} disabled={pruning || checkingDockerDisk}>
+                    <Button variant="secondary" size="sm" onClick={() => setPruneConfirmOpen(true)} disabled={pruning || checkingDockerDisk}>
                       {pruning ? "Membersihkan..." : "Bersihkan yang Tidak Terpakai"}
                     </Button>
                     <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
@@ -963,6 +963,55 @@ export const VpsServerCard: React.FC<{
           </div>
           <Textarea label="Catatan" value={appForm.notes} onChange={(e) => setAppForm({ ...appForm, notes: e.target.value })} rows={2} />
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={pruneConfirmOpen}
+        onClose={() => !pruning && setPruneConfirmOpen(false)}
+        title="Bersihkan Docker yang Tidak Terpakai"
+        subtitle={`VPS "${vps.name}"`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPruneConfirmOpen(false)} disabled={pruning}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={runPruneUnused} isLoading={pruning} loadingText="Membersihkan...">
+              Bersihkan
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-700 font-medium">
+            Ini akan hapus image lama/dangling, container berhenti, network nganggur, dan cache build BuildKit yang tidak terpakai.
+          </p>
+          <Alert variant="info">Volume/data aplikasi &amp; database TIDAK pernah disentuh sama sekali — cuma yang benar-benar tidak terpakai.</Alert>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!pruneResult} onClose={() => setPruneResult(null)} title={pruneResult?.ok ? "Cleanup Selesai" : "Cleanup Gagal"} subtitle={`VPS "${vps.name}"`} size="lg" footer={<Button variant="primary" onClick={() => setPruneResult(null)}>Tutup</Button>}>
+        {pruneResult && (
+          <div className="flex flex-col gap-3">
+            {pruneResult.ok ? (
+              <Alert variant="success">
+                Image/container/network: <b>{pruneResult.systemReclaimed || "0B"}</b>
+                <br />
+                Cache build: <b>{pruneResult.buildxOk ? "dibersihkan" : "GAGAL"}</b> — cek breakdown volume di bawah buat angka sebelum/sesudahnya.
+              </Alert>
+            ) : (
+              <Alert variant="error">{pruneResult.error}</Alert>
+            )}
+            {!pruneResult.buildxOk && pruneResult.buildxOutput && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-bold text-slate-600">Detail cache build (debug)</span>
+                <pre className="text-[11px] leading-relaxed bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                  {pruneResult.buildxOutput}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )
