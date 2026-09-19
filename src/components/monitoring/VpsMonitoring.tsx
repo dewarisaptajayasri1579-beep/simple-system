@@ -224,7 +224,7 @@ export const VpsServerCard: React.FC<{
 }> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
-  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 24000)
+  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 35000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
   const [vpsForm, setVpsForm] = useState({
@@ -546,7 +546,7 @@ export const VpsServerCard: React.FC<{
                 <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-blue-600 rounded-full transition-all duration-200" style={{ width: `${dockerDiskProgress}%` }} />
                 </div>
-                <span className="text-[11px] text-slate-400">Biasanya ~20-25 detik (dijalankan lewat SSH + sudo di VPS).</span>
+                <span className="text-[11px] text-slate-400">Biasanya ~25-40 detik, bisa lebih lama kalau image di VPS-nya banyak (dijalankan lewat SSH + sudo).</span>
               </div>
             ) : vps.dockerDisk ? (
               <div className="flex flex-col gap-3">
@@ -586,6 +586,7 @@ export const VpsServerCard: React.FC<{
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">#</TableHead>
                   <TableHead>Aplikasi</TableHead>
                   <TableHead>Git / Database</TableHead>
                   <TableHead>Diakses / Backup</TableHead>
@@ -597,13 +598,14 @@ export const VpsServerCard: React.FC<{
               <TableBody>
                 {vps.applications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 6 : 5} className="text-center text-slate-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
                       Belum ada aplikasi terdaftar di VPS ini.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  vps.applications.map((app) => (
+                  vps.applications.map((app, index) => (
                     <TableRow key={app.id}>
+                      <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{app.name}</span>
