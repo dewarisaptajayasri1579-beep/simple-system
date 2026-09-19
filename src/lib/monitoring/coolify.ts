@@ -6,7 +6,7 @@ export type CoolifyApplication = {
   name: string
   git_repository: string | null
   git_branch: string | null
-  domains: string | null
+  fqdn: string | null
   server_uuid: string
 }
 
@@ -57,14 +57,18 @@ async function fetchDatabases(apiBase: string, apiToken: string): Promise<Coolif
   return Array.isArray(data) ? data : []
 }
 
-/** Coolify balikin `domains` sebagai string comma-separated berisi URL penuh (mis.
- *  "https://app.contoh.com:3000,https://alias.contoh.com") — ambil yang pertama, bersihkan
- *  scheme/port/trailing slash biar konsisten dengan cara domain ditampilkan di UI. */
-export function firstCleanDomain(domains: string | null | undefined): string | null {
-  if (!domains) return null
-  const first = domains.split(",")[0]?.trim()
-  if (!first) return null
-  return first.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/:\d+$/, "") || null
+/** Coolify balikin `fqdn` (BUKAN `domains` — nama field beda dari dokumentasi OpenAPI resminya)
+ *  sebagai string comma-separated berisi URL penuh, entry pertama biasanya domain
+ *  auto-generated "*.sslip.io" (bukan yang mau ditampilkan), diikuti domain asli kalau ada
+ *  (mis. "http://xxx.1.2.3.4.sslip.io,https://app.contoh.com,https://www.app.contoh.com") —
+ *  ambil yang PERTAMA BUKAN sslip.io kalau ada, biar yang ditampilkan domain sungguhan;
+ *  fallback ke entry pertama apa pun kalau semuanya sslip.io (belum ada domain custom). */
+export function firstCleanDomain(fqdn: string | null | undefined): string | null {
+  if (!fqdn) return null
+  const clean = (raw: string) => raw.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/:\d+$/, "")
+  const entries = fqdn.split(",").map(clean).filter(Boolean)
+  if (entries.length === 0) return null
+  return entries.find((d) => !d.includes(".sslip.io")) ?? entries[0]
 }
 
 const DB_TYPE_LABELS: Record<string, string> = {
@@ -139,7 +143,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
 
   for (const app of apps) {
     if (!app.uuid) continue
-    const domain = firstCleanDomain(app.domains)
+    const domain = firstCleanDomain(app.fqdn)
 
     let databaseInfo: string | null = null
     if (databases.length > 0) {
