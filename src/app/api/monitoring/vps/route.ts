@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { latestBackupPerGroup } from "@/lib/backup/r2"
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { resolveDomainExpiry } from "@/lib/domain-status"
@@ -48,6 +49,11 @@ export async function GET() {
     : []
   const domainByName = new Map(domainRows.map((d) => [d.name.toLowerCase(), d]))
 
+  // Sekali panggil buat semua VPS/aplikasi (bukan di dalam loop) — lihat aturan N+1 di CLAUDE.md.
+  // Best-effort: kalau R2 lagi bermasalah, kolom "DB Backup" cuma kosong, bukan bikin seluruh
+  // halaman Monitoring gagal load.
+  const dbBackups = await latestBackupPerGroup().catch(() => [] as Awaited<ReturnType<typeof latestBackupPerGroup>>)
+
   const results = await Promise.all(
     vpsList.map(async (vps) => {
       const live = await getVpsDiskAndBackup(vps)
@@ -95,6 +101,9 @@ export async function GET() {
           // Habis" tidak nyangkut di "Belum diketahui" padahal domain root-nya sudah terdaftar.
           const rootDomainRow = app.domain ? domainByName.get(registrableDomain(app.domain).toLowerCase()) : undefined
           const domainExpiresAt = app.domainExpiresAt ?? (rootDomainRow ? (resolveDomainExpiry(rootDomainRow)?.toISOString() ?? null) : null)
+          // Cocokkan ke folder backup R2 lewat UUID database Coolify (nama folder Coolify selalu
+          // diakhiri UUID resource database-nya, lihat lib/backup/r2.ts § latestBackupPerGroup).
+          const dbBackup = app.databaseUuid ? dbBackups.find((b) => b.group.endsWith(app.databaseUuid!)) ?? null : null
           return {
             id: app.id,
             name: app.name,
@@ -105,6 +114,8 @@ export async function GET() {
             activityQuery: app.activityQuery,
             backupLocation: app.backupLocation,
             lastBackupAt: app.lastBackupAt,
+            dbBackupAt: dbBackup?.createdTime ?? null,
+            dbBackupLink: dbBackup?.webViewLink ?? null,
             lastAccessedAt: app.lastAccessedAt,
             lastAccessedBy: app.lastAccessedBy,
             domainExpiresAt,

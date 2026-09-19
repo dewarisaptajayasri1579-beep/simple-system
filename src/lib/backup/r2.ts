@@ -98,6 +98,33 @@ export async function listBackupHistory(filesPerGroup = 10) {
   return groups
 }
 
+/** File terbaru per group, 1 entry per group (bukan riwayat) — dipakai kolom "DB Backup" di
+ *  tabel Aplikasi (dicocokkan ke Application.databaseUuid lewat group.endsWith(uuid), lihat
+ *  GET /api/monitoring/vps). Terpisah dari listBackupHistory supaya tidak generate presigned
+ *  URL utk file yang tidak dipakai. */
+export async function latestBackupPerGroup() {
+  const client = s3Client()
+  const objects = (await listAllObjects(client)).filter((obj) => obj.Key && obj.LastModified)
+
+  const latestByGroup = new Map<string, _Object>()
+  for (const obj of objects) {
+    const group = groupOf(obj.Key!)
+    const current = latestByGroup.get(group)
+    if (!current || obj.LastModified!.getTime() > current.LastModified!.getTime()) latestByGroup.set(group, obj)
+  }
+
+  return Promise.all(
+    Array.from(latestByGroup.entries()).map(async ([group, obj]) => ({
+      group,
+      fileName: obj.Key!.slice(group.length + 1),
+      createdTime: obj.LastModified!.toISOString(),
+      webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: obj.Key! }), {
+        expiresIn: 3600,
+      }),
+    }))
+  )
+}
+
 /** Retensi: per group, bulan yang sudah lewat (bukan bulan berjalan) cuma disisakan 1 file —
  *  yang LastModified-nya paling akhir di bulan itu, sisanya dihapus. Bulan berjalan tetap
  *  disimpan apa adanya (harian atau berapa pun frekuensinya). Dipanggil oleh cron tanggal 1

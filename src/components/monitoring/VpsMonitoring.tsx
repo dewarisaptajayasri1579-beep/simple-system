@@ -27,6 +27,8 @@ export type AppRow = {
   activityQuery: string | null
   backupLocation: string | null
   lastBackupAt: string | null
+  dbBackupAt: string | null
+  dbBackupLink: string | null
   lastAccessedAt: string | null
   lastAccessedBy: string | null
   domainExpiresAt: string | null
@@ -725,7 +727,7 @@ export const VpsServerCard: React.FC<{
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Aplikasi</TableHead>
                   <TableHead>Git / Database</TableHead>
-                  <TableHead>Diakses / Backup</TableHead>
+                  <TableHead>DB Backup</TableHead>
                   <TableHead>Domain Habis</TableHead>
                   {isOwner && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
@@ -778,14 +780,23 @@ export const VpsServerCard: React.FC<{
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="text-xs font-semibold text-slate-700">
-                          {formatDateTimeId(app.lastAccessedAt)}
-                          {app.lastAccessedBy && <span className="text-slate-400 font-medium"> · {app.lastAccessedBy}</span>}
-                        </div>
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">
-                          {formatDateTimeId(app.lastBackupAt)}
-                          {app.backupLocation && <span className="text-slate-400 font-medium"> · {app.backupLocation}</span>}
-                        </div>
+                        {app.dbBackupAt ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.dbBackupAt)}</span>
+                            {app.dbBackupLink && (
+                              <a
+                                href={app.dbBackupLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {app.domain ? (
