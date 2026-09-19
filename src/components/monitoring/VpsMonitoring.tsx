@@ -299,6 +299,64 @@ export function DiskMiniBar({ disk, diskError }: { disk: DiskInfo | null; diskEr
   )
 }
 
+/** Mini-bar generic buat CPU/RAM di header collapsed VPS card — sama gaya visual dengan
+ *  DiskMiniBar (yang khusus disk karena bentuk datanya beda, punya usedPretty/totalPretty dst). */
+function UsageMiniBar({ label, pct, error }: { label: string; pct: number | null; error: string | null }) {
+  if (error) return <span className="text-[11px] font-semibold text-rose-600">{label} error</span>
+  if (pct === null) return null
+  return (
+    <div className="flex items-center gap-1.5 w-20" title={`${label}: ${pct.toFixed(0)}%`}>
+      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${pct >= 90 ? "bg-rose-500" : pct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <span className="text-[11px] font-bold text-slate-600 flex-shrink-0">{pct.toFixed(0)}%</span>
+    </div>
+  )
+}
+
+type VpsHealthLevel = "sehat" | "perhatian" | "kritis"
+
+/** Kesimpulan 1 badge dari semua sinyal yang ada per VPS — supaya kelihatan langsung tanpa expand
+ *  card. "Kritis" kalau ada yang beneran rusak/mati (disk/RAM nyaris penuh, database mati, domain
+ *  sudah expired); "Perhatian" kalau masih jalan tapi mulai mencurigakan (disk/RAM tinggi, swap
+ *  kepake, backup lewat 1 hari, domain mau expired). Ambang sama persis dengan warna tiap mini-bar
+ *  individual (≥90 rose, ≥75 amber) supaya konsisten — bukan angka baru yang beda sendiri. */
+function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string[] } {
+  const critical: string[] = []
+  const warning: string[] = []
+
+  if (vps.disk) {
+    if (vps.disk.usedPct >= 90) critical.push(`Disk ${vps.disk.usedPct}% penuh`)
+    else if (vps.disk.usedPct >= 75) warning.push(`Disk ${vps.disk.usedPct}% terpakai`)
+  }
+
+  if (vps.ram) {
+    if (vps.ram.usedPct >= 90) critical.push(`RAM ${vps.ram.usedPct.toFixed(0)}% penuh`)
+    else if (vps.ram.usedPct >= 75) warning.push(`RAM ${vps.ram.usedPct.toFixed(0)}% terpakai`)
+  }
+
+  if (vps.swap && vps.swap.usedPct > 50) warning.push(`Swap ${vps.swap.usedPct.toFixed(0)}% terpakai`)
+
+  for (const db of vps.databases) {
+    if (!db.isActive) critical.push(`Database "${db.name}" mati`)
+    else if (isBackupStale(db.dbBackupAt)) warning.push(`Backup "${db.name}" lebih dari 1 hari`)
+  }
+
+  for (const d of vps.registeredDomains) {
+    if (!d.expiryDate) continue
+    const days = Math.floor((new Date(d.expiryDate).getTime() - Date.now()) / 86_400_000)
+    if (days < 0) critical.push(`Domain ${d.name} sudah expired`)
+    else if (days < 30) warning.push(`Domain ${d.name} habis ${days} hari lagi`)
+  }
+
+  if (critical.length > 0) return { level: "kritis", reasons: critical }
+  if (warning.length > 0) return { level: "perhatian", reasons: warning }
+  return { level: "sehat", reasons: [] }
+}
+
 /** Satu kartu VPS yang bisa di-expand/collapse — dipakai di dalam list "VPS Lain" pada
  *  MonitoringDashboard.tsx. Ngurus sendiri modal Edit VPS & Tambah/Edit Aplikasi (spesifik ke
  *  VPS ini); modal "Tambah VPS" (VPS baru) ada di parent karena tidak terikat ke satu VPS. */
@@ -522,6 +580,10 @@ export const VpsServerCard: React.FC<{
     onChanged()
   }
 
+  const health = computeVpsHealth(vps)
+  const healthBadgeVariant = health.level === "kritis" ? "danger" : health.level === "perhatian" ? "warning" : "success"
+  const healthLabel = health.level === "kritis" ? "Kritis" : health.level === "perhatian" ? "Perhatian" : "Sehat"
+
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md overflow-hidden">
       <button
@@ -541,7 +603,14 @@ export const VpsServerCard: React.FC<{
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <DiskMiniBar disk={vps.disk} diskError={vps.diskError} />
+          <div className="hidden sm:flex items-center gap-2.5">
+            <DiskMiniBar disk={vps.disk} diskError={vps.diskError} />
+            <UsageMiniBar label="CPU" pct={vps.cpu?.loadPct1m ?? null} error={vps.cpuError} />
+            <UsageMiniBar label="RAM" pct={vps.ram?.usedPct ?? null} error={vps.ramError} />
+          </div>
+          <Badge variant={healthBadgeVariant} size="sm" title={health.reasons.length > 0 ? health.reasons.join(" · ") : "Semua normal"}>
+            {healthLabel}
+          </Badge>
           <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </div>
       </button>
