@@ -43,23 +43,27 @@ export async function GET() {
         backupError: live.backupError,
         dockerDisk: live.dockerDisk,
         dockerDiskError: live.dockerDiskError,
-        applications: vps.applications.map((app) => ({
-          id: app.id,
-          name: app.name,
-          domain: app.domain,
-          gitRepository: app.gitRepository,
-          gitBranch: app.gitBranch,
-          databaseInfo: app.databaseInfo,
-          activityQuery: app.activityQuery,
-          backupLocation: app.backupLocation,
-          lastBackupAt: app.lastBackupAt,
-          lastAccessedAt: app.lastAccessedAt,
-          lastAccessedBy: app.lastAccessedBy,
-          domainExpiresAt: app.domainExpiresAt,
-          domainExpiryCheckedAt: app.domainExpiryCheckedAt,
-          notes: app.notes,
-          hasCoolifySync: Boolean(app.coolifyUuid),
-        })),
+        applications: vps.applications.map((app) => {
+          const diskEntry = app.coolifyUuid ? live.appDiskUsage?.find((d) => d.coolifyUuid === app.coolifyUuid) : undefined
+          return {
+            id: app.id,
+            name: app.name,
+            domain: app.domain,
+            gitRepository: app.gitRepository,
+            gitBranch: app.gitBranch,
+            databaseInfo: app.databaseInfo,
+            activityQuery: app.activityQuery,
+            backupLocation: app.backupLocation,
+            lastBackupAt: app.lastBackupAt,
+            lastAccessedAt: app.lastAccessedAt,
+            lastAccessedBy: app.lastAccessedBy,
+            domainExpiresAt: app.domainExpiresAt,
+            domainExpiryCheckedAt: app.domainExpiryCheckedAt,
+            notes: app.notes,
+            hasCoolifySync: Boolean(app.coolifyUuid),
+            diskUsage: diskEntry ? { size: diskEntry.size, virtualSize: diskEntry.virtualSize } : null,
+          }
+        }),
       }
     })
   )

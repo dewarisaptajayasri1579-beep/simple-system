@@ -32,6 +32,7 @@ export type AppRow = {
   domainExpiryCheckedAt: string | null
   notes: string | null
   hasCoolifySync: boolean
+  diskUsage: { size: string; virtualSize: string } | null
 }
 
 export type VpsRow = {
@@ -587,6 +588,16 @@ export const VpsServerCard: React.FC<{
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Domain Habis</span>
                       <DomainExpiryBadge iso={app.domainExpiresAt} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Disk</span>
+                      {app.diskUsage ? (
+                        <span className="font-semibold text-slate-700 truncate" title="Ukuran writable layer container ini · perkiraan image+layer (bisa share sama app lain)">
+                          {app.diskUsage.size} <span className="text-slate-400 font-medium">(image ~{app.diskUsage.virtualSize})</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </div>
                   </div>
                 </div>
