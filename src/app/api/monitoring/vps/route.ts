@@ -5,7 +5,7 @@ import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { resolveDomainExpiry } from "@/lib/domain-status"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { prettifyDatabaseType } from "@/lib/monitoring/coolify"
+import { prettifyDatabaseType, r2BucketForVps } from "@/lib/monitoring/coolify"
 import { registrableDomain } from "@/lib/monitoring/rdap"
 import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry, type VolumeDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
@@ -74,10 +74,16 @@ export async function GET() {
     : []
   const domainByName = new Map(domainRows.map((d) => [d.name.toLowerCase(), d]))
 
-  // Sekali panggil buat semua VPS/aplikasi (bukan di dalam loop) — lihat aturan N+1 di CLAUDE.md.
-  // Best-effort: kalau R2 lagi bermasalah, kolom "DB Backup" cuma kosong, bukan bikin seluruh
-  // halaman Monitoring gagal load.
-  const dbBackups = await latestBackupPerGroup().catch(() => [] as Awaited<ReturnType<typeof latestBackupPerGroup>>)
+  // Tiap VPS bisa punya bucket R2 sendiri (VpsServer.r2BucketName, lihat percakapan monitoring
+  // soal pisah bucket per VPS) — sekali panggil PER BUCKET UNIK (bukan per VPS, apalagi di dalam
+  // loop — lihat aturan N+1 di CLAUDE.md), hasilnya digabung sebelum dicocokkan ke tiap
+  // aplikasi/database di bawah. Best-effort per bucket: kalau satu bucket R2 lagi bermasalah,
+  // cuma kolom "DB Backup" VPS yang pakai bucket itu yang kosong, bukan bikin seluruh halaman gagal.
+  const uniqueBuckets = [...new Set(vpsList.map((vps) => r2BucketForVps(vps)))]
+  const dbBackupsByBucket = await Promise.all(
+    uniqueBuckets.map((bucket) => latestBackupPerGroup(bucket).catch(() => [] as Awaited<ReturnType<typeof latestBackupPerGroup>>))
+  )
+  const dbBackups = dbBackupsByBucket.flat()
 
   const results = await Promise.all(
     vpsList.map(async (vps) => {

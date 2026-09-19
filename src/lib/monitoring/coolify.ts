@@ -1,5 +1,6 @@
 import { Client } from "pg"
 
+import { ensureBucketExists } from "@/lib/backup/r2"
 import { decryptSecret } from "@/lib/crypto"
 import { prisma } from "@/lib/prisma"
 
@@ -325,23 +326,34 @@ function requiredEnv(name: string) {
   return value
 }
 
-/** Pastikan ada 1 S3 Storage di Coolify yang nunjuk ke bucket R2 yang sama dipakai backup app ini
- *  sendiri (lihat lib/backup/r2.ts) — dibuat sekali, uuid-nya disimpan di
- *  VpsServer.coolifyS3StorageUuid supaya tidak bikin S3 Storage baru berulang kali tiap cron jalan. */
+/** Nama bucket R2 buat 1 VPS — override per-VPS (VpsServer.r2BucketName, mis. dipisah biar tidak
+ *  campur sama VPS lain) kalau diisi, fallback ke bucket global default (dipakai backup app ini
+ *  sendiri + VPS yang belum di-pisah bucket-nya). */
+export function r2BucketForVps(vps: { r2BucketName: string | null }): string {
+  return vps.r2BucketName ?? requiredEnv("R2_BACKUP_BUCKET")
+}
+
+/** Pastikan ada 1 S3 Storage di Coolify yang nunjuk ke bucket R2 VPS ini (lihat r2BucketForVps) —
+ *  bucket-nya dibuat dulu di R2 kalau belum ada (lihat ensureBucketExists di lib/backup/r2.ts).
+ *  S3 Storage-nya dibuat sekali, uuid-nya disimpan di VpsServer.coolifyS3StorageUuid supaya tidak
+ *  bikin S3 Storage baru berulang kali tiap cron jalan. */
 async function ensureS3Storage(
   apiBase: string,
   token: string,
-  vps: { id: string; coolifyS3StorageUuid: string | null }
+  vps: { id: string; coolifyS3StorageUuid: string | null; r2BucketName: string | null }
 ): Promise<string> {
   if (vps.coolifyS3StorageUuid) return vps.coolifyS3StorageUuid
 
+  const bucket = r2BucketForVps(vps)
+  await ensureBucketExists(bucket)
+
   const created = (await coolifyPost(apiBase, token, "/s3-storages", {
-    name: "Cloudflare R2 (auto)",
+    name: vps.r2BucketName ? `Cloudflare R2 (auto - ${vps.r2BucketName})` : "Cloudflare R2 (auto)",
     // Coolify validasi field description-nya ketat (tolak em dash "-" unicode dan karakter non-ASCII
     // lain dengan pesan generik "format is invalid") -- sengaja ASCII polos di sini.
-    description: "Auto-created by simple-system monitoring, same R2 bucket as this app's own backup.",
+    description: "Auto-created by simple-system monitoring.",
     endpoint: `https://${requiredEnv("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
-    bucket: requiredEnv("R2_BACKUP_BUCKET"),
+    bucket,
     region: "auto",
     key: requiredEnv("R2_ACCESS_ID"),
     secret: requiredEnv("R2_SECRET_KEY"),
@@ -356,10 +368,12 @@ async function ensureS3Storage(
  *  supaya database baru yang dibuat belakangan otomatis ke-backup tanpa perlu setup manual lagi.
  *  Kalau database itu SUDAH punya minimal 1 jadwal backup (termasuk yang dibuat manual sebelumnya,
  *  save_s3 atau bukan), TIDAK disentuh — dianggap sudah dikelola manual, supaya tidak dobel/menimpa
- *  konfigurasi yang sengaja di-custom user. Butuh token dengan ability `write`, beda dari token
- *  `read`-only yang cukup buat syncCoolifyApplications di atas. */
+ *  konfigurasi yang sengaja di-custom user (buat migrasi paksa SEMUA database termasuk yang sudah
+ *  ada jadwalnya ke bucket VPS tertentu, pakai migrateAllDatabaseBackupsToVpsBucket() di bawah,
+ *  bukan fungsi ini). Butuh token dengan ability `write`, beda dari token `read`-only yang cukup
+ *  buat syncCoolifyApplications di atas. */
 export async function ensureDatabaseBackups(
-  vps: SyncCoolifyVps & { id: string; coolifyS3StorageUuid: string | null }
+  vps: SyncCoolifyVps & { id: string; coolifyS3StorageUuid: string | null; r2BucketName: string | null }
 ): Promise<{ created: number }> {
   if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { created: 0 }
 
@@ -390,6 +404,55 @@ export async function ensureDatabaseBackups(
   }
 
   return { created }
+}
+
+/** Migrasi SEKALI JALAN (bukan dipanggil cron rutin) — paksa SEMUA database di VPS ini (termasuk
+ *  yang SUDAH punya jadwal backup dari sebelumnya, entah manual atau dari S3 Storage lain) supaya
+ *  jadwalnya nunjuk ke S3 Storage/bucket VPS ini (lihat r2BucketForVps). Beda dari
+ *  ensureDatabaseBackups() yang sengaja SKIP database yang sudah ada jadwalnya — ini kebalikannya,
+ *  dipakai waktu owner sengaja mau konsolidasi "1 VPS = 1 bucket" tanpa kecuali (lihat percakapan
+ *  monitoring). Kalau database itu punya lebih dari 1 jadwal (jarang), semuanya di-PATCH. */
+export async function migrateAllDatabaseBackupsToVpsBucket(
+  vps: SyncCoolifyVps & { id: string; coolifyS3StorageUuid: string | null; r2BucketName: string | null }
+): Promise<{ updated: number; created: number }> {
+  if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { updated: 0, created: 0 }
+
+  const apiBase = normalizeCoolifyApiUrl(vps.coolifyApiUrl)
+  const token = decryptSecret(vps.coolifyApiToken)
+
+  const databases = await fetchDatabases(apiBase, token)
+  if (databases.length === 0) return { updated: 0, created: 0 }
+
+  const s3StorageUuid = await ensureS3Storage(apiBase, token, vps)
+
+  let updated = 0
+  let created = 0
+  for (const db of databases) {
+    try {
+      const existing = (await coolifyGet(apiBase, token, `/databases/${db.uuid}/backups`)) as { uuid: string; s3_storage_id?: number }[]
+      if (!Array.isArray(existing) || existing.length === 0) {
+        await coolifyPost(apiBase, token, `/databases/${db.uuid}/backups`, {
+          frequency: "0 21 * * *",
+          enabled: true,
+          save_s3: true,
+          s3_storage_uuid: s3StorageUuid,
+        })
+        created += 1
+        continue
+      }
+      for (const schedule of existing) {
+        await coolifyPatch(apiBase, token, `/databases/${db.uuid}/backups/${schedule.uuid}`, {
+          save_s3: true,
+          s3_storage_uuid: s3StorageUuid,
+        })
+        updated += 1
+      }
+    } catch (e) {
+      console.error(`[coolify] migrasi backup gagal untuk database "${db.name}" (${db.uuid}):`, e)
+    }
+  }
+
+  return { updated, created }
 }
 
 /** Trigger 1 backup EKSEKUSI SEKARANG dari jadwal backup yang SUDAH ADA — beda dari

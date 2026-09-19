@@ -17,6 +17,8 @@ export async function register() {
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
   const { cleanupOldBackups } = await import("@/lib/backup/r2")
+  const { r2BucketForVps } = await import("@/lib/monitoring/coolify")
+  const { prisma } = await import("@/lib/prisma")
   const { runVpsMonitoringRefresh } = await import("@/lib/cron/vps-monitoring")
   const { registerWahubWebhook } = await import("@/lib/wahub")
 
@@ -125,15 +127,28 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
-  // Retensi backup R2 (app ini + backup native Coolify yang dikonek ke bucket sama) — tanggal 1
-  // tiap bulan jam 02:00 WIB: per folder/database, bulan yang sudah lewat cuma disisakan 1 file
-  // (yang terakhir), sisanya dihapus. Lihat lib/backup/r2.ts § cleanupOldBackups.
+  // Retensi backup R2 (app ini + backup native Coolify di SEMUA bucket yang dipakai -- bucket
+  // global default + bucket khusus tiap VPS yang di-pisah, lihat VpsServer.r2BucketName) --
+  // tanggal 1 tiap bulan jam 02:00 WIB: per folder/database, bulan yang sudah lewat cuma
+  // disisakan 1 file (yang terakhir), sisanya dihapus. Lihat lib/backup/r2.ts § cleanupOldBackups.
   cron.schedule(
     "0 2 1 * *",
-    () => {
-      cleanupOldBackups()
-        .then((r) => console.log(`[cron] backup-retention selesai: ${r.deletedCount} file lama dihapus`))
-        .catch((e) => console.error("[cron] backup-retention gagal:", e))
+    async () => {
+      try {
+        const vpsList = await prisma.vpsServer.findMany({ select: { r2BucketName: true } })
+        const buckets = [...new Set([r2BucketForVps({ r2BucketName: null }), ...vpsList.map((v) => r2BucketForVps(v))])]
+        let totalDeleted = 0
+        for (const bucket of buckets) {
+          const r = await cleanupOldBackups(bucket).catch((e) => {
+            console.error(`[cron] backup-retention gagal buat bucket "${bucket}":`, e)
+            return { deletedCount: 0 }
+          })
+          totalDeleted += r.deletedCount
+        }
+        console.log(`[cron] backup-retention selesai: ${totalDeleted} file lama dihapus di ${buckets.length} bucket`)
+      } catch (e) {
+        console.error("[cron] backup-retention gagal:", e)
+      }
     },
     { timezone: "Asia/Jakarta" }
   )

@@ -1,4 +1,6 @@
 import {
+  BucketAlreadyOwnedByYou,
+  CreateBucketCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -26,12 +28,32 @@ function s3Client() {
   })
 }
 
-function bucketName() {
+/** Bucket default (dipakai backup app ini sendiri + VPS yang belum diisi `r2BucketName` sendiri —
+ *  lihat VpsServer.r2BucketName di schema). Semua fungsi di file ini terima `bucket` opsional yang
+ *  fallback ke ini, jadi caller lama (backup app sendiri) tidak perlu berubah sama sekali. */
+function defaultBucketName() {
   return requiredEnv("R2_BACKUP_BUCKET")
 }
 
-async function listAllObjects(client: S3Client) {
-  const bucket = bucketName()
+/** Bikin bucket R2 baru kalau belum ada — dipakai waktu VPS di-set pakai `r2BucketName` sendiri
+ *  (lihat ensureDatabaseBackupsOnBucket() di src/lib/monitoring/coolify.ts). Aman dipanggil
+ *  berkali-kali: R2 balikin BucketAlreadyOwnedByYou kalau sudah ada punya akun yang sama, itu
+ *  ditangkap sebagai sukses (bukan error), bukan kondisi gagal. */
+export async function ensureBucketExists(bucket: string): Promise<void> {
+  const client = s3Client()
+  try {
+    await client.send(new CreateBucketCommand({ Bucket: bucket }))
+  } catch (e) {
+    if (e instanceof BucketAlreadyOwnedByYou) return
+    // R2 kadang balikin error generik "BucketAlreadyExists" (bukan exception class khusus SDK)
+    // kalau bucket sudah ada — cek pesan mentahnya juga, bukan cuma instanceof.
+    const message = e instanceof Error ? e.message : String(e)
+    if (/BucketAlreadyExists|BucketAlreadyOwnedByYou/i.test(message)) return
+    throw e
+  }
+}
+
+async function listAllObjects(client: S3Client, bucket: string) {
   const objects: _Object[] = []
   let token: string | undefined
   do {
@@ -52,21 +74,24 @@ function groupOf(key: string) {
   return idx === -1 ? "" : key.slice(0, idx)
 }
 
-/** Upload 1 file backup ke bucket R2, di bawah folder `group` (lihat groupOf). */
-export async function uploadBackupFile(group: string, fileName: string, buffer: Buffer, mimeType: string) {
+/** Upload 1 file backup ke bucket R2, di bawah folder `group` (lihat groupOf). `bucket` opsional,
+ *  default ke bucket global (backup app ini sendiri) — VPS lain lewat ensureDatabaseBackupsOnBucket
+ *  di coolify.ts, bukan lewat fungsi ini (itu Coolify sendiri yang upload). */
+export async function uploadBackupFile(group: string, fileName: string, buffer: Buffer, mimeType: string, bucket = defaultBucketName()) {
   const client = s3Client()
   const key = `${group}/${fileName}`
-  await client.send(new PutObjectCommand({ Bucket: bucketName(), Key: key, Body: buffer, ContentType: mimeType }))
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: mimeType }))
   return { key }
 }
 
 /** Riwayat backup di R2, dikelompokkan per `group` (per sumber/database) — dipakai kartu
  *  "Riwayat Backup" di Monitoring Server. webViewLink berupa presigned URL (berlaku 1 jam)
  *  karena bucket R2 private. filesPerGroup membatasi berapa file terbaru yang ditampilkan
- *  per group (bukan total keseluruhan, supaya payload tidak membengkak). */
-export async function listBackupHistory(filesPerGroup = 10) {
+ *  per group (bukan total keseluruhan, supaya payload tidak membengkak). `bucket` opsional,
+ *  default ke bucket global. */
+export async function listBackupHistory(filesPerGroup = 10, bucket = defaultBucketName()) {
   const client = s3Client()
-  const objects = (await listAllObjects(client)).filter((obj) => obj.Key)
+  const objects = (await listAllObjects(client, bucket)).filter((obj) => obj.Key)
 
   const byGroup = new Map<string, _Object[]>()
   for (const obj of objects) {
@@ -85,7 +110,7 @@ export async function listBackupHistory(filesPerGroup = 10) {
           name: obj.Key!.slice(group.length + 1),
           createdTime: obj.LastModified?.toISOString() ?? null,
           sizeBytes: obj.Size ?? null,
-          webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: obj.Key! }), {
+          webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: obj.Key! }), {
             expiresIn: 3600,
           }),
         }))
@@ -101,10 +126,12 @@ export async function listBackupHistory(filesPerGroup = 10) {
 /** File terbaru per group, 1 entry per group (bukan riwayat) — dipakai kolom "DB Backup" di
  *  tabel Aplikasi (dicocokkan ke Application.databaseUuid lewat group.endsWith(uuid), lihat
  *  GET /api/monitoring/vps). Terpisah dari listBackupHistory supaya tidak generate presigned
- *  URL utk file yang tidak dipakai. */
-export async function latestBackupPerGroup() {
+ *  URL utk file yang tidak dipakai. `bucket` opsional, default ke bucket global — GET
+ *  /api/monitoring/vps panggil ini SEKALI PER BUCKET UNIK (bukan per VPS) buat gabungin hasil
+ *  semua VPS yang bucket-nya beda (lihat r2BucketName di schema), bukan cuma satu bucket global. */
+export async function latestBackupPerGroup(bucket = defaultBucketName()) {
   const client = s3Client()
-  const objects = (await listAllObjects(client)).filter((obj) => obj.Key && obj.LastModified)
+  const objects = (await listAllObjects(client, bucket)).filter((obj) => obj.Key && obj.LastModified)
 
   const latestByGroup = new Map<string, _Object>()
   for (const obj of objects) {
@@ -118,7 +145,7 @@ export async function latestBackupPerGroup() {
       group,
       fileName: obj.Key!.slice(group.length + 1),
       createdTime: obj.LastModified!.toISOString(),
-      webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: obj.Key! }), {
+      webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: obj.Key! }), {
         expiresIn: 3600,
       }),
     }))
@@ -129,10 +156,11 @@ export async function latestBackupPerGroup() {
  *  yang LastModified-nya paling akhir di bulan itu, sisanya dihapus. Bulan berjalan tetap
  *  disimpan apa adanya (harian atau berapa pun frekuensinya). Dipanggil oleh cron tanggal 1
  *  (lihat instrumentation.ts) — cukup sebulan sekali karena bulan yang sudah lewat tidak
- *  bertambah file baru lagi. */
-export async function cleanupOldBackups() {
+ *  bertambah file baru lagi. `bucket` opsional, default ke bucket global — cron-nya sendiri loop
+ *  semua bucket yang dipakai (global + tiap r2BucketName unik di VpsServer). */
+export async function cleanupOldBackups(bucket = defaultBucketName()) {
   const client = s3Client()
-  const objects = await listAllObjects(client)
+  const objects = await listAllObjects(client, bucket)
 
   const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(
     new Date()
@@ -163,7 +191,7 @@ export async function cleanupOldBackups() {
   // DeleteObjects maksimal 1000 key per request.
   for (let i = 0; i < keysToDelete.length; i += 1000) {
     const batch = keysToDelete.slice(i, i + 1000)
-    await client.send(new DeleteObjectsCommand({ Bucket: bucketName(), Delete: { Objects: batch.map((Key) => ({ Key })) } }))
+    await client.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: batch.map((Key) => ({ Key })) } }))
   }
 
   return { deletedCount: keysToDelete.length }

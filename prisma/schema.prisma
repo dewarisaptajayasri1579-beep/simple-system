@@ -163,6 +163,11 @@ model VpsServer {
   /// di src/lib/monitoring/coolify.ts, disimpan di sini supaya tidak bikin S3 Storage baru
   /// berulang kali tiap cron jalan. Butuh VpsServer.coolifyApiToken dengan ability `write`.
   coolifyS3StorageUuid String?     @map("coolify_s3_storage_uuid")
+  /// Nama bucket R2 khusus VPS ini (mis. "7smartscoolifybackup") — kalau null, fallback ke bucket
+  /// global default (env R2_BACKUP_BUCKET, dipakai VPS Dewari & backup app ini sendiri). Diisi
+  /// waktu owner sengaja mau pisah bucket per VPS (lihat ensureDatabaseBackupsOnBucket() di
+  /// src/lib/monitoring/coolify.ts) — bucket-nya dibuat otomatis di R2 kalau belum ada.
+  r2BucketName       String?       @map("r2_bucket_name")
   createdById        String?       @map("created_by_id")
   createdAt          DateTime      @default(now()) @map("created_at")
   applications       Application[]
