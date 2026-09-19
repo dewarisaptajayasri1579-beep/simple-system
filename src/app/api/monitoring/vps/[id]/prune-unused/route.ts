@@ -6,30 +6,19 @@ import { prisma } from "@/lib/prisma"
 
 const DELIM = "___PRUNE_SPLIT___"
 
-const UNIT_MULT: Record<string, number> = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
-
-function formatBytes(bytes: number): string {
-  if (bytes <= 0) return "0B"
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  let i = 0
-  let v = bytes
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024
-    i++
-  }
-  return `${v.toFixed(2)}${units[i]}`
-}
-
-/** `docker buildx prune` TANPA `--builder` cuma nge-prune builder yang lagi "current" di CLI
- *  context yang jalanin command itu — BUKAN semua builder. Coolify bikin builder container
- *  terpisah per project (mis. "coolify-railpack0") yang biasanya bukan builder default, jadi
- *  `docker buildx prune -af` polos TIDAK ngefek ke situ sama sekali (volume state-nya tetap gede
- *  walau sudah "dibersihkan" — kejadian nyata, lihat percakapan monitoring). Makanya di-loop
- *  eksplisit per builder yang ketahuan dari nama volume `buildx_buildkit_<builder>_state`. */
+/** `docker buildx prune --builder <name>` GAGAL di host VPS dengan "no builder ... found" —
+ *  Coolify bikin builder BuildKit (mis. "coolify-railpack0") dari DALAM container Coolify
+ *  sendiri, jadi registrasi builder itu (`~/.docker/buildx/instances/...`) cuma ada di
+ *  filesystem container Coolify, bukan di host. Container BuildKit-nya (`buildx_buildkit_
+ *  <builder>`) tetap jalan beneran di host, cuma CLI `docker buildx` di host tidak "kenal" dia
+ *  (kejadian nyata, lihat percakapan monitoring — errornya persis begitu). Solusinya skip CLI
+ *  `docker buildx` sama sekali: `docker exec` langsung ke container BuildKit-nya dan panggil
+ *  `buildctl` (CLI native BuildKit yang ikut ter-bundle di image itu) buat prune cache-nya
+ *  langsung tanpa lewat registrasi builder client-side. */
 const BUILDX_PRUNE_LOOP =
   "bash -c 'for v in $(docker volume ls --format \"{{.Name}}\" | grep \"^buildx_buildkit_\"); do " +
-  'b="${v#buildx_buildkit_}"; b="${b%_state}"; echo "-- builder: $b --"; ' +
-  "docker buildx prune -af --builder \"$b\" 2>&1; done'"
+  'c="${v%_state}"; echo "-- container: $c --"; ' +
+  "docker exec \"$c\" buildctl prune --all 2>&1; done'"
 
 /** Bersihkan SEMUA yang aman dihapus tanpa risiko data — image lama/dangling, container
  *  berhenti, network nganggur (`docker system prune -af`) + cache BuildKit tiap builder
@@ -60,15 +49,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const output = await sshExec(creds, script, 150000)
     const [systemPart = "", buildxPart = ""] = output.split(DELIM)
     const systemReclaimed = systemPart.match(/Total reclaimed space:\s*([\d.]+\s*[A-Za-z]+)/i)?.[1] ?? null
-    const buildxReclaimedBytes = [...buildxPart.matchAll(/Total:\s*([\d.]+)\s*([A-Za-z]+)/gi)].reduce(
-      (sum, m) => sum + parseFloat(m[1]) * (UNIT_MULT[m[2].toUpperCase()] ?? 1),
-      0,
-    )
-    const buildxReclaimed = buildxReclaimedBytes > 0 ? formatBytes(buildxReclaimedBytes) : null
-    // Sementara ikut dikirim buat debug kalau buildxReclaimed kosong tapi volume cache-nya
-    // masih gede — biar kelihatan builder mana yang ke-loop & error asli dari `docker buildx
-    // prune`, tanpa perlu akses SSH manual ke VPS.
-    return NextResponse.json({ ok: true, systemReclaimed, buildxReclaimed, buildxOutput: buildxPart.trim().slice(0, 4000) })
+    // `buildctl prune` (beda dari `docker buildx prune`) tidak ngeluarin baris ringkasan
+    // "Total: X" — cuma daftar record cache yang dihapus — jadi ukuran yang kereclaim tidak bisa
+    // dihitung dari sini. Cek berhasil/gagal lewat ada-tidaknya "error" di outputnya; angka
+    // pastinya baru kelihatan dari breakdown volume setelah `handleCheckDockerDisk()` re-check.
+    const buildxTrimmed = buildxPart.trim()
+    const buildxOk = buildxTrimmed.length > 0 && !/error/i.test(buildxTrimmed)
+    return NextResponse.json({ ok: true, systemReclaimed, buildxOk, buildxOutput: buildxTrimmed.slice(0, 4000) })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal jalankan cleanup" }, { status: 502 })
   }

@@ -407,8 +407,9 @@ export const VpsServerCard: React.FC<{
         alert(data?.error || "Gagal jalankan cleanup")
         return
       }
-      const debugOutput = !data.buildxReclaimed && data.buildxOutput ? `\n\n--- detail cache build (debug) ---\n${data.buildxOutput}` : ""
-      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${data.buildxReclaimed || "0B"}${debugOutput}`)
+      const buildxSummary = data.buildxOk ? "dibersihkan (cek breakdown volume di bawah buat angka sebelum/sesudahnya)" : "GAGAL — lihat detail di bawah"
+      const debugOutput = !data.buildxOk && data.buildxOutput ? `\n\n--- detail cache build (debug) ---\n${data.buildxOutput}` : ""
+      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${buildxSummary}${debugOutput}`)
       await handleCheckDockerDisk()
     } finally {
       setPruning(false)
