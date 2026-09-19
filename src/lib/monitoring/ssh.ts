@@ -131,12 +131,29 @@ export type ContainerDiskEntry = {
   virtualSize: string
 }
 
+export type CpuUsage = {
+  loadPct1m: number
+  loadPct5m: number
+  loadPct15m: number
+  cores: number
+}
+
+export type RamUsage = {
+  usedBytes: number
+  totalBytes: number
+  usedPct: number
+}
+
 export type VpsLiveCheck = {
   disk: DiskUsage | null
   diskError: string | null
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
+  cpu: CpuUsage | null
+  cpuError: string | null
+  ram: RamUsage | null
+  ramError: string | null
 }
 
 export type VolumeDiskEntry = {
@@ -232,6 +249,14 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     backupPathQ
       ? `f=$(ls -t ${backupPathQ} 2>/dev/null | head -1); if [ -n "$f" ]; then echo "$f"; stat -c %Y ${backupPathQ}/"$f" 2>/dev/null; fi`
       : "",
+    `echo "${DELIM}"`,
+    `nproc`,
+    `cat /proc/loadavg`,
+    `echo "${DELIM}"`,
+    // MemAvailable (bukan MemFree) = perkiraan kernel yang paling akurat buat "RAM yang beneran
+    // bisa dipakai" — sudah memperhitungkan cache/buffer yang reclaimable, beda dari MemFree yang
+    // sering kelihatan rendah padahal sebagian besar cuma cache OS, bukan benar-benar terpakai.
+    `awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{print t, a}' /proc/meminfo`,
   ].join("\n")
 
   let stdout: string
@@ -239,10 +264,20 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     stdout = await sshExec(creds, script, 10000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
-    return { disk: null, diskError: message, backupLatestFile: null, backupLatestAt: null, backupError: vps.backupCheckPath ? message : null }
+    return {
+      disk: null,
+      diskError: message,
+      backupLatestFile: null,
+      backupLatestAt: null,
+      backupError: vps.backupCheckPath ? message : null,
+      cpu: null,
+      cpuError: message,
+      ram: null,
+      ramError: message,
+    }
   }
 
-  const [diskPart, backupPart = ""] = stdout.split(DELIM)
+  const [diskPart, backupPart = "", cpuPart = "", ramPart = ""] = stdout.split(DELIM)
 
   let disk: DiskUsage | null = null
   let diskError: string | null = null
@@ -266,7 +301,31 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     }
   }
 
-  return { disk, diskError, backupLatestFile, backupLatestAt, backupError }
+  let cpu: CpuUsage | null = null
+  let cpuError: string | null = null
+  try {
+    const [coresLine = "", loadLine = ""] = cpuPart.trim().split("\n")
+    const cores = Number(coresLine.trim())
+    const [l1, l5, l15] = loadLine.trim().split(/\s+/).map(Number)
+    if (!Number.isFinite(cores) || cores <= 0 || ![l1, l5, l15].every(Number.isFinite)) throw new Error()
+    cpu = { loadPct1m: (l1 / cores) * 100, loadPct5m: (l5 / cores) * 100, loadPct15m: (l15 / cores) * 100, cores }
+  } catch {
+    cpuError = "Gagal membaca CPU load VPS"
+  }
+
+  let ram: RamUsage | null = null
+  let ramError: string | null = null
+  try {
+    const [totalKB, availKB] = ramPart.trim().split(/\s+/).map(Number)
+    if (!Number.isFinite(totalKB) || totalKB <= 0 || !Number.isFinite(availKB)) throw new Error()
+    const totalBytes = totalKB * 1024
+    const usedBytes = Math.max(totalBytes - availKB * 1024, 0)
+    ram = { usedBytes, totalBytes, usedPct: (usedBytes / totalBytes) * 100 }
+  } catch {
+    ramError = "Gagal membaca RAM VPS"
+  }
+
+  return { disk, diskError, backupLatestFile, backupLatestAt, backupError, cpu, cpuError, ram, ramError }
 }
 
 /** 1 koneksi SSH per VPS khusus buat breakdown disk Docker (image/container/volume/build cache +

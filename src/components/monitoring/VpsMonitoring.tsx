@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users } from "lucide-react"
+import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -59,6 +59,10 @@ export type VpsRow = {
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
+  cpu: { loadPct1m: number; loadPct5m: number; loadPct15m: number; cores: number } | null
+  cpuError: string | null
+  ram: { usedBytes: number; totalBytes: number; usedPct: number } | null
+  ramError: string | null
   dockerDisk: DockerDiskEntry[] | null
   dockerVolumes: { name: string; size: string }[] | null
   dockerDiskCheckedAt: string | null
@@ -553,6 +557,56 @@ export const VpsServerCard: React.FC<{
               </button>
             </div>
           )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <Cpu className="w-3.5 h-3.5" /> CPU
+              </span>
+              {vps.cpuError ? (
+                <span className="text-xs font-semibold text-rose-600">{vps.cpuError}</span>
+              ) : vps.cpu ? (
+                <>
+                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${vps.cpu.loadPct1m >= 90 ? "bg-rose-500" : vps.cpu.loadPct1m >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+                      style={{ width: `${Math.min(vps.cpu.loadPct1m, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {vps.cpu.loadPct1m.toFixed(0)}% <span className="text-slate-400 font-medium">({vps.cpu.cores} core)</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    5m: {vps.cpu.loadPct5m.toFixed(0)}% · 15m: {vps.cpu.loadPct15m.toFixed(0)}%
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs font-medium text-slate-400">-</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <MemoryStick className="w-3.5 h-3.5" /> RAM
+              </span>
+              {vps.ramError ? (
+                <span className="text-xs font-semibold text-rose-600">{vps.ramError}</span>
+              ) : vps.ram ? (
+                <>
+                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${vps.ram.usedPct >= 90 ? "bg-rose-500" : vps.ram.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+                      style={{ width: `${Math.min(vps.ram.usedPct, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {formatBytes(vps.ram.usedBytes)} / {formatBytes(vps.ram.totalBytes)} ({vps.ram.usedPct.toFixed(0)}%)
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs font-medium text-slate-400">-</span>
+              )}
+            </div>
+          </div>
 
           <div className="flex flex-col gap-2">
             <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
