@@ -164,6 +164,25 @@ function parseDockerSize(raw: string | undefined): number {
   return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1)
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0B"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let i = 0
+  let v = bytes
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${v.toFixed(2)}${units[i]}`
+}
+
+/** Volume state builder BuildKit standalone (dipakai Coolify buat build image, prefix
+ *  "buildx_buildkit_") — cache builder, BUKAN data aplikasi, aman dihapus via `docker buildx
+ *  prune` (tombol "Bersihkan yang Tidak Terpakai"). `docker system df` TIDAK menghitung
+ *  reclaimable buat kategori Volumes sama sekali, jadi tanpa deteksi manual ini volume gede kayak
+ *  gini nyelip dianggap "tidak ada sampah" padahal nyatanya aman dihapus. */
+const BUILDKIT_CACHE_VOLUME_RE = /^buildx_buildkit_/i
+
 /** Ambil nama repo yang gampang dibaca dari URL git (mis. "https://github.com/org/repo.git" →
  *  "org/repo") — fallback ke URL apa adanya kalau bukan URL valid (mis. format SSH
  *  "git@github.com:org/repo.git"). */
@@ -608,6 +627,14 @@ export const VpsServerCard: React.FC<{
                   const totalDockerBytes = (vps.dockerDisk ?? []).reduce((sum, e) => sum + parseDockerSize(e.size), 0)
                   const sizePct = totalDockerBytes > 0 ? (parseDockerSize(d.size) / totalDockerBytes) * 100 : 0
                   const meta = DOCKER_TYPE_META[d.type] ?? { color: "bg-slate-400", description: d.type }
+                  const buildkitCacheBytes =
+                    d.type === "Local Volumes"
+                      ? (vps.dockerVolumes ?? [])
+                          .filter((v) => BUILDKIT_CACHE_VOLUME_RE.test(v.name))
+                          .reduce((sum, v) => sum + parseDockerSize(v.size), 0)
+                      : 0
+                  const hasSampah = d.reclaimablePct > 0 || buildkitCacheBytes > 0
+                  const sampahLabel = d.reclaimablePct > 0 ? d.reclaimable : formatBytes(buildkitCacheBytes)
                   return (
                     <div key={d.type} className="flex flex-col gap-1">
                       <div className="flex items-center gap-3">
@@ -617,8 +644,8 @@ export const VpsServerCard: React.FC<{
                         </div>
                         <span className="flex-shrink-0 text-xs font-semibold text-slate-700 text-right">
                           {d.size}
-                          {d.reclaimablePct > 0 ? (
-                            <span className="text-amber-600"> · {d.reclaimable} sampah</span>
+                          {hasSampah ? (
+                            <span className="text-amber-600"> · {sampahLabel} sampah</span>
                           ) : (
                             <span className="text-slate-400"> · tidak ada sampah</span>
                           )}
@@ -630,14 +657,18 @@ export const VpsServerCard: React.FC<{
                           {[...vps.dockerVolumes]
                             .sort((a, b) => parseDockerSize(b.size) - parseDockerSize(a.size))
                             .slice(0, 8)
-                            .map((v) => (
-                              <div key={v.name} className="flex items-center justify-between gap-2 text-[11px]">
-                                <span className="text-slate-500 font-medium truncate" title={v.name}>
-                                  {v.name}
-                                </span>
-                                <span className="text-slate-700 font-semibold flex-shrink-0">{v.size}</span>
-                              </div>
-                            ))}
+                            .map((v) => {
+                              const isCache = BUILDKIT_CACHE_VOLUME_RE.test(v.name)
+                              return (
+                                <div key={v.name} className="flex items-center justify-between gap-2 text-[11px]">
+                                  <span className={`font-medium truncate ${isCache ? "text-amber-700" : "text-slate-500"}`} title={v.name}>
+                                    {v.name}
+                                    {isCache ? <span className="text-amber-600"> · cache builder, aman dihapus</span> : null}
+                                  </span>
+                                  <span className={`flex-shrink-0 font-semibold ${isCache ? "text-amber-700" : "text-slate-700"}`}>{v.size}</span>
+                                </div>
+                              )
+                            })}
                           {vps.dockerVolumes.length > 8 && (
                             <span className="text-[11px] text-slate-400">+{vps.dockerVolumes.length - 8} volume lainnya</span>
                           )}
