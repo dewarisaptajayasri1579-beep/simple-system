@@ -1022,7 +1022,7 @@ export const VpsServerCard: React.FC<{
                   filteredApplications.map((app, index) => (
                     <TableRow key={app.id}>
                       <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
-                      {/* Identitas: nama + badge, domain + expiry, disk usage aplikasi */}
+                      {/* Identitas: nama + badge, disk usage aplikasi */}
                       <TableCell>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{app.name}</span>
@@ -1037,38 +1037,38 @@ export const VpsServerCard: React.FC<{
                             </Badge>
                           )}
                         </div>
+                        <div className="text-xs mt-1">
+                          <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
+                        </div>
+                      </TableCell>
+                      {/* Deploy & Database: domain+expiry, git+branch, info database + disk-nya, status backup */}
+                      <TableCell>
                         {app.domain ? (
                           <a
                             href={`https://${app.domain}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all mt-0.5"
+                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
                           >
                             <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
                           </a>
                         ) : (
-                          <div className="text-slate-400 text-xs mt-0.5">Tanpa domain</div>
+                          <div className="text-slate-400 text-xs">Tanpa domain</div>
                         )}
                         <div className="mt-1">
                           <DomainExpiryBadge iso={app.domainExpiresAt} />
                         </div>
-                        <div className="text-xs mt-1">
-                          <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
-                        </div>
-                      </TableCell>
-                      {/* Deploy & Database: git+branch, info database + disk-nya, status backup */}
-                      <TableCell>
                         {app.gitRepository ? (
                           <a
                             href={app.gitRepository}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all mt-1.5"
                           >
                             <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
                           </a>
                         ) : (
-                          <span className="text-slate-400 text-xs">Tanpa git</span>
+                          <span className="text-slate-400 text-xs mt-1.5 block">Tanpa git</span>
                         )}
                         {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
                         <div className="text-xs font-semibold text-slate-700 mt-1.5">
