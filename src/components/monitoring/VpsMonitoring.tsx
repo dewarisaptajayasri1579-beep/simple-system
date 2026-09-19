@@ -987,11 +987,11 @@ export const VpsServerCard: React.FC<{
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
-                  <TableHead>Aplikasi</TableHead>
+                  <TableHead className="w-64">Aplikasi</TableHead>
                   <TableHead>Git / Database</TableHead>
                   <TableHead>DB Backup</TableHead>
                   <TableHead className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Terakhir Diakses</TableHead>
-                  <TableHead>Domain Habis</TableHead>
+                  <TableHead className="w-44">Domain Habis</TableHead>
                   {isOwner && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
               </TableHeader>
