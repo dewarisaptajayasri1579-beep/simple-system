@@ -32,6 +32,12 @@ type BackupFile = {
   webViewLink: string | null
 }
 
+type BackupGroup = {
+  group: string
+  totalFiles: number
+  files: BackupFile[]
+}
+
 const emptyVpsForm = {
   name: "",
   host: "",
@@ -76,7 +82,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
   const [dbError, setDbError] = useState("")
   const [users, setUsers] = useState<UserRow[] | null>(null)
   const [usersError, setUsersError] = useState("")
-  const [backupFiles, setBackupFiles] = useState<BackupFile[] | null>(null)
+  const [backupGroups, setBackupGroups] = useState<BackupGroup[] | null>(null)
   const [backupError, setBackupError] = useState("")
   const [vpsList, setVpsList] = useState<VpsRow[] | null>(null)
   const [vpsError, setVpsError] = useState("")
@@ -124,7 +130,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
     if (usersRes.ok) setUsers(await usersRes.json())
     else setUsersError((await usersRes.json().catch(() => null))?.error || "Gagal memuat user")
 
-    if (backupRes.ok) setBackupFiles((await backupRes.json()).files)
+    if (backupRes.ok) setBackupGroups((await backupRes.json()).groups)
     else setBackupError((await backupRes.json().catch(() => null))?.error || "Gagal memuat riwayat backup")
   }, [])
 
@@ -390,59 +396,65 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
                 )}
               </div>
 
-              {/* Backup Terakhir */}
-              <div className="flex flex-col gap-2">
+              {/* Riwayat Backup (R2) — dikelompokkan per database/sumber (folder di bucket) */}
+              <div className="flex flex-col gap-4">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                  <Archive className="w-3.5 h-3.5" /> Backup Terakhir (Cloudflare R2)
+                  <Archive className="w-3.5 h-3.5" /> Riwayat Backup (Cloudflare R2)
                 </span>
                 {backupError ? (
                   <Alert variant="error">{backupError}</Alert>
-                ) : backupFiles && backupFiles.length > 0 ? (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-semibold text-slate-700">
-                        Terakhir: <span className="font-black">{formatDateTime(backupFiles[0].createdTime)}</span>
-                      </span>
-                      {isBackupStale(backupFiles[0].createdTime) ? (
-                        <Badge variant="danger" size="sm">Lebih dari 1 hari, cek cron</Badge>
-                      ) : (
-                        <Badge variant="success" size="sm">Up to date</Badge>
-                      )}
-                    </div>
-                    <TableContainer>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Nama File</TableHead>
-                            <TableHead>Waktu</TableHead>
-                            <TableHead>Ukuran</TableHead>
-                            <TableHead className="text-right">Link</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {backupFiles.map((f) => (
-                            <TableRow key={f.id}>
-                              <TableCell className="font-bold">{f.name}</TableCell>
-                              <TableCell>{formatDateTime(f.createdTime)}</TableCell>
-                              <TableCell>{formatBytesClient(f.sizeBytes)}</TableCell>
-                              <TableCell className="text-right">
-                                {f.webViewLink && (
-                                  <a
-                                    href={f.webViewLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                                  >
-                                    Buka <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
-                                )}
-                              </TableCell>
+                ) : backupGroups && backupGroups.length > 0 ? (
+                  backupGroups.map((g) => (
+                    <div key={g.group} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-xs font-black text-slate-800">{g.group || "(root)"}</span>
+                        <span className="text-xs font-semibold text-slate-700">
+                          Terakhir: <span className="font-black">{formatDateTime(g.files[0]?.createdTime ?? null)}</span>
+                        </span>
+                        {isBackupStale(g.files[0]?.createdTime ?? null) ? (
+                          <Badge variant="danger" size="sm">Lebih dari 1 hari, cek cron</Badge>
+                        ) : (
+                          <Badge variant="success" size="sm">Up to date</Badge>
+                        )}
+                        {g.totalFiles > g.files.length && (
+                          <span className="text-xs text-slate-500">({g.totalFiles} total file)</span>
+                        )}
+                      </div>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Nama File</TableHead>
+                              <TableHead>Waktu</TableHead>
+                              <TableHead>Ukuran</TableHead>
+                              <TableHead className="text-right">Link</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </div>
+                          </TableHeader>
+                          <TableBody>
+                            {g.files.map((f) => (
+                              <TableRow key={f.id}>
+                                <TableCell className="font-bold">{f.name}</TableCell>
+                                <TableCell>{formatDateTime(f.createdTime)}</TableCell>
+                                <TableCell>{formatBytesClient(f.sizeBytes)}</TableCell>
+                                <TableCell className="text-right">
+                                  {f.webViewLink && (
+                                    <a
+                                      href={f.webViewLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                                    >
+                                      Buka <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </div>
+                  ))
                 ) : (
                   <Alert variant="warning">Belum ada file backup ditemukan di R2.</Alert>
                 )}

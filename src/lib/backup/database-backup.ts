@@ -1,9 +1,10 @@
 import { gzipSync } from "zlib"
 
 import { prisma } from "@/lib/prisma"
-import { cleanupOldBackups, uploadBackupFile } from "./r2"
+import { uploadBackupFile } from "./r2"
 
 const SCHEMA = "simple_system"
+const GROUP = "seven-os"
 
 /** JSON.stringify replacer — satu-satunya tipe non-JSON-safe yang keluar dari Prisma di schema
  *  ini adalah Date (semua kolom lain String/Int/Float/Boolean, tidak ada BigInt/Decimal/Bytes). */
@@ -20,8 +21,8 @@ function jakartaDateStamp() {
 /** Backup logical (data-only, bukan pg_dump) — dump semua tabel di schema `simple_system` lewat
  *  query biasa, bukan pg_dump, supaya tidak perlu install Postgres client tools di image app ini.
  *  Skema/DDL-nya sendiri sudah terversi lewat prisma/migrations di git, jadi yang perlu di-backup
- *  rutin cuma datanya. Disimpan ke Cloudflare R2 (lihat lib/backup/r2.ts), dengan retensi: bulan
- *  yang sudah lewat cuma disisakan backup tanggal terakhirnya. */
+ *  rutin cuma datanya. Disimpan ke Cloudflare R2 (lihat lib/backup/r2.ts) — retensi bulanan
+ *  (cron tanggal 1, lihat instrumentation.ts) yang beres-beresin, bukan di sini. */
 export async function runDatabaseBackup() {
   const tables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
     `SELECT tablename::text FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
@@ -37,14 +38,12 @@ export async function runDatabaseBackup() {
   const gzipped = gzipSync(Buffer.from(json, "utf-8"))
 
   const fileName = `seven-os-backup-${jakartaDateStamp()}.json.gz`
-  await uploadBackupFile(fileName, gzipped, "application/gzip")
-  const { deletedCount } = await cleanupOldBackups()
+  await uploadBackupFile(GROUP, fileName, gzipped, "application/gzip")
 
   return {
     fileName,
     tableCount: tables.length,
     rowCount: Object.values(dump).reduce((sum, rows) => sum + rows.length, 0),
     sizeBytes: gzipped.length,
-    deletedOldCount: deletedCount,
   }
 }

@@ -16,6 +16,7 @@ export async function register() {
   const { runMarketingUnrepliedWaGroupAlert } = await import("@/lib/cron/marketing-unreplied-wa-group")
   const { runProjectTerminInvoicing } = await import("@/lib/cron/project-termin-invoicing")
   const { runDatabaseBackup } = await import("@/lib/backup/database-backup")
+  const { cleanupOldBackups } = await import("@/lib/backup/r2")
   const { runVpsMonitoringRefresh } = await import("@/lib/cron/vps-monitoring")
   const { registerWahubWebhook } = await import("@/lib/wahub")
 
@@ -114,13 +115,25 @@ export async function register() {
   )
 
   // Backup database (dump data schema simple_system) ke Cloudflare R2, jam 20:00 WIB.
-  // Retensi otomatis: bulan yang sudah lewat cuma disisakan backup tanggal terakhirnya (lihat lib/backup/r2.ts).
   cron.schedule(
     "0 20 * * *",
     () => {
       runDatabaseBackup()
         .then((r) => console.log(`[cron] database-backup selesai: ${r.fileName} (${r.tableCount} tabel, ${r.rowCount} baris)`))
         .catch((e) => console.error("[cron] database-backup gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
+  // Retensi backup R2 (app ini + backup native Coolify yang dikonek ke bucket sama) — tanggal 1
+  // tiap bulan jam 02:00 WIB: per folder/database, bulan yang sudah lewat cuma disisakan 1 file
+  // (yang terakhir), sisanya dihapus. Lihat lib/backup/r2.ts § cleanupOldBackups.
+  cron.schedule(
+    "0 2 1 * *",
+    () => {
+      cleanupOldBackups()
+        .then((r) => console.log(`[cron] backup-retention selesai: ${r.deletedCount} file lama dihapus`))
+        .catch((e) => console.error("[cron] backup-retention gagal:", e))
     },
     { timezone: "Asia/Jakarta" }
   )
@@ -138,6 +151,6 @@ export async function register() {
   )
 
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring (03:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring (03:00), retensi backup R2 (tgl 1 jam 02:00) WIB"
   )
 }

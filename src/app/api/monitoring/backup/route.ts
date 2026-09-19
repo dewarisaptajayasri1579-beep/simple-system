@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { listRecentBackups } from "@/lib/backup/r2"
+import { listBackupHistory } from "@/lib/backup/r2"
 
 export async function GET() {
   const user = await getApiUser()
@@ -10,9 +10,9 @@ export async function GET() {
   if (!canViewMonitoring(user)) return NextResponse.json({ error: "Tidak punya akses modul Monitoring" }, { status: 403 })
 
   try {
-    const files = await listRecentBackups(5)
-    return NextResponse.json({ files })
+    const groups = await listBackupHistory(10)
+    return NextResponse.json({ groups })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Gagal mengambil daftar backup" }, { status: 500 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Gagal mengambil riwayat backup" }, { status: 500 })
   }
 }

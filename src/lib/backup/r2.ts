@@ -8,10 +8,6 @@ import {
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-/** Key S3-nya "{YYYY-MM}/seven-os-backup-{YYYY-MM-DD}.json.gz" — R2 tidak punya folder asli,
- *  tapi prefix ber-"/" ini ditampilkan sebagai folder di dashboard R2 (mis. "2026-09/"). */
-const KEY_RE = /^(\d{4}-\d{2})\/(seven-os-backup-\d{4}-\d{2}-(\d{2})\.json\.gz)$/
-
 function requiredEnv(name: string) {
   const value = process.env[name]
   if (!value) throw new Error(`${name} belum di-set`)
@@ -34,14 +30,7 @@ function bucketName() {
   return requiredEnv("R2_BACKUP_BUCKET")
 }
 
-/** fileName "seven-os-backup-YYYY-MM-DD.json.gz" -> key "YYYY-MM/seven-os-backup-YYYY-MM-DD.json.gz". */
-function keyForFile(fileName: string) {
-  const match = fileName.match(/^seven-os-backup-(\d{4}-\d{2})-\d{2}\.json\.gz$/)
-  if (!match) throw new Error(`Nama file backup tidak sesuai pola: ${fileName}`)
-  return `${match[1]}/${fileName}`
-}
-
-async function listAllBackupObjects(client: S3Client) {
+async function listAllObjects(client: S3Client) {
   const bucket = bucketName()
   const objects: _Object[] = []
   let token: string | undefined
@@ -53,74 +42,102 @@ async function listAllBackupObjects(client: S3Client) {
   return objects
 }
 
-/** Upload 1 file backup ke bucket R2, otomatis masuk folder bulan-tahunnya. */
-export async function uploadBackupFile(fileName: string, buffer: Buffer, mimeType: string) {
+/** "group" = folder tempat 1 sumber backup tertentu naruh file-nya — untuk backup app ini sendiri
+ *  itu "seven-os", untuk backup native Coolify itu path lengkap yang Coolify pakai sendiri
+ *  (mis. "databases/dewari-1/mariadb-xyz"). Dipakai buat kelompokkan riwayat & retensi bulanan,
+ *  supaya kode ini tidak perlu tahu format nama file tiap engine database (Postgres/MariaDB/dst
+ *  beda-beda pola nama filenya). */
+function groupOf(key: string) {
+  const idx = key.lastIndexOf("/")
+  return idx === -1 ? "" : key.slice(0, idx)
+}
+
+/** Upload 1 file backup ke bucket R2, di bawah folder `group` (lihat groupOf). */
+export async function uploadBackupFile(group: string, fileName: string, buffer: Buffer, mimeType: string) {
   const client = s3Client()
-  const key = keyForFile(fileName)
+  const key = `${group}/${fileName}`
   await client.send(new PutObjectCommand({ Bucket: bucketName(), Key: key, Body: buffer, ContentType: mimeType }))
   return { key }
 }
 
-/** List file backup terbaru — dipakai kartu "Backup Terakhir" di Monitoring Server. webViewLink
- *  berupa presigned URL (berlaku 1 jam) karena bucket R2 private, bukan link publik permanen. */
-export async function listRecentBackups(limit = 5) {
+/** Riwayat backup di R2, dikelompokkan per `group` (per sumber/database) — dipakai kartu
+ *  "Riwayat Backup" di Monitoring Server. webViewLink berupa presigned URL (berlaku 1 jam)
+ *  karena bucket R2 private. filesPerGroup membatasi berapa file terbaru yang ditampilkan
+ *  per group (bukan total keseluruhan, supaya payload tidak membengkak). */
+export async function listBackupHistory(filesPerGroup = 10) {
   const client = s3Client()
-  const objects = (await listAllBackupObjects(client)).filter((obj) => obj.Key && KEY_RE.test(obj.Key))
-  objects.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0))
-  const recent = objects.slice(0, limit)
+  const objects = (await listAllObjects(client)).filter((obj) => obj.Key)
 
-  return Promise.all(
-    recent.map(async (obj) => {
-      const key = obj.Key!
-      const fileName = key.match(KEY_RE)![2]
-      return {
-        id: key,
-        name: fileName,
-        createdTime: obj.LastModified?.toISOString() ?? null,
-        sizeBytes: obj.Size ?? null,
-        webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: key }), {
-          expiresIn: 3600,
-        }),
-      }
+  const byGroup = new Map<string, _Object[]>()
+  for (const obj of objects) {
+    const group = groupOf(obj.Key!)
+    if (!byGroup.has(group)) byGroup.set(group, [])
+    byGroup.get(group)!.push(obj)
+  }
+
+  const groups = await Promise.all(
+    Array.from(byGroup.entries()).map(async ([group, objs]) => {
+      objs.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0))
+      const recent = objs.slice(0, filesPerGroup)
+      const files = await Promise.all(
+        recent.map(async (obj) => ({
+          id: obj.Key!,
+          name: obj.Key!.slice(group.length + 1),
+          createdTime: obj.LastModified?.toISOString() ?? null,
+          sizeBytes: obj.Size ?? null,
+          webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: obj.Key! }), {
+            expiresIn: 3600,
+          }),
+        }))
+      )
+      return { group, totalFiles: objs.length, files }
     })
   )
+
+  groups.sort((a, b) => (b.files[0]?.createdTime ?? "").localeCompare(a.files[0]?.createdTime ?? ""))
+  return groups
 }
 
-/** Retensi: bulan yang sudah lewat (bukan bulan berjalan) cuma disisakan 1 file — tanggal
- *  terakhir yang ada di bulan itu, sisanya dihapus. Bulan berjalan tetap disimpan harian.
- *  Dipanggil tiap habis upload backup harian (lihat database-backup.ts) supaya bucket rapi
- *  otomatis tanpa perlu cron terpisah. */
+/** Retensi: per group, bulan yang sudah lewat (bukan bulan berjalan) cuma disisakan 1 file —
+ *  yang LastModified-nya paling akhir di bulan itu, sisanya dihapus. Bulan berjalan tetap
+ *  disimpan apa adanya (harian atau berapa pun frekuensinya). Dipanggil oleh cron tanggal 1
+ *  (lihat instrumentation.ts) — cukup sebulan sekali karena bulan yang sudah lewat tidak
+ *  bertambah file baru lagi. */
 export async function cleanupOldBackups() {
   const client = s3Client()
-  const objects = await listAllBackupObjects(client)
+  const objects = await listAllObjects(client)
 
   const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(
     new Date()
   )
+  const monthOf = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit" }).format(d)
 
-  const byMonth = new Map<string, { key: string; day: string }[]>()
+  const byGroupMonth = new Map<string, { key: string; time: number }[]>()
   for (const obj of objects) {
-    if (!obj.Key) continue
-    const match = obj.Key.match(KEY_RE)
-    if (!match) continue
-    const [, month, , day] = match
-    if (!byMonth.has(month)) byMonth.set(month, [])
-    byMonth.get(month)!.push({ key: obj.Key, day })
+    if (!obj.Key || !obj.LastModified) continue
+    const group = groupOf(obj.Key)
+    const month = monthOf(obj.LastModified)
+    if (month >= currentMonth) continue
+    const mapKey = `${group}::${month}`
+    if (!byGroupMonth.has(mapKey)) byGroupMonth.set(mapKey, [])
+    byGroupMonth.get(mapKey)!.push({ key: obj.Key, time: obj.LastModified.getTime() })
   }
 
   const keysToDelete: string[] = []
-  for (const [month, files] of byMonth) {
-    if (month >= currentMonth) continue
-    files.sort((a, b) => a.day.localeCompare(b.day))
-    const lastDayKey = files[files.length - 1].key
-    for (const f of files) if (f.key !== lastDayKey) keysToDelete.push(f.key)
+  for (const files of byGroupMonth.values()) {
+    files.sort((a, b) => a.time - b.time)
+    const lastKey = files[files.length - 1].key
+    for (const f of files) if (f.key !== lastKey) keysToDelete.push(f.key)
   }
 
   if (keysToDelete.length === 0) return { deletedCount: 0 }
 
-  await client.send(
-    new DeleteObjectsCommand({ Bucket: bucketName(), Delete: { Objects: keysToDelete.map((Key) => ({ Key })) } })
-  )
+  // DeleteObjects maksimal 1000 key per request.
+  for (let i = 0; i < keysToDelete.length; i += 1000) {
+    const batch = keysToDelete.slice(i, i + 1000)
+    await client.send(new DeleteObjectsCommand({ Bucket: bucketName(), Delete: { Objects: batch.map((Key) => ({ Key })) } }))
+  }
 
   return { deletedCount: keysToDelete.length }
 }
