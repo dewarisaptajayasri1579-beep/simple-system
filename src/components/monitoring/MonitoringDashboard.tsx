@@ -218,6 +218,27 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
             />
           </div>
+
+          <Alert variant="info" title="Yang perlu disetting manual di Coolify (kalau isi API URL/Token)">
+            <ul className="list-disc pl-4 flex flex-col gap-2">
+              <li>
+                <b>Token API</b>: generate di Coolify VPS ini → <b>Keys &amp; Tokens</b>, centang ability <code>read</code> + <code>read:sensitive</code> +{" "}
+                <code>write</code> (butuh <code>write</code> buat auto-setup S3 Storage &amp; jadwal backup di bawah).
+              </li>
+              <li>
+                <b>Access log Traefik</b> (opsional — cuma dibutuhkan buat kolom &quot;Terakhir Diakses&quot; aplikasi yang belum diisi Query
+                Aktivitas manual): Coolify → <b>Servers → (server ini) → Proxy → Configuration</b>, tambahkan 2 baris ini di dalam list{" "}
+                <code>command:</code>, lalu <b>Restart Proxy</b>:
+                <pre className="mt-1.5 text-[11px] leading-relaxed bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto">
+                  {"      - '--accesslog=true'\n      - '--accesslog.format=json'"}
+                </pre>
+              </li>
+            </ul>
+            <p className="mt-2">
+              Selain dua itu, semuanya OTOMATIS begitu VPS ini disimpan &amp; kena sync pertama: sync aplikasi &amp; database baru, setup 1 S3
+              Storage + jadwal backup harian (21:00) ke bucket R2 yang sama, cek expiry domain, breakdown disk Docker.
+            </p>
+          </Alert>
         </div>
       </Modal>
     </div>
