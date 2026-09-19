@@ -10,13 +10,21 @@ export type CoolifyApplication = {
   server_uuid: string
 }
 
+/** Terima URL Coolify apa adanya (mis. cuma domain root "https://coolify.contoh.com", dengan
+ *  atau tanpa trailing slash) — user sering tidak tahu/ingat path API resminya harus diakhiri
+ *  "/api/v1". Kalau path itu belum ada, tambahkan otomatis; kalau sudah ada, biarkan. */
+function normalizeCoolifyApiUrl(url: string): string {
+  const trimmed = url.replace(/\/+$/, "")
+  return /\/api\/v\d+$/.test(trimmed) ? trimmed : `${trimmed}/api/v1`
+}
+
 export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
-  const base = apiUrl.replace(/\/+$/, "")
+  const base = normalizeCoolifyApiUrl(apiUrl)
   const res = await fetch(`${base}/applications`, {
     headers: { Authorization: `Bearer ${apiToken}` },
     signal: AbortSignal.timeout(10000),
   })
-  if (!res.ok) throw new Error(`Coolify API error ${res.status}`)
+  if (!res.ok) throw new Error(`Coolify API error ${res.status} (${base}/applications)`)
   const data = await res.json()
   return Array.isArray(data) ? data : []
 }
