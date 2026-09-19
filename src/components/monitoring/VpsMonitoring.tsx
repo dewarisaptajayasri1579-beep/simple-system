@@ -578,12 +578,20 @@ export const VpsServerCard: React.FC<{
           )}
 
           {vps.uptimeSeconds !== null && (
-            <span className="text-[11px] text-slate-400 font-medium -mb-1">Uptime: {formatUptime(vps.uptimeSeconds)}</span>
+            <span
+              className="text-[11px] text-slate-400 font-medium -mb-1"
+              title="Lama VPS menyala tanpa reboot sejak boot/restart terakhir."
+            >
+              Uptime: {formatUptime(vps.uptimeSeconds)}
+            </span>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+              <span
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
+                title="Rata-rata beban CPU 1 menit terakhir dibagi jumlah core, dalam persen. Lebih dari 100% berarti ada proses yang antre nunggu giliran CPU (VPS mulai keteteran)."
+              >
                 <Cpu className="w-3.5 h-3.5" /> CPU
               </span>
               {vps.cpuError ? (
@@ -599,16 +607,25 @@ export const VpsServerCard: React.FC<{
                   <span className="text-xs font-semibold text-slate-700">
                     {vps.cpu.loadPct1m.toFixed(0)}% <span className="text-slate-400 font-medium">({vps.cpu.cores} core)</span>
                   </span>
-                  <span className="text-[11px] text-slate-400 font-medium">
+                  <span
+                    className="text-[11px] text-slate-400 font-medium"
+                    title="Rata-rata beban CPU yang sama, tapi dihitung dari jendela waktu 5 menit dan 15 menit terakhir — buat lihat tren (naik/turun/stabil), bukan cuma sesaat."
+                  >
                     5m: {vps.cpu.loadPct5m.toFixed(0)}% · 15m: {vps.cpu.loadPct15m.toFixed(0)}%
                   </span>
                   {vps.cpu.processesRunning !== null && vps.cpu.processesTotal !== null && (
-                    <span className="text-[11px] text-slate-400 font-medium">
+                    <span
+                      className="text-[11px] text-slate-400 font-medium"
+                      title="'Jalan' = proses yang benar-benar sedang dieksekusi CPU detik ini. 'Total' = semua proses + thread yang ada di sistem (termasuk yang lagi idle/nunggu)."
+                    >
                       Proses: {vps.cpu.processesRunning} jalan / {vps.cpu.processesTotal} total
                     </span>
                   )}
                   {vps.cpuCores && (
-                    <div className="flex flex-wrap gap-1 mt-0.5">
+                    <div
+                      className="flex flex-wrap gap-1 mt-0.5"
+                      title="Pemakaian tiap core CPU secara terpisah (bukan rata-rata gabungan di atas) — kalau 1 core jauh lebih tinggi dari yang lain, biasanya ada 1 proses yang tidak bisa multi-thread lagi ngebut sendirian."
+                    >
                       {vps.cpuCores.map((c) => (
                         <span
                           key={c.core}
@@ -619,7 +636,6 @@ export const VpsServerCard: React.FC<{
                                 ? "bg-amber-100 text-amber-700"
                                 : "bg-slate-100 text-slate-600"
                           }`}
-                          title={c.core}
                         >
                           {c.core.replace("cpu", "C")}: {c.usedPct.toFixed(0)}%
                         </span>
@@ -632,7 +648,10 @@ export const VpsServerCard: React.FC<{
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+              <span
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
+                title="Memori yang beneran terpakai (Total dikurangi MemAvailable) — cache/buffer OS yang masih bisa dilepas kapan saja TIDAK dihitung 'terpakai', beda dari sekadar MemFree yang sering kelihatan rendah padahal sebagian besar cuma cache."
+              >
                 <MemoryStick className="w-3.5 h-3.5" /> RAM
               </span>
               {vps.ramError ? (
@@ -654,7 +673,10 @@ export const VpsServerCard: React.FC<{
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+              <span
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide"
+                title="Ruang disk yang dipakai sebagai 'RAM cadangan' saat RAM fisik penuh. Baca/tulis disk jauh lebih lambat dari RAM, jadi swap terpakai tinggi = performa VPS ikut melambat drastis, bukan sekadar indikator ruang kosong."
+              >
                 <MemoryStick className="w-3.5 h-3.5" /> Swap
               </span>
               {vps.swap ? (
