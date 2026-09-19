@@ -175,7 +175,9 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
 
   let stdout: string
   try {
-    stdout = await sshExec(creds, script, 15000)
+    // `docker system df` bisa lambat (belasan detik) kalau image/volume-nya banyak — dites di
+    // VPS Dewari butuh ~18 detik sendiri, jadi timeout gabungan dilebihin cukup jauh.
+    stdout = await sshExec(creds, script, 35000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
     return {
