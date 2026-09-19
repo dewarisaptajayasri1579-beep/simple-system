@@ -18,6 +18,21 @@ type DockerDiskCache = {
 
 type CoolifyDatabaseCacheEntry = { uuid: string; name: string; databaseType: string }
 
+/** Ukuran database yang BENAR itu named volume-nya (mis. "postgres-data-<uuid>"), BUKAN
+ *  `docker ps -s` punya container-nya — data Postgres/MySQL/dst disimpan di Docker volume
+ *  terpisah, jadi "virtual size" container (dominan ukuran image dasar) nyaris SAMA buat semua
+ *  container yang pakai image sama, tidak mencerminkan data sungguhan (lihat percakapan
+ *  monitoring: 3 database beda isi semua kebaca "~313MB" karena itu ukuran image postgres-nya,
+ *  bukan datanya). Volume tidak punya split writable/virtual kayak container, jadi kedua field
+ *  diisi nilai yang sama supaya tetap kompatibel dengan komponen <DiskContribution> yang ada. */
+function databaseVolumeUsage(
+  volumes: VolumeDiskEntry[] | null | undefined,
+  databaseUuid: string
+): { size: string; virtualSize: string } | null {
+  const volume = volumes?.find((v) => v.name.includes(databaseUuid))
+  return volume ? { size: volume.size, virtualSize: volume.size } : null
+}
+
 /** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
  *  ~1-2 detik) tiap request, tapi breakdown disk Docker (lambat, ~20-25 detik) dibaca dari CACHE
  *  (`VpsServer.dockerDiskCache`, diisi lewat cron harian atau tombol "Cek Sekarang" —
@@ -68,13 +83,12 @@ export async function GET() {
       // DB Backup dicocokkan sama seperti di applications[] (group.endsWith(uuid)).
       const coolifyDatabases = (vps.coolifyDatabasesCache as unknown as CoolifyDatabaseCacheEntry[] | null) ?? []
       const databases = coolifyDatabases.map((db) => {
-        const container = cache?.containers?.find((c) => c.containerName === db.uuid)
         const dbBackup = dbBackups.find((b) => b.group.endsWith(db.uuid)) ?? null
         return {
           uuid: db.uuid,
           name: db.name,
           databaseType: prettifyDatabaseType(db.databaseType),
-          diskUsage: container ? { size: container.size, virtualSize: container.virtualSize } : null,
+          diskUsage: databaseVolumeUsage(cache?.volumes, db.uuid),
           dbBackupAt: dbBackup?.createdTime ?? null,
           dbBackupLink: dbBackup?.webViewLink ?? null,
         }
@@ -116,7 +130,6 @@ export async function GET() {
         databases,
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
-          const dbContainer = app.databaseUuid ? cache?.containers?.find((c) => c.containerName === app.databaseUuid) : undefined
           // Subdomain ikut persis expiry domain root-nya (tidak punya tanggal registrasi
           // sendiri) — kalau RDAP per-app belum/gagal ke-lookup (domainExpiresAt null), fallback
           // ke data resmi Pengaturan > Domain yang sudah dicocokkan di atas, supaya kolom "Domain
@@ -147,7 +160,7 @@ export async function GET() {
             notes: app.notes,
             hasCoolifySync: Boolean(app.coolifyUuid),
             diskUsage: appContainer ? { size: appContainer.size, virtualSize: appContainer.virtualSize } : null,
-            databaseDiskUsage: dbContainer ? { size: dbContainer.size, virtualSize: dbContainer.virtualSize } : null,
+            databaseDiskUsage: app.databaseUuid ? databaseVolumeUsage(cache?.volumes, app.databaseUuid) : null,
           }
         }),
       }
