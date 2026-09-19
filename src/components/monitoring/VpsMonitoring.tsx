@@ -535,8 +535,8 @@ export const VpsServerCard: React.FC<{
           <div className="min-w-0">
             <div className="font-black text-slate-900 truncate">{vps.name}</div>
             <div className="text-xs font-semibold text-slate-500 truncate">
-              {vps.sshUser}@{vps.host}:{vps.sshPort}
-              {vps.hasCoolify ? " · Coolify" : ""} · {vps.applications.length} aplikasi
+              {vps.hasCoolify ? "Coolify · " : ""}
+              {vps.applications.length} aplikasi
             </div>
           </div>
         </div>

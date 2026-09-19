@@ -77,7 +77,6 @@ function formatBytesClient(bytes: number | null) {
 export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
   const [disk, setDisk] = useState<DiskInfo | null>(null)
   const [diskError, setDiskError] = useState("")
-  const [ip, setIp] = useState<string | null>(null)
   const [dbRows, setDbRows] = useState<DbSizeRow[] | null>(null)
   const [dbError, setDbError] = useState("")
   const [users, setUsers] = useState<UserRow[] | null>(null)
@@ -118,7 +117,6 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
       const data = await diskRes.json()
       setDisk(data.disk)
       setDiskError(data.diskError || "")
-      setIp(data.ip)
     } else setDiskError((await diskRes.json().catch(() => null))?.error || "Gagal memuat disk usage")
 
     if (dbRes.ok) setDbRows(await dbRes.json())
@@ -272,9 +270,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               </div>
               <div className="min-w-0">
                 <div className="font-black text-slate-900 truncate">Server Ini</div>
-                <div className="text-xs font-semibold text-slate-500 truncate">
-                  {ip ? ip : "IP tidak diketahui"} · Aplikasi ini jalan di sini
-                </div>
+                <div className="text-xs font-semibold text-slate-500 truncate">Aplikasi ini jalan di sini</div>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
