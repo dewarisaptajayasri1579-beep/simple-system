@@ -15,6 +15,7 @@ export * from "./Alert";
 export * from "./Avatar";
 export * from "./Table";
 export * from "./FilterableTable";
+export * from "./SortableTable";
 export * from "./AppLogo";
 export * from "./AppLogoAlt";
 export * from "./BackgroundGlossyDecorations";

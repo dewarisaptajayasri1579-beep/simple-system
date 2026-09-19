@@ -15,8 +15,11 @@ import {
   Alert,
   ColumnVisibilityMenu,
   FilterableTable,
+  SortableTable,
   CurrencyInput,
   type FilterableColumn,
+  type SortableColumn,
+  type SortableTableFilterGroup,
 } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
 import { Plus, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
@@ -1486,6 +1489,9 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
   const [savingNewClient, setSavingNewClient] = useState(false);
   const [stagingClients, setStagingClients] = useState<{ id: string; name: string; client: { id: string } | null }[]>([]);
   const [assignError, setAssignError] = useState("");
+  const [hasClientFilter, setHasClientFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
   const { isVisible, toggle } = useColumnVisibility("domain", DOMAIN_COLUMNS);
 
   useEffect(() => {
@@ -1518,11 +1524,35 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
       })
     );
 
+  const dueDateOf = (domain: DomainRow) =>
+    resolveDomainExpiry({
+      expiryDate: domain.expiryDate ? new Date(domain.expiryDate) : null,
+      lastPaidAt: domain.lastPaidAt ? new Date(domain.lastPaidAt) : null,
+    });
+  // Domain tanpa tanggal berakhir sama sekali dianggap paling belum urgent (getExpiryBucket juga
+  // menganggapnya "safe") — ditaruh paling akhir di antara domain aktif, bukan bikin sort error.
+  const dueTimeOf = (domain: DomainRow) => dueDateOf(domain)?.getTime() ?? Infinity;
+
+  // Urutan tampilan default: domain aktif dulu (diurutkan dari yang paling dekat expired),
+  // domain nonaktif ditaruh di belakang — supaya yang butuh perhatian langsung kelihatan di atas
+  // tanpa harus klik sort manual (permintaan Owner 2026-09-20).
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      if (!a.active) return 0;
+      return dueTimeOf(a) - dueTimeOf(b);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   const activeRows = rows.filter((r) => r.active);
+  const clientRows = rows.filter((r) => r.clientId);
   const counts = {
     expired: activeRows.filter((r) => bucketOf(r) === "expired").length,
     thisMonth: activeRows.filter((r) => bucketOf(r) === "expiring_this_month").length,
     nextMonth: activeRows.filter((r) => bucketOf(r) === "expiring_next_month").length,
+    clientDomains: clientRows.length,
+    clientDomainsInactive: clientRows.filter((r) => !r.active).length,
   };
 
   const handleToggleActive = async (domain: DomainRow) => {
@@ -1668,19 +1698,32 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
     setShowNewClient(false);
   };
 
-  const columns: FilterableColumn<DomainRow>[] = [
+  const columns: SortableColumn<DomainRow>[] = [
     { key: "no", header: "No", headClassName: "w-12", cell: (_r, i) => <span className="text-slate-500">{i + 1}</span> },
-    { key: "name", header: "Domain", filterValue: (d) => d.name, cellClassName: "font-semibold", cell: (d) => d.name },
+    {
+      key: "name",
+      header: "Domain",
+      filterValue: (d) => d.name,
+      sortValue: (d) => d.name,
+      cellClassName: "font-semibold",
+      cell: (d) => d.name,
+    },
     ...(isVisible("client")
-      ? [{ key: "client", header: "Client", filterValue: (d: DomainRow) => d.client?.name ?? "", cell: (d: DomainRow) => d.client?.name ?? "-" }]
+      ? [
+          {
+            key: "client",
+            header: "Client",
+            filterValue: (d: DomainRow) => d.client?.name ?? "",
+            sortValue: (d: DomainRow) => d.client?.name ?? "",
+            cell: (d: DomainRow) => d.client?.name ?? "-",
+          },
+        ]
       : []),
     ...(isVisible("hasClient")
       ? [
           {
             key: "hasClient",
             header: "Internal/External",
-            filterValue: (d: DomainRow) => (d.clientId ? "ada" : "belum"),
-            filterOptions: DOMAIN_CLIENT_STATUS_OPTIONS,
             cell: (d: DomainRow) => (
               <OwnerToggle isExternal={!!d.clientId} disabled={togglingOwnerId === d.id} onToggle={() => handleToggleOwner(d)} />
             ),
@@ -1692,6 +1735,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "price",
             header: "Harga Jual",
+            sortValue: (d: DomainRow) => d.sellPrice ?? 0,
             cell: (d: DomainRow) => (
               <EditableCurrencyCell
                 apiPath={`/api/domains/${d.id}`}
@@ -1710,6 +1754,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "lastPaid",
             header: "Terakhir Bayar",
+            sortValue: (d: DomainRow) => d.lastPaidAt ?? "",
             cell: (d: DomainRow) => (
               <EditableDateCell
                 apiPath={`/api/domains/${d.id}`}
@@ -1728,6 +1773,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "expiryDate",
             header: "Tgl Berakhir",
+            sortValue: (d: DomainRow) => d.expiryDate ?? "",
             cell: (d: DomainRow) => (
               <EditableDateCell
                 apiPath={`/api/domains/${d.id}`}
@@ -1746,13 +1792,8 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "expiry",
             header: "Estimasi Habis",
-            cell: (d: DomainRow) =>
-              formatDateObj(
-                resolveDomainExpiry({
-                  expiryDate: d.expiryDate ? new Date(d.expiryDate) : null,
-                  lastPaidAt: d.lastPaidAt ? new Date(d.lastPaidAt) : null,
-                })
-              ),
+            sortValue: (d: DomainRow) => dueTimeOf(d),
+            cell: (d: DomainRow) => formatDateObj(dueDateOf(d)),
           },
         ]
       : []),
@@ -1761,8 +1802,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "status",
             header: "Status",
-            filterValue: (d: DomainRow) => bucketOf(d),
-            filterOptions: DOMAIN_STATUS_OPTIONS,
+            sortValue: (d: DomainRow) => (d.active ? { expired: 0, expiring_this_month: 1, expiring_next_month: 2, safe: 3 }[bucketOf(d)] : 4),
             cell: (d: DomainRow) => (d.active ? <StatusBadge type={bucketOf(d)} size="sm" /> : <StatusBadge type="inactive" size="sm" />),
           },
         ]
@@ -1772,8 +1812,6 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           {
             key: "aktif",
             header: "Aktif",
-            filterValue: (d: DomainRow) => (d.active ? "active" : "inactive"),
-            filterOptions: ACTIVE_FILTER_OPTIONS,
             cell: (d: DomainRow) => (
               <ActiveToggle active={d.active} disabled={togglingId === d.id} onToggle={() => handleToggleActive(d)} />
             ),
@@ -1809,9 +1847,36 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
     },
   ];
 
+  const filterGroups: SortableTableFilterGroup<DomainRow>[] = [
+    {
+      key: "hasClient",
+      label: "Internal/External",
+      value: hasClientFilter,
+      onChange: setHasClientFilter,
+      options: DOMAIN_CLIENT_STATUS_OPTIONS,
+      predicate: (d, v) => (v === "ada" ? !!d.clientId : !d.clientId),
+    },
+    {
+      key: "status",
+      label: "Status",
+      value: statusFilter,
+      onChange: setStatusFilter,
+      options: DOMAIN_STATUS_OPTIONS,
+      predicate: (d, v) => bucketOf(d) === v,
+    },
+    {
+      key: "aktif",
+      label: "Aktif",
+      value: activeFilter,
+      onChange: setActiveFilter,
+      options: ACTIVE_FILTER_OPTIONS,
+      predicate: (d, v) => (v === "active" ? d.active : !d.active),
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card variant="feature" padding="md">
           <CardDescription>Sudah Lewat</CardDescription>
           <p className="text-2xl font-black text-rose-700 mt-1">{counts.expired}</p>
@@ -1824,24 +1889,39 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           <CardDescription>Habis Bulan Depan</CardDescription>
           <p className="text-2xl font-black text-sky-700 mt-1">{counts.nextMonth}</p>
         </Card>
+        <Card variant="feature" padding="md">
+          <CardDescription>Domain Client</CardDescription>
+          <p className="text-2xl font-black text-slate-800 mt-1">{counts.clientDomains}</p>
+        </Card>
+        <Card variant="feature" padding="md">
+          <CardDescription>Domain Client Nonaktif</CardDescription>
+          <p className="text-2xl font-black text-slate-500 mt-1">{counts.clientDomainsInactive}</p>
+        </Card>
       </div>
 
-      <Card variant="panel" padding="none">
-        <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
+      <Card variant="panel" padding="md">
+        <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <CardTitle>Domain</CardTitle>
             <CardDescription>
               {activeRows.length} aktif{rows.length > activeRows.length ? `, ${rows.length - activeRows.length} nonaktif` : ""}
             </CardDescription>
           </div>
-          <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
         </div>
-        <div className="px-5 sm:px-6 pb-2 flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
             Tambah Domain
           </Button>
+          <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
         </div>
-        <FilterableTable columns={columns} rows={rows} rowKey={(d) => d.id} emptyMessage="Tidak ada domain yang cocok." />
+        <SortableTable
+          columns={columns}
+          rows={sortedRows}
+          rowKey={(d) => d.id}
+          searchPlaceholder="Cari domain..."
+          emptyMessage="Tidak ada domain yang cocok."
+          filterGroups={filterGroups}
+        />
       </Card>
 
       <Modal isOpen={isCreating || editing !== null} onClose={closeCreate} title={editing ? `Edit ${editing.name}` : "Domain Baru"} size="lg">
