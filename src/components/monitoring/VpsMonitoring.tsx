@@ -322,6 +322,27 @@ function UsageMiniBar({ label, pct, error }: { label: string; pct: number | null
   )
 }
 
+/** Pagination client-side generic (dipakai tabel Aplikasi & Database) — lihat catatan kenapa
+ *  bukan server-side di dekat pemanggilnya (VpsServerCard). */
+function TablePagination({ page, pageCount, total, onChange }: { page: number; pageCount: number; total: number; onChange: (p: number) => void }) {
+  if (pageCount <= 1) return null
+  return (
+    <div className="flex items-center justify-between gap-3 px-1">
+      <span className="text-[11px] text-slate-400 font-medium">
+        {total} baris — halaman {page} dari {pageCount}
+      </span>
+      <div className="flex items-center gap-1.5">
+        <Button variant="secondary" size="sm" onClick={() => onChange(page - 1)} disabled={page <= 1}>
+          Sebelumnya
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => onChange(page + 1)} disabled={page >= pageCount}>
+          Berikutnya
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 type VpsHealthLevel = "sehat" | "perhatian" | "kritis"
 
 /** Kesimpulan 1 badge dari semua sinyal yang ada per VPS — supaya kelihatan langsung tanpa expand
@@ -362,6 +383,22 @@ function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string
   return { level: "sehat", reasons: [] }
 }
 
+/** Dipakai buat urutkan tabel Aplikasi/Database — baris yang bermasalah ditaruh paling atas
+ *  (bukan sekadar disortir alfabetis) supaya kelihatan langsung di halaman pertama tanpa perlu
+ *  paging jauh-jauh. Ambang sama dengan computeVpsHealth (domain <30 hari, backup lewat 1 hari). */
+function isAppUnhealthy(app: AppRow): boolean {
+  if (app.domainExpiresAt) {
+    const days = Math.floor((new Date(app.domainExpiresAt).getTime() - Date.now()) / 86_400_000)
+    if (days < 30) return true
+  }
+  if (app.databaseUuid && isBackupStale(app.dbBackupAt)) return true
+  return false
+}
+
+function isDbUnhealthy(db: VpsRow["databases"][number]): boolean {
+  return !db.isActive || isBackupStale(db.dbBackupAt)
+}
+
 /** Satu kartu VPS yang bisa di-expand/collapse — dipakai di dalam list "VPS Lain" pada
  *  MonitoringDashboard.tsx. Ngurus sendiri modal Edit VPS & Tambah/Edit Aplikasi (spesifik ke
  *  VPS ini); modal "Tambah VPS" (VPS baru) ada di parent karena tidak terikat ke satu VPS. */
@@ -376,6 +413,12 @@ export const VpsServerCard: React.FC<{
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
   const [search, setSearch] = useState("")
+  const [appPage, setAppPage] = useState(1)
+  const [dbPage, setDbPage] = useState(1)
+  useEffect(() => {
+    setAppPage(1)
+    setDbPage(1)
+  }, [search])
   const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneResult, setPruneResult] = useState<{
@@ -629,16 +672,30 @@ export const VpsServerCard: React.FC<{
   const healthBadgeVariant = health.level === "kritis" ? "danger" : health.level === "perhatian" ? "warning" : "success"
   const healthLabel = health.level === "kritis" ? "Kritis" : health.level === "perhatian" ? "Perhatian" : "Sehat"
 
-  // Filter client-side (data per VPS sudah kebawa semua di 1 request) — cukup buat skala
-  // puluhan/ratusan baris, dan VPS dengan banyak project Coolify jadi gampang dicari tanpa perlu
-  // grouping/section terpisah per project (lihat percakapan monitoring).
+  // Filter + pagination client-side (data per VPS sudah kebawa semua di 1 request, lihat GET
+  // /api/monitoring/vps) — SENGAJA bukan server-side: badge kesimpulan Sehat/Perhatian/Kritis di
+  // atas butuh data LENGKAP semua baris (buat deteksi database mati/backup basi), jadi datanya
+  // sudah pasti kebawa semua ke client sekali jalan — server-side pagination di tabel ini cuma
+  // nambah kompleksitas (endpoint terpisah) tanpa benar² ngurangin payload (lihat percakapan
+  // monitoring). Yang bermasalah (isAppUnhealthy/isDbUnhealthy) ditaruh paling atas biar kelihatan
+  // tanpa perlu buka halaman jauh-jauh.
+  const PAGE_SIZE = 10
   const searchTerm = search.trim().toLowerCase()
-  const filteredApplications = searchTerm
-    ? vps.applications.filter((app) => [app.name, app.domain, app.coolifyProjectName].some((v) => v?.toLowerCase().includes(searchTerm)))
-    : vps.applications
-  const filteredDatabases = searchTerm
-    ? vps.databases.filter((db) => [db.name, db.projectName].some((v) => v?.toLowerCase().includes(searchTerm)))
-    : vps.databases
+  const sortedApplications = [...vps.applications]
+    .filter((app) => !searchTerm || [app.name, app.domain, app.coolifyProjectName].some((v) => v?.toLowerCase().includes(searchTerm)))
+    .sort((a, b) => Number(isAppUnhealthy(b)) - Number(isAppUnhealthy(a)))
+  const appPageCount = Math.max(Math.ceil(sortedApplications.length / PAGE_SIZE), 1)
+  // Clamp (bukan cuma pakai appPage mentah) — data bisa berubah (delete/refresh) sampai page
+  // lama jadi out-of-range, tanpa ini malah kelihatan "tidak ada hasil" yang menyesatkan.
+  const currentAppPage = Math.min(appPage, appPageCount)
+  const filteredApplications = sortedApplications.slice((currentAppPage - 1) * PAGE_SIZE, currentAppPage * PAGE_SIZE)
+
+  const sortedDatabases = [...vps.databases]
+    .filter((db) => !searchTerm || [db.name, db.projectName].some((v) => v?.toLowerCase().includes(searchTerm)))
+    .sort((a, b) => Number(isDbUnhealthy(b)) - Number(isDbUnhealthy(a)))
+  const dbPageCount = Math.max(Math.ceil(sortedDatabases.length / PAGE_SIZE), 1)
+  const currentDbPage = Math.min(dbPage, dbPageCount)
+  const filteredDatabases = sortedDatabases.slice((currentDbPage - 1) * PAGE_SIZE, currentDbPage * PAGE_SIZE)
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md overflow-hidden">
@@ -1151,6 +1208,7 @@ export const VpsServerCard: React.FC<{
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination page={currentAppPage} pageCount={appPageCount} total={sortedApplications.length} onChange={setAppPage} />
 
           {vps.databases.length > 0 && (
             <div className="flex flex-col gap-2">
@@ -1236,6 +1294,7 @@ export const VpsServerCard: React.FC<{
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePagination page={currentDbPage} pageCount={dbPageCount} total={sortedDatabases.length} onChange={setDbPage} />
             </div>
           )}
         </div>
