@@ -861,7 +861,6 @@ export const VpsServerCard: React.FC<{
                       <TableHead className="w-10">#</TableHead>
                       <TableHead>Nama</TableHead>
                       <TableHead>Tipe</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Terakhir Aktif</TableHead>
                       <TableHead>Ukuran</TableHead>
                       <TableHead>DB Backup</TableHead>
@@ -871,15 +870,17 @@ export const VpsServerCard: React.FC<{
                     {vps.databases.map((db, index) => (
                       <TableRow key={db.uuid}>
                         <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
-                        <TableCell className="font-bold text-slate-900">{db.name}</TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-700">{db.databaseType}</TableCell>
                         <TableCell>
-                          {db.isActive ? (
-                            <Badge variant="success" size="sm">Aktif</Badge>
-                          ) : (
-                            <Badge variant="danger" size="sm">Stop</Badge>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{db.name}</span>
+                            {db.isActive ? (
+                              <Badge variant="success" size="sm">Aktif</Badge>
+                            ) : (
+                              <Badge variant="danger" size="sm">Stop</Badge>
+                            )}
+                          </div>
                         </TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{db.databaseType}</TableCell>
                         <TableCell className="text-xs font-semibold text-slate-700">{formatDateTimeId(db.lastOnlineAt)}</TableCell>
                         <TableCell className="text-xs">
                           <DiskContribution usage={db.diskUsage} totalBytes={vps.disk?.totalBytes} />
