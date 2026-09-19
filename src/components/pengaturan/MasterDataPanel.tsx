@@ -1473,6 +1473,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
   const [togglingOwnerId, setTogglingOwnerId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<DomainRow | null>(null);
   const [assignClientId, setAssignClientId] = useState("");
+  const [editing, setEditing] = useState<DomainRow | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<Partial<DomainRow>>({});
   const [createError, setCreateError] = useState("");
@@ -1592,6 +1593,11 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
     setAssigning(null);
   };
 
+  const openEdit = (domain: DomainRow) => {
+    setEditing(domain);
+    setForm(domain);
+    setCreateError("");
+  };
   const openCreate = () => {
     setIsCreating(true);
     setForm({ active: true });
@@ -1599,6 +1605,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
   };
   const closeCreate = () => {
     setIsCreating(false);
+    setEditing(null);
     setForm({});
   };
 
@@ -1609,8 +1616,10 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
     }
     setIsSaving(true);
     setCreateError("");
-    const res = await fetch("/api/domains", {
-      method: "POST",
+    const url = editing ? `/api/domains/${editing.id}` : "/api/domains";
+    const method = editing ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
@@ -1620,7 +1629,11 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
       setCreateError(data?.error || `Gagal menyimpan (status ${res.status})`);
       return;
     }
-    setRows((prev) => [...prev, data]);
+    if (editing) {
+      setRows((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...data } : r)));
+    } else {
+      setRows((prev) => [...prev, data]);
+    }
     closeCreate();
     router.refresh();
   };
@@ -1771,21 +1784,26 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
       key: "aksi",
       header: "Aksi",
       cell: (domain) => {
-        if (!domain.active) return "-";
         const bucket = bucketOf(domain);
-        const needsRenewal = bucket !== "safe" && domain.clientId;
-        if (!needsRenewal) return "-";
+        const needsRenewal = domain.active && bucket !== "safe" && domain.clientId;
         const renewalParams = new URLSearchParams({
           clientId: domain.clientId ?? "",
           description: `Perpanjangan domain ${domain.name}`,
           amount: String(domain.sellPrice ?? 0),
         });
         return (
-          <Link href={`/penjualan/baru?${renewalParams.toString()}`}>
-            <Button size="sm" variant="outline">
-              Buat Invoice Perpanjangan
+          <div className="flex items-center gap-1.5">
+            {needsRenewal && (
+              <Link href={`/penjualan/baru?${renewalParams.toString()}`}>
+                <Button size="sm" variant="outline">
+                  Buat Invoice Perpanjangan
+                </Button>
+              </Link>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => openEdit(domain)}>
+              <Pencil className="w-4 h-4" />
             </Button>
-          </Link>
+          </div>
         );
       },
     },
@@ -1826,7 +1844,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
         <FilterableTable columns={columns} rows={rows} rowKey={(d) => d.id} emptyMessage="Tidak ada domain yang cocok." />
       </Card>
 
-      <Modal isOpen={isCreating} onClose={closeCreate} title="Domain Baru" size="lg">
+      <Modal isOpen={isCreating || editing !== null} onClose={closeCreate} title={editing ? `Edit ${editing.name}` : "Domain Baru"} size="lg">
         <div className="space-y-4">
           {createError && (
             <Alert variant="error" onClose={() => setCreateError("")}>
