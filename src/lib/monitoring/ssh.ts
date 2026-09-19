@@ -119,8 +119,14 @@ export type DockerDiskEntry = {
   reclaimablePct: number
 }
 
-export type AppContainerDisk = {
-  coolifyUuid: string
+/** `containerName` = nama container Docker apa adanya (field `Names`). Buat container APLIKASI
+ *  Coolify, nama container-nya ada suffix acak (mis. "cxr3vg...-070822435708"), makanya perlu
+ *  `coolifyAppUuid` dari label `coolify.name=<uuid>` buat matching yang reliable. Buat container
+ *  DATABASE Coolify, nama container-nya PERSIS uuid resource database itu (tanpa suffix, tidak
+ *  ada label `coolify.name`) — jadi cukup dicocokkan langsung ke `containerName`. */
+export type ContainerDiskEntry = {
+  containerName: string
+  coolifyAppUuid: string | null
   size: string
   virtualSize: string
 }
@@ -136,7 +142,7 @@ export type VpsLiveCheck = {
 export type VpsDockerDiskCheck = {
   dockerDisk: DockerDiskEntry[] | null
   dockerDiskError: string | null
-  appDiskUsage: AppContainerDisk[] | null
+  containers: ContainerDiskEntry[] | null
 }
 
 const DELIM = "___SPLIT___"
@@ -159,21 +165,23 @@ function parseDockerDfLine(line: string): DockerDiskEntry | null {
   }
 }
 
-/** Container Coolify ditandai label `coolify.name=<uuid aplikasi>` (cocok dengan
- *  Application.coolifyUuid kita) — cuma container APLIKASI yang punya label ini, container
- *  database Coolify pakai label lain (`coolify.databaseId` dst, tanpa `coolify.name`), jadi tidak
- *  ketimpa ketuker. `Size` dari `docker ps -s` formatnya "12.3kB (virtual 196MB)" — bagian
- *  pertama itu writable layer container itu sendiri (biasanya kecil buat app stateless), "virtual"
- *  itu total image+layer (termasuk layer dasar yang mungkin dipakai bareng container lain, jadi
- *  cuma perkiraan kasar "berapa berat image app ini", bukan porsi eksklusif dari total disk). */
-function parseDockerPsLine(line: string): AppContainerDisk | null {
+/** Tangkap SEMUA container (bukan cuma aplikasi) — container aplikasi Coolify ditandai label
+ *  `coolify.name=<uuid aplikasi>` (cocok dengan Application.coolifyUuid), container database
+ *  Coolify TIDAK punya label itu tapi nama container-nya (`Names`) PERSIS uuid resource database
+ *  itu (tanpa suffix acak), jadi dicocokkan langsung ke `Application.databaseUuid` di pemanggil
+ *  (lihat GET /api/monitoring/vps). `Size` dari `docker ps -s` formatnya "12.3kB (virtual 196MB)"
+ *  — bagian pertama itu writable layer container itu sendiri (biasanya kecil buat app/DB
+ *  stateless), "virtual" itu total image+layer (termasuk layer dasar yang mungkin dipakai bareng
+ *  container lain, jadi cuma perkiraan kasar, bukan porsi eksklusif dari total disk). */
+function parseDockerPsLine(line: string): ContainerDiskEntry | null {
   try {
     const obj = JSON.parse(line) as Record<string, string>
+    if (!obj.Names) return null
     const nameMatch = obj.Labels?.match(/coolify\.name=([^,]+)/)
-    if (!nameMatch) return null
     const sizeMatch = obj.Size?.match(/^([\d.]+\s*[A-Za-z]+)(?:\s*\(virtual\s+([\d.]+\s*[A-Za-z]+)\))?/)
     return {
-      coolifyUuid: nameMatch[1],
+      containerName: obj.Names,
+      coolifyAppUuid: nameMatch ? nameMatch[1] : null,
       size: sizeMatch?.[1]?.trim() ?? obj.Size ?? "-",
       virtualSize: sizeMatch?.[2]?.trim() ?? "-",
     }
@@ -254,7 +262,7 @@ export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerD
     stdout = await sshExec(creds, script, 60000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
-    return { dockerDisk: null, dockerDiskError: message, appDiskUsage: null }
+    return { dockerDisk: null, dockerDiskError: message, containers: null }
   }
 
   const [dockerPart = "", psPart = ""] = stdout.split(DELIM)
@@ -267,12 +275,12 @@ export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerD
   const dockerDisk = dockerEntries.length > 0 ? dockerEntries : null
   const dockerDiskError = dockerDisk ? null : "Gagal membaca disk usage Docker (perlu akses sudo/docker di VPS)"
 
-  const appDiskEntries = psPart
+  const containerEntries = psPart
     .trim()
     .split("\n")
     .map(parseDockerPsLine)
-    .filter((e): e is AppContainerDisk => e !== null)
-  const appDiskUsage = appDiskEntries.length > 0 ? appDiskEntries : null
+    .filter((e): e is ContainerDiskEntry => e !== null)
+  const containers = containerEntries.length > 0 ? containerEntries : null
 
-  return { dockerDisk, dockerDiskError, appDiskUsage }
+  return { dockerDisk, dockerDiskError, containers }
 }

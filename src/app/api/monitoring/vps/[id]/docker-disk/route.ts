@@ -24,7 +24,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   await prisma.vpsServer.update({
     where: { id },
     data: {
-      dockerDiskCache: { dockerDisk: result.dockerDisk, appDiskUsage: result.appDiskUsage ?? [] },
+      dockerDiskCache: { dockerDisk: result.dockerDisk, containers: result.containers ?? [] },
       dockerDiskCheckedAt: new Date(),
     },
   })

@@ -3,10 +3,10 @@ import { NextResponse } from "next/server"
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { getVpsDiskAndBackup, type AppContainerDisk, type DockerDiskEntry } from "@/lib/monitoring/ssh"
+import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
 
-type DockerDiskCache = { dockerDisk: DockerDiskEntry[] | null; appDiskUsage: AppContainerDisk[] | null }
+type DockerDiskCache = { dockerDisk: DockerDiskEntry[] | null; containers: ContainerDiskEntry[] | null }
 
 /** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
  *  ~1-2 detik) tiap request, tapi breakdown disk Docker (lambat, ~20-25 detik) dibaca dari CACHE
@@ -50,7 +50,8 @@ export async function GET() {
         dockerDisk: cache?.dockerDisk ?? null,
         dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
         applications: vps.applications.map((app) => {
-          const diskEntry = app.coolifyUuid ? cache?.appDiskUsage?.find((d) => d.coolifyUuid === app.coolifyUuid) : undefined
+          const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
+          const dbContainer = app.databaseUuid ? cache?.containers?.find((c) => c.containerName === app.databaseUuid) : undefined
           return {
             id: app.id,
             name: app.name,
@@ -67,7 +68,8 @@ export async function GET() {
             domainExpiryCheckedAt: app.domainExpiryCheckedAt,
             notes: app.notes,
             hasCoolifySync: Boolean(app.coolifyUuid),
-            diskUsage: diskEntry ? { size: diskEntry.size, virtualSize: diskEntry.virtualSize } : null,
+            diskUsage: appContainer ? { size: appContainer.size, virtualSize: appContainer.virtualSize } : null,
+            databaseDiskUsage: dbContainer ? { size: dbContainer.size, virtualSize: dbContainer.virtualSize } : null,
           }
         }),
       }

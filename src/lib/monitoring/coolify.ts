@@ -185,6 +185,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
     const domain = firstCleanDomain(app.fqdn)
 
     let databaseInfo: string | null = null
+    let databaseUuid: string | null = null
     let activity: ActivityResult | null = null
     if (databases.length > 0) {
       try {
@@ -192,7 +193,10 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         const dbUrl = findDatabaseUrlValue(envs)
         const host = dbUrl ? extractHost(dbUrl) : null
         const matched = host ? matchDatabaseByHost(host, databases) : null
-        if (matched) databaseInfo = `${prettifyDatabaseType(matched.database_type)} — ${matched.name}`
+        if (matched) {
+          databaseInfo = `${prettifyDatabaseType(matched.database_type)} — ${matched.name}`
+          databaseUuid = matched.uuid
+        }
 
         const activityQuery = activityQueryByUuid.get(app.uuid)
         if (dbUrl && activityQuery) activity = await runActivityQuery(dbUrl, activityQuery)
@@ -211,13 +215,14 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
         databaseInfo,
+        databaseUuid,
       },
       update: {
         name: app.name || app.uuid,
         domain,
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
-        ...(databaseInfo ? { databaseInfo } : {}),
+        ...(databaseInfo ? { databaseInfo, databaseUuid } : {}),
         ...(activity?.lastAccessedAt ? { lastAccessedAt: activity.lastAccessedAt, lastAccessedBy: activity.lastAccessedBy } : {}),
       },
     })

@@ -34,6 +34,7 @@ export type AppRow = {
   notes: string | null
   hasCoolifySync: boolean
   diskUsage: { size: string; virtualSize: string } | null
+  databaseDiskUsage: { size: string; virtualSize: string } | null
 }
 
 export type VpsRow = {
@@ -160,6 +161,34 @@ function parseDockerSize(raw: string | undefined): number {
   if (!m) return 0
   const mult: Record<string, number> = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
   return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1)
+}
+
+/** Ambil nama repo yang gampang dibaca dari URL git (mis. "https://github.com/org/repo.git" →
+ *  "org/repo") — fallback ke URL apa adanya kalau bukan URL valid (mis. format SSH
+ *  "git@github.com:org/repo.git"). */
+function repoDisplayName(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname.replace(/^\//, "").replace(/\.git$/, "")
+    return path || url
+  } catch {
+    return url.replace(/^git@[^:]+:/, "").replace(/\.git$/, "")
+  }
+}
+
+/** Tampilkan ukuran image (virtual size) + kontribusinya ke total disk VPS dalam persen — angka
+ *  writable layer (biasanya cuma beberapa KB, kurang bermakna buat non-teknis) SENGAJA tidak
+ *  ditampilkan, cuma dipakai buat tooltip. Warna teks kontras (slate-700), bukan abu-abu pudar. */
+function DiskContribution({ usage, totalBytes }: { usage: { size: string; virtualSize: string } | null; totalBytes: number | undefined }) {
+  if (!usage) return <span className="text-slate-400">-</span>
+  const virtualBytes = parseDockerSize(usage.virtualSize)
+  const pct = totalBytes ? (virtualBytes / totalBytes) * 100 : null
+  return (
+    <span className="font-semibold text-slate-700" title={`Writable layer: ${usage.size}`}>
+      ~{usage.virtualSize}
+      {pct !== null && <span className="text-slate-500"> ({pct < 0.1 ? "<0.1" : pct.toFixed(1)}% dari total)</span>}
+    </span>
+  )
 }
 
 /** Bar Disk Space bertingkat warna — biru = Local Volumes (data asli, database dll), oranye =
@@ -590,7 +619,6 @@ export const VpsServerCard: React.FC<{
                   <TableHead>Aplikasi</TableHead>
                   <TableHead>Git / Database</TableHead>
                   <TableHead>Diakses / Backup</TableHead>
-                  <TableHead>Disk</TableHead>
                   <TableHead>Domain Habis</TableHead>
                   {isOwner && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
@@ -598,7 +626,7 @@ export const VpsServerCard: React.FC<{
               <TableBody>
                 {vps.applications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 6 : 5} className="text-center text-slate-400 text-xs font-semibold py-6">
                       Belum ada aplikasi terdaftar di VPS ini.
                     </TableCell>
                   </TableRow>
@@ -615,18 +643,9 @@ export const VpsServerCard: React.FC<{
                             </Badge>
                           )}
                         </div>
-                        {app.domain ? (
-                          <a
-                            href={`https://${app.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs mt-0.5"
-                          >
-                            {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                          </a>
-                        ) : (
-                          <div className="text-slate-400 text-xs mt-0.5">Tanpa domain</div>
-                        )}
+                        <div className="text-xs mt-0.5">
+                          <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
+                        </div>
                       </TableCell>
                       <TableCell>
                         {app.gitRepository ? (
@@ -634,16 +653,22 @@ export const VpsServerCard: React.FC<{
                             href={app.gitRepository}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
                           >
-                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
+                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
                           </a>
                         ) : (
                           <span className="text-slate-400 text-xs">Tanpa git</span>
                         )}
-                        <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                        {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
+                        <div className="text-xs font-semibold text-slate-700 mt-1.5">
                           {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
                         </div>
+                        {app.databaseInfo && (
+                          <div className="text-xs mt-0.5">
+                            <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-xs font-semibold text-slate-700">
@@ -655,18 +680,22 @@ export const VpsServerCard: React.FC<{
                           {app.backupLocation && <span className="text-slate-400 font-medium"> · {app.backupLocation}</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">
-                        {app.diskUsage ? (
-                          <span title="Ukuran writable layer container ini · perkiraan image+layer (bisa share sama app lain)">
-                            {app.diskUsage.size}
-                            <div className="text-slate-400 font-medium">image ~{app.diskUsage.virtualSize}</div>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">-</span>
-                        )}
-                      </TableCell>
                       <TableCell>
-                        <DomainExpiryBadge iso={app.domainExpiresAt} />
+                        {app.domain ? (
+                          <a
+                            href={`https://${app.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                          >
+                            {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          </a>
+                        ) : (
+                          <div className="text-slate-400 text-xs">Tanpa domain</div>
+                        )}
+                        <div className="mt-1">
+                          <DomainExpiryBadge iso={app.domainExpiresAt} />
+                        </div>
                       </TableCell>
                       {isOwner && (
                         <TableCell className="text-right whitespace-nowrap">

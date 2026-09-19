@@ -179,6 +179,11 @@ model Application {
   /// src/lib/monitoring/coolify.ts). SENGAJA cuma nama/jenis database yang disimpan — password/
   /// connection string lengkap dari env var TIDAK PERNAH ditulis ke sini atau ke tabel lain.
   databaseInfo          String?   @map("database_info")
+  /// UUID resource Database Coolify yang match dengan databaseInfo di atas — dipakai buat
+  /// cocokkan disk usage database itu (container Coolify buat database di-docker ps nama-nya
+  /// PERSIS uuid ini, beda dari container aplikasi yang perlu label coolify.name). Lihat
+  /// GET /api/monitoring/vps § databaseDiskUsage.
+  databaseUuid          String?   @map("database_uuid")
   /// Query SQL manual (SELECT saja) yang diisi user sendiri, dijalankan ke database aplikasi ini
   /// (connection string diambil sesaat dari env Coolify tiap sync, TIDAK disimpan) — kolom
   /// pertama hasil query dianggap identitas user (email/nama), kolom kedua dianggap timestamp

@@ -79,7 +79,7 @@ export async function runVpsMonitoringRefresh() {
       await prisma.vpsServer.update({
         where: { id: vps.id },
         data: {
-          dockerDiskCache: { dockerDisk: result.dockerDisk, appDiskUsage: result.appDiskUsage ?? [] },
+          dockerDiskCache: { dockerDisk: result.dockerDisk, containers: result.containers ?? [] },
           dockerDiskCheckedAt: new Date(),
         },
       })
