@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
-import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { formatDateTimeId, formatDateOnlyId } from "@/lib/monitoring"
 
 export type DiskInfo = {
@@ -499,102 +498,101 @@ export const VpsServerCard: React.FC<{
             vps.dockerDiskError && <span className="text-xs font-medium text-slate-400">{vps.dockerDiskError}</span>
           )}
 
-          <TableContainer>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Aplikasi</TableHead>
-                  <TableHead>Domain</TableHead>
-                  <TableHead>Git</TableHead>
-                  <TableHead>Database</TableHead>
-                  <TableHead>Terakhir Diakses</TableHead>
-                  <TableHead>Terakhir Backup</TableHead>
-                  <TableHead>Domain Habis</TableHead>
-                  {isOwner && <TableHead className="text-right">Aksi</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vps.applications.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={isOwner ? 8 : 7} className="text-center text-slate-400 text-xs font-semibold py-6">
-                      Belum ada aplikasi terdaftar di VPS ini.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  vps.applications.map((app) => (
-                    <TableRow key={app.id}>
-                      <TableCell className="font-bold">
-                        {app.name}
-                        {app.hasCoolifySync && (
-                          <Badge variant="info" size="sm" className="ml-1.5">
-                            Coolify
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {app.domain ? (
-                          <a
-                            href={`https://${app.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                          >
-                            {app.domain} <ExternalLink className="w-3 h-3" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {app.gitRepository ? (
-                          <a
-                            href={app.gitRepository}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs max-w-[160px] truncate"
-                          >
-                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
-                          </a>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{app.databaseInfo || <span className="text-slate-400">-</span>}</TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">
-                        {formatDateTimeId(app.lastAccessedAt)}
-                        {app.lastAccessedBy && <div className="text-slate-400 font-medium">{app.lastAccessedBy}</div>}
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">
-                        {formatDateTimeId(app.lastBackupAt)}
-                        {app.backupLocation && <div className="text-slate-400 font-medium">{app.backupLocation}</div>}
-                      </TableCell>
-                      <TableCell>
-                        <DomainExpiryBadge iso={app.domainExpiresAt} />
-                      </TableCell>
-                      {isOwner && (
-                        <TableCell className="text-right whitespace-nowrap">
-                          <button
-                            onClick={() => openEditApp(app)}
-                            className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                            aria-label="Edit"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteApp(app)}
-                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            aria-label="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </TableCell>
+          {vps.applications.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-400 text-xs font-semibold">
+              Belum ada aplikasi terdaftar di VPS ini.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {vps.applications.map((app) => (
+                <div key={app.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 flex flex-col gap-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span className="font-black text-slate-900 truncate">{app.name}</span>
+                      {app.hasCoolifySync && (
+                        <Badge variant="info" size="sm">
+                          Coolify
+                        </Badge>
                       )}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    </div>
+                    {isOwner && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => openEditApp(app)}
+                          className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          aria-label="Edit"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteApp(app)}
+                          className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          aria-label="Hapus"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Domain</span>
+                      {app.domain ? (
+                        <a
+                          href={`https://${app.domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold truncate"
+                        >
+                          {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Git</span>
+                      {app.gitRepository ? (
+                        <a
+                          href={app.gitRepository}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold truncate"
+                        >
+                          <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Database</span>
+                      <span className="font-semibold text-slate-700 truncate">{app.databaseInfo || "-"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Diakses</span>
+                      <span className="font-semibold text-slate-700 truncate">
+                        {formatDateTimeId(app.lastAccessedAt)}
+                        {app.lastAccessedBy ? ` · ${app.lastAccessedBy}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Backup</span>
+                      <span className="font-semibold text-slate-700 truncate">
+                        {formatDateTimeId(app.lastBackupAt)}
+                        {app.backupLocation ? ` · ${app.backupLocation}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Domain Habis</span>
+                      <DomainExpiryBadge iso={app.domainExpiresAt} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
