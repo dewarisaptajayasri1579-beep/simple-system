@@ -56,6 +56,7 @@ export type VpsRow = {
   backupLatestAt: string | null
   backupError: string | null
   dockerDisk: DockerDiskEntry[] | null
+  dockerVolumes: { name: string; size: string }[] | null
   dockerDiskCheckedAt: string | null
   applications: AppRow[]
 }
@@ -253,7 +254,7 @@ export const VpsServerCard: React.FC<{
 }> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
-  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 35000)
+  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 50000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
   const [vpsForm, setVpsForm] = useState({
@@ -575,7 +576,7 @@ export const VpsServerCard: React.FC<{
                 <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-blue-600 rounded-full transition-all duration-200" style={{ width: `${dockerDiskProgress}%` }} />
                 </div>
-                <span className="text-[11px] text-slate-400">Biasanya ~25-40 detik, bisa lebih lama kalau image di VPS-nya banyak (dijalankan lewat SSH + sudo).</span>
+                <span className="text-[11px] text-slate-400">Biasanya ~30-60 detik (3 command Docker sekaligus lewat SSH + sudo), bisa lebih lama kalau image/volume di VPS-nya banyak.</span>
               </div>
             ) : vps.dockerDisk ? (
               <div className="flex flex-col gap-3">
@@ -600,6 +601,24 @@ export const VpsServerCard: React.FC<{
                         </span>
                       </div>
                       <span className="pl-[7.5rem] text-[11px] text-slate-500 font-medium">{meta.description}</span>
+                      {d.type === "Local Volumes" && vps.dockerVolumes && vps.dockerVolumes.length > 0 && (
+                        <div className="pl-[7.5rem] mt-1 flex flex-col gap-0.5">
+                          {[...vps.dockerVolumes]
+                            .sort((a, b) => parseDockerSize(b.size) - parseDockerSize(a.size))
+                            .slice(0, 8)
+                            .map((v) => (
+                              <div key={v.name} className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="text-slate-500 font-medium truncate" title={v.name}>
+                                  {v.name}
+                                </span>
+                                <span className="text-slate-700 font-semibold flex-shrink-0">{v.size}</span>
+                              </div>
+                            ))}
+                          {vps.dockerVolumes.length > 8 && (
+                            <span className="text-[11px] text-slate-400">+{vps.dockerVolumes.length - 8} volume lainnya</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

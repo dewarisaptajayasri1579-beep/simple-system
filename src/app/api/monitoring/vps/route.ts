@@ -3,10 +3,14 @@ import { NextResponse } from "next/server"
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry } from "@/lib/monitoring/ssh"
+import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry, type VolumeDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
 
-type DockerDiskCache = { dockerDisk: DockerDiskEntry[] | null; containers: ContainerDiskEntry[] | null }
+type DockerDiskCache = {
+  dockerDisk: DockerDiskEntry[] | null
+  containers: ContainerDiskEntry[] | null
+  volumes: VolumeDiskEntry[] | null
+}
 
 /** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
  *  ~1-2 detik) tiap request, tapi breakdown disk Docker (lambat, ~20-25 detik) dibaca dari CACHE
@@ -48,6 +52,7 @@ export async function GET() {
         backupLatestAt: live.backupLatestAt,
         backupError: live.backupError,
         dockerDisk: cache?.dockerDisk ?? null,
+        dockerVolumes: cache?.volumes ?? null,
         dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined

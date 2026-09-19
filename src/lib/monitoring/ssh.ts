@@ -139,10 +139,16 @@ export type VpsLiveCheck = {
   backupError: string | null
 }
 
+export type VolumeDiskEntry = {
+  name: string
+  size: string
+}
+
 export type VpsDockerDiskCheck = {
   dockerDisk: DockerDiskEntry[] | null
   dockerDiskError: string | null
   containers: ContainerDiskEntry[] | null
+  volumes: VolumeDiskEntry[] | null
 }
 
 const DELIM = "___SPLIT___"
@@ -185,6 +191,24 @@ function parseDockerPsLine(line: string): ContainerDiskEntry | null {
       size: sizeMatch?.[1]?.trim() ?? obj.Size ?? "-",
       virtualSize: sizeMatch?.[2]?.trim() ?? "-",
     }
+  } catch {
+    return null
+  }
+}
+
+/** `docker system df -v --format json` (beda dari `docker system df --format json` biasa) balikin
+ *  1 objek JSON tunggal berisi 4 array: Images, Containers, Volumes, BuildCache — dipanggil
+ *  KHUSUS buat ambil breakdown per-volume (`.Volumes`), yang tidak ada di command lain. Ini yang
+ *  ngungkap kasus nyata: volume `buildx_buildkit_*` (cache build BuildKit, BUKAN data aplikasi)
+ *  bisa numpuk puluhan GB tanpa kelihatan sama sekali kalau cuma lihat angka agregat "Local
+ *  Volumes" — makanya breakdown ini penting, bukan sekadar nice-to-have. */
+function parseDockerVolumes(raw: string): VolumeDiskEntry[] | null {
+  try {
+    const obj = JSON.parse(raw.trim()) as { Volumes?: Array<{ Name?: string; Size?: string }> }
+    const volumes = (obj.Volumes ?? [])
+      .filter((v): v is { Name: string; Size: string } => Boolean(v.Name && v.Size))
+      .map((v) => ({ name: v.Name, size: v.Size }))
+    return volumes.length > 0 ? volumes : null
   } catch {
     return null
   }
@@ -246,26 +270,28 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
 }
 
 /** 1 koneksi SSH per VPS khusus buat breakdown disk Docker (image/container/volume/build cache +
- *  disk per aplikasi) — LAMBAT dan VARIATIF (dites di VPS Dewari antara ~24-40+ detik, makin
- *  banyak image numpuk makin lama), makanya TIDAK dipanggil live tiap load halaman. Hasilnya
- *  di-cache di `VpsServer.dockerDiskCache` (lihat POST /api/monitoring/vps/[id]/docker-disk dan
- *  cron di src/lib/cron/vps-monitoring.ts). Timeout dikasih longgar (60 detik) karena variasinya
- *  lumayan besar — lebih baik nunggu agak lama daripada gagal padahal cuma kurang beberapa detik. */
+ *  disk per aplikasi/database + per-volume) — LAMBAT dan VARIATIF (dites di VPS Dewari antara
+ *  ~25-70+ detik tergantung berapa banyak yang harus dihitung ulang), makanya TIDAK dipanggil live
+ *  tiap load halaman. Hasilnya di-cache di `VpsServer.dockerDiskCache` (lihat
+ *  POST /api/monitoring/vps/[id]/docker-disk dan cron di src/lib/cron/vps-monitoring.ts). Timeout
+ *  dikasih longgar (90 detik) karena variasinya lumayan besar — lebih baik nunggu agak lama
+ *  daripada gagal padahal cuma kurang beberapa detik. */
 export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerDiskCheck> {
   const creds = vpsSshCreds(vps)
   const dockerDfCmd = sudoWrap(creds.password, `docker system df --format '{{json .}}' 2>/dev/null`)
   const dockerPsCmd = sudoWrap(creds.password, `docker ps -a -s --format '{{json .}}' 2>/dev/null`)
-  const script = [dockerDfCmd, `echo "${DELIM}"`, dockerPsCmd].join("\n")
+  const dockerDfVerboseCmd = sudoWrap(creds.password, `docker system df -v --format '{{json .}}' 2>/dev/null`)
+  const script = [dockerDfCmd, `echo "${DELIM}"`, dockerPsCmd, `echo "${DELIM}"`, dockerDfVerboseCmd].join("\n")
 
   let stdout: string
   try {
-    stdout = await sshExec(creds, script, 60000)
+    stdout = await sshExec(creds, script, 90000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
-    return { dockerDisk: null, dockerDiskError: message, containers: null }
+    return { dockerDisk: null, dockerDiskError: message, containers: null, volumes: null }
   }
 
-  const [dockerPart = "", psPart = ""] = stdout.split(DELIM)
+  const [dockerPart = "", psPart = "", dfVerbosePart = ""] = stdout.split(DELIM)
 
   const dockerEntries = dockerPart
     .trim()
@@ -282,5 +308,7 @@ export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerD
     .filter((e): e is ContainerDiskEntry => e !== null)
   const containers = containerEntries.length > 0 ? containerEntries : null
 
-  return { dockerDisk, dockerDiskError, containers }
+  const volumes = parseDockerVolumes(dfVerbosePart)
+
+  return { dockerDisk, dockerDiskError, containers, volumes }
 }
