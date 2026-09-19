@@ -79,7 +79,15 @@ Card kedua dan seterusnya di list `/monitoring` (setelah card "Server Ini" yang 
 - 1 koneksi SSH per VPS (pakai `ssh2`, sudah jadi dependency) tiap kali halaman `/monitoring` di-load/refresh — jalankan `df -kP <diskPath>` buat disk usage, dan kalau `backupCheckPath` diisi, `ls -t` + `stat -c %Y` buat file terbaru di folder itu (dianggap proxy backup terakhir VPS itu). Diasumsikan VPS remote Linux (beda dari cek disk lokal yang portabel ke macOS untuk dev).
 - Best-effort: kalau SSH gagal connect (kredensial salah, firewall, dst), kartu VPS itu nampilin error tapi tidak bikin VPS lain gagal (`Promise.all` per VPS).
 
-### 6.3 Aplikasi — git repo & domain (auto-sync dari Coolify API)
+### 6.3 Disk Docker (breakdown Images/Containers/Volumes/Build Cache + "sampah")
+
+- **File:** [`src/lib/monitoring/ssh.ts`](../src/lib/monitoring/ssh.ts), fungsi `parseDockerDfLine()` + `sudoWrap()`, digabung ke koneksi SSH yang sama dengan bagian 6.2 (cuma nambah 1 command lagi, bukan koneksi baru).
+- Jalankan `docker system df --format '{{json .}}'` — balikin 4 baris JSON (Images, Containers, Local Volumes, Build Cache), tiap baris punya `Size` (total dipakai) dan `Reclaimable` (berapa banyak yang aman dihapus, biasanya dari image lama/dangling hasil deploy berkali-kali — bukan dari Volumes yang isinya data asli kayak database).
+- **Butuh akses root ke Docker** — user SSH biasa (non-root) TIDAK punya akses ke `docker.sock`. Daripada minta user ubah keanggotaan grup di VPS-nya, command ini dibungkus `sudo -S` dengan password SSH yang sama di-pipe otomatis (`sudoWrap()`) — asumsi password sudo == password SSH (umum buat 1 akun admin). Kalau VPS pakai private-key-only (tidak ada password) atau password sudo beda, ini gagal diam-diam (`dockerDiskError`, tidak bikin disk check lain ikut gagal).
+- Ditampilkan di UI sebagai 4 kotak kecil (Images/Containers/Volumes/Build Cache) di bawah bar Disk Space tiap kartu VPS — kotak yang ada "sampah" (`Reclaimable` > 0%) dikasih label kuning.
+- **Belum ada tombol hapus otomatis** dari sini (sengaja, karena destructive) — Coolify sendiri sebenarnya sudah punya auto-cleanup bawaan (lihat setting `docker_cleanup_threshold`/`docker_cleanup_frequency` di server settings-nya, defaultnya cuma jalan kalau disk usage > 80%), jadi kalau butuh bersih-bersih manual sebelum itu, masih perlu `docker image prune -af` manual lewat SSH langsung.
+
+### 6.4 Aplikasi — git repo & domain (auto-sync dari Coolify API)
 
 - **File:** [`src/lib/monitoring/coolify.ts`](../src/lib/monitoring/coolify.ts).
 - Kalau `VpsServer.coolifyApiUrl`+`coolifyApiToken` diisi, tombol "Sync dari Coolify" (atau cron harian) manggil `GET {coolifyApiUrl}/applications` — API resmi Coolify yang balikin `git_repository`, `git_branch`, `domains` per aplikasi. URL di-normalisasi otomatis (`normalizeCoolifyApiUrl()`) — user boleh isi domain root Coolify tanpa tahu harus diakhiri `/api/v1`, ditambahkan otomatis kalau belum ada. Field ini di-upsert ke `Application` (match by `coolifyUuid`), **field manual** (`backupLocation`, `notes`, `lastBackupAt`, `domainExpiresAt` override) **tidak pernah ditimpa** oleh sync.
@@ -88,20 +96,20 @@ Card kedua dan seterusnya di list `/monitoring` (setelah card "Server Ini" yang 
   - **Butuh permission token `read:sensitive`** (selain `read`) — tanpa itu, Coolify tidak mengirim field `value`/`real_value` env sama sekali (bukan disensor, memang tidak ada di response), jadi `databaseInfo` akan tetap kosong. Ini konsekuensi keamanan yang harus disadari user: token dengan `read:sensitive` bisa melihat semua secret/password di semua aplikasi Coolify itu, bukan cuma connection string DB.
   - Best-effort penuh di tiap tahap (fetch `/databases` gagal, fetch envs 1 aplikasi gagal, tidak ketemu match) — tidak menggagalkan sync aplikasi lain, dan tidak menghapus `databaseInfo` yang sudah pernah berhasil ke-set sebelumnya kalau sync berikutnya gagal cocok.
 
-### 6.4 Domain habis (expiry) — RDAP, best-effort
+### 6.5 Domain habis (expiry) — RDAP, best-effort
 
 - **File:** [`src/lib/monitoring/rdap.ts`](../src/lib/monitoring/rdap.ts).
 - Tiap domain aplikasi di-lookup ke `https://rdap.org/domain/<domain>` (RDAP, pengganti WHOIS, gratis tanpa API key) buat cari event `expiration`. Ada heuristik kecil (bukan Public Suffix List penuh) buat ambil "registrable domain" dari FQDN (mis. `app.contoh.co.id` → `contoh.co.id`) supaya lookup-nya benar untuk domain `.co.id` dkk.
 - **Tidak semua TLD/ccTLD support RDAP** — kalau lookup gagal/kosong, field `domainExpiresAt` tetap kosong dan bisa diisi **manual** lewat form Edit Aplikasi (override, tidak akan ditimpa cron kalau sudah diisi manual... catatan: saat ini cron TETAP menimpa kalau RDAP berhasil dapat tanggal baru — kalau butuh override permanen yang tidak pernah disentuh cron, isi manual lalu jangan expect RDAP re-check lain menimpanya kecuali RDAP juga berhasil dapat tanggal).
 
-### 6.5 Terakhir diakses — 2 sumber, query database (akurat) lebih diutamakan dari log Traefik (tebakan)
+### 6.6 Terakhir diakses — 2 sumber, query database (akurat) lebih diutamakan dari log Traefik (tebakan)
 
 Ada 2 cara field `lastAccessedAt` (+ `lastAccessedBy`) bisa keisi, **query database kalau ada, kalau tidak baru fallback ke log Traefik**:
 
 **A. Query manual ke database aplikasi (`Application.activityQuery`) — akurat, tahu siapa user-nya**
 - Field ini diisi **manual** oleh user lewat form Edit Aplikasi — SQL bebas asal diawali `SELECT`, kolom pertama hasil query dianggap identitas user (email/nama), kolom kedua dianggap timestamp. Contoh: `SELECT email, last_login_at FROM users ORDER BY last_login_at DESC LIMIT 1`.
-- Dijalankan di [`src/lib/monitoring/coolify.ts`](../src/lib/monitoring/coolify.ts) fungsi `runActivityQuery()`, **cuma waktu sync Coolify jalan** (tombol "Sync dari Coolify" / cron / "Sync & Cek Sekarang") — bukan tiap load halaman. Connection string diambil sesaat dari env `*_DATABASE_URL` aplikasi itu (sama proses yang dipakai buat `databaseInfo`, lihat bagian 6.3) — **tidak pernah disimpan**, cuma dipakai connect sesaat lalu dibuang.
-- Prasyarat: `databaseInfo` aplikasi itu harus berhasil ke-match dulu (butuh token Coolify dengan `read:sensitive`, lihat bagian 6.3) — kalau tidak ada `DATABASE_URL` yang kebaca, query ini tidak akan pernah jalan.
+- Dijalankan di [`src/lib/monitoring/coolify.ts`](../src/lib/monitoring/coolify.ts) fungsi `runActivityQuery()`, **cuma waktu sync Coolify jalan** (tombol "Sync dari Coolify" / cron / "Sync & Cek Sekarang") — bukan tiap load halaman. Connection string diambil sesaat dari env `*_DATABASE_URL` aplikasi itu (sama proses yang dipakai buat `databaseInfo`, lihat bagian 6.4) — **tidak pernah disimpan**, cuma dipakai connect sesaat lalu dibuang.
+- Prasyarat: `databaseInfo` aplikasi itu harus berhasil ke-match dulu (butuh token Coolify dengan `read:sensitive`, lihat bagian 6.4) — kalau tidak ada `DATABASE_URL` yang kebaca, query ini tidak akan pernah jalan.
 - Hasil dari sumber ini **diprioritaskan** — cron `vps-monitoring` (lihat 6.6) sengaja SKIP update dari log Traefik untuk aplikasi yang punya `activityQuery` terisi, supaya tidak ditimpa tebakan yang kurang akurat.
 
 **B. Log akses Traefik (fallback generik, cuma tahu "ada request", bukan siapa)**
@@ -110,19 +118,19 @@ Ada 2 cara field `lastAccessedAt` (+ `lastAccessedBy`) bisa keisi, **query datab
 - **Butuh user SSH itu jadi anggota grup `docker` di VPS** (`sudo usermod -aG docker <user>`) — tanpa itu `docker logs` gagal "permission denied", best-effort jadi diam-diam tidak keisi.
 - **Asumsi/keterbatasan:** kalau access log Traefik di VPS itu tidak aktif (default Coolify mungkin tidak selalu nyalakan access log), field ini akan tetap kosong — bukan bug, memang tidak ada sumber datanya. `lastAccessedBy` selalu kosong dari sumber ini (Traefik cuma tahu domain yang diminta, bukan identitas user).
 
-### 6.6 Cron harian & trigger manual
+### 6.7 Cron harian & trigger manual
 
 - **File:** [`src/lib/cron/vps-monitoring.ts`](../src/lib/cron/vps-monitoring.ts), didaftarkan di [`instrumentation.ts`](../instrumentation.ts) jam **03:00 WIB**.
 - Urutan: sync Coolify tiap VPS yang ada kredensialnya → kumpulkan semua domain unik → RDAP lookup paralel → per VPS, 1x cek log Traefik buat semua aplikasi di VPS itu sekaligus (bukan per-aplikasi, hindari banyak koneksi SSH).
 - Trigger manual: tombol "Sync & Cek Sekarang" di header halaman (`POST /api/monitoring/vps/refresh-checks`, owner-only) — jalanin fungsi yang sama on-demand.
 
-### 6.7 IP publik "Server Ini"
+### 6.8 IP publik "Server Ini"
 
 - **File:** [`src/app/api/monitoring/disk/route.ts`](../src/app/api/monitoring/disk/route.ts), fungsi `getPublicIp()`.
 - Tidak ada cara baca IP publik VPS dari dalam proses Node (container Coolify biasanya di belakang NAT — IP internal beda dari IP publik VPS-nya), jadi dicek lewat `https://api.ipify.org?format=json`. Best-effort: gagal fetch (mis. offline) cuma bikin header card "Server Ini" nampilin "IP tidak diketahui", tidak menggagalkan disk check.
 - Response `GET /api/monitoring/disk` sekarang bentuknya `{ disk, diskError, ip, ipError }` (sebelumnya field disk flat langsung di root) — cuma dipakai internal oleh `MonitoringDashboard.tsx`, tidak ada konsumer lain.
 
-### 6.8 Peta cepat
+### 6.9 Peta cepat
 
 | Bagian | API Route | Lib |
 |---|---|---|

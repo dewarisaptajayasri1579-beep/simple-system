@@ -52,7 +52,18 @@ export type VpsRow = {
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
+  dockerDisk: DockerDiskEntry[] | null
+  dockerDiskError: string | null
   applications: AppRow[]
+}
+
+export type DockerDiskEntry = {
+  type: string
+  totalCount: number
+  active: number
+  size: string
+  reclaimable: string
+  reclaimablePct: number
 }
 
 const emptyAppForm = {
@@ -374,6 +385,29 @@ export const VpsServerCard: React.FC<{
               )}
             </div>
           </div>
+
+          {vps.dockerDisk ? (
+            <div className="flex flex-col gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <HardDrive className="w-3.5 h-3.5" /> Disk Docker (breakdown)
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {vps.dockerDisk.map((d) => (
+                  <div key={d.type} className="rounded-xl border border-slate-200/80 bg-white/60 px-3 py-2">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase truncate">{d.type}</div>
+                    <div className="text-sm font-black text-slate-800">{d.size}</div>
+                    {d.reclaimablePct > 0 ? (
+                      <div className="text-[11px] font-semibold text-amber-600">{d.reclaimable} sampah</div>
+                    ) : (
+                      <div className="text-[11px] font-medium text-slate-400">Tidak ada sampah</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            vps.dockerDiskError && <span className="text-xs font-medium text-slate-400">{vps.dockerDiskError}</span>
+          )}
 
           <TableContainer>
             <Table>

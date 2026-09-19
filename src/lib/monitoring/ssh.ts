@@ -39,6 +39,16 @@ export function shQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** User SSH biasa (non-root) umumnya TIDAK punya akses langsung ke docker.sock (perlu masuk grup
+ *  `docker`) — daripada minta user ubah konfigurasi VPS-nya, pipe password SSH yang sama ke
+ *  `sudo -S` (baca password dari stdin, `-p ''` supaya tidak nambah teks prompt di stdout/stderr).
+ *  Cuma bisa dipakai kalau auth-nya pakai password (bukan private-key-only) — tanpa password,
+ *  balikin command apa adanya (asumsi ada NOPASSWD sudoers, best-effort). */
+export function sudoWrap(password: string | null | undefined, command: string): string {
+  if (!password) return `sudo ${command}`
+  return `echo ${shQuote(password)} | sudo -S -p '' ${command}`
+}
+
 /** Buka 1 koneksi SSH, jalankan 1 command (bisa multi-baris/gabungan), kembalikan stdout.
  *  Reject kalau connect gagal atau timeout. Dipakai untuk semua cek VPS remote (disk, backup,
  *  log akses Traefik) — SATU koneksi per pemanggilan supaya tidak buka-tutup SSH berkali-kali. */
@@ -100,26 +110,58 @@ export function sshExec(creds: SshCreds, command: string, timeoutMs = 10000): Pr
   })
 }
 
+export type DockerDiskEntry = {
+  type: string
+  totalCount: number
+  active: number
+  size: string
+  reclaimable: string
+  reclaimablePct: number
+}
+
 export type VpsLiveCheck = {
   disk: DiskUsage | null
   diskError: string | null
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
+  dockerDisk: DockerDiskEntry[] | null
+  dockerDiskError: string | null
 }
 
 const DELIM = "___SPLIT___"
 
+function parseDockerDfLine(line: string): DockerDiskEntry | null {
+  try {
+    const obj = JSON.parse(line) as Record<string, string>
+    if (!obj.Type) return null
+    const pctMatch = obj.Reclaimable?.match(/\(([\d.]+)%\)/)
+    return {
+      type: obj.Type,
+      totalCount: Number(obj.TotalCount) || 0,
+      active: Number(obj.Active) || 0,
+      size: obj.Size ?? "-",
+      reclaimable: obj.Reclaimable ?? "-",
+      reclaimablePct: pctMatch ? Number(pctMatch[1]) : 0,
+    }
+  } catch {
+    return null
+  }
+}
+
 export type VpsLiveCheckInput = VpsSshLike & { diskPath: string; backupCheckPath: string | null }
 
 /** 1 koneksi SSH per VPS untuk disk usage + (kalau backupCheckPath diisi) file terbaru di folder
- *  backup itu — digabung jadi 1 command supaya cuma 1 round-trip SSH, bukan 2. Diasumsikan VPS
- *  remote jalan Linux (Coolify jalan di Linux) jadi aman pakai `stat -c` (GNU), beda dari cek
- *  disk lokal (src/app/api/monitoring/disk/route.ts) yang perlu portabel ke macOS untuk dev. */
+ *  backup itu + breakdown disk Docker (image/container/volume/build cache, lihat
+ *  docs/monitoring-server.md § disk Docker) — digabung jadi 1 command supaya cuma 1 round-trip
+ *  SSH, bukan 3. Diasumsikan VPS remote Linux (Coolify jalan di Linux) jadi aman pakai `stat -c`
+ *  (GNU), beda dari cek disk lokal (src/app/api/monitoring/disk/route.ts) yang perlu portabel ke
+ *  macOS untuk dev. */
 export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLiveCheck> {
   const creds = vpsSshCreds(vps)
   const diskPathQ = shQuote(vps.diskPath || "/")
   const backupPathQ = vps.backupCheckPath ? shQuote(vps.backupCheckPath) : null
+  const dockerCmd = sudoWrap(creds.password, `docker system df --format '{{json .}}' 2>/dev/null`)
 
   const script = [
     `df -kP ${diskPathQ} | tail -1`,
@@ -127,17 +169,27 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     backupPathQ
       ? `f=$(ls -t ${backupPathQ} 2>/dev/null | head -1); if [ -n "$f" ]; then echo "$f"; stat -c %Y ${backupPathQ}/"$f" 2>/dev/null; fi`
       : "",
+    `echo "${DELIM}"`,
+    dockerCmd,
   ].join("\n")
 
   let stdout: string
   try {
-    stdout = await sshExec(creds, script, 10000)
+    stdout = await sshExec(creds, script, 15000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
-    return { disk: null, diskError: message, backupLatestFile: null, backupLatestAt: null, backupError: vps.backupCheckPath ? message : null }
+    return {
+      disk: null,
+      diskError: message,
+      backupLatestFile: null,
+      backupLatestAt: null,
+      backupError: vps.backupCheckPath ? message : null,
+      dockerDisk: null,
+      dockerDiskError: message,
+    }
   }
 
-  const [diskPart, backupPart = ""] = stdout.split(DELIM)
+  const [diskPart, backupPart = "", dockerPart = ""] = stdout.split(DELIM)
 
   let disk: DiskUsage | null = null
   let diskError: string | null = null
@@ -161,5 +213,13 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     }
   }
 
-  return { disk, diskError, backupLatestFile, backupLatestAt, backupError }
+  const dockerEntries = dockerPart
+    .trim()
+    .split("\n")
+    .map(parseDockerDfLine)
+    .filter((e): e is DockerDiskEntry => e !== null)
+  const dockerDisk = dockerEntries.length > 0 ? dockerEntries : null
+  const dockerDiskError = dockerDisk ? null : "Gagal membaca disk usage Docker (perlu akses sudo/docker di VPS)"
+
+  return { disk, diskError, backupLatestFile, backupLatestAt, backupError, dockerDisk, dockerDiskError }
 }

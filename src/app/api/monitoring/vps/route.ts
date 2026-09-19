@@ -40,6 +40,8 @@ export async function GET() {
         backupLatestFile: live.backupLatestFile,
         backupLatestAt: live.backupLatestAt,
         backupError: live.backupError,
+        dockerDisk: live.dockerDisk,
+        dockerDiskError: live.dockerDiskError,
         applications: vps.applications.map((app) => ({
           id: app.id,
           name: app.name,
