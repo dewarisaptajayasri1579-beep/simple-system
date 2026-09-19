@@ -203,23 +203,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
             value={vpsForm.proxyContainerName}
             onChange={(e) => setVpsForm({ ...vpsForm, proxyContainerName: e.target.value })}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Coolify API URL (opsional)"
-              placeholder="https://coolify.contoh.com/api/v1"
-              value={vpsForm.coolifyApiUrl}
-              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiUrl: e.target.value })}
-            />
-            <Input
-              label="Coolify API Token (opsional)"
-              isPassword
-              autoComplete="new-password"
-              value={vpsForm.coolifyApiToken}
-              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
-            />
-          </div>
-
-          <Alert variant="info" title="Yang perlu disetting manual di Coolify (kalau isi API URL/Token)">
+          <Alert variant="info" title="Yang perlu disetting manual di Coolify (kalau isi API URL/Token di bawah)">
             <ul className="list-disc pl-4 flex flex-col gap-2">
               <li>
                 <b>Token API</b>: generate di Coolify VPS ini → <b>Keys &amp; Tokens</b>, centang ability <code>read</code> + <code>read:sensitive</code> +{" "}
@@ -239,6 +223,22 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               Storage + jadwal backup harian (21:00) ke bucket R2 yang sama, cek expiry domain, breakdown disk Docker.
             </p>
           </Alert>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Coolify API URL (opsional)"
+              placeholder="https://coolify.contoh.com/api/v1"
+              value={vpsForm.coolifyApiUrl}
+              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiUrl: e.target.value })}
+            />
+            <Input
+              label="Coolify API Token (opsional)"
+              isPassword
+              autoComplete="new-password"
+              value={vpsForm.coolifyApiToken}
+              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
+            />
+          </div>
         </div>
       </Modal>
     </div>
