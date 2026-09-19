@@ -92,6 +92,50 @@ function DomainExpiryBadge({ iso }: { iso: string | null }) {
   return <Badge variant={variant}>{label}</Badge>
 }
 
+/** Docker format size-nya kayak "23.86GB"/"28.91MB"/"0B" — asumsi 1024-based (sama kayak
+ *  disk.totalBytes/usedBytes dari `df`, biar proporsinya konsisten dipetakan ke bar yang sama). */
+function parseDockerSize(raw: string | undefined): number {
+  if (!raw) return 0
+  const m = raw.trim().match(/^([\d.]+)\s*([A-Za-z]+)/)
+  if (!m) return 0
+  const mult: Record<string, number> = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
+  return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1)
+}
+
+/** Bar Disk Space bertingkat warna — biru = Local Volumes (data asli, database dll), oranye =
+ *  bagian Images yang reclaimable ("sampah" hasil deploy berkali-kali), abu-abu = sisa terpakai
+ *  yang tidak masuk 2 kategori itu (OS, image aktif, container, build cache). Fallback ke bar
+ *  1 warna biasa kalau dockerDisk belum ada (mis. gagal sudo/docker). */
+function DiskUsageBar({ disk, dockerDisk }: { disk: DiskInfo; dockerDisk: DockerDiskEntry[] | null }) {
+  const volumes = dockerDisk?.find((d) => d.type === "Local Volumes")
+  const images = dockerDisk?.find((d) => d.type === "Images")
+
+  if (!dockerDisk || !disk.totalBytes) {
+    return (
+      <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${disk.usedPct >= 90 ? "bg-rose-500" : disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+          style={{ width: `${Math.min(disk.usedPct, 100)}%` }}
+        />
+      </div>
+    )
+  }
+
+  const volumesBytes = parseDockerSize(volumes?.size)
+  const reclaimableImageBytes = parseDockerSize(images?.reclaimable)
+  const volumesPct = Math.min((volumesBytes / disk.totalBytes) * 100, disk.usedPct)
+  const reclaimablePct = Math.min((reclaimableImageBytes / disk.totalBytes) * 100, Math.max(disk.usedPct - volumesPct, 0))
+  const otherPct = Math.max(disk.usedPct - volumesPct - reclaimablePct, 0)
+
+  return (
+    <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden flex">
+      <div className="h-full bg-blue-600" style={{ width: `${volumesPct}%` }} title={`Local Volumes: ${volumes?.size ?? "-"}`} />
+      <div className="h-full bg-amber-500" style={{ width: `${reclaimablePct}%` }} title={`Images reclaimable: ${images?.reclaimable ?? "-"}`} />
+      <div className="h-full bg-slate-400" style={{ width: `${otherPct}%` }} title="Terpakai lainnya (OS, image aktif, container, dll)" />
+    </div>
+  )
+}
+
 export function DiskMiniBar({ disk, diskError }: { disk: DiskInfo | null; diskError: string | null }) {
   if (diskError) return <span className="text-[11px] font-semibold text-rose-600">Disk error</span>
   if (!disk) return null
@@ -346,14 +390,16 @@ export const VpsServerCard: React.FC<{
                 <span className="text-xs font-semibold text-rose-600">{vps.diskError}</span>
               ) : vps.disk ? (
                 <div className="flex flex-col gap-1.5">
-                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${vps.disk.usedPct >= 90 ? "bg-rose-500" : vps.disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
-                      style={{ width: `${Math.min(vps.disk.usedPct, 100)}%` }}
-                    />
-                  </div>
+                  <DiskUsageBar disk={vps.disk} dockerDisk={vps.dockerDisk} />
                   <span className="text-xs font-semibold text-slate-700">
                     {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
+                    {vps.dockerDisk && (
+                      <span className="ml-2 font-medium text-slate-500">
+                        <span className="text-blue-600 font-bold">■</span> Volumes ·{" "}
+                        <span className="text-amber-600 font-bold">■</span> Sampah image ·{" "}
+                        <span className="text-slate-400 font-bold">■</span> Lainnya
+                      </span>
+                    )}
                   </span>
                 </div>
               ) : null}
@@ -391,16 +437,24 @@ export const VpsServerCard: React.FC<{
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <HardDrive className="w-3.5 h-3.5" /> Disk Docker (breakdown)
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="flex flex-col gap-2">
                 {vps.dockerDisk.map((d) => (
-                  <div key={d.type} className="rounded-xl border border-slate-200/80 bg-white/60 px-3 py-2">
-                    <div className="text-[11px] font-bold text-slate-500 uppercase truncate">{d.type}</div>
-                    <div className="text-sm font-black text-slate-800">{d.size}</div>
-                    {d.reclaimablePct > 0 ? (
-                      <div className="text-[11px] font-semibold text-amber-600">{d.reclaimable} sampah</div>
-                    ) : (
-                      <div className="text-[11px] font-medium text-slate-400">Tidak ada sampah</div>
-                    )}
+                  <div key={d.type} className="flex items-center gap-3">
+                    <span className="w-24 flex-shrink-0 text-xs font-bold text-slate-600">{d.type}</span>
+                    <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${d.reclaimablePct > 0 ? "bg-amber-500" : "bg-slate-300"}`}
+                        style={{ width: `${d.reclaimablePct > 0 ? Math.max(d.reclaimablePct, 4) : 0}%` }}
+                      />
+                    </div>
+                    <span className="flex-shrink-0 text-xs font-semibold text-slate-700 text-right">
+                      {d.size}
+                      {d.reclaimablePct > 0 ? (
+                        <span className="text-amber-600"> · {d.reclaimable} sampah</span>
+                      ) : (
+                        <span className="text-slate-400"> · tidak ada sampah</span>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
