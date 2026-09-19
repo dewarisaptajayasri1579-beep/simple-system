@@ -65,7 +65,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       0,
     )
     const buildxReclaimed = buildxReclaimedBytes > 0 ? formatBytes(buildxReclaimedBytes) : null
-    return NextResponse.json({ ok: true, systemReclaimed, buildxReclaimed })
+    // Sementara ikut dikirim buat debug kalau buildxReclaimed kosong tapi volume cache-nya
+    // masih gede — biar kelihatan builder mana yang ke-loop & error asli dari `docker buildx
+    // prune`, tanpa perlu akses SSH manual ke VPS.
+    return NextResponse.json({ ok: true, systemReclaimed, buildxReclaimed, buildxOutput: buildxPart.trim().slice(0, 4000) })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Gagal jalankan cleanup" }, { status: 502 })
   }

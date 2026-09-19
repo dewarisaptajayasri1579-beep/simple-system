@@ -407,7 +407,8 @@ export const VpsServerCard: React.FC<{
         alert(data?.error || "Gagal jalankan cleanup")
         return
       }
-      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${data.buildxReclaimed || "0B"}`)
+      const debugOutput = !data.buildxReclaimed && data.buildxOutput ? `\n\n--- detail cache build (debug) ---\n${data.buildxOutput}` : ""
+      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${data.buildxReclaimed || "0B"}${debugOutput}`)
       await handleCheckDockerDisk()
     } finally {
       setPruning(false)
