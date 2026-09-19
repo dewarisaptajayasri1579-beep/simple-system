@@ -255,7 +255,7 @@ export const VpsServerCard: React.FC<{
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
-  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 50000)
+  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 70000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
   const [vpsForm, setVpsForm] = useState({
@@ -605,7 +605,7 @@ export const VpsServerCard: React.FC<{
                 <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full bg-blue-600 rounded-full transition-all duration-200" style={{ width: `${dockerDiskProgress}%` }} />
                 </div>
-                <span className="text-[11px] text-slate-400">Biasanya ~30-60 detik (3 command Docker sekaligus lewat SSH + sudo), bisa lebih lama kalau image/volume di VPS-nya banyak.</span>
+                <span className="text-[11px] text-slate-400">Bisa ~30-90 detik (3 command Docker sekaligus lewat SSH + sudo), tergantung beban Docker daemon & jumlah image/volume di VPS-nya.</span>
               </div>
             ) : vps.dockerDisk ? (
               <div className="flex flex-col gap-3">

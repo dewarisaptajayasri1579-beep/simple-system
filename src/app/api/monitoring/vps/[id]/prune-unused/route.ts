@@ -29,7 +29,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   ].join("\n")
 
   try {
-    const output = await sshExec(creds, script, 90000)
+    // Hapus data puluhan GB (cache BuildKit) beneran makan waktu I/O disk — dikasih 150 detik
+    // biar tidak keburu timeout kalau yang dihapus banyak.
+    const output = await sshExec(creds, script, 150000)
     const [systemPart = "", buildxPart = ""] = output.split(DELIM)
     const systemReclaimed = systemPart.match(/Total reclaimed space:\s*([\d.]+\s*[A-Za-z]+)/i)?.[1] ?? null
     const buildxReclaimed = buildxPart.match(/Total:\s*([\d.]+\s*[A-Za-z]+)/i)?.[1] ?? null

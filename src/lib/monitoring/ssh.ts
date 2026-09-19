@@ -270,12 +270,13 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
 }
 
 /** 1 koneksi SSH per VPS khusus buat breakdown disk Docker (image/container/volume/build cache +
- *  disk per aplikasi/database + per-volume) — LAMBAT dan VARIATIF (dites di VPS Dewari antara
- *  ~25-70+ detik tergantung berapa banyak yang harus dihitung ulang), makanya TIDAK dipanggil live
- *  tiap load halaman. Hasilnya di-cache di `VpsServer.dockerDiskCache` (lihat
+ *  disk per aplikasi/database + per-volume) — LAMBAT dan SANGAT VARIATIF (dites di VPS Dewari
+ *  antara ~25-90+ detik tergantung berapa banyak yang harus dihitung ulang & beban Docker daemon
+ *  saat itu — pernah mepet ke 78 detik, jadi timeout 90 detik kurang aman), makanya TIDAK dipanggil
+ *  live tiap load halaman. Hasilnya di-cache di `VpsServer.dockerDiskCache` (lihat
  *  POST /api/monitoring/vps/[id]/docker-disk dan cron di src/lib/cron/vps-monitoring.ts). Timeout
- *  dikasih longgar (90 detik) karena variasinya lumayan besar — lebih baik nunggu agak lama
- *  daripada gagal padahal cuma kurang beberapa detik. */
+ *  dikasih longgar (150 detik) — lebih baik nunggu lama daripada gagal padahal cuma kurang
+ *  beberapa detik. */
 export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerDiskCheck> {
   const creds = vpsSshCreds(vps)
   const dockerDfCmd = sudoWrap(creds.password, `docker system df --format '{{json .}}' 2>/dev/null`)
@@ -285,7 +286,7 @@ export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerD
 
   let stdout: string
   try {
-    stdout = await sshExec(creds, script, 90000)
+    stdout = await sshExec(creds, script, 150000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
     return { dockerDisk: null, dockerDiskError: message, containers: null, volumes: null }
