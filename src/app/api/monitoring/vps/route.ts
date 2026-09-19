@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
 import { getVpsDiskAndBackup } from "@/lib/monitoring/ssh"
@@ -95,13 +96,13 @@ export async function POST(request: Request) {
       host,
       sshUser,
       sshPort,
-      sshPassword: sshPassword || null,
-      sshPrivateKey: sshPrivateKey || null,
+      sshPassword: sshPassword ? encryptSecret(sshPassword) : null,
+      sshPrivateKey: sshPrivateKey ? encryptSecret(sshPrivateKey) : null,
       diskPath,
       backupCheckPath: backupCheckPath || null,
       proxyContainerName,
       coolifyApiUrl: coolifyApiUrl || null,
-      coolifyApiToken: coolifyApiToken || null,
+      coolifyApiToken: coolifyApiToken ? encryptSecret(coolifyApiToken) : null,
       createdById: user.id,
     },
     select: { id: true, name: true, createdAt: true },

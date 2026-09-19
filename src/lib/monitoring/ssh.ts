@@ -1,5 +1,6 @@
 import { Client } from "ssh2"
 
+import { decryptSecret } from "@/lib/crypto"
 import { parseDfLine, type DiskUsage } from "@/lib/monitoring"
 
 export type SshCreds = {
@@ -18,8 +19,17 @@ export type VpsSshLike = {
   sshPrivateKey: string | null
 }
 
+/** Dekripsi password/private key di sini — satu titik pakai buat semua cek VPS remote (disk,
+ *  backup, log Traefik) — lihat src/lib/crypto.ts. Fallback aman kalau data lama masih plaintext
+ *  (sebelum enkripsi ini ada): decryptSecret balikin apa adanya. */
 export function vpsSshCreds(vps: VpsSshLike): SshCreds {
-  return { host: vps.host, port: vps.sshPort, username: vps.sshUser, password: vps.sshPassword, privateKey: vps.sshPrivateKey }
+  return {
+    host: vps.host,
+    port: vps.sshPort,
+    username: vps.sshUser,
+    password: vps.sshPassword ? decryptSecret(vps.sshPassword) : null,
+    privateKey: vps.sshPrivateKey ? decryptSecret(vps.sshPrivateKey) : null,
+  }
 }
 
 /** Escape aman buat dipakai di dalam single-quote shell — dipakai karena path (diskPath,

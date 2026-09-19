@@ -1,3 +1,4 @@
+import { decryptSecret } from "@/lib/crypto"
 import { prisma } from "@/lib/prisma"
 
 export type CoolifyApplication = {
@@ -39,7 +40,7 @@ export type SyncCoolifyVps = { id: string; coolifyApiUrl: string | null; coolify
 export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ synced: number }> {
   if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { synced: 0 }
 
-  const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, vps.coolifyApiToken)
+  const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, decryptSecret(vps.coolifyApiToken))
   let synced = 0
 
   for (const app of apps) {

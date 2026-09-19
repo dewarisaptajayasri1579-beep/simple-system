@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
@@ -22,15 +23,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.sshPort !== undefined && Number.isFinite(Number(body.sshPort)) && Number(body.sshPort) > 0) {
     data.sshPort = Number(body.sshPort)
   }
-  if (typeof body.sshPassword === "string") data.sshPassword = body.sshPassword.trim() || null
-  if (typeof body.sshPrivateKey === "string") data.sshPrivateKey = body.sshPrivateKey.trim() || null
+  if (typeof body.sshPassword === "string") data.sshPassword = body.sshPassword.trim() ? encryptSecret(body.sshPassword.trim()) : null
+  if (typeof body.sshPrivateKey === "string") {
+    data.sshPrivateKey = body.sshPrivateKey.trim() ? encryptSecret(body.sshPrivateKey.trim()) : null
+  }
   if (typeof body.diskPath === "string" && body.diskPath.trim()) data.diskPath = body.diskPath.trim()
   if (typeof body.backupCheckPath === "string") data.backupCheckPath = body.backupCheckPath.trim() || null
   if (typeof body.proxyContainerName === "string" && body.proxyContainerName.trim()) {
     data.proxyContainerName = body.proxyContainerName.trim()
   }
   if (typeof body.coolifyApiUrl === "string") data.coolifyApiUrl = body.coolifyApiUrl.trim() || null
-  if (typeof body.coolifyApiToken === "string") data.coolifyApiToken = body.coolifyApiToken.trim() || null
+  if (typeof body.coolifyApiToken === "string") {
+    data.coolifyApiToken = body.coolifyApiToken.trim() ? encryptSecret(body.coolifyApiToken.trim()) : null
+  }
 
   const updated = await prisma.vpsServer.update({ where: { id }, data, select: { id: true } }).catch(() => null)
   if (!updated) return NextResponse.json({ error: "VPS tidak ditemukan" }, { status: 404 })

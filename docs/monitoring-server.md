@@ -67,7 +67,10 @@ Card kedua dan seterusnya di list `/monitoring` (setelah card "Server Ini" yang 
 
 ### 6.1 Model data
 
-- `VpsServer` (`prisma/schema.prisma`) — 1 baris per VPS. Kredensial SSH (`sshPassword`/`sshPrivateKey`, isi salah satu) dan Coolify API (`coolifyApiUrl`+`coolifyApiToken`, opsional) disimpan plaintext — sama pola risiko yang diterima seperti `MonitoredDatabase.connectionString` (lihat bagian 3). **Cuma Owner** yang bisa tambah/edit/hapus.
+- `VpsServer` (`prisma/schema.prisma`) — 1 baris per VPS. Kredensial SSH (`sshPassword`/`sshPrivateKey`, isi salah satu) dan Coolify API (`coolifyApiUrl`+`coolifyApiToken`, opsional) **dienkripsi (AES-256-GCM)** sebelum disimpan — lihat [`src/lib/crypto.ts`](../src/lib/crypto.ts), `encryptSecret()`/`decryptSecret()`. Beda dari `MonitoredDatabase.connectionString` (bagian 3) yang masih plaintext apa adanya. **Cuma Owner** yang bisa tambah/edit/hapus.
+  - Kunci enkripsi dari env var `ENCRYPTION_KEY` (lihat `.env.example`) — **wajib diset** di semua environment (lokal & production/Coolify), **tidak boleh berubah** setelah ada VPS tersimpan (ganti key = data lama tidak bisa didekripsi lagi, VPS harus di-edit ulang buat re-encrypt).
+  - Dienkripsi di titik simpan (`POST`/`PATCH /api/monitoring/vps`), didekripsi di titik pakai (`vpsSshCreds()` di `src/lib/monitoring/ssh.ts`, `syncCoolifyApplications()` di `src/lib/monitoring/coolify.ts`) — field ini **tidak pernah** dikirim ke client (lihat `GET /api/monitoring/vps`, response-nya sengaja exclude field-field ini).
+  - `decryptSecret()` fallback: kalau gagal didekripsi (mis. data lama sempat tersimpan plaintext sebelum fitur enkripsi ini ada), balikin apa adanya — supaya tidak putus, tapi berarti VPS lama tetap perlu di-edit ulang (isi ulang password/token-nya) supaya ke-enkripsi dengan skema baru.
 - `Application` — 1 baris per aplikasi di bawah sebuah `VpsServer`. `coolifyUuid` dipakai buat matching upsert saat sync dari Coolify supaya tidak dobel.
 
 ### 6.2 Disk Space & Backup per VPS (live, lewat SSH)
