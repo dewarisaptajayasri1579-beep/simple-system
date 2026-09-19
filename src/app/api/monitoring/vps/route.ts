@@ -3,11 +3,15 @@ import { NextResponse } from "next/server"
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { getVpsDiskAndBackup } from "@/lib/monitoring/ssh"
+import { getVpsDiskAndBackup, type AppContainerDisk, type DockerDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
 
-/** List semua VpsServer + Application di bawahnya, plus cek live disk usage & backup terakhir
- *  lewat SSH (dijalankan paralel per VPS, mirror pola live-check di databases/route.ts). Field
+type DockerDiskCache = { dockerDisk: DockerDiskEntry[] | null; appDiskUsage: AppContainerDisk[] | null }
+
+/** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
+ *  ~1-2 detik) tiap request, tapi breakdown disk Docker (lambat, ~20-25 detik) dibaca dari CACHE
+ *  (`VpsServer.dockerDiskCache`, diisi lewat cron harian atau tombol "Cek Sekarang" —
+ *  POST /api/monitoring/vps/[id]/docker-disk) supaya halaman tidak nunggu lama tiap dibuka. Field
  *  kredensial (sshPassword, sshPrivateKey, coolifyApiToken) SENGAJA tidak pernah dikirim ke
  *  client — cuma dipakai server-side buat SSH/Coolify call. */
 export async function GET() {
@@ -23,6 +27,8 @@ export async function GET() {
   const results = await Promise.all(
     vpsList.map(async (vps) => {
       const live = await getVpsDiskAndBackup(vps)
+      const cache = (vps.dockerDiskCache as unknown as DockerDiskCache | null) ?? null
+
       return {
         id: vps.id,
         name: vps.name,
@@ -41,10 +47,10 @@ export async function GET() {
         backupLatestFile: live.backupLatestFile,
         backupLatestAt: live.backupLatestAt,
         backupError: live.backupError,
-        dockerDisk: live.dockerDisk,
-        dockerDiskError: live.dockerDiskError,
+        dockerDisk: cache?.dockerDisk ?? null,
+        dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
         applications: vps.applications.map((app) => {
-          const diskEntry = app.coolifyUuid ? live.appDiskUsage?.find((d) => d.coolifyUuid === app.coolifyUuid) : undefined
+          const diskEntry = app.coolifyUuid ? cache?.appDiskUsage?.find((d) => d.coolifyUuid === app.coolifyUuid) : undefined
           return {
             id: app.id,
             name: app.name,

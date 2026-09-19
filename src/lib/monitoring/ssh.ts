@@ -131,6 +131,9 @@ export type VpsLiveCheck = {
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
+}
+
+export type VpsDockerDiskCheck = {
   dockerDisk: DockerDiskEntry[] | null
   dockerDiskError: string | null
   appDiskUsage: AppContainerDisk[] | null
@@ -182,17 +185,14 @@ function parseDockerPsLine(line: string): AppContainerDisk | null {
 export type VpsLiveCheckInput = VpsSshLike & { diskPath: string; backupCheckPath: string | null }
 
 /** 1 koneksi SSH per VPS untuk disk usage + (kalau backupCheckPath diisi) file terbaru di folder
- *  backup itu + breakdown disk Docker (image/container/volume/build cache, lihat
- *  docs/monitoring-server.md § disk Docker) — digabung jadi 1 command supaya cuma 1 round-trip
- *  SSH, bukan 3. Diasumsikan VPS remote Linux (Coolify jalan di Linux) jadi aman pakai `stat -c`
- *  (GNU), beda dari cek disk lokal (src/app/api/monitoring/disk/route.ts) yang perlu portabel ke
- *  macOS untuk dev. */
+ *  backup itu — CEPAT (~1-2 detik), makanya ini yang dipanggil live tiap kali halaman monitoring
+ *  di-load/refresh (lihat GET /api/monitoring/vps). Diasumsikan VPS remote Linux (Coolify jalan di
+ *  Linux) jadi aman pakai `stat -c` (GNU), beda dari cek disk lokal
+ *  (src/app/api/monitoring/disk/route.ts) yang perlu portabel ke macOS untuk dev. */
 export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLiveCheck> {
   const creds = vpsSshCreds(vps)
   const diskPathQ = shQuote(vps.diskPath || "/")
   const backupPathQ = vps.backupCheckPath ? shQuote(vps.backupCheckPath) : null
-  const dockerDfCmd = sudoWrap(creds.password, `docker system df --format '{{json .}}' 2>/dev/null`)
-  const dockerPsCmd = sudoWrap(creds.password, `docker ps -a -s --format '{{json .}}' 2>/dev/null`)
 
   const script = [
     `df -kP ${diskPathQ} | tail -1`,
@@ -200,32 +200,17 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     backupPathQ
       ? `f=$(ls -t ${backupPathQ} 2>/dev/null | head -1); if [ -n "$f" ]; then echo "$f"; stat -c %Y ${backupPathQ}/"$f" 2>/dev/null; fi`
       : "",
-    `echo "${DELIM}"`,
-    dockerDfCmd,
-    `echo "${DELIM}"`,
-    dockerPsCmd,
   ].join("\n")
 
   let stdout: string
   try {
-    // `docker system df` bisa lambat (belasan detik) kalau image/volume-nya banyak — dites di
-    // VPS Dewari butuh ~18 detik sendiri, jadi timeout gabungan dilebihin cukup jauh.
-    stdout = await sshExec(creds, script, 40000)
+    stdout = await sshExec(creds, script, 10000)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
-    return {
-      disk: null,
-      diskError: message,
-      backupLatestFile: null,
-      backupLatestAt: null,
-      backupError: vps.backupCheckPath ? message : null,
-      dockerDisk: null,
-      dockerDiskError: message,
-      appDiskUsage: null,
-    }
+    return { disk: null, diskError: message, backupLatestFile: null, backupLatestAt: null, backupError: vps.backupCheckPath ? message : null }
   }
 
-  const [diskPart, backupPart = "", dockerPart = "", psPart = ""] = stdout.split(DELIM)
+  const [diskPart, backupPart = ""] = stdout.split(DELIM)
 
   let disk: DiskUsage | null = null
   let diskError: string | null = null
@@ -249,6 +234,29 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     }
   }
 
+  return { disk, diskError, backupLatestFile, backupLatestAt, backupError }
+}
+
+/** 1 koneksi SSH per VPS khusus buat breakdown disk Docker (image/container/volume/build cache +
+ *  disk per aplikasi) — LAMBAT (~20-25 detik, dites di VPS Dewari), makanya TIDAK dipanggil live
+ *  tiap load halaman. Hasilnya di-cache di `VpsServer.dockerDiskCache` (lihat
+ *  POST /api/monitoring/vps/[id]/docker-disk dan cron di src/lib/cron/vps-monitoring.ts). */
+export async function getVpsDockerDiskUsage(vps: VpsSshLike): Promise<VpsDockerDiskCheck> {
+  const creds = vpsSshCreds(vps)
+  const dockerDfCmd = sudoWrap(creds.password, `docker system df --format '{{json .}}' 2>/dev/null`)
+  const dockerPsCmd = sudoWrap(creds.password, `docker ps -a -s --format '{{json .}}' 2>/dev/null`)
+  const script = [dockerDfCmd, `echo "${DELIM}"`, dockerPsCmd].join("\n")
+
+  let stdout: string
+  try {
+    stdout = await sshExec(creds, script, 40000)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Gagal SSH ke VPS"
+    return { dockerDisk: null, dockerDiskError: message, appDiskUsage: null }
+  }
+
+  const [dockerPart = "", psPart = ""] = stdout.split(DELIM)
+
   const dockerEntries = dockerPart
     .trim()
     .split("\n")
@@ -264,5 +272,5 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     .filter((e): e is AppContainerDisk => e !== null)
   const appDiskUsage = appDiskEntries.length > 0 ? appDiskEntries : null
 
-  return { disk, diskError, backupLatestFile, backupLatestAt, backupError, dockerDisk, dockerDiskError, appDiskUsage }
+  return { dockerDisk, dockerDiskError, appDiskUsage }
 }

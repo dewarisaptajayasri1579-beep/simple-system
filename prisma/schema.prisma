@@ -147,6 +147,12 @@ model VpsServer {
   /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di
   /// src/lib/monitoring/coolify.ts). Null kalau belum pernah sync sama sekali.
   coolifyDatabaseCount Int?        @map("coolify_database_count")
+  /// Cache hasil `docker system df` + `docker ps -s` (lihat getVpsDockerDiskUsage() di
+  /// src/lib/monitoring/ssh.ts) — bentuknya { dockerDisk: DockerDiskEntry[], appDiskUsage:
+  /// AppContainerDisk[] }. SENGAJA di-cache (bukan live tiap load halaman) karena command ini
+  /// lambat (~20-25 detik) — cuma di-refresh lewat cron harian atau tombol manual "Cek Sekarang".
+  dockerDiskCache      Json?       @map("docker_disk_cache")
+  dockerDiskCheckedAt  DateTime?   @map("docker_disk_checked_at")
   createdById        String?       @map("created_by_id")
   createdAt          DateTime      @default(now()) @map("created_at")
   applications       Application[]

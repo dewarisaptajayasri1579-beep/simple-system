@@ -130,7 +130,7 @@ export async function register() {
     "0 3 * * *",
     () => {
       runVpsMonitoringRefresh()
-        .then((r) => console.log(`[cron] vps-monitoring selesai: ${r.vpsCount} VPS, ${r.coolifySynced} app di-sync, ${r.domainsChecked} domain expiry, ${r.accessChecked} last-access`))
+        .then((r) => console.log(`[cron] vps-monitoring selesai: ${r.vpsCount} VPS, ${r.coolifySynced} app di-sync, ${r.domainsChecked} domain expiry, ${r.accessChecked} last-access, ${r.dockerDiskRefreshed} disk Docker`))
         .catch((e) => console.error("[cron] vps-monitoring gagal:", e))
     },
     { timezone: "Asia/Jakarta" }

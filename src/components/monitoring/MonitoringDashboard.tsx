@@ -234,7 +234,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
         return
       }
       setRefreshSummary(
-        `Selesai: ${data.coolifySynced} aplikasi di-sync, ${data.domainsChecked} domain expiry ke-update, ${data.accessChecked} terakhir-akses ke-update.`
+        `Selesai: ${data.coolifySynced} aplikasi di-sync, ${data.domainsChecked} domain expiry ke-update, ${data.accessChecked} terakhir-akses ke-update, ${data.dockerDiskRefreshed} disk Docker di-refresh.`
       )
       await loadVps()
     } finally {

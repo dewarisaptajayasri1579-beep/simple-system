@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { formatDateTimeId, formatDateOnlyId } from "@/lib/monitoring"
 
 export type DiskInfo = {
@@ -54,7 +55,7 @@ export type VpsRow = {
   backupLatestAt: string | null
   backupError: string | null
   dockerDisk: DockerDiskEntry[] | null
-  dockerDiskError: string | null
+  dockerDiskCheckedAt: string | null
   applications: AppRow[]
 }
 
@@ -102,6 +103,45 @@ const emptyAppForm = {
 export function isBackupStale(iso: string | null) {
   if (!iso) return true
   return Date.now() - new Date(iso).getTime() > 30 * 60 * 60 * 1000
+}
+
+function timeAgoId(iso: string | null): string {
+  if (!iso) return "belum pernah"
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 1) return "baru saja"
+  if (min < 60) return `${min} menit lalu`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} jam lalu`
+  return `${Math.floor(hr / 24)} hari lalu`
+}
+
+/** Progress bar "palsu" (bukan progress asli — command SSH-nya cuma 1 blok, tidak ada laporan
+ *  progress bertahap) buat cek disk Docker yang makan waktu ~20-25 detik, biar user tidak lihat
+ *  layar diam tanpa feedback. Mendekati (bukan mencapai) 92% pakai kurva eksponensial mengikuti
+ *  estimasi durasi, baru "loncat" ke 100% waktu request aslinya beneran selesai. */
+function useFakeProgress(active: boolean, estimateMs: number) {
+  const [pct, setPct] = useState(0)
+  useEffect(() => {
+    if (!active) {
+      setPct(0)
+      return
+    }
+    const start = Date.now()
+    const id = setInterval(() => {
+      const elapsed = Date.now() - start
+      const target = 92
+      setPct(Math.min(target * (1 - Math.exp(-elapsed / (estimateMs * 0.55))), target))
+    }, 200)
+    return () => clearInterval(id)
+  }, [active, estimateMs])
+  return pct
+}
+
+function dockerDiskProgressLabel(pct: number): string {
+  if (pct < 12) return "Initializing…"
+  if (pct < 45) return "Menghubungkan SSH & menghitung image…"
+  if (pct < 75) return "Menghitung ukuran volume & container…"
+  return "Hampir selesai…"
 }
 
 function DomainExpiryBadge({ iso }: { iso: string | null }) {
@@ -183,6 +223,8 @@ export const VpsServerCard: React.FC<{
   onChanged: () => void
 }> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
   const [syncing, setSyncing] = useState(false)
+  const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
+  const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 24000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
   const [vpsForm, setVpsForm] = useState({
@@ -281,6 +323,21 @@ export const VpsServerCard: React.FC<{
       onChanged()
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleCheckDockerDisk = async () => {
+    setCheckingDockerDisk(true)
+    try {
+      const res = await fetch(`/api/monitoring/vps/${vps.id}/docker-disk`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        alert(data?.error || "Gagal cek disk Docker")
+        return
+      }
+      onChanged()
+    } finally {
+      setCheckingDockerDisk(false)
     }
   }
 
@@ -463,11 +520,35 @@ export const VpsServerCard: React.FC<{
             </div>
           </div>
 
-          {vps.dockerDisk ? (
-            <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <HardDrive className="w-3.5 h-3.5" /> Disk Docker (breakdown)
               </span>
+              <div className="flex items-center gap-2">
+                {!checkingDockerDisk && (
+                  <span className="text-[11px] text-slate-400 font-medium">Diperiksa {timeAgoId(vps.dockerDiskCheckedAt)}</span>
+                )}
+                {isOwner && (
+                  <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk}>
+                    {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {checkingDockerDisk ? (
+              <div className="flex flex-col gap-1.5 py-1">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                  <span>{dockerDiskProgressLabel(dockerDiskProgress)}</span>
+                  <span>{Math.round(dockerDiskProgress)}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full transition-all duration-200" style={{ width: `${dockerDiskProgress}%` }} />
+                </div>
+                <span className="text-[11px] text-slate-400">Biasanya ~20-25 detik (dijalankan lewat SSH + sudo di VPS).</span>
+              </div>
+            ) : vps.dockerDisk ? (
               <div className="flex flex-col gap-3">
                 {vps.dockerDisk.map((d) => {
                   const totalDockerBytes = (vps.dockerDisk ?? []).reduce((sum, e) => sum + parseDockerSize(e.size), 0)
@@ -494,116 +575,121 @@ export const VpsServerCard: React.FC<{
                   )
                 })}
               </div>
-            </div>
-          ) : (
-            vps.dockerDiskError && <span className="text-xs font-medium text-slate-400">{vps.dockerDiskError}</span>
-          )}
+            ) : (
+              <span className="text-xs font-medium text-slate-400">
+                Belum pernah dicek{isOwner ? ' — klik "Cek Sekarang".' : ", minta Owner klik \"Cek Sekarang\"."}
+              </span>
+            )}
+          </div>
 
-          {vps.applications.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-slate-400 text-xs font-semibold">
-              Belum ada aplikasi terdaftar di VPS ini.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {vps.applications.map((app) => (
-                <div key={app.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 flex flex-col gap-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                      <span className="font-black text-slate-900 truncate">{app.name}</span>
-                      {app.hasCoolifySync && (
-                        <Badge variant="info" size="sm">
-                          Coolify
-                        </Badge>
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Aplikasi</TableHead>
+                  <TableHead>Git / Database</TableHead>
+                  <TableHead>Diakses / Backup</TableHead>
+                  <TableHead>Disk</TableHead>
+                  <TableHead>Domain Habis</TableHead>
+                  {isOwner && <TableHead className="text-right">Aksi</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vps.applications.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isOwner ? 6 : 5} className="text-center text-slate-400 text-xs font-semibold py-6">
+                      Belum ada aplikasi terdaftar di VPS ini.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  vps.applications.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900">{app.name}</span>
+                          {app.hasCoolifySync && (
+                            <Badge variant="info" size="sm">
+                              Coolify
+                            </Badge>
+                          )}
+                        </div>
+                        {app.domain ? (
+                          <a
+                            href={`https://${app.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs mt-0.5"
+                          >
+                            {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          </a>
+                        ) : (
+                          <div className="text-slate-400 text-xs mt-0.5">Tanpa domain</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {app.gitRepository ? (
+                          <a
+                            href={app.gitRepository}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                          >
+                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">Tanpa git</span>
+                        )}
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                          {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs font-semibold text-slate-700">
+                          {formatDateTimeId(app.lastAccessedAt)}
+                          {app.lastAccessedBy && <span className="text-slate-400 font-medium"> · {app.lastAccessedBy}</span>}
+                        </div>
+                        <div className="text-xs font-semibold text-slate-700 mt-0.5">
+                          {formatDateTimeId(app.lastBackupAt)}
+                          {app.backupLocation && <span className="text-slate-400 font-medium"> · {app.backupLocation}</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        {app.diskUsage ? (
+                          <span title="Ukuran writable layer container ini · perkiraan image+layer (bisa share sama app lain)">
+                            {app.diskUsage.size}
+                            <div className="text-slate-400 font-medium">image ~{app.diskUsage.virtualSize}</div>
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <DomainExpiryBadge iso={app.domainExpiresAt} />
+                      </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-right whitespace-nowrap">
+                          <button
+                            onClick={() => openEditApp(app)}
+                            className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            aria-label="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteApp(app)}
+                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            aria-label="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TableCell>
                       )}
-                    </div>
-                    {isOwner && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => openEditApp(app)}
-                          className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                          aria-label="Edit"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteApp(app)}
-                          className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                          aria-label="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Domain</span>
-                      {app.domain ? (
-                        <a
-                          href={`https://${app.domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold truncate"
-                        >
-                          {app.domain} <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Git</span>
-                      {app.gitRepository ? (
-                        <a
-                          href={app.gitRepository}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold truncate"
-                        >
-                          <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Database</span>
-                      <span className="font-semibold text-slate-700 truncate">{app.databaseInfo || "-"}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Diakses</span>
-                      <span className="font-semibold text-slate-700 truncate">
-                        {formatDateTimeId(app.lastAccessedAt)}
-                        {app.lastAccessedBy ? ` · ${app.lastAccessedBy}` : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Backup</span>
-                      <span className="font-semibold text-slate-700 truncate">
-                        {formatDateTimeId(app.lastBackupAt)}
-                        {app.backupLocation ? ` · ${app.backupLocation}` : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Domain Habis</span>
-                      <DomainExpiryBadge iso={app.domainExpiresAt} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-bold w-24 flex-shrink-0 uppercase text-[10px]">Disk</span>
-                      {app.diskUsage ? (
-                        <span className="font-semibold text-slate-700 truncate" title="Ukuran writable layer container ini · perkiraan image+layer (bisa share sama app lain)">
-                          {app.diskUsage.size} <span className="text-slate-400 font-medium">(image ~{app.diskUsage.virtualSize})</span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </div>
       )}
 

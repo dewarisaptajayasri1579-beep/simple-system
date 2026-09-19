@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma"
 import { syncCoolifyApplications } from "@/lib/monitoring/coolify"
 import { lookupDomainExpiry } from "@/lib/monitoring/rdap"
+import { getVpsDockerDiskUsage } from "@/lib/monitoring/ssh"
 import { getLastAccessedByDomain } from "@/lib/monitoring/traefik-access"
 
 /** Cron harian modul Monitoring Server untuk "VPS Lain": (1) sync aplikasi dari Coolify API kalau
  *  VPS itu dikasih kredensial, (2) cek expiry domain lewat RDAP untuk semua domain aplikasi yang
- *  terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS. Semua best-effort — satu
+ *  terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS, (4) refresh cache
+ *  breakdown disk Docker (lambat, lihat getVpsDockerDiskUsage). Semua best-effort — satu
  *  VPS/domain gagal tidak boleh menggagalkan yang lain. Bisa dipicu manual lewat
  *  POST /api/monitoring/vps/refresh-checks (tombol "Sync & Cek Sekarang", owner-only). */
 export async function runVpsMonitoringRefresh() {
@@ -69,5 +71,23 @@ export async function runVpsMonitoringRefresh() {
     }
   }
 
-  return { vpsCount: vpsList.length, coolifySynced, domainsChecked, accessChecked }
+  let dockerDiskRefreshed = 0
+  for (const vps of vpsList) {
+    try {
+      const result = await getVpsDockerDiskUsage(vps)
+      if (!result.dockerDisk) continue
+      await prisma.vpsServer.update({
+        where: { id: vps.id },
+        data: {
+          dockerDiskCache: { dockerDisk: result.dockerDisk, appDiskUsage: result.appDiskUsage ?? [] },
+          dockerDiskCheckedAt: new Date(),
+        },
+      })
+      dockerDiskRefreshed += 1
+    } catch (e) {
+      console.error(`[vps-monitoring] cek disk Docker gagal untuk VPS "${vps.name}":`, e)
+    }
+  }
+
+  return { vpsCount: vpsList.length, coolifySynced, domainsChecked, accessChecked, dockerDiskRefreshed }
 }
