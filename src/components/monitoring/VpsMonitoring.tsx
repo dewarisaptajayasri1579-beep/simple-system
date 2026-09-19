@@ -380,6 +380,9 @@ export const VpsServerCard: React.FC<{
     buildxOutput: string
     error?: string
   } | null>(null)
+  const [resettingBuilder, setResettingBuilder] = useState(false)
+  const [resetBuilderConfirmOpen, setResetBuilderConfirmOpen] = useState(false)
+  const [resetBuilderResult, setResetBuilderResult] = useState<{ ok: boolean; output: string; error?: string } | null>(null)
   const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 70000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
@@ -469,6 +472,7 @@ export const VpsServerCard: React.FC<{
 
   const handleRefreshChecks = async () => {
     setSyncing(true)
+    setCheckingDockerDisk(true)
     try {
       const res = await fetch(`/api/monitoring/vps/${vps.id}/refresh-checks`, { method: "POST" })
       const data = await res.json().catch(() => null)
@@ -479,6 +483,7 @@ export const VpsServerCard: React.FC<{
       onChanged()
     } finally {
       setSyncing(false)
+      setCheckingDockerDisk(false)
     }
   }
 
@@ -511,6 +516,23 @@ export const VpsServerCard: React.FC<{
       await handleCheckDockerDisk()
     } finally {
       setPruning(false)
+    }
+  }
+
+  const runResetBuilderCache = async () => {
+    setResetBuilderConfirmOpen(false)
+    setResettingBuilder(true)
+    try {
+      const res = await fetch(`/api/monitoring/vps/${vps.id}/reset-builder-cache`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setResetBuilderResult({ ok: false, output: "", error: data?.error || "Gagal reset builder cache" })
+        return
+      }
+      setResetBuilderResult({ ok: !!data.ok, output: data.output ?? "" })
+      await handleCheckDockerDisk()
+    } finally {
+      setResettingBuilder(false)
     }
   }
 
@@ -830,9 +852,31 @@ export const VpsServerCard: React.FC<{
                     <Button variant="secondary" size="sm" onClick={() => setPruneConfirmOpen(true)} disabled={pruning || checkingDockerDisk}>
                       {pruning ? "Membersihkan..." : "Bersihkan yang Tidak Terpakai"}
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
-                      {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setResetBuilderConfirmOpen(true)}
+                      disabled={resettingBuilder || checkingDockerDisk}
+                    >
+                      {resettingBuilder ? "Mereset..." : "Reset Builder Cache"}
                     </Button>
+                    {vps.hasCoolify ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<Sparkles className="w-4 h-4" />}
+                        isLoading={syncing}
+                        loadingText="Memproses..."
+                        onClick={handleRefreshChecks}
+                        disabled={pruning}
+                      >
+                        Sync & Cek Sekarang
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
+                        {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -908,25 +952,12 @@ export const VpsServerCard: React.FC<{
               </div>
             ) : (
               <span className="text-xs font-medium text-slate-400">
-                Belum pernah dicek{isOwner ? ' — klik "Cek Sekarang".' : ", minta Owner klik \"Cek Sekarang\"."}
+                {vps.hasCoolify
+                  ? `Belum pernah dicek${isOwner ? ' — klik "Sync & Cek Sekarang".' : ', minta Owner klik "Sync & Cek Sekarang".'}`
+                  : `Belum pernah dicek${isOwner ? ' — klik "Cek Sekarang".' : ', minta Owner klik "Cek Sekarang".'}`}
               </span>
             )}
           </div>
-
-          {isOwner && vps.hasCoolify && (
-            <div className="flex items-center justify-end">
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<Sparkles className="w-4 h-4" />}
-                isLoading={syncing}
-                loadingText="Memproses..."
-                onClick={handleRefreshChecks}
-              >
-                Sync & Cek Sekarang
-              </Button>
-            </div>
-          )}
 
           <TableContainer>
             <Table>
@@ -1327,6 +1358,63 @@ export const VpsServerCard: React.FC<{
                 <span className="text-xs font-bold text-slate-600">Detail cache build (debug)</span>
                 <pre className="text-[11px] leading-relaxed bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
                   {pruneResult.buildxOutput}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={resetBuilderConfirmOpen}
+        onClose={() => !resettingBuilder && setResetBuilderConfirmOpen(false)}
+        title="Reset Builder Cache"
+        subtitle={`VPS "${vps.name}"`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setResetBuilderConfirmOpen(false)} disabled={resettingBuilder}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={runResetBuilderCache} isLoading={resettingBuilder} loadingText="Mereset...">
+              Reset
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-700 font-medium">
+            Dipakai kalau volume cache builder (<code>buildx_buildkit_*</code>) masih gede padahal "Bersihkan yang Tidak Terpakai"
+            sudah dijalankan dan cache-nya sendiri sudah 0B — sisa itu file internal BuildKit yang tidak ke-cover prune biasa.
+          </p>
+          <p className="text-sm text-slate-700 font-medium">
+            Ini akan stop &amp; hapus container builder-nya + volume cache-nya. Coolify otomatis bikin ulang keduanya pas deploy
+            berikutnya — build pertama setelah ini sedikit lebih lambat (cache mulai dari kosong), tapi tidak ada data hilang.
+          </p>
+          <Alert variant="info">Volume/data aplikasi &amp; database TIDAK disentuh — cuma volume cache builder BuildKit.</Alert>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!resetBuilderResult}
+        onClose={() => setResetBuilderResult(null)}
+        title={resetBuilderResult?.ok ? "Reset Selesai" : "Reset Gagal"}
+        subtitle={`VPS "${vps.name}"`}
+        size="lg"
+        footer={<Button variant="primary" onClick={() => setResetBuilderResult(null)}>Tutup</Button>}
+      >
+        {resetBuilderResult && (
+          <div className="flex flex-col gap-3">
+            {resetBuilderResult.ok ? (
+              <Alert variant="success">Builder cache berhasil direset — cek breakdown volume di bawah buat angka sesudahnya.</Alert>
+            ) : (
+              <Alert variant="error">{resetBuilderResult.error}</Alert>
+            )}
+            {resetBuilderResult.output && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-bold text-slate-600">Detail (debug)</span>
+                <pre className="text-[11px] leading-relaxed bg-slate-900 text-slate-100 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                  {resetBuilderResult.output}
                 </pre>
               </div>
             )}
