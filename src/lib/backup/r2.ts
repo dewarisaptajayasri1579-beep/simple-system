@@ -8,8 +8,9 @@ import {
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-const PREFIX = "seven-os-backup-"
-const FILE_RE = /^seven-os-backup-(\d{4}-\d{2})-(\d{2})\.json\.gz$/
+/** Key S3-nya "{YYYY-MM}/seven-os-backup-{YYYY-MM-DD}.json.gz" — R2 tidak punya folder asli,
+ *  tapi prefix ber-"/" ini ditampilkan sebagai folder di dashboard R2 (mis. "2026-09/"). */
+const KEY_RE = /^(\d{4}-\d{2})\/(seven-os-backup-\d{4}-\d{2}-(\d{2})\.json\.gz)$/
 
 function requiredEnv(name: string) {
   const value = process.env[name]
@@ -33,45 +34,55 @@ function bucketName() {
   return requiredEnv("R2_BACKUP_BUCKET")
 }
 
+/** fileName "seven-os-backup-YYYY-MM-DD.json.gz" -> key "YYYY-MM/seven-os-backup-YYYY-MM-DD.json.gz". */
+function keyForFile(fileName: string) {
+  const match = fileName.match(/^seven-os-backup-(\d{4}-\d{2})-\d{2}\.json\.gz$/)
+  if (!match) throw new Error(`Nama file backup tidak sesuai pola: ${fileName}`)
+  return `${match[1]}/${fileName}`
+}
+
 async function listAllBackupObjects(client: S3Client) {
   const bucket = bucketName()
   const objects: _Object[] = []
   let token: string | undefined
   do {
-    const res = await client.send(
-      new ListObjectsV2Command({ Bucket: bucket, Prefix: PREFIX, ContinuationToken: token })
-    )
+    const res = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }))
     objects.push(...(res.Contents ?? []))
     token = res.IsTruncated ? res.NextContinuationToken : undefined
   } while (token)
   return objects
 }
 
-/** Upload 1 file backup ke bucket R2. */
+/** Upload 1 file backup ke bucket R2, otomatis masuk folder bulan-tahunnya. */
 export async function uploadBackupFile(fileName: string, buffer: Buffer, mimeType: string) {
   const client = s3Client()
-  await client.send(new PutObjectCommand({ Bucket: bucketName(), Key: fileName, Body: buffer, ContentType: mimeType }))
-  return { key: fileName }
+  const key = keyForFile(fileName)
+  await client.send(new PutObjectCommand({ Bucket: bucketName(), Key: key, Body: buffer, ContentType: mimeType }))
+  return { key }
 }
 
 /** List file backup terbaru — dipakai kartu "Backup Terakhir" di Monitoring Server. webViewLink
  *  berupa presigned URL (berlaku 1 jam) karena bucket R2 private, bukan link publik permanen. */
 export async function listRecentBackups(limit = 5) {
   const client = s3Client()
-  const objects = await listAllBackupObjects(client)
+  const objects = (await listAllBackupObjects(client)).filter((obj) => obj.Key && KEY_RE.test(obj.Key))
   objects.sort((a, b) => (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0))
   const recent = objects.slice(0, limit)
 
   return Promise.all(
-    recent.map(async (obj) => ({
-      id: obj.Key!,
-      name: obj.Key!,
-      createdTime: obj.LastModified?.toISOString() ?? null,
-      sizeBytes: obj.Size ?? null,
-      webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: obj.Key! }), {
-        expiresIn: 3600,
-      }),
-    }))
+    recent.map(async (obj) => {
+      const key = obj.Key!
+      const fileName = key.match(KEY_RE)![2]
+      return {
+        id: key,
+        name: fileName,
+        createdTime: obj.LastModified?.toISOString() ?? null,
+        sizeBytes: obj.Size ?? null,
+        webViewLink: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucketName(), Key: key }), {
+          expiresIn: 3600,
+        }),
+      }
+    })
   )
 }
 
@@ -89,9 +100,10 @@ export async function cleanupOldBackups() {
 
   const byMonth = new Map<string, { key: string; day: string }[]>()
   for (const obj of objects) {
-    const match = obj.Key?.match(FILE_RE)
-    if (!match || !obj.Key) continue
-    const [, month, day] = match
+    if (!obj.Key) continue
+    const match = obj.Key.match(KEY_RE)
+    if (!match) continue
+    const [, month, , day] = match
     if (!byMonth.has(month)) byMonth.set(month, [])
     byMonth.get(month)!.push({ key: obj.Key, day })
   }
