@@ -69,6 +69,14 @@ export function sshExec(creds: SshCreds, command: string, timeoutMs = 10000): Pr
           stream.stderr.on("data", (d: Buffer) => { stderr += d.toString() })
         })
       })
+      // Banyak VPS (mis. sshd default Ubuntu/Debian dengan PAM) minta metode auth
+      // "keyboard-interactive", bukan "password" biasa — kalau cuma kirim `password` di
+      // connect(), server bisa nolak semua metode ("All configured authentication methods
+      // failed") walau passwordnya benar. `tryKeyboard: true` + handler ini jadi fallback:
+      // jawab prompt keyboard-interactive pakai password yang sama.
+      .on("keyboard-interactive", (_name, _instructions, _lang, prompts, finishAuth) => {
+        finishAuth(creds.password ? prompts.map(() => creds.password as string) : [])
+      })
       .on("error", (err) => finish(() => reject(err)))
       .connect({
         host: creds.host,
@@ -76,6 +84,7 @@ export function sshExec(creds: SshCreds, command: string, timeoutMs = 10000): Pr
         username: creds.username,
         password: creds.password || undefined,
         privateKey: creds.privateKey || undefined,
+        tryKeyboard: true,
         readyTimeout: timeoutMs,
       })
   })
