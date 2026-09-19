@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe } from "lucide-react"
+import { Server, HardDrive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -373,13 +373,13 @@ export const VpsServerCard: React.FC<{
     onChanged()
   }
 
-  const handleSyncCoolify = async () => {
+  const handleRefreshChecks = async () => {
     setSyncing(true)
     try {
-      const res = await fetch(`/api/monitoring/vps/${vps.id}/sync-coolify`, { method: "POST" })
+      const res = await fetch(`/api/monitoring/vps/${vps.id}/refresh-checks`, { method: "POST" })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        alert(data?.error || "Gagal sync dari Coolify")
+        alert(data?.error || "Gagal sync & cek")
         return
       }
       onChanged()
@@ -543,55 +543,30 @@ export const VpsServerCard: React.FC<{
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 flex flex-col gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                <HardDrive className="w-3.5 h-3.5" /> Disk Space ({vps.diskPath})
-              </span>
-              {vps.diskError ? (
-                <span className="text-xs font-semibold text-rose-600">{vps.diskError}</span>
-              ) : vps.disk ? (
-                <div className="flex flex-col gap-1.5">
-                  <DiskUsageBar disk={vps.disk} dockerDisk={vps.dockerDisk} />
-                  <span className="text-xs font-semibold text-slate-700">
-                    {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
-                    {vps.dockerDisk && (
-                      <span className="ml-2 font-medium text-slate-500">
-                        <span className="text-blue-600 font-bold">■</span> Volumes ·{" "}
-                        <span className="text-amber-600 font-bold">■</span> Sampah image ·{" "}
-                        <span className="text-slate-400 font-bold">■</span> Lainnya
-                      </span>
-                    )}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex-1 flex flex-col gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                <Archive className="w-3.5 h-3.5" /> Backup Terakhir (VPS)
-              </span>
-              {!vps.backupCheckPath ? (
-                <span className="text-xs font-semibold text-slate-400">Belum diset (isi &quot;Path Cek Backup&quot; di Edit VPS)</span>
-              ) : vps.backupError ? (
-                <span className="text-xs font-semibold text-rose-600">{vps.backupError}</span>
-              ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-slate-700">
-                    {vps.backupLatestFile} · {formatDateTimeId(vps.backupLatestAt)}
-                  </span>
-                  {isBackupStale(vps.backupLatestAt) ? (
-                    <Badge variant="danger" size="sm">
-                      Lebih dari 1 hari
-                    </Badge>
-                  ) : (
-                    <Badge variant="success" size="sm">
-                      Up to date
-                    </Badge>
+          <div className="flex flex-col gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+              <HardDrive className="w-3.5 h-3.5" /> Disk Space ({vps.diskPath})
+            </span>
+            {vps.diskError ? (
+              <span className="text-xs font-semibold text-rose-600">{vps.diskError}</span>
+            ) : vps.disk ? (
+              <div className="flex flex-col gap-1.5">
+                <DiskUsageBar disk={vps.disk} dockerDisk={vps.dockerDisk} />
+                <span className="text-xs font-semibold text-slate-700">
+                  {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
+                  {vps.dockerDisk && (
+                    <span className="ml-2 font-medium text-slate-500">
+                      <span className="text-blue-600 font-bold">■</span> Volumes ·{" "}
+                      <span className="text-amber-600 font-bold">■</span> Sampah image ·{" "}
+                      <span className="text-slate-400 font-bold">■</span> Lainnya
+                    </span>
                   )}
-                </div>
-              )}
-            </div>
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Data aplikasi/domain/database disync {timeAgoId(vps.dockerDiskCheckedAt)}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           {vps.registeredDomains.length > 0 && (
@@ -715,8 +690,15 @@ export const VpsServerCard: React.FC<{
 
           {isOwner && vps.hasCoolify && (
             <div className="flex items-center justify-end">
-              <Button variant="secondary" size="sm" isLoading={syncing} loadingText="Sync..." onClick={handleSyncCoolify}>
-                Sync dari Coolify
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Sparkles className="w-4 h-4" />}
+                isLoading={syncing}
+                loadingText="Memproses..."
+                onClick={handleRefreshChecks}
+              >
+                Sync & Cek Sekarang
               </Button>
             </div>
           )}
@@ -729,6 +711,7 @@ export const VpsServerCard: React.FC<{
                   <TableHead>Aplikasi</TableHead>
                   <TableHead>Git / Database</TableHead>
                   <TableHead>DB Backup</TableHead>
+                  <TableHead className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Login Terakhir</TableHead>
                   <TableHead>Domain Habis</TableHead>
                   {isOwner && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
@@ -736,7 +719,7 @@ export const VpsServerCard: React.FC<{
               <TableBody>
                 {vps.applications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 6 : 5} className="text-center text-slate-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
                       Belum ada aplikasi terdaftar di VPS ini.
                     </TableCell>
                   </TableRow>
@@ -797,6 +780,16 @@ export const VpsServerCard: React.FC<{
                           </div>
                         ) : (
                           <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {app.lastAccessedAt ? (
+                          <>
+                            <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</span>
+                            {app.lastAccessedBy && <div className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">{app.lastAccessedBy}</div>}
+                          </>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                         )}
                       </TableCell>
                       <TableCell>

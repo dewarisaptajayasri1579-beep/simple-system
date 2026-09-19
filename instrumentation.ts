@@ -138,10 +138,11 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
-  // Sync aplikasi dari Coolify API, cek expiry domain (RDAP), cek terakhir diakses (log Traefik)
-  // untuk modul Monitoring Server "VPS Lain" — jam 03:00 WIB (di luar jam cron lain).
+  // Sync aplikasi dari Coolify API, cek expiry domain (RDAP), cek terakhir diakses (log Traefik),
+  // refresh breakdown disk Docker untuk modul Monitoring Server "VPS Lain" — tiap jam pas (:00),
+  // supaya info sync-nya tidak kadaluarsa lama (dulu sekali sehari jam 03:00, dirasa kurang sering).
   cron.schedule(
-    "0 3 * * *",
+    "0 * * * *",
     () => {
       runVpsMonitoringRefresh()
         .then((r) => console.log(`[cron] vps-monitoring selesai: ${r.vpsCount} VPS, ${r.coolifySynced} app di-sync, ${r.domainsChecked} domain expiry, ${r.accessChecked} last-access, ${r.dockerDiskRefreshed} disk Docker`))
@@ -151,6 +152,6 @@ export async function register() {
   )
 
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring (03:00), retensi backup R2 (tgl 1 jam 02:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring (tiap jam :00), retensi backup R2 (tgl 1 jam 02:00) WIB"
   )
 }

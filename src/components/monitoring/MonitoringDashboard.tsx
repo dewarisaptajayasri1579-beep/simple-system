@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { HardDrive, Database, Users, Plus, Trash2, RefreshCw, Archive, ExternalLink, Server, ChevronDown, Sparkles } from "lucide-react"
+import { HardDrive, Database, Users, Plus, Trash2, RefreshCw, Archive, ExternalLink, Server, ChevronDown } from "lucide-react"
 
 import { Button, Input, Modal, Alert, Spinner, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -100,9 +100,6 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
   const [vpsForm, setVpsForm] = useState(emptyVpsForm)
   const [vpsFormError, setVpsFormError] = useState("")
   const [savingVps, setSavingVps] = useState(false)
-
-  const [refreshingAll, setRefreshingAll] = useState(false)
-  const [refreshSummary, setRefreshSummary] = useState("")
 
   const loadSelf = useCallback(async () => {
     setDiskError("")
@@ -229,25 +226,6 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
     }
   }
 
-  const handleRefreshChecks = async () => {
-    setRefreshingAll(true)
-    setRefreshSummary("")
-    try {
-      const res = await fetch("/api/monitoring/vps/refresh-checks", { method: "POST" })
-      const data = await res.json().catch(() => null)
-      if (!res.ok) {
-        alert(data?.error || "Gagal menjalankan sync & cek")
-        return
-      }
-      setRefreshSummary(
-        `Selesai: ${data.coolifySynced} aplikasi di-sync, ${data.domainsChecked} domain expiry ke-update, ${data.accessChecked} terakhir-akses ke-update, ${data.dockerDiskRefreshed} disk Docker di-refresh.`
-      )
-      await loadVps()
-    } finally {
-      setRefreshingAll(false)
-    }
-  }
-
   const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id))
 
   if (loading) {
@@ -272,26 +250,13 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
             Refresh
           </Button>
           {isOwner && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<Sparkles className="w-4 h-4" />}
-                isLoading={refreshingAll}
-                loadingText="Memproses..."
-                onClick={handleRefreshChecks}
-              >
-                Sync & Cek Sekarang
-              </Button>
-              <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddVps}>
-                Tambah VPS
-              </Button>
-            </>
+            <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddVps}>
+              Tambah VPS
+            </Button>
           )}
         </div>
       </div>
 
-      {refreshSummary && <Alert variant="success">{refreshSummary}</Alert>}
       {vpsError && <Alert variant="error">{vpsError}</Alert>}
 
       <div className="flex flex-col gap-3">

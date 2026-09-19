@@ -4,14 +4,15 @@ import { lookupDomainExpiry } from "@/lib/monitoring/rdap"
 import { getVpsDockerDiskUsage } from "@/lib/monitoring/ssh"
 import { getLastAccessedByDomain } from "@/lib/monitoring/traefik-access"
 
-/** Cron harian modul Monitoring Server untuk "VPS Lain": (1) sync aplikasi dari Coolify API kalau
- *  VPS itu dikasih kredensial, (2) cek expiry domain lewat RDAP untuk semua domain aplikasi yang
- *  terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS, (4) refresh cache
+/** Cron tiap jam modul Monitoring Server untuk "VPS Lain": (1) sync aplikasi dari Coolify API
+ *  kalau VPS itu dikasih kredensial, (2) cek expiry domain lewat RDAP untuk semua domain aplikasi
+ *  yang terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS, (4) refresh cache
  *  breakdown disk Docker (lambat, lihat getVpsDockerDiskUsage). Semua best-effort — satu
- *  VPS/domain gagal tidak boleh menggagalkan yang lain. Bisa dipicu manual lewat
- *  POST /api/monitoring/vps/refresh-checks (tombol "Sync & Cek Sekarang", owner-only). */
-export async function runVpsMonitoringRefresh() {
-  const vpsList = await prisma.vpsServer.findMany()
+ *  VPS/domain gagal tidak boleh menggagalkan yang lain. Tanpa `vpsId` jalan buat SEMUA VPS (dipakai
+ *  cron jam-jaman); dikasih `vpsId` cuma scope ke satu VPS itu (dipakai tombol "Sync & Cek
+ *  Sekarang" per VPS — POST /api/monitoring/vps/[id]/refresh-checks, owner-only). */
+export async function runVpsMonitoringRefresh(vpsId?: string) {
+  const vpsList = await prisma.vpsServer.findMany(vpsId ? { where: { id: vpsId } } : undefined)
 
   let coolifySynced = 0
   for (const vps of vpsList) {
@@ -24,7 +25,10 @@ export async function runVpsMonitoringRefresh() {
     }
   }
 
-  const refreshedVpsList = await prisma.vpsServer.findMany({ include: { applications: true } })
+  const refreshedVpsList = await prisma.vpsServer.findMany({
+    where: vpsId ? { id: vpsId } : undefined,
+    include: { applications: true },
+  })
   const allApps = refreshedVpsList.flatMap((v) => v.applications)
 
   const uniqueDomains = [...new Set(allApps.map((a) => a.domain).filter((d): d is string => !!d))]
