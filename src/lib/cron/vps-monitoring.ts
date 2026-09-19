@@ -5,14 +5,21 @@ import { lookupDomainExpiry } from "@/lib/monitoring/rdap"
 import { getVpsDockerDiskUsage } from "@/lib/monitoring/ssh"
 import { getLastAccessedByDomain } from "@/lib/monitoring/traefik-access"
 
-/** Cron tiap jam modul Monitoring Server untuk "VPS Lain": (1) sync aplikasi dari Coolify API
- *  kalau VPS itu dikasih kredensial, (2) cek expiry domain lewat RDAP untuk semua domain aplikasi
- *  yang terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS, (4) refresh cache
- *  breakdown disk Docker (lambat, lihat getVpsDockerDiskUsage). Semua best-effort — satu
- *  VPS/domain gagal tidak boleh menggagalkan yang lain. Tanpa `vpsId` jalan buat SEMUA VPS (dipakai
- *  cron jam-jaman); dikasih `vpsId` cuma scope ke satu VPS itu (dipakai tombol "Sync & Cek
- *  Sekarang" per VPS — POST /api/monitoring/vps/[id]/refresh-checks, owner-only). */
-export async function runVpsMonitoringRefresh(vpsId?: string) {
+/** Modul Monitoring Server untuk "VPS Lain": (1) sync aplikasi dari Coolify API kalau VPS itu
+ *  dikasih kredensial, (2) cek expiry domain lewat RDAP untuk semua domain aplikasi yang
+ *  terdaftar, (3) cek "terakhir diakses" lewat log akses Traefik per VPS, (4) opsional refresh
+ *  cache breakdown disk Docker (LAMBAT & I/O-berat, ~20-25 detik per VPS — `docker system df -v`
+ *  beneran nge-scan isi semua volume, lihat getVpsDockerDiskUsage). Semua best-effort — satu
+ *  VPS/domain gagal tidak boleh menggagalkan yang lain.
+ *
+ *  Tanpa `vpsId` jalan buat SEMUA VPS; dikasih `vpsId` cuma scope ke satu VPS itu (dipakai tombol
+ *  "Sync & Cek Sekarang" per VPS — POST /api/monitoring/vps/[id]/refresh-checks, owner-only,
+ *  SELALU ikut refresh disk Docker karena manual/jarang dipanggil). `includeDockerDisk` (default
+ *  true) sengaja bisa dimatikan buat cron jam-jaman yang cuma butuh bagian ringan (app baru,
+ *  domain, akses) — scan disk yang berat dipisah ke cron hariannya sendiri jam 03:00 WIB, supaya
+ *  proses I/O-berat itu tidak ikut numpuk tiap jam dan kepakai pas jam sepi. */
+export async function runVpsMonitoringRefresh(vpsId?: string, opts?: { includeDockerDisk?: boolean }) {
+  const includeDockerDisk = opts?.includeDockerDisk ?? true
   const vpsList = await prisma.vpsServer.findMany(vpsId ? { where: { id: vpsId } } : undefined)
 
   let coolifySynced = 0
@@ -119,20 +126,22 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
   ).catch((e) => console.error("[vps-monitoring] geolocation IP background gagal:", e))
 
   let dockerDiskRefreshed = 0
-  for (const vps of vpsList) {
-    try {
-      const result = await getVpsDockerDiskUsage(vps)
-      if (!result.dockerDisk) continue
-      await prisma.vpsServer.update({
-        where: { id: vps.id },
-        data: {
-          dockerDiskCache: { dockerDisk: result.dockerDisk, containers: result.containers ?? [], volumes: result.volumes ?? [] },
-          dockerDiskCheckedAt: new Date(),
-        },
-      })
-      dockerDiskRefreshed += 1
-    } catch (e) {
-      console.error(`[vps-monitoring] cek disk Docker gagal untuk VPS "${vps.name}":`, e)
+  if (includeDockerDisk) {
+    for (const vps of vpsList) {
+      try {
+        const result = await getVpsDockerDiskUsage(vps)
+        if (!result.dockerDisk) continue
+        await prisma.vpsServer.update({
+          where: { id: vps.id },
+          data: {
+            dockerDiskCache: { dockerDisk: result.dockerDisk, containers: result.containers ?? [], volumes: result.volumes ?? [] },
+            dockerDiskCheckedAt: new Date(),
+          },
+        })
+        dockerDiskRefreshed += 1
+      } catch (e) {
+        console.error(`[vps-monitoring] cek disk Docker gagal untuk VPS "${vps.name}":`, e)
+      }
     }
   }
 
