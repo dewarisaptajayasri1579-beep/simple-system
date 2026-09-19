@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Server, HardDrive, Archive, Plus, Trash2, Pencil, RefreshCw, ExternalLink, GitBranch, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown } from "lucide-react"
 
-import { Card, CardHeader, CardTitle, CardDescription, Button, Input, Textarea, Modal, Alert, Spinner, Badge } from "@/components/ui"
+import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { formatDateTimeId, formatDateOnlyId } from "@/lib/monitoring"
 
-type DiskInfo = {
+export type DiskInfo = {
   totalBytes: number
   usedBytes: number
   availableBytes: number
@@ -17,7 +17,7 @@ type DiskInfo = {
   availablePretty: string
 }
 
-type AppRow = {
+export type AppRow = {
   id: string
   name: string
   domain: string | null
@@ -32,7 +32,7 @@ type AppRow = {
   hasCoolifySync: boolean
 }
 
-type VpsRow = {
+export type VpsRow = {
   id: string
   name: string
   host: string
@@ -52,20 +52,6 @@ type VpsRow = {
   applications: AppRow[]
 }
 
-const emptyVpsForm = {
-  name: "",
-  host: "",
-  sshPort: "22",
-  sshUser: "",
-  sshPassword: "",
-  sshPrivateKey: "",
-  diskPath: "/",
-  backupCheckPath: "",
-  proxyContainerName: "coolify-proxy",
-  coolifyApiUrl: "",
-  coolifyApiToken: "",
-}
-
 const emptyAppForm = {
   vpsServerId: "",
   name: "",
@@ -78,7 +64,7 @@ const emptyAppForm = {
   notes: "",
 }
 
-function isBackupStale(iso: string | null) {
+export function isBackupStale(iso: string | null) {
   if (!iso) return true
   return Date.now() - new Date(iso).getTime() > 30 * 60 * 60 * 1000
 }
@@ -91,17 +77,48 @@ function DomainExpiryBadge({ iso }: { iso: string | null }) {
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
-  const [vpsList, setVpsList] = useState<VpsRow[] | null>(null)
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [refreshingAll, setRefreshingAll] = useState(false)
-  const [syncingVpsId, setSyncingVpsId] = useState<string | null>(null)
-  const [refreshSummary, setRefreshSummary] = useState("")
+export function DiskMiniBar({ disk, diskError }: { disk: DiskInfo | null; diskError: string | null }) {
+  if (diskError) return <span className="text-[11px] font-semibold text-rose-600">Disk error</span>
+  if (!disk) return null
+  return (
+    <div className="flex items-center gap-1.5 w-28">
+      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${disk.usedPct >= 90 ? "bg-rose-500" : disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+          style={{ width: `${Math.min(disk.usedPct, 100)}%` }}
+        />
+      </div>
+      <span className="text-[11px] font-bold text-slate-600 flex-shrink-0">{disk.usedPct}%</span>
+    </div>
+  )
+}
+
+/** Satu kartu VPS yang bisa di-expand/collapse — dipakai di dalam list "VPS Lain" pada
+ *  MonitoringDashboard.tsx. Ngurus sendiri modal Edit VPS & Tambah/Edit Aplikasi (spesifik ke
+ *  VPS ini); modal "Tambah VPS" (VPS baru) ada di parent karena tidak terikat ke satu VPS. */
+export const VpsServerCard: React.FC<{
+  vps: VpsRow
+  isOwner: boolean
+  expanded: boolean
+  onToggleExpand: () => void
+  onChanged: () => void
+}> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
+  const [syncing, setSyncing] = useState(false)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
-  const [editingVpsId, setEditingVpsId] = useState<string | null>(null)
-  const [vpsForm, setVpsForm] = useState(emptyVpsForm)
+  const [vpsForm, setVpsForm] = useState({
+    name: vps.name,
+    host: vps.host,
+    sshPort: String(vps.sshPort),
+    sshUser: vps.sshUser,
+    sshPassword: "",
+    sshPrivateKey: "",
+    diskPath: vps.diskPath,
+    backupCheckPath: vps.backupCheckPath ?? "",
+    proxyContainerName: vps.proxyContainerName,
+    coolifyApiUrl: vps.coolifyApiUrl ?? "",
+    coolifyApiToken: "",
+  })
   const [vpsFormError, setVpsFormError] = useState("")
   const [savingVps, setSavingVps] = useState(false)
 
@@ -111,26 +128,7 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
   const [appFormError, setAppFormError] = useState("")
   const [savingApp, setSavingApp] = useState(false)
 
-  const loadAll = useCallback(async () => {
-    setError("")
-    const res = await fetch("/api/monitoring/vps", { cache: "no-store" })
-    if (res.ok) setVpsList(await res.json())
-    else setError((await res.json().catch(() => null))?.error || "Gagal memuat daftar VPS")
-  }, [])
-
-  useEffect(() => {
-    loadAll().finally(() => setLoading(false))
-  }, [loadAll])
-
-  const openAddVps = () => {
-    setEditingVpsId(null)
-    setVpsForm(emptyVpsForm)
-    setVpsFormError("")
-    setIsVpsModalOpen(true)
-  }
-
-  const openEditVps = (vps: VpsRow) => {
-    setEditingVpsId(vps.id)
+  const openEditVps = () => {
     setVpsForm({
       name: vps.name,
       host: vps.host,
@@ -154,10 +152,6 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
       setVpsFormError("Nama, host, dan SSH user wajib diisi")
       return
     }
-    if (!editingVpsId && !vpsForm.sshPassword.trim() && !vpsForm.sshPrivateKey.trim()) {
-      setVpsFormError("Isi salah satu: SSH password atau SSH private key")
-      return
-    }
     setSavingVps(true)
     try {
       const body = {
@@ -173,8 +167,8 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
         coolifyApiUrl: vpsForm.coolifyApiUrl.trim(),
         ...(vpsForm.coolifyApiToken.trim() ? { coolifyApiToken: vpsForm.coolifyApiToken.trim() } : {}),
       }
-      const res = await fetch(editingVpsId ? `/api/monitoring/vps/${editingVpsId}` : "/api/monitoring/vps", {
-        method: editingVpsId ? "PATCH" : "POST",
+      const res = await fetch(`/api/monitoring/vps/${vps.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
@@ -184,20 +178,20 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
         return
       }
       setIsVpsModalOpen(false)
-      await loadAll()
+      onChanged()
     } finally {
       setSavingVps(false)
     }
   }
 
-  const handleDeleteVps = async (vps: VpsRow) => {
+  const handleDeleteVps = async () => {
     if (!confirm(`Hapus VPS "${vps.name}" beserta semua aplikasi di bawahnya dari daftar pantauan?`)) return
     await fetch(`/api/monitoring/vps/${vps.id}`, { method: "DELETE" })
-    await loadAll()
+    onChanged()
   }
 
-  const handleSyncCoolify = async (vps: VpsRow) => {
-    setSyncingVpsId(vps.id)
+  const handleSyncCoolify = async () => {
+    setSyncing(true)
     try {
       const res = await fetch(`/api/monitoring/vps/${vps.id}/sync-coolify`, { method: "POST" })
       const data = await res.json().catch(() => null)
@@ -205,42 +199,23 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
         alert(data?.error || "Gagal sync dari Coolify")
         return
       }
-      await loadAll()
+      onChanged()
     } finally {
-      setSyncingVpsId(null)
+      setSyncing(false)
     }
   }
 
-  const handleRefreshChecks = async () => {
-    setRefreshingAll(true)
-    setRefreshSummary("")
-    try {
-      const res = await fetch("/api/monitoring/vps/refresh-checks", { method: "POST" })
-      const data = await res.json().catch(() => null)
-      if (!res.ok) {
-        alert(data?.error || "Gagal menjalankan sync & cek")
-        return
-      }
-      setRefreshSummary(
-        `Selesai: ${data.coolifySynced} aplikasi di-sync, ${data.domainsChecked} domain expiry ke-update, ${data.accessChecked} terakhir-akses ke-update.`
-      )
-      await loadAll()
-    } finally {
-      setRefreshingAll(false)
-    }
-  }
-
-  const openAddApp = (vpsServerId: string) => {
+  const openAddApp = () => {
     setEditingAppId(null)
-    setAppForm({ ...emptyAppForm, vpsServerId })
+    setAppForm({ ...emptyAppForm, vpsServerId: vps.id })
     setAppFormError("")
     setIsAppModalOpen(true)
   }
 
-  const openEditApp = (vpsServerId: string, app: AppRow) => {
+  const openEditApp = (app: AppRow) => {
     setEditingAppId(app.id)
     setAppForm({
-      vpsServerId,
+      vpsServerId: vps.id,
       name: app.name,
       domain: app.domain ?? "",
       gitRepository: app.gitRepository ?? "",
@@ -284,7 +259,7 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
         return
       }
       setIsAppModalOpen(false)
-      await loadAll()
+      onChanged()
     } finally {
       setSavingApp(false)
     }
@@ -293,254 +268,205 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
   const handleDeleteApp = async (app: AppRow) => {
     if (!confirm(`Hapus aplikasi "${app.name}" dari daftar pantauan?`)) return
     await fetch(`/api/monitoring/applications/${app.id}`, { method: "DELETE" })
-    await loadAll()
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Spinner />
-      </div>
-    )
+    onChanged()
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-900">VPS Lain</h2>
-          <p className="text-sm text-slate-600 font-medium">Server & aplikasi di luar server tempat app ini jalan.</p>
+    <div className="rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md overflow-hidden">
+      <button
+        onClick={onToggleExpand}
+        className="w-full flex items-center justify-between gap-3 text-left px-4 sm:px-5 py-4 cursor-pointer hover:bg-white/60 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
+            <Server className="w-4.5 h-4.5 text-indigo-600" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-black text-slate-900 truncate">{vps.name}</div>
+            <div className="text-xs font-semibold text-slate-500 truncate">
+              {vps.sshUser}@{vps.host}:{vps.sshPort}
+              {vps.hasCoolify ? " · Coolify" : ""} · {vps.applications.length} aplikasi
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={() => loadAll()}>
-            Refresh
-          </Button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <DiskMiniBar disk={vps.disk} diskError={vps.diskError} />
+          <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 sm:px-5 pb-5 flex flex-col gap-4 border-t border-slate-200/80 pt-4">
           {isOwner && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<Sparkles className="w-4 h-4" />}
-                isLoading={refreshingAll}
-                loadingText="Memproses..."
-                onClick={handleRefreshChecks}
+            <div className="flex items-center gap-1.5 justify-end flex-wrap">
+              {vps.hasCoolify && (
+                <Button variant="secondary" size="sm" isLoading={syncing} loadingText="Sync..." onClick={handleSyncCoolify}>
+                  Sync dari Coolify
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddApp}>
+                Aplikasi
+              </Button>
+              <Button variant="secondary" size="sm" leftIcon={<Pencil className="w-4 h-4" />} onClick={openEditVps}>
+                Edit VPS
+              </Button>
+              <button
+                onClick={handleDeleteVps}
+                className="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                aria-label="Hapus VPS"
               >
-                Sync & Cek Sekarang
-              </Button>
-              <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddVps}>
-                Tambah VPS
-              </Button>
-            </>
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           )}
-        </div>
-      </div>
 
-      {refreshSummary && <Alert variant="success">{refreshSummary}</Alert>}
-      {error && <Alert variant="error">{error}</Alert>}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 flex flex-col gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <HardDrive className="w-3.5 h-3.5" /> Disk Space ({vps.diskPath})
+              </span>
+              {vps.diskError ? (
+                <span className="text-xs font-semibold text-rose-600">{vps.diskError}</span>
+              ) : vps.disk ? (
+                <div className="flex flex-col gap-1.5">
+                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${vps.disk.usedPct >= 90 ? "bg-rose-500" : vps.disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+                      style={{ width: `${Math.min(vps.disk.usedPct, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
+                  </span>
+                </div>
+              ) : null}
+            </div>
 
-      {(vpsList ?? []).length === 0 && !error ? (
-        <Card variant="glass" padding="lg">
-          <p className="text-sm text-slate-500 font-medium text-center py-6">
-            Belum ada VPS terdaftar. {isOwner ? 'Klik "Tambah VPS" untuk mulai memantau.' : ""}
-          </p>
-        </Card>
-      ) : (
-        (vpsList ?? []).map((vps) => (
-          <Card key={vps.id} variant="glass" padding="lg">
-            <CardHeader className="flex-row items-center justify-between flex-wrap gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Server className="w-5 h-5 text-indigo-600" /> {vps.name}
-                </CardTitle>
-                <CardDescription>
-                  {vps.sshUser}@{vps.host}:{vps.sshPort}
-                  {vps.hasCoolify ? " · Coolify tersambung" : ""}
-                </CardDescription>
-              </div>
-              {isOwner && (
-                <div className="flex items-center gap-1.5">
-                  {vps.hasCoolify && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      isLoading={syncingVpsId === vps.id}
-                      loadingText="Sync..."
-                      onClick={() => handleSyncCoolify(vps)}
-                    >
-                      Sync dari Coolify
-                    </Button>
+            <div className="flex-1 flex flex-col gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <Archive className="w-3.5 h-3.5" /> Backup Terakhir (VPS)
+              </span>
+              {!vps.backupCheckPath ? (
+                <span className="text-xs font-semibold text-slate-400">Belum diset (isi &quot;Path Cek Backup&quot; di Edit VPS)</span>
+              ) : vps.backupError ? (
+                <span className="text-xs font-semibold text-rose-600">{vps.backupError}</span>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-slate-700">
+                    {vps.backupLatestFile} · {formatDateTimeId(vps.backupLatestAt)}
+                  </span>
+                  {isBackupStale(vps.backupLatestAt) ? (
+                    <Badge variant="danger" size="sm">
+                      Lebih dari 1 hari
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" size="sm">
+                      Up to date
+                    </Badge>
                   )}
-                  <Button variant="secondary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={() => openAddApp(vps.id)}>
-                    Aplikasi
-                  </Button>
-                  <button
-                    onClick={() => openEditVps(vps)}
-                    className="text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                    aria-label="Edit VPS"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteVps(vps)}
-                    className="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                    aria-label="Hapus VPS"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               )}
-            </CardHeader>
-
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 flex flex-col gap-2">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    <HardDrive className="w-3.5 h-3.5" /> Disk Space ({vps.diskPath})
-                  </span>
-                  {vps.diskError ? (
-                    <span className="text-xs font-semibold text-rose-600">{vps.diskError}</span>
-                  ) : vps.disk ? (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${vps.disk.usedPct >= 90 ? "bg-rose-500" : vps.disk.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
-                          style={{ width: `${Math.min(vps.disk.usedPct, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700">
-                        {vps.disk.usedPretty} / {vps.disk.totalPretty} ({vps.disk.usedPct}%)
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex-1 flex flex-col gap-2">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    <Archive className="w-3.5 h-3.5" /> Backup Terakhir (VPS)
-                  </span>
-                  {!vps.backupCheckPath ? (
-                    <span className="text-xs font-semibold text-slate-400">Belum diset (isi "Path Cek Backup" di Edit VPS)</span>
-                  ) : vps.backupError ? (
-                    <span className="text-xs font-semibold text-rose-600">{vps.backupError}</span>
-                  ) : (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {vps.backupLatestFile} · {formatDateTimeId(vps.backupLatestAt)}
-                      </span>
-                      {isBackupStale(vps.backupLatestAt) ? (
-                        <Badge variant="danger" size="sm">
-                          Lebih dari 1 hari
-                        </Badge>
-                      ) : (
-                        <Badge variant="success" size="sm">
-                          Up to date
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <TableContainer>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Aplikasi</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>Git</TableHead>
-                      <TableHead>Terakhir Diakses</TableHead>
-                      <TableHead>Terakhir Backup</TableHead>
-                      <TableHead>Domain Habis</TableHead>
-                      {isOwner && <TableHead className="text-right">Aksi</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vps.applications.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
-                          Belum ada aplikasi terdaftar di VPS ini.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      vps.applications.map((app) => (
-                        <TableRow key={app.id}>
-                          <TableCell className="font-bold">
-                            {app.name}
-                            {app.hasCoolifySync && (
-                              <Badge variant="info" size="sm" className="ml-1.5">
-                                Coolify
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {app.domain ? (
-                              <a
-                                href={`https://${app.domain}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                              >
-                                {app.domain} <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="text-slate-400 text-xs">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {app.gitRepository ? (
-                              <a
-                                href={app.gitRepository}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs max-w-[160px] truncate"
-                              >
-                                <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
-                              </a>
-                            ) : (
-                              <span className="text-slate-400 text-xs">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">
-                            {formatDateTimeId(app.lastBackupAt)}
-                            {app.backupLocation && <div className="text-slate-400 font-medium">{app.backupLocation}</div>}
-                          </TableCell>
-                          <TableCell>
-                            <DomainExpiryBadge iso={app.domainExpiresAt} />
-                          </TableCell>
-                          {isOwner && (
-                            <TableCell className="text-right whitespace-nowrap">
-                              <button
-                                onClick={() => openEditApp(vps.id, app)}
-                                className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                                aria-label="Edit"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteApp(app)}
-                                className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                                aria-label="Hapus"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
             </div>
-          </Card>
-        ))
+          </div>
+
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Aplikasi</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Git</TableHead>
+                  <TableHead>Terakhir Diakses</TableHead>
+                  <TableHead>Terakhir Backup</TableHead>
+                  <TableHead>Domain Habis</TableHead>
+                  {isOwner && <TableHead className="text-right">Aksi</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vps.applications.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
+                      Belum ada aplikasi terdaftar di VPS ini.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  vps.applications.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell className="font-bold">
+                        {app.name}
+                        {app.hasCoolifySync && (
+                          <Badge variant="info" size="sm" className="ml-1.5">
+                            Coolify
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {app.domain ? (
+                          <a
+                            href={`https://${app.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                          >
+                            {app.domain} <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {app.gitRepository ? (
+                          <a
+                            href={app.gitRepository}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs max-w-[160px] truncate"
+                          >
+                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {app.gitBranch || "repo"}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        {formatDateTimeId(app.lastBackupAt)}
+                        {app.backupLocation && <div className="text-slate-400 font-medium">{app.backupLocation}</div>}
+                      </TableCell>
+                      <TableCell>
+                        <DomainExpiryBadge iso={app.domainExpiresAt} />
+                      </TableCell>
+                      {isOwner && (
+                        <TableCell className="text-right whitespace-nowrap">
+                          <button
+                            onClick={() => openEditApp(app)}
+                            className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            aria-label="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteApp(app)}
+                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            aria-label="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </div>
       )}
 
       <Modal
         isOpen={isVpsModalOpen}
         onClose={() => !savingVps && setIsVpsModalOpen(false)}
-        title={editingVpsId ? "Edit VPS" : "Tambah VPS"}
+        title="Edit VPS"
         subtitle="Kredensial SSH & Coolify disimpan di server, dipakai buat cek disk/backup live & sync aplikasi."
         size="lg"
         footer={
@@ -557,11 +483,11 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
         <div className="flex flex-col gap-4">
           {vpsFormError && <Alert variant="error">{vpsFormError}</Alert>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Nama" placeholder="mis. VPS Jakarta 1" value={vpsForm.name} onChange={(e) => setVpsForm({ ...vpsForm, name: e.target.value })} />
-            <Input label="Host / IP" placeholder="mis. 168.1.2.3" value={vpsForm.host} onChange={(e) => setVpsForm({ ...vpsForm, host: e.target.value })} />
+            <Input label="Nama" value={vpsForm.name} onChange={(e) => setVpsForm({ ...vpsForm, name: e.target.value })} />
+            <Input label="Host / IP" value={vpsForm.host} onChange={(e) => setVpsForm({ ...vpsForm, host: e.target.value })} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="SSH User" placeholder="root" value={vpsForm.sshUser} onChange={(e) => setVpsForm({ ...vpsForm, sshUser: e.target.value })} />
+            <Input label="SSH User" value={vpsForm.sshUser} onChange={(e) => setVpsForm({ ...vpsForm, sshUser: e.target.value })} />
             <Input
               label="SSH Port"
               type="number"
@@ -572,14 +498,14 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
           <Input
             label="SSH Password"
             isPassword
-            placeholder={editingVpsId ? "Kosongkan kalau tidak diubah" : ""}
+            placeholder="Kosongkan kalau tidak diubah"
             helperText="Isi salah satu: password atau private key"
             value={vpsForm.sshPassword}
             onChange={(e) => setVpsForm({ ...vpsForm, sshPassword: e.target.value })}
           />
           <Textarea
             label="SSH Private Key"
-            placeholder={editingVpsId ? "Kosongkan kalau tidak diubah" : "-----BEGIN OPENSSH PRIVATE KEY-----..."}
+            placeholder="Kosongkan kalau tidak diubah"
             value={vpsForm.sshPrivateKey}
             onChange={(e) => setVpsForm({ ...vpsForm, sshPrivateKey: e.target.value })}
             rows={3}
@@ -615,7 +541,7 @@ export const VpsMonitoring: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
             <Input
               label="Coolify API Token (opsional)"
               isPassword
-              placeholder={editingVpsId ? "Kosongkan kalau tidak diubah" : ""}
+              placeholder="Kosongkan kalau tidak diubah"
               value={vpsForm.coolifyApiToken}
               onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
             />
