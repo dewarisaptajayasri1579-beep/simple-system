@@ -600,7 +600,7 @@ export const VpsServerCard: React.FC<{
             <div className="font-black text-slate-900 truncate">{vps.name}</div>
             <div className="text-xs font-semibold text-slate-500 truncate">
               {vps.hasCoolify ? "Coolify · " : ""}
-              {vps.applications.length} aplikasi
+              {vps.applications.length} aplikasi · {vps.databases.length} database
             </div>
           </div>
         </div>
