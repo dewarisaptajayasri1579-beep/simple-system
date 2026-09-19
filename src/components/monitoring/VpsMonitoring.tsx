@@ -59,10 +59,20 @@ export type VpsRow = {
   backupLatestFile: string | null
   backupLatestAt: string | null
   backupError: string | null
-  cpu: { loadPct1m: number; loadPct5m: number; loadPct15m: number; cores: number } | null
+  cpu: {
+    loadPct1m: number
+    loadPct5m: number
+    loadPct15m: number
+    cores: number
+    processesRunning: number | null
+    processesTotal: number | null
+  } | null
   cpuError: string | null
+  cpuCores: { core: string; usedPct: number }[] | null
   ram: { usedBytes: number; totalBytes: number; usedPct: number } | null
   ramError: string | null
+  swap: { usedBytes: number; totalBytes: number; usedPct: number } | null
+  uptimeSeconds: number | null
   dockerDisk: DockerDiskEntry[] | null
   dockerVolumes: { name: string; size: string }[] | null
   dockerDiskCheckedAt: string | null
@@ -181,6 +191,15 @@ function parseDockerSize(raw: string | undefined): number {
   if (!m) return 0
   const mult: Record<string, number> = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
   return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1)
+}
+
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days} hari ${hours} jam`
+  if (hours > 0) return `${hours} jam ${minutes} menit`
+  return `${minutes} menit`
 }
 
 function formatBytes(bytes: number): string {
@@ -558,7 +577,11 @@ export const VpsServerCard: React.FC<{
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {vps.uptimeSeconds !== null && (
+            <span className="text-[11px] text-slate-400 font-medium -mb-1">Uptime: {formatUptime(vps.uptimeSeconds)}</span>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <Cpu className="w-3.5 h-3.5" /> CPU
@@ -579,6 +602,30 @@ export const VpsServerCard: React.FC<{
                   <span className="text-[11px] text-slate-400 font-medium">
                     5m: {vps.cpu.loadPct5m.toFixed(0)}% · 15m: {vps.cpu.loadPct15m.toFixed(0)}%
                   </span>
+                  {vps.cpu.processesRunning !== null && vps.cpu.processesTotal !== null && (
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Proses: {vps.cpu.processesRunning} jalan / {vps.cpu.processesTotal} total
+                    </span>
+                  )}
+                  {vps.cpuCores && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {vps.cpuCores.map((c) => (
+                        <span
+                          key={c.core}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            c.usedPct >= 90
+                              ? "bg-rose-100 text-rose-700"
+                              : c.usedPct >= 75
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-slate-100 text-slate-600"
+                          }`}
+                          title={c.core}
+                        >
+                          {c.core.replace("cpu", "C")}: {c.usedPct.toFixed(0)}%
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <span className="text-xs font-medium text-slate-400">-</span>
@@ -604,6 +651,26 @@ export const VpsServerCard: React.FC<{
                 </>
               ) : (
                 <span className="text-xs font-medium text-slate-400">-</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <MemoryStick className="w-3.5 h-3.5" /> Swap
+              </span>
+              {vps.swap ? (
+                <>
+                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${vps.swap.usedPct >= 90 ? "bg-rose-500" : vps.swap.usedPct >= 75 ? "bg-amber-500" : "bg-blue-600"}`}
+                      style={{ width: `${Math.min(vps.swap.usedPct, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {formatBytes(vps.swap.usedBytes)} / {formatBytes(vps.swap.totalBytes)} ({vps.swap.usedPct.toFixed(0)}%)
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs font-medium text-slate-400">Tidak ada swap</span>
               )}
             </div>
           </div>

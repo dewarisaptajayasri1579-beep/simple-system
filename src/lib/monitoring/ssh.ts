@@ -136,11 +136,18 @@ export type CpuUsage = {
   loadPct5m: number
   loadPct15m: number
   cores: number
+  processesRunning: number | null
+  processesTotal: number | null
 }
 
 export type RamUsage = {
   usedBytes: number
   totalBytes: number
+  usedPct: number
+}
+
+export type CpuCoreUsage = {
+  core: string
   usedPct: number
 }
 
@@ -152,8 +159,11 @@ export type VpsLiveCheck = {
   backupError: string | null
   cpu: CpuUsage | null
   cpuError: string | null
+  cpuCores: CpuCoreUsage[] | null
   ram: RamUsage | null
   ramError: string | null
+  swap: RamUsage | null
+  uptimeSeconds: number | null
 }
 
 export type VolumeDiskEntry = {
@@ -256,7 +266,18 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
     // MemAvailable (bukan MemFree) = perkiraan kernel yang paling akurat buat "RAM yang beneran
     // bisa dipakai" — sudah memperhitungkan cache/buffer yang reclaimable, beda dari MemFree yang
     // sering kelihatan rendah padahal sebagian besar cuma cache OS, bukan benar-benar terpakai.
-    `awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{print t, a}' /proc/meminfo`,
+    // Swap ikut diambil di command yang sama (sekali baca /proc/meminfo, bukan 2 command).
+    `awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} /SwapTotal/{st=$2} /SwapFree/{sf=$2} END{print t, a, st, sf}' /proc/meminfo`,
+    `echo "${DELIM}"`,
+    `cat /proc/uptime`,
+    `echo "${DELIM}"`,
+    // Per-core butuh 2 snapshot /proc/stat dijeda dikit (counter jiffies itu KUMULATIF sejak
+    // boot, bukan angka instan) — beda dari load average yang sudah dihitung kernel sendiri.
+    // 300ms cukup buat delta yang stabil tanpa bikin SSH check ini kerasa lambat.
+    `grep '^cpu[0-9]' /proc/stat`,
+    `sleep 0.3`,
+    `echo "${DELIM}"`,
+    `grep '^cpu[0-9]' /proc/stat`,
   ].join("\n")
 
   let stdout: string
@@ -272,12 +293,16 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
       backupError: vps.backupCheckPath ? message : null,
       cpu: null,
       cpuError: message,
+      cpuCores: null,
       ram: null,
       ramError: message,
+      swap: null,
+      uptimeSeconds: null,
     }
   }
 
-  const [diskPart, backupPart = "", cpuPart = "", ramPart = ""] = stdout.split(DELIM)
+  const [diskPart, backupPart = "", cpuPart = "", ramPart = "", uptimePart = "", coreSnap1Part = "", coreSnap2Part = ""] =
+    stdout.split(DELIM)
 
   let disk: DiskUsage | null = null
   let diskError: string | null = null
@@ -306,26 +331,89 @@ export async function getVpsDiskAndBackup(vps: VpsLiveCheckInput): Promise<VpsLi
   try {
     const [coresLine = "", loadLine = ""] = cpuPart.trim().split("\n")
     const cores = Number(coresLine.trim())
-    const [l1, l5, l15] = loadLine.trim().split(/\s+/).map(Number)
+    const loadFields = loadLine.trim().split(/\s+/)
+    const [l1, l5, l15] = loadFields.map(Number)
     if (!Number.isFinite(cores) || cores <= 0 || ![l1, l5, l15].every(Number.isFinite)) throw new Error()
-    cpu = { loadPct1m: (l1 / cores) * 100, loadPct5m: (l5 / cores) * 100, loadPct15m: (l15 / cores) * 100, cores }
+    // Field ke-4 /proc/loadavg formatnya "running/total" (mis. "3/234") — proses yang lagi
+    // running di CPU vs total proses+thread di sistem, "gratis" tanpa command tambahan.
+    const [runningStr, totalStr] = (loadFields[3] ?? "").split("/")
+    const processesRunning = Number(runningStr)
+    const processesTotal = Number(totalStr)
+    cpu = {
+      loadPct1m: (l1 / cores) * 100,
+      loadPct5m: (l5 / cores) * 100,
+      loadPct15m: (l15 / cores) * 100,
+      cores,
+      processesRunning: Number.isFinite(processesRunning) ? processesRunning : null,
+      processesTotal: Number.isFinite(processesTotal) ? processesTotal : null,
+    }
   } catch {
     cpuError = "Gagal membaca CPU load VPS"
   }
 
   let ram: RamUsage | null = null
   let ramError: string | null = null
+  let swap: RamUsage | null = null
   try {
-    const [totalKB, availKB] = ramPart.trim().split(/\s+/).map(Number)
+    const [totalKB, availKB, swapTotalKB, swapFreeKB] = ramPart.trim().split(/\s+/).map(Number)
     if (!Number.isFinite(totalKB) || totalKB <= 0 || !Number.isFinite(availKB)) throw new Error()
     const totalBytes = totalKB * 1024
     const usedBytes = Math.max(totalBytes - availKB * 1024, 0)
     ram = { usedBytes, totalBytes, usedPct: (usedBytes / totalBytes) * 100 }
+
+    if (Number.isFinite(swapTotalKB) && swapTotalKB > 0 && Number.isFinite(swapFreeKB)) {
+      const swapTotalBytes = swapTotalKB * 1024
+      const swapUsedBytes = Math.max(swapTotalBytes - swapFreeKB * 1024, 0)
+      swap = { usedBytes: swapUsedBytes, totalBytes: swapTotalBytes, usedPct: (swapUsedBytes / swapTotalBytes) * 100 }
+    }
   } catch {
     ramError = "Gagal membaca RAM VPS"
   }
 
-  return { disk, diskError, backupLatestFile, backupLatestAt, backupError, cpu, cpuError, ram, ramError }
+  const uptimeSeconds = (() => {
+    const v = Number(uptimePart.trim().split(/\s+/)[0])
+    return Number.isFinite(v) && v > 0 ? v : null
+  })()
+
+  const cpuCores = parseCpuCoreUsage(coreSnap1Part, coreSnap2Part)
+
+  return { disk, diskError, backupLatestFile, backupLatestAt, backupError, cpu, cpuError, cpuCores, ram, ramError, swap, uptimeSeconds }
+}
+
+/** `/proc/stat` field per-core: "cpuN user nice system idle iowait irq softirq steal guest
+ *  guest_nice" — semuanya counter KUMULATIF (jiffies) sejak boot, jadi persentase pemakaian
+ *  cuma bisa dihitung dari SELISIH 2 snapshot (lihat pemanggil, dijeda 300ms), bukan dari 1
+ *  snapshot saja. idle dihitung idle+iowait (konvensi umum, sama seperti htop/top). */
+function parseCpuCoreUsage(snap1Raw: string, snap2Raw: string): CpuCoreUsage[] | null {
+  const parse = (raw: string) => {
+    const map = new Map<string, { idle: number; total: number }>()
+    for (const line of raw.trim().split("\n")) {
+      const parts = line.trim().split(/\s+/)
+      if (parts.length < 8) continue
+      const nums = parts.slice(1).map(Number)
+      if (!nums.every(Number.isFinite)) continue
+      const idle = (nums[3] ?? 0) + (nums[4] ?? 0)
+      const total = nums.reduce((sum, n) => sum + n, 0)
+      map.set(parts[0], { idle, total })
+    }
+    return map
+  }
+
+  const snap1 = parse(snap1Raw)
+  const snap2 = parse(snap2Raw)
+  if (snap1.size === 0 || snap2.size === 0) return null
+
+  const result: CpuCoreUsage[] = []
+  for (const [core, s2] of snap2) {
+    const s1 = snap1.get(core)
+    if (!s1) continue
+    const totalDelta = s2.total - s1.total
+    const idleDelta = s2.idle - s1.idle
+    if (totalDelta <= 0) continue
+    result.push({ core, usedPct: Math.max(0, Math.min(100, ((totalDelta - idleDelta) / totalDelta) * 100)) })
+  }
+  result.sort((a, b) => a.core.localeCompare(b.core, undefined, { numeric: true }))
+  return result.length > 0 ? result : null
 }
 
 /** 1 koneksi SSH per VPS khusus buat breakdown disk Docker (image/container/volume/build cache +
