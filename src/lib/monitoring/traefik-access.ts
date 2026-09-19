@@ -1,4 +1,4 @@
-import { sshExec, vpsSshCreds, type VpsSshLike } from "./ssh"
+import { sshExec, sudoWrap, vpsSshCreds, type VpsSshLike } from "./ssh"
 
 export type VpsProxyLike = VpsSshLike & { proxyContainerName: string }
 
@@ -57,7 +57,12 @@ export async function getLastAccessedByDomain(vps: VpsProxyLike, domains: string
 
   let logs: string
   try {
-    logs = await sshExec(vpsSshCreds(vps), `docker logs ${vps.proxyContainerName} --since 24h 2>&1 | tail -n 20000`, 15000)
+    const creds = vpsSshCreds(vps)
+    // User SSH non-root umumnya TIDAK punya akses langsung ke docker.sock — butuh sudo, sama
+    // seperti semua command docker lain (lihat sudoWrap di ssh.ts). Tanpa ini, `docker logs`
+    // gagal senyap dengan "permission denied" dan lastAccessedAt/lastAccessedIp tidak pernah
+    // ke-isi buat aplikasi manapun yang pakai fallback ini (bug nyata, ketahuan pas debug).
+    logs = await sshExec(creds, `${sudoWrap(creds.password, `docker logs ${vps.proxyContainerName} --since 24h 2>&1`)} | tail -n 20000`, 15000)
   } catch {
     return result
   }
