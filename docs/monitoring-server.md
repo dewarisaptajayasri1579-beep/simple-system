@@ -6,20 +6,24 @@
 
 ## 1. Ringkasan
 
-Modul Monitoring Server punya 2 tab di `/monitoring`:
+Modul Monitoring Server menampilkan **satu halaman** `/monitoring` berisi **list card** — satu card per server, bisa diklik buat expand/collapse. Card pertama **selalu "Server Ini"** (server tempat aplikasi ini sendiri jalan, tidak bisa dihapus), diikuti card tiap VPS lain yang ditambahkan lewat tombol "Tambah VPS" di header (global, bukan per-card).
 
-**Tab "Server Ini"** — 4 kartu buat server tempat aplikasi ini sendiri jalan:
+**Card "Server Ini"**, waktu di-expand isinya 4 bagian:
 
 1. **Disk Space** — penggunaan disk server tempat aplikasi ini jalan.
 2. **Database Space** — ukuran database aplikasi ini sendiri + database eksternal yang ditambahkan manual.
 3. **Backup Terakhir** — file backup harian terbaru yang ada di Google Drive.
 4. **Login Terakhir** — kapan tiap user terakhir login ke aplikasi.
 
-**Tab "VPS Lain"** — daftar VPS lain (mis. VPS Coolify terpisah) beserta aplikasi di masing-masing VPS: disk space & backup terakhir per VPS (lewat SSH), dan per aplikasi: domain, git repo, terakhir diakses, terakhir backup, kapan domain habis. Lihat bagian 6.
+Header collapsed-nya juga nampilin **IP publik** server ini (lihat bagian 6.8) dan mini disk bar.
+
+**Card VPS lain** (mis. VPS Coolify terpisah), waktu di-expand isinya disk space & backup terakhir per VPS (lewat SSH), dan tabel aplikasi di VPS itu: domain, git repo, terakhir diakses, terakhir backup, kapan domain habis. Lihat bagian 6.
+
+Tombol global di header halaman: **Refresh** (reload semua data), **Sync & Cek Sekarang** (owner-only, trigger cron vps-monitoring manual), **Tambah VPS** (owner-only).
 
 Akses modul ini dikontrol lewat `User.modules` (kolom array di tabel `users`) — user harus punya `"monitoring"` di array itu, atau role `owner` (owner selalu bypass semua gate modul). Lihat `getCurrentUser("monitoring")` di [current-user.ts](../src/lib/current-user.ts) dan helper `canViewMonitoring()` di [monitoring.ts](../src/lib/monitoring.ts) yang dipakai semua API route di bawah `/api/monitoring/*`.
 
-Asumsi penting untuk tab "Server Ini": **aplikasi ini jalan di server/VPS yang sama dengan yang mau dipantau** (bukan SSH ke server terpisah) — bagian Disk Space di tab ini pakai `exec` lokal, bukan SSH. Untuk VPS *lain* (tab "VPS Lain"), SSH memang dipakai sejak awal — lihat bagian 6.
+Asumsi penting untuk card "Server Ini": **aplikasi ini jalan di server/VPS yang sama dengan yang mau dipantau** (bukan SSH ke server terpisah) — bagian Disk Space di card ini pakai `exec` lokal, bukan SSH; IP publiknya dicek lewat layanan eksternal (ipify), bukan baca network interface lokal (yang di dalam container beda dari IP publik VPS). Untuk VPS *lain*, SSH memang dipakai sejak awal — lihat bagian 6.
 
 ---
 
@@ -59,7 +63,7 @@ Asumsi penting untuk tab "Server Ini": **aplikasi ini jalan di server/VPS yang s
 
 ## 6. VPS Lain & Aplikasi
 
-Tab kedua di `/monitoring` (di samping "Server Ini" yang isinya 4 kartu di atas) — buat mantau **VPS lain** (mis. 3 VPS Coolify terpisah) beserta aplikasi di masing-masing VPS.
+Card kedua dan seterusnya di list `/monitoring` (setelah card "Server Ini" yang isinya 4 bagian di atas) — buat mantau **VPS lain** (mis. 3 VPS Coolify terpisah) beserta aplikasi di masing-masing VPS.
 
 ### 6.1 Model data
 
@@ -69,7 +73,7 @@ Tab kedua di `/monitoring` (di samping "Server Ini" yang isinya 4 kartu di atas)
 ### 6.2 Disk Space & Backup per VPS (live, lewat SSH)
 
 - **File:** [`src/lib/monitoring/ssh.ts`](../src/lib/monitoring/ssh.ts), dipanggil dari `GET /api/monitoring/vps`.
-- 1 koneksi SSH per VPS (pakai `ssh2`, sudah jadi dependency) tiap kali tab "VPS Lain" di-load/refresh — jalankan `df -kP <diskPath>` buat disk usage, dan kalau `backupCheckPath` diisi, `ls -t` + `stat -c %Y` buat file terbaru di folder itu (dianggap proxy backup terakhir VPS itu). Diasumsikan VPS remote Linux (beda dari cek disk lokal yang portabel ke macOS untuk dev).
+- 1 koneksi SSH per VPS (pakai `ssh2`, sudah jadi dependency) tiap kali halaman `/monitoring` di-load/refresh — jalankan `df -kP <diskPath>` buat disk usage, dan kalau `backupCheckPath` diisi, `ls -t` + `stat -c %Y` buat file terbaru di folder itu (dianggap proxy backup terakhir VPS itu). Diasumsikan VPS remote Linux (beda dari cek disk lokal yang portabel ke macOS untuk dev).
 - Best-effort: kalau SSH gagal connect (kredensial salah, firewall, dst), kartu VPS itu nampilin error tapi tidak bikin VPS lain gagal (`Promise.all` per VPS).
 
 ### 6.3 Aplikasi — git repo & domain (auto-sync dari Coolify API)
@@ -94,9 +98,15 @@ Tab kedua di `/monitoring` (di samping "Server Ini" yang isinya 4 kartu di atas)
 
 - **File:** [`src/lib/cron/vps-monitoring.ts`](../src/lib/cron/vps-monitoring.ts), didaftarkan di [`instrumentation.ts`](../instrumentation.ts) jam **03:00 WIB**.
 - Urutan: sync Coolify tiap VPS yang ada kredensialnya → kumpulkan semua domain unik → RDAP lookup paralel → per VPS, 1x cek log Traefik buat semua aplikasi di VPS itu sekaligus (bukan per-aplikasi, hindari banyak koneksi SSH).
-- Trigger manual: tombol "Sync & Cek Sekarang" di tab VPS Lain (`POST /api/monitoring/vps/refresh-checks`, owner-only) — jalanin fungsi yang sama on-demand.
+- Trigger manual: tombol "Sync & Cek Sekarang" di header halaman (`POST /api/monitoring/vps/refresh-checks`, owner-only) — jalanin fungsi yang sama on-demand.
 
-### 6.7 Peta cepat
+### 6.7 IP publik "Server Ini"
+
+- **File:** [`src/app/api/monitoring/disk/route.ts`](../src/app/api/monitoring/disk/route.ts), fungsi `getPublicIp()`.
+- Tidak ada cara baca IP publik VPS dari dalam proses Node (container Coolify biasanya di belakang NAT — IP internal beda dari IP publik VPS-nya), jadi dicek lewat `https://api.ipify.org?format=json`. Best-effort: gagal fetch (mis. offline) cuma bikin header card "Server Ini" nampilin "IP tidak diketahui", tidak menggagalkan disk check.
+- Response `GET /api/monitoring/disk` sekarang bentuknya `{ disk, diskError, ip, ipError }` (sebelumnya field disk flat langsung di root) — cuma dipakai internal oleh `MonitoringDashboard.tsx`, tidak ada konsumer lain.
+
+### 6.8 Peta cepat
 
 | Bagian | API Route | Lib |
 |---|---|---|
@@ -105,7 +115,7 @@ Tab kedua di `/monitoring` (di samping "Server Ini" yang isinya 4 kartu di atas)
 | Sync & cek manual (semua VPS) | `POST /api/monitoring/vps/refresh-checks` | `src/lib/cron/vps-monitoring.ts` |
 | CRUD Aplikasi manual | `POST /api/monitoring/applications`, `PATCH/DELETE .../[id]` | - |
 
-UI: [`src/components/monitoring/VpsMonitoring.tsx`](../src/components/monitoring/VpsMonitoring.tsx), dirender sebagai tab "VPS Lain" di dalam [`MonitoringDashboard.tsx`](../src/components/monitoring/MonitoringDashboard.tsx) (tab "Server Ini" isinya 4 kartu di bagian 1-5 dokumen ini, tidak berubah).
+UI: [`src/components/monitoring/VpsMonitoring.tsx`](../src/components/monitoring/VpsMonitoring.tsx) mengekspor `VpsServerCard` (satu card VPS, collapsible) dipakai di dalam list card [`MonitoringDashboard.tsx`](../src/components/monitoring/MonitoringDashboard.tsx) — file itu juga yang render card "Server Ini" (bagian 1-5 dokumen ini) sebagai card pertama di list yang sama.
 
 ## 7. File Peta Cepat
 
