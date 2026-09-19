@@ -5,7 +5,7 @@ import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
 import { resolveDomainExpiry } from "@/lib/domain-status"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { prettifyDatabaseType, r2BucketForVps } from "@/lib/monitoring/coolify"
+import { coolifyResourceLink, prettifyDatabaseType, r2BucketForVps } from "@/lib/monitoring/coolify"
 import { registrableDomain } from "@/lib/monitoring/rdap"
 import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry, type VolumeDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
@@ -23,6 +23,8 @@ type CoolifyDatabaseCacheEntry = {
   status: string | null
   lastOnlineAt: string | null
   projectName: string | null
+  projectUuid: string | null
+  environmentUuid: string | null
 }
 
 /** Ukuran database yang BENAR itu named volume-nya (mis. "postgres-data-<uuid>"), BUKAN
@@ -109,6 +111,7 @@ export async function GET() {
           dbBackupAt: dbBackup?.createdTime ?? null,
           dbBackupLink: dbBackup?.webViewLink ?? null,
           projectName: db.projectName,
+          coolifyLink: coolifyResourceLink(vps.coolifyApiUrl, "database", db.projectUuid, db.environmentUuid, db.uuid),
         }
       })
 
@@ -182,6 +185,7 @@ export async function GET() {
             lastAccessedIp: app.lastAccessedIp,
             lastAccessedCity: app.lastAccessedCity,
             coolifyProjectName: app.coolifyProjectName,
+            coolifyLink: coolifyResourceLink(vps.coolifyApiUrl, "application", app.coolifyProjectUuid, app.coolifyEnvironmentUuid, app.coolifyUuid),
             domainExpiresAt,
             domainExpiryCheckedAt: app.domainExpiryCheckedAt,
             notes: app.notes,

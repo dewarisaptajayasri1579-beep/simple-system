@@ -215,6 +215,12 @@ model Application {
   /// fetchProjectNameByEnvironmentId() di src/lib/monitoring/coolify.ts), dipakai buat badge +
   /// search "Project" di monitoring (VPS dengan banyak project butuh ini buat nyari cepat).
   coolifyProjectName    String?   @map("coolify_project_name")
+  /// UUID project & environment Coolify (dari /projects/{uuid} sama seperti coolifyProjectName) —
+  /// dipakai bareng coolifyUuid buat bangun link langsung ke resource ini di dashboard Coolify
+  /// ("{webBase}/project/{uuid}/environment/{uuid}/application/{coolifyUuid}"), lihat
+  /// coolifyResourceLink() di src/lib/monitoring/coolify.ts.
+  coolifyProjectUuid     String?   @map("coolify_project_uuid")
+  coolifyEnvironmentUuid String?   @map("coolify_environment_uuid")
   backupLocation        String?   @map("backup_location")
   lastBackupAt          DateTime? @map("last_backup_at")
   lastAccessedAt        DateTime? @map("last_accessed_at")

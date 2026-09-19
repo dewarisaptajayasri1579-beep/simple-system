@@ -35,6 +35,7 @@ export type AppRow = {
   lastAccessedIp: string | null
   lastAccessedCity: string | null
   coolifyProjectName: string | null
+  coolifyLink: string | null
   domainExpiresAt: string | null
   domainExpiryCheckedAt: string | null
   notes: string | null
@@ -90,6 +91,7 @@ export type VpsRow = {
     dbBackupAt: string | null
     dbBackupLink: string | null
     projectName: string | null
+    coolifyLink: string | null
   }[]
 }
 
@@ -1093,6 +1095,18 @@ export const VpsServerCard: React.FC<{
                               {app.coolifyProjectName}
                             </Badge>
                           )}
+                          {app.coolifyLink && (
+                            <a
+                              href={app.coolifyLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-400 hover:text-blue-600 transition-colors"
+                              aria-label="Buka di Coolify"
+                              title="Buka di Coolify"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                         </div>
                         <div className="text-xs mt-1">
                           <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
@@ -1248,6 +1262,18 @@ export const VpsServerCard: React.FC<{
                               <Badge variant="primary" size="sm">
                                 {db.projectName}
                               </Badge>
+                            )}
+                            {db.coolifyLink && (
+                              <a
+                                href={db.coolifyLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-slate-400 hover:text-blue-600 transition-colors"
+                                aria-label="Buka di Coolify"
+                                title="Buka di Coolify"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
                             )}
                           </div>
                         </TableCell>

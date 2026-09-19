@@ -349,7 +349,7 @@ const SERVER_COLUMNS = [
   { key: "aktif", label: "Aktif" },
 ];
 
-const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTypes: LookupRow[]; clients: ClientRow[] }> = ({
+export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTypes: LookupRow[]; clients: ClientRow[] }> = ({
   rows: initialRows,
   vendors,
   cloudTypes,
@@ -1466,7 +1466,7 @@ const DOMAIN_STATUS_OPTIONS = [
   { value: "safe", label: "Aman" },
 ];
 
-const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients: initialClients }) => {
+export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients: initialClients }) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [togglingId, setTogglingId] = useState<string | null>(null);

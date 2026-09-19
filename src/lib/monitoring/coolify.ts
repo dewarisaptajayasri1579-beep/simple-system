@@ -32,15 +32,19 @@ export type CoolifyDatabase = {
 }
 
 type CoolifyProject = { id: number; uuid: string; name: string }
-type CoolifyProjectDetail = { environments: { id: number }[] }
+type CoolifyProjectDetail = { environments: { id: number; uuid: string }[] }
+
+export type CoolifyProjectEnvInfo = { projectName: string; projectUuid: string; environmentUuid: string }
 
 /** Coolify punya hierarki Project > Environment > Resource, tapi list /applications & /databases
- *  cuma kasih `environment_id` (angka) — nama project baru muncul lewat GET /projects/{uuid}
- *  (nested `environments[]`). Panggilannya sebanyak jumlah PROJECT (bukan jumlah aplikasi/
- *  database), jadi tetap murah walau resource-nya banyak. Best-effort: gagal (mis. token belum
- *  punya scope) balikin Map kosong, project name di aplikasi/database itu simply null. */
-async function fetchProjectNameByEnvironmentId(apiBase: string, apiToken: string): Promise<Map<number, string>> {
-  const result = new Map<number, string>()
+ *  cuma kasih `environment_id` (angka) — nama & UUID project/environment baru muncul lewat GET
+ *  /projects/{uuid} (nested `environments[]`). Panggilannya sebanyak jumlah PROJECT (bukan jumlah
+ *  aplikasi/database), jadi tetap murah walau resource-nya banyak. UUID project+environment
+ *  dipakai bareng UUID resource-nya sendiri buat bangun link langsung ke dashboard Coolify (lihat
+ *  coolifyResourceLink()). Best-effort: gagal (mis. token belum punya scope) balikin Map kosong,
+ *  project name/link di aplikasi/database itu simply null. */
+async function fetchProjectEnvInfoByEnvironmentId(apiBase: string, apiToken: string): Promise<Map<number, CoolifyProjectEnvInfo>> {
+  const result = new Map<number, CoolifyProjectEnvInfo>()
   try {
     const projects = (await coolifyGet(apiBase, apiToken, "/projects")) as CoolifyProject[]
     if (!Array.isArray(projects)) return result
@@ -49,7 +53,9 @@ async function fetchProjectNameByEnvironmentId(apiBase: string, apiToken: string
       projects.map(async (p) => {
         try {
           const detail = (await coolifyGet(apiBase, apiToken, `/projects/${p.uuid}`)) as CoolifyProjectDetail
-          for (const env of detail.environments ?? []) result.set(env.id, p.name)
+          for (const env of detail.environments ?? []) {
+            result.set(env.id, { projectName: p.name, projectUuid: p.uuid, environmentUuid: env.uuid })
+          }
         } catch (e) {
           console.error(`[coolify] gagal ambil detail project "${p.name}":`, e)
         }
@@ -59,6 +65,26 @@ async function fetchProjectNameByEnvironmentId(apiBase: string, apiToken: string
     console.error("[coolify] gagal ambil daftar project:", e)
   }
   return result
+}
+
+/** Base URL dashboard web Coolify (BUKAN base API) — `coolifyApiUrl` yang disimpan user bisa
+ *  berupa domain root atau sudah termasuk "/api/v1" (lihat normalizeCoolifyApiUrl), jadi lepas
+ *  suffix itu kalau ada supaya dapat base yang benar buat link ke halaman web-nya. */
+function coolifyWebBaseUrl(apiUrl: string): string {
+  return apiUrl.replace(/\/+$/, "").replace(/\/api\/v\d+$/, "")
+}
+
+/** Link langsung ke halaman resource ini di dashboard Coolify (bukan API) — null kalau salah satu
+ *  komponennya belum ke-resolve (mis. token belum sempat sync project/environment). */
+export function coolifyResourceLink(
+  apiUrl: string | null,
+  kind: "application" | "database",
+  projectUuid: string | null,
+  environmentUuid: string | null,
+  resourceUuid: string | null
+): string | null {
+  if (!apiUrl || !projectUuid || !environmentUuid || !resourceUuid) return null
+  return `${coolifyWebBaseUrl(apiUrl)}/project/${projectUuid}/environment/${environmentUuid}/${kind}/${resourceUuid}`
 }
 
 /** Terima URL Coolify apa adanya (mis. cuma domain root "https://coolify.contoh.com", dengan
@@ -223,8 +249,9 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
 
   const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, token)
   // Sekali panggil buat semua project di Coolify VPS ini (bukan per aplikasi/database) — lihat
-  // fetchProjectNameByEnvironmentId(). Dipakai buat badge + search "Project" di monitoring.
-  const projectByEnvId = await fetchProjectNameByEnvironmentId(apiBase, token)
+  // fetchProjectEnvInfoByEnvironmentId(). Dipakai buat badge + search "Project" + link langsung
+  // ke dashboard Coolify di monitoring.
+  const projectByEnvId = await fetchProjectEnvInfoByEnvironmentId(apiBase, token)
 
   let databases: CoolifyDatabase[] = []
   try {
@@ -247,7 +274,9 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
             // string yang valid dulu supaya `new Date(...)` di formatter UI (formatDateTimeId)
             // tidak parsing-dependent-browser.
             lastOnlineAt: db.last_online_at ? new Date(`${db.last_online_at.replace(" ", "T")}Z`).toISOString() : null,
-            projectName: projectByEnvId.get(db.environment_id) ?? null,
+            projectName: projectByEnvId.get(db.environment_id)?.projectName ?? null,
+            projectUuid: projectByEnvId.get(db.environment_id)?.projectUuid ?? null,
+            environmentUuid: projectByEnvId.get(db.environment_id)?.environmentUuid ?? null,
           })),
         },
       })
@@ -289,7 +318,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
       }
     }
 
-    const coolifyProjectName = projectByEnvId.get(app.environment_id) ?? null
+    const projectEnvInfo = projectByEnvId.get(app.environment_id) ?? null
 
     await prisma.application.upsert({
       where: { vpsServerId_coolifyUuid: { vpsServerId: vps.id, coolifyUuid: app.uuid } },
@@ -302,14 +331,18 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         gitBranch: app.git_branch || null,
         databaseInfo,
         databaseUuid,
-        coolifyProjectName,
+        coolifyProjectName: projectEnvInfo?.projectName ?? null,
+        coolifyProjectUuid: projectEnvInfo?.projectUuid ?? null,
+        coolifyEnvironmentUuid: projectEnvInfo?.environmentUuid ?? null,
       },
       update: {
         name: app.name || app.uuid,
         domain,
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
-        coolifyProjectName,
+        coolifyProjectName: projectEnvInfo?.projectName ?? null,
+        coolifyProjectUuid: projectEnvInfo?.projectUuid ?? null,
+        coolifyEnvironmentUuid: projectEnvInfo?.environmentUuid ?? null,
         ...(databaseInfo ? { databaseInfo, databaseUuid } : {}),
         ...(activity?.lastAccessedAt ? { lastAccessedAt: activity.lastAccessedAt, lastAccessedBy: activity.lastAccessedBy } : {}),
       },
