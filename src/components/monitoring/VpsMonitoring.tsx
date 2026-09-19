@@ -254,6 +254,7 @@ export const VpsServerCard: React.FC<{
 }> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
+  const [pruning, setPruning] = useState(false)
   const dockerDiskProgress = useFakeProgress(checkingDockerDisk, 50000)
 
   const [isVpsModalOpen, setIsVpsModalOpen] = useState(false)
@@ -368,6 +369,29 @@ export const VpsServerCard: React.FC<{
       onChanged()
     } finally {
       setCheckingDockerDisk(false)
+    }
+  }
+
+  const handlePruneUnused = async () => {
+    if (
+      !confirm(
+        `Bersihkan image lama, container berhenti, network nganggur, dan cache build BuildKit di VPS "${vps.name}"?\n\nINI TIDAK akan menghapus volume/data aplikasi & database sama sekali — cuma yang benar-benar tidak terpakai.`
+      )
+    ) {
+      return
+    }
+    setPruning(true)
+    try {
+      const res = await fetch(`/api/monitoring/vps/${vps.id}/prune-unused`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        alert(data?.error || "Gagal jalankan cleanup")
+        return
+      }
+      alert(`Selesai.\nImage/container/network: ${data.systemReclaimed || "0B"}\nCache build: ${data.buildxReclaimed || "0B"}`)
+      await handleCheckDockerDisk()
+    } finally {
+      setPruning(false)
     }
   }
 
@@ -560,9 +584,14 @@ export const VpsServerCard: React.FC<{
                   <span className="text-[11px] text-slate-400 font-medium">Diperiksa {timeAgoId(vps.dockerDiskCheckedAt)}</span>
                 )}
                 {isOwner && (
-                  <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk}>
-                    {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
-                  </Button>
+                  <>
+                    <Button variant="secondary" size="sm" onClick={handlePruneUnused} disabled={pruning || checkingDockerDisk}>
+                      {pruning ? "Membersihkan..." : "Bersihkan yang Tidak Terpakai"}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
+                      {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
