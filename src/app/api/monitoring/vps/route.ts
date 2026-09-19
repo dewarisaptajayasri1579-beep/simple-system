@@ -89,6 +89,12 @@ export async function GET() {
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
           const dbContainer = app.databaseUuid ? cache?.containers?.find((c) => c.containerName === app.databaseUuid) : undefined
+          // Subdomain ikut persis expiry domain root-nya (tidak punya tanggal registrasi
+          // sendiri) — kalau RDAP per-app belum/gagal ke-lookup (domainExpiresAt null), fallback
+          // ke data resmi Pengaturan > Domain yang sudah dicocokkan di atas, supaya kolom "Domain
+          // Habis" tidak nyangkut di "Belum diketahui" padahal domain root-nya sudah terdaftar.
+          const rootDomainRow = app.domain ? domainByName.get(registrableDomain(app.domain).toLowerCase()) : undefined
+          const domainExpiresAt = app.domainExpiresAt ?? (rootDomainRow ? (resolveDomainExpiry(rootDomainRow)?.toISOString() ?? null) : null)
           return {
             id: app.id,
             name: app.name,
@@ -101,7 +107,7 @@ export async function GET() {
             lastBackupAt: app.lastBackupAt,
             lastAccessedAt: app.lastAccessedAt,
             lastAccessedBy: app.lastAccessedBy,
-            domainExpiresAt: app.domainExpiresAt,
+            domainExpiresAt,
             domainExpiryCheckedAt: app.domainExpiryCheckedAt,
             notes: app.notes,
             hasCoolifySync: Boolean(app.coolifyUuid),
