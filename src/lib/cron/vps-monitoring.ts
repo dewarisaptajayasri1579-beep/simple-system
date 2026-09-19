@@ -47,13 +47,17 @@ export async function runVpsMonitoringRefresh() {
     if (exp) domainsChecked += 1
   }
 
+  // Log Traefik cuma dipakai buat aplikasi yang BELUM punya activityQuery — kalau aplikasi itu
+  // punya query manual (dijalankan di syncCoolifyApplications, lebih akurat karena tahu identitas
+  // user), jangan ditimpa tebakan dari log Traefik yang cuma tahu "ada request", bukan "siapa".
   let accessChecked = 0
   for (const vps of refreshedVpsList) {
-    const domains = vps.applications.map((a) => a.domain).filter((d): d is string => !!d)
+    const appsWithoutQuery = vps.applications.filter((a) => !a.activityQuery)
+    const domains = appsWithoutQuery.map((a) => a.domain).filter((d): d is string => !!d)
     if (domains.length === 0) continue
     try {
       const lastMap = await getLastAccessedByDomain(vps, domains)
-      for (const app of vps.applications) {
+      for (const app of appsWithoutQuery) {
         if (!app.domain) continue
         const last = lastMap.get(app.domain)
         if (!last) continue

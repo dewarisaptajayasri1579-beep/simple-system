@@ -94,11 +94,21 @@ Card kedua dan seterusnya di list `/monitoring` (setelah card "Server Ini" yang 
 - Tiap domain aplikasi di-lookup ke `https://rdap.org/domain/<domain>` (RDAP, pengganti WHOIS, gratis tanpa API key) buat cari event `expiration`. Ada heuristik kecil (bukan Public Suffix List penuh) buat ambil "registrable domain" dari FQDN (mis. `app.contoh.co.id` → `contoh.co.id`) supaya lookup-nya benar untuk domain `.co.id` dkk.
 - **Tidak semua TLD/ccTLD support RDAP** — kalau lookup gagal/kosong, field `domainExpiresAt` tetap kosong dan bisa diisi **manual** lewat form Edit Aplikasi (override, tidak akan ditimpa cron kalau sudah diisi manual... catatan: saat ini cron TETAP menimpa kalau RDAP berhasil dapat tanggal baru — kalau butuh override permanen yang tidak pernah disentuh cron, isi manual lalu jangan expect RDAP re-check lain menimpanya kecuali RDAP juga berhasil dapat tanggal).
 
-### 6.5 Terakhir diakses — log akses Traefik, best-effort
+### 6.5 Terakhir diakses — 2 sumber, query database (akurat) lebih diutamakan dari log Traefik (tebakan)
 
+Ada 2 cara field `lastAccessedAt` (+ `lastAccessedBy`) bisa keisi, **query database kalau ada, kalau tidak baru fallback ke log Traefik**:
+
+**A. Query manual ke database aplikasi (`Application.activityQuery`) — akurat, tahu siapa user-nya**
+- Field ini diisi **manual** oleh user lewat form Edit Aplikasi — SQL bebas asal diawali `SELECT`, kolom pertama hasil query dianggap identitas user (email/nama), kolom kedua dianggap timestamp. Contoh: `SELECT email, last_login_at FROM users ORDER BY last_login_at DESC LIMIT 1`.
+- Dijalankan di [`src/lib/monitoring/coolify.ts`](../src/lib/monitoring/coolify.ts) fungsi `runActivityQuery()`, **cuma waktu sync Coolify jalan** (tombol "Sync dari Coolify" / cron / "Sync & Cek Sekarang") — bukan tiap load halaman. Connection string diambil sesaat dari env `*_DATABASE_URL` aplikasi itu (sama proses yang dipakai buat `databaseInfo`, lihat bagian 6.3) — **tidak pernah disimpan**, cuma dipakai connect sesaat lalu dibuang.
+- Prasyarat: `databaseInfo` aplikasi itu harus berhasil ke-match dulu (butuh token Coolify dengan `read:sensitive`, lihat bagian 6.3) — kalau tidak ada `DATABASE_URL` yang kebaca, query ini tidak akan pernah jalan.
+- Hasil dari sumber ini **diprioritaskan** — cron `vps-monitoring` (lihat 6.6) sengaja SKIP update dari log Traefik untuk aplikasi yang punya `activityQuery` terisi, supaya tidak ditimpa tebakan yang kurang akurat.
+
+**B. Log akses Traefik (fallback generik, cuma tahu "ada request", bukan siapa)**
 - **File:** [`src/lib/monitoring/traefik-access.ts`](../src/lib/monitoring/traefik-access.ts).
-- Coolify pakai Traefik sebagai reverse proxy default (nama container default `coolify-proxy`, bisa diubah lewat field "Nama Container Proxy" di Edit VPS kalau beda). 1 SSH call per VPS ambil `docker logs <container> --since 24h`, di-grep per domain aplikasi, ambil timestamp request terakhir (support format JSON access log Traefik & Common Log Format).
-- **Asumsi/keterbatasan:** kalau access log Traefik di VPS itu tidak aktif (default Coolify mungkin tidak selalu nyalakan access log), field ini akan tetap kosong — bukan bug, memang tidak ada sumber datanya. Tidak ada fallback manual untuk field ini karena sifatnya "live traffic", beda dari expiry/backup yang make sense diisi manual.
+- Dipakai otomatis untuk aplikasi yang **tidak** punya `activityQuery`. Coolify pakai Traefik sebagai reverse proxy default (nama container default `coolify-proxy`, bisa diubah lewat field "Nama Container Proxy" di Edit VPS kalau beda) — SEMUA traffic HTTP ke semua aplikasi di VPS itu lewat 1 container ini. 1 SSH call per VPS ambil `docker logs <container> --since 24h`, di-grep per domain aplikasi, ambil timestamp request terakhir (support format JSON access log Traefik & Common Log Format).
+- **Butuh user SSH itu jadi anggota grup `docker` di VPS** (`sudo usermod -aG docker <user>`) — tanpa itu `docker logs` gagal "permission denied", best-effort jadi diam-diam tidak keisi.
+- **Asumsi/keterbatasan:** kalau access log Traefik di VPS itu tidak aktif (default Coolify mungkin tidak selalu nyalakan access log), field ini akan tetap kosong — bukan bug, memang tidak ada sumber datanya. `lastAccessedBy` selalu kosong dari sumber ini (Traefik cuma tahu domain yang diminta, bukan identitas user).
 
 ### 6.6 Cron harian & trigger manual
 

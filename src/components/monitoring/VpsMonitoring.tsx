@@ -24,9 +24,11 @@ export type AppRow = {
   gitRepository: string | null
   gitBranch: string | null
   databaseInfo: string | null
+  activityQuery: string | null
   backupLocation: string | null
   lastBackupAt: string | null
   lastAccessedAt: string | null
+  lastAccessedBy: string | null
   domainExpiresAt: string | null
   domainExpiryCheckedAt: string | null
   notes: string | null
@@ -60,6 +62,7 @@ const emptyAppForm = {
   gitRepository: "",
   gitBranch: "",
   backupLocation: "",
+  activityQuery: "",
   lastBackupAt: "",
   domainExpiresAt: "",
   notes: "",
@@ -222,6 +225,7 @@ export const VpsServerCard: React.FC<{
       gitRepository: app.gitRepository ?? "",
       gitBranch: app.gitBranch ?? "",
       backupLocation: app.backupLocation ?? "",
+      activityQuery: app.activityQuery ?? "",
       lastBackupAt: app.lastBackupAt ? app.lastBackupAt.slice(0, 10) : "",
       domainExpiresAt: app.domainExpiresAt ? app.domainExpiresAt.slice(0, 10) : "",
       notes: app.notes ?? "",
@@ -245,6 +249,7 @@ export const VpsServerCard: React.FC<{
         gitRepository: appForm.gitRepository.trim(),
         gitBranch: appForm.gitBranch.trim(),
         backupLocation: appForm.backupLocation.trim(),
+        activityQuery: appForm.activityQuery.trim(),
         lastBackupAt: appForm.lastBackupAt,
         domainExpiresAt: appForm.domainExpiresAt,
         notes: appForm.notes.trim(),
@@ -431,7 +436,10 @@ export const VpsServerCard: React.FC<{
                         )}
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{app.databaseInfo || <span className="text-slate-400">-</span>}</TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        {formatDateTimeId(app.lastAccessedAt)}
+                        {app.lastAccessedBy && <div className="text-slate-400 font-medium">{app.lastAccessedBy}</div>}
+                      </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">
                         {formatDateTimeId(app.lastBackupAt)}
                         {app.backupLocation && <div className="text-slate-400 font-medium">{app.backupLocation}</div>}
@@ -595,6 +603,14 @@ export const VpsServerCard: React.FC<{
             placeholder="mis. Google Drive - folder X, atau belum ada backup"
             value={appForm.backupLocation}
             onChange={(e) => setAppForm({ ...appForm, backupLocation: e.target.value })}
+          />
+          <Textarea
+            label="Query Aktivitas (opsional)"
+            placeholder="SELECT email, last_login_at FROM users ORDER BY last_login_at DESC LIMIT 1"
+            helperText='Wajib diawali SELECT. Kolom ke-1 = identitas user, kolom ke-2 = timestamp. Dijalankan otomatis waktu "Sync dari Coolify" pakai connection string dari env DATABASE_URL aplikasi ini (tidak disimpan) — hasilnya lebih akurat dari log Traefik, tapi cuma jalan kalau databaseInfo di atas berhasil ke-match.'
+            value={appForm.activityQuery}
+            onChange={(e) => setAppForm({ ...appForm, activityQuery: e.target.value })}
+            rows={2}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input

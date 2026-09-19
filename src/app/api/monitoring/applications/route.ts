@@ -27,13 +27,14 @@ export async function POST(request: Request) {
   const gitRepository = typeof body?.gitRepository === "string" ? body.gitRepository.trim() || null : null
   const gitBranch = typeof body?.gitBranch === "string" ? body.gitBranch.trim() || null : null
   const backupLocation = typeof body?.backupLocation === "string" ? body.backupLocation.trim() || null : null
+  const activityQuery = typeof body?.activityQuery === "string" ? body.activityQuery.trim() || null : null
   const notes = typeof body?.notes === "string" ? body.notes.trim() || null : null
   const lastBackupAt = parseDate(body?.lastBackupAt)
   const domainExpiresAt = parseDate(body?.domainExpiresAt)
 
   const created = await prisma.application
     .create({
-      data: { vpsServerId, name, domain, gitRepository, gitBranch, backupLocation, notes, lastBackupAt, domainExpiresAt },
+      data: { vpsServerId, name, domain, gitRepository, gitBranch, backupLocation, activityQuery, notes, lastBackupAt, domainExpiresAt },
       select: { id: true },
     })
     .catch(() => null)

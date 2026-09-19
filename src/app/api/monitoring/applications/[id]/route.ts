@@ -28,6 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.gitRepository === "string") data.gitRepository = body.gitRepository.trim() || null
   if (typeof body.gitBranch === "string") data.gitBranch = body.gitBranch.trim() || null
   if (typeof body.backupLocation === "string") data.backupLocation = body.backupLocation.trim() || null
+  if (typeof body.activityQuery === "string") data.activityQuery = body.activityQuery.trim() || null
   if (typeof body.notes === "string") data.notes = body.notes.trim() || null
 
   const lastBackupAt = parseDateField(body.lastBackupAt)

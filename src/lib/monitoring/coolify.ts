@@ -1,3 +1,5 @@
+import { Client } from "pg"
+
 import { decryptSecret } from "@/lib/crypto"
 import { prisma } from "@/lib/prisma"
 
@@ -115,15 +117,43 @@ function matchDatabaseByHost(host: string, databases: CoolifyDatabase[]): Coolif
   return databases.find((db) => host.includes(db.uuid)) ?? null
 }
 
+type ActivityResult = { lastAccessedBy: string | null; lastAccessedAt: Date | null }
+
+/** Jalankan query SQL manual (activityQuery, diisi user sendiri) ke database aplikasi — connection
+ *  string cuma dipakai sesaat di sini (dari env Coolify yang sama dipakai buat databaseInfo),
+ *  TIDAK disimpan. Konvensi: kolom pertama hasil query = identitas user, kolom kedua = timestamp.
+ *  Guard sederhana: cuma izinkan query yang diawali "select" (case-insensitive) — bukan proteksi
+ *  penuh, tapi cukup buat cegah salah paste query non-SELECT yang bisa mengubah data. */
+async function runActivityQuery(dbUrl: string, query: string): Promise<ActivityResult | null> {
+  if (!/^\s*select/i.test(query)) return null
+
+  const client = new Client({ connectionString: dbUrl, connectionTimeoutMillis: 5000, query_timeout: 5000 })
+  try {
+    await client.connect()
+    const result = await client.query(query)
+    const row = result.rows[0]
+    if (!row) return { lastAccessedBy: null, lastAccessedAt: null }
+    const values = Object.values(row)
+    const identifier = values[0] != null ? String(values[0]) : null
+    const rawDate = values[1]
+    const at = rawDate ? new Date(rawDate as string | number | Date) : null
+    return { lastAccessedBy: identifier, lastAccessedAt: at && !Number.isNaN(at.getTime()) ? at : null }
+  } catch {
+    return null
+  } finally {
+    await client.end().catch(() => {})
+  }
+}
+
 export type SyncCoolifyVps = { id: string; coolifyApiUrl: string | null; coolifyApiToken: string | null }
 
 /** Sync aplikasi dari Coolify API ke tabel Application milik satu VpsServer. Match by
  *  (vpsServerId, coolifyUuid) — upsert supaya sync berulang tidak bikin duplikat. Field yang
  *  datang dari Coolify (name, domain, gitRepository, gitBranch, databaseInfo) yang ditimpa —
- *  field manual (backupLocation, notes, lastBackupAt, domainExpiresAt) tidak pernah disentuh.
- *  `databaseInfo` cuma ditimpa kalau berhasil ketemu match baru (gagal ketemu = biarkan nilai
- *  lama, bukan dihapus — supaya kegagalan sesaat, mis. token belum diupdate read:sensitive-nya,
- *  tidak menghapus data yang sudah pernah berhasil ke-sync). */
+ *  field manual (backupLocation, notes, lastBackupAt, domainExpiresAt, activityQuery) tidak
+ *  pernah disentuh. `databaseInfo`/hasil activityQuery cuma ditimpa kalau berhasil ketemu match
+ *  baru (gagal ketemu = biarkan nilai lama, bukan dihapus — supaya kegagalan sesaat, mis. token
+ *  belum diupdate read:sensitive-nya, tidak menghapus data yang sudah pernah berhasil ke-sync). */
 export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ synced: number }> {
   if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { synced: 0 }
 
@@ -139,6 +169,12 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
     // Best-effort — kalau gagal (mis. instance Coolify lama tanpa endpoint ini), lanjut tanpa info database.
   }
 
+  const existing = await prisma.application.findMany({
+    where: { vpsServerId: vps.id, coolifyUuid: { not: null } },
+    select: { coolifyUuid: true, activityQuery: true },
+  })
+  const activityQueryByUuid = new Map(existing.map((a) => [a.coolifyUuid as string, a.activityQuery]))
+
   let synced = 0
 
   for (const app of apps) {
@@ -146,6 +182,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
     const domain = firstCleanDomain(app.fqdn)
 
     let databaseInfo: string | null = null
+    let activity: ActivityResult | null = null
     if (databases.length > 0) {
       try {
         const envs = await fetchApplicationEnvs(apiBase, token, app.uuid)
@@ -153,8 +190,11 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         const host = dbUrl ? extractHost(dbUrl) : null
         const matched = host ? matchDatabaseByHost(host, databases) : null
         if (matched) databaseInfo = `${prettifyDatabaseType(matched.database_type)} — ${matched.name}`
+
+        const activityQuery = activityQueryByUuid.get(app.uuid)
+        if (dbUrl && activityQuery) activity = await runActivityQuery(dbUrl, activityQuery)
       } catch {
-        // Best-effort — satu aplikasi gagal ambil env tidak boleh gagalkan sync aplikasi lain.
+        // Best-effort — satu aplikasi gagal ambil env/query tidak boleh gagalkan aplikasi lain.
       }
     }
 
@@ -175,6 +215,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         gitRepository: app.git_repository || null,
         gitBranch: app.git_branch || null,
         ...(databaseInfo ? { databaseInfo } : {}),
+        ...(activity?.lastAccessedAt ? { lastAccessedAt: activity.lastAccessedAt, lastAccessedBy: activity.lastAccessedBy } : {}),
       },
     })
     synced += 1
