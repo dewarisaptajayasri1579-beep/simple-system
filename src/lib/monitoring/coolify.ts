@@ -41,6 +41,18 @@ async function coolifyGet(apiBase: string, apiToken: string, path: string): Prom
   return res.json()
 }
 
+async function coolifyPost(apiBase: string, apiToken: string, path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(`${apiBase}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Coolify API error ${res.status} (${apiBase}${path}): ${text}`)
+  return text ? JSON.parse(text) : null
+}
+
 export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
   const data = await coolifyGet(normalizeCoolifyApiUrl(apiUrl), apiToken, "/applications")
   return Array.isArray(data) ? data : []
@@ -240,4 +252,75 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   }
 
   return { synced }
+}
+
+function requiredEnv(name: string) {
+  const value = process.env[name]
+  if (!value) throw new Error(`${name} belum di-set`)
+  return value
+}
+
+/** Pastikan ada 1 S3 Storage di Coolify yang nunjuk ke bucket R2 yang sama dipakai backup app ini
+ *  sendiri (lihat lib/backup/r2.ts) — dibuat sekali, uuid-nya disimpan di
+ *  VpsServer.coolifyS3StorageUuid supaya tidak bikin S3 Storage baru berulang kali tiap cron jalan. */
+async function ensureS3Storage(
+  apiBase: string,
+  token: string,
+  vps: { id: string; coolifyS3StorageUuid: string | null }
+): Promise<string> {
+  if (vps.coolifyS3StorageUuid) return vps.coolifyS3StorageUuid
+
+  const created = (await coolifyPost(apiBase, token, "/s3-storages", {
+    name: "Cloudflare R2 (auto)",
+    description: "Dibuat otomatis oleh ensureDatabaseBackups() — bucket sama dengan backup database app ini sendiri.",
+    endpoint: `https://${requiredEnv("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
+    bucket: requiredEnv("R2_BACKUP_BUCKET"),
+    region: "auto",
+    key: requiredEnv("R2_ACCESS_ID"),
+    secret: requiredEnv("R2_SECRET_KEY"),
+    is_usable: true,
+  })) as { uuid: string }
+
+  await prisma.vpsServer.update({ where: { id: vps.id }, data: { coolifyS3StorageUuid: created.uuid } }).catch(() => {})
+  return created.uuid
+}
+
+/** Auto-setup backup-ke-R2 buat database Coolify yang BELUM punya jadwal backup sama sekali —
+ *  supaya database baru yang dibuat belakangan otomatis ke-backup tanpa perlu setup manual lagi.
+ *  Kalau database itu SUDAH punya minimal 1 jadwal backup (termasuk yang dibuat manual sebelumnya,
+ *  save_s3 atau bukan), TIDAK disentuh — dianggap sudah dikelola manual, supaya tidak dobel/menimpa
+ *  konfigurasi yang sengaja di-custom user. Butuh token dengan ability `write`, beda dari token
+ *  `read`-only yang cukup buat syncCoolifyApplications di atas. */
+export async function ensureDatabaseBackups(
+  vps: SyncCoolifyVps & { id: string; coolifyS3StorageUuid: string | null }
+): Promise<{ created: number }> {
+  if (!vps.coolifyApiUrl || !vps.coolifyApiToken) return { created: 0 }
+
+  const apiBase = normalizeCoolifyApiUrl(vps.coolifyApiUrl)
+  const token = decryptSecret(vps.coolifyApiToken)
+
+  const databases = await fetchDatabases(apiBase, token)
+  if (databases.length === 0) return { created: 0 }
+
+  const s3StorageUuid = await ensureS3Storage(apiBase, token, vps)
+
+  let created = 0
+  for (const db of databases) {
+    try {
+      const existing = await coolifyGet(apiBase, token, `/databases/${db.uuid}/backups`)
+      if (Array.isArray(existing) && existing.length > 0) continue
+
+      await coolifyPost(apiBase, token, `/databases/${db.uuid}/backups`, {
+        frequency: "0 21 * * *",
+        enabled: true,
+        save_s3: true,
+        s3_storage_uuid: s3StorageUuid,
+      })
+      created += 1
+    } catch (e) {
+      console.error(`[coolify] auto-setup backup gagal untuk database "${db.name}" (${db.uuid}):`, e)
+    }
+  }
+
+  return { created }
 }

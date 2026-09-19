@@ -158,6 +158,11 @@ model VpsServer {
   /// lambat (~20-25 detik) — cuma di-refresh lewat cron harian atau tombol manual "Cek Sekarang".
   dockerDiskCache      Json?       @map("docker_disk_cache")
   dockerDiskCheckedAt  DateTime?   @map("docker_disk_checked_at")
+  /// UUID S3 Storage yang dibuat otomatis di Coolify (nunjuk ke bucket R2 yang sama dipakai
+  /// backup app ini sendiri, lihat lib/backup/r2.ts) — dibuat sekali oleh ensureDatabaseBackups()
+  /// di src/lib/monitoring/coolify.ts, disimpan di sini supaya tidak bikin S3 Storage baru
+  /// berulang kali tiap cron jalan. Butuh VpsServer.coolifyApiToken dengan ability `write`.
+  coolifyS3StorageUuid String?     @map("coolify_s3_storage_uuid")
   createdById        String?       @map("created_by_id")
   createdAt          DateTime      @default(now()) @map("created_at")
   applications       Application[]

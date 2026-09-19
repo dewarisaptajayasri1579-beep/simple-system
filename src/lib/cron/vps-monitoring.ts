@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { lookupIpCity } from "@/lib/monitoring/geoip"
-import { syncCoolifyApplications } from "@/lib/monitoring/coolify"
+import { ensureDatabaseBackups, syncCoolifyApplications } from "@/lib/monitoring/coolify"
 import { lookupDomainExpiry } from "@/lib/monitoring/rdap"
 import { getVpsDockerDiskUsage } from "@/lib/monitoring/ssh"
 import { getLastAccessedByDomain } from "@/lib/monitoring/traefik-access"
@@ -16,6 +16,7 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
   const vpsList = await prisma.vpsServer.findMany(vpsId ? { where: { id: vpsId } } : undefined)
 
   let coolifySynced = 0
+  let backupsAutoCreated = 0
   for (const vps of vpsList) {
     if (!vps.coolifyApiUrl || !vps.coolifyApiToken) continue
     try {
@@ -23,6 +24,16 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
       coolifySynced += r.synced
     } catch (e) {
       console.error(`[vps-monitoring] sync Coolify gagal untuk VPS "${vps.name}":`, e)
+    }
+    // Auto-setup backup-ke-R2 buat database baru yang belum punya jadwal backup sama sekali —
+    // butuh coolifyApiToken dengan ability `write` (bukan cuma `read` yang cukup buat sync di
+    // atas), kalau token belum di-upgrade, ini gagal senyap (dicatat di log, tidak menggagalkan
+    // sync lain). Lihat ensureDatabaseBackups() di lib/monitoring/coolify.ts.
+    try {
+      const r = await ensureDatabaseBackups(vps)
+      backupsAutoCreated += r.created
+    } catch (e) {
+      console.error(`[vps-monitoring] auto-setup backup gagal untuk VPS "${vps.name}":`, e)
     }
   }
 
@@ -78,25 +89,34 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
     }
   }
 
-  const uniqueIps = [...new Set(pendingAccessUpdates.map((u) => u.ip).filter((ip): ip is string => !!ip))]
-  const cityByIp = new Map<string, string>()
-  await Promise.all(
-    uniqueIps.map(async (ip) => {
-      const city = await lookupIpCity(ip)
-      if (city) cityByIp.set(ip, city)
-    })
-  )
-
   let accessChecked = 0
   for (const u of pendingAccessUpdates) {
     await prisma.application
-      .update({
-        where: { id: u.appId },
-        data: { lastAccessedAt: u.at, lastAccessedIp: u.ip, lastAccessedCity: u.ip ? (cityByIp.get(u.ip) ?? null) : null },
-      })
+      .update({ where: { id: u.appId }, data: { lastAccessedAt: u.at, lastAccessedIp: u.ip } })
       .catch(() => {})
     accessChecked += 1
   }
+
+  // Geolocation IP → kota SENGAJA TIDAK di-await di sini — request ke API luar (ipapi.co) bisa
+  // lambat/kena rate limit, dan proses sync utama (termasuk disk Docker di bawah, yang sudah
+  // lama ~20-25 detik) tidak boleh ikut ketunda cuma buat info kota yang sifatnya pelengkap.
+  // Jalan di background (proses Node tetap hidup setelah response dikirim, self-hosted bukan
+  // serverless) — DB keupdate belakangan, kolom "Login Terakhir" baru kelihatan kota-nya pas
+  // halaman di-reload berikutnya, bukan langsung pas tombol "Sync & Cek Sekarang" selesai.
+  const ipToAppIds = new Map<string, string[]>()
+  for (const u of pendingAccessUpdates) {
+    if (!u.ip) continue
+    const list = ipToAppIds.get(u.ip) ?? []
+    list.push(u.appId)
+    ipToAppIds.set(u.ip, list)
+  }
+  void Promise.all(
+    [...ipToAppIds.entries()].map(async ([ip, appIds]) => {
+      const city = await lookupIpCity(ip)
+      if (!city) return
+      await prisma.application.updateMany({ where: { id: { in: appIds } }, data: { lastAccessedCity: city } }).catch(() => {})
+    })
+  ).catch((e) => console.error("[vps-monitoring] geolocation IP background gagal:", e))
 
   let dockerDiskRefreshed = 0
   for (const vps of vpsList) {
@@ -116,5 +136,5 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
     }
   }
 
-  return { vpsCount: vpsList.length, coolifySynced, domainsChecked, accessChecked, dockerDiskRefreshed }
+  return { vpsCount: vpsList.length, coolifySynced, backupsAutoCreated, domainsChecked, accessChecked, dockerDiskRefreshed }
 }
