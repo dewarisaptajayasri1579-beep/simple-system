@@ -22,6 +22,10 @@ export type CoolifyDatabase = {
   uuid: string
   name: string
   database_type: string
+  /// Format "running:healthy" / "exited:unhealthy" dst (gabungan Docker container state + health
+  /// check) — dari GET /databases, sudah ikut di response list-nya, tidak perlu call terpisah.
+  status: string
+  last_online_at: string | null
 }
 
 /** Terima URL Coolify apa adanya (mis. cuma domain root "https://coolify.contoh.com", dengan
@@ -186,7 +190,16 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         where: { id: vps.id },
         data: {
           coolifyDatabaseCount: databases.length,
-          coolifyDatabasesCache: databases.map((db) => ({ uuid: db.uuid, name: db.name, databaseType: db.database_type })),
+          coolifyDatabasesCache: databases.map((db) => ({
+            uuid: db.uuid,
+            name: db.name,
+            databaseType: db.database_type,
+            status: db.status,
+            // Coolify balikin "2026-08-20 14:21:43" (UTC, tanpa suffix "Z") — normalisasi ke ISO
+            // string yang valid dulu supaya `new Date(...)` di formatter UI (formatDateTimeId)
+            // tidak parsing-dependent-browser.
+            lastOnlineAt: db.last_online_at ? new Date(`${db.last_online_at.replace(" ", "T")}Z`).toISOString() : null,
+          })),
         },
       })
       .catch(() => {})

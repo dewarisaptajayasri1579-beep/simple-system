@@ -16,7 +16,13 @@ type DockerDiskCache = {
   volumes: VolumeDiskEntry[] | null
 }
 
-type CoolifyDatabaseCacheEntry = { uuid: string; name: string; databaseType: string }
+type CoolifyDatabaseCacheEntry = {
+  uuid: string
+  name: string
+  databaseType: string
+  status: string | null
+  lastOnlineAt: string | null
+}
 
 /** Ukuran database yang BENAR itu named volume-nya (mis. "postgres-data-<uuid>"), BUKAN
  *  `docker ps -s` punya container-nya — data Postgres/MySQL/dst disimpan di Docker volume
@@ -89,6 +95,10 @@ export async function GET() {
           name: db.name,
           databaseType: prettifyDatabaseType(db.databaseType),
           diskUsage: databaseVolumeUsage(cache?.volumes, db.uuid),
+          // Status Coolify formatnya "running:healthy" / "exited:unhealthy" dst — "Aktif" kalau
+          // state container-nya "running", apa pun status health check-nya.
+          isActive: db.status?.startsWith("running") ?? false,
+          lastOnlineAt: db.lastOnlineAt,
           dbBackupAt: dbBackup?.createdTime ?? null,
           dbBackupLink: dbBackup?.webViewLink ?? null,
         }
