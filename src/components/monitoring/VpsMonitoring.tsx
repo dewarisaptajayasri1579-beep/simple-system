@@ -1006,17 +1006,15 @@ export const VpsServerCard: React.FC<{
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead className="w-64">Aplikasi</TableHead>
-                  <TableHead>Git / Database</TableHead>
-                  <TableHead>DB Backup</TableHead>
-                  <TableHead className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Terakhir Diakses</TableHead>
-                  <TableHead className="w-44">Domain Habis</TableHead>
+                  <TableHead>Deploy &amp; Database</TableHead>
+                  <TableHead className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Aktivitas</TableHead>
                   {isOwner && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredApplications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isOwner ? 7 : 6} className="text-center text-slate-400 text-xs font-semibold py-6">
+                    <TableCell colSpan={isOwner ? 5 : 4} className="text-center text-slate-400 text-xs font-semibold py-6">
                       {vps.applications.length === 0 ? "Belum ada aplikasi terdaftar di VPS ini." : "Tidak ada aplikasi yang cocok dengan pencarian."}
                     </TableCell>
                   </TableRow>
@@ -1024,6 +1022,7 @@ export const VpsServerCard: React.FC<{
                   filteredApplications.map((app, index) => (
                     <TableRow key={app.id}>
                       <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
+                      {/* Identitas: nama + badge, domain + expiry, disk usage aplikasi */}
                       <TableCell>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{app.name}</span>
@@ -1038,10 +1037,26 @@ export const VpsServerCard: React.FC<{
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs mt-0.5">
+                        {app.domain ? (
+                          <a
+                            href={`https://${app.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all mt-0.5"
+                          >
+                            <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                          </a>
+                        ) : (
+                          <div className="text-slate-400 text-xs mt-0.5">Tanpa domain</div>
+                        )}
+                        <div className="mt-1">
+                          <DomainExpiryBadge iso={app.domainExpiresAt} />
+                        </div>
+                        <div className="text-xs mt-1">
                           <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
                         </div>
                       </TableCell>
+                      {/* Deploy & Database: git+branch, info database + disk-nya, status backup */}
                       <TableCell>
                         {app.gitRepository ? (
                           <a
@@ -1064,12 +1079,10 @@ export const VpsServerCard: React.FC<{
                             <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
                           </div>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 mt-1.5">
                           {app.dbBackupAt ? (
                             <>
-                              <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.dbBackupAt)}</span>
+                              <span className="text-xs font-semibold text-slate-700">Backup: {formatDateTimeId(app.dbBackupAt)}</span>
                               {app.dbBackupLink && (
                                 <a
                                   href={app.dbBackupLink}
@@ -1097,6 +1110,7 @@ export const VpsServerCard: React.FC<{
                           )}
                         </div>
                       </TableCell>
+                      {/* Aktivitas: terakhir diakses + siapa + dari mana */}
                       <TableCell>
                         {app.lastAccessedAt ? (
                           <>
@@ -1112,23 +1126,6 @@ export const VpsServerCard: React.FC<{
                         ) : (
                           <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {app.domain ? (
-                          <a
-                            href={`https://${app.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
-                          >
-                            <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                          </a>
-                        ) : (
-                          <div className="text-slate-400 text-xs">Tanpa domain</div>
-                        )}
-                        <div className="mt-1">
-                          <DomainExpiryBadge iso={app.domainExpiresAt} />
-                        </div>
                       </TableCell>
                       {isOwner && (
                         <TableCell className="text-right whitespace-nowrap">
