@@ -34,6 +34,7 @@ export async function GET() {
         proxyContainerName: vps.proxyContainerName,
         hasCoolify: Boolean(vps.coolifyApiUrl && vps.coolifyApiToken),
         coolifyApiUrl: vps.coolifyApiUrl,
+        coolifyDatabaseCount: vps.coolifyDatabaseCount,
         createdAt: vps.createdAt,
         disk: live.disk,
         diskError: live.diskError,

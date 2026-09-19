@@ -143,6 +143,10 @@ model VpsServer {
   proxyContainerName String        @default("coolify-proxy") @map("proxy_container_name")
   coolifyApiUrl      String?       @map("coolify_api_url")
   coolifyApiToken    String?       @map("coolify_api_token")
+  /// Jumlah resource Database di Coolify VPS ini (bukan jumlah Application) — diisi waktu sync
+  /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di
+  /// src/lib/monitoring/coolify.ts). Null kalau belum pernah sync sama sekali.
+  coolifyDatabaseCount Int?        @map("coolify_database_count")
   createdById        String?       @map("created_by_id")
   createdAt          DateTime      @default(now()) @map("created_at")
   applications       Application[]

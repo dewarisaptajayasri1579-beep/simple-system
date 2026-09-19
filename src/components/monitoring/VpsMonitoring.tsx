@@ -46,6 +46,7 @@ export type VpsRow = {
   proxyContainerName: string
   hasCoolify: boolean
   coolifyApiUrl: string | null
+  coolifyDatabaseCount: number | null
   createdAt: string
   disk: DiskInfo | null
   diskError: string | null
@@ -64,6 +65,25 @@ export type DockerDiskEntry = {
   size: string
   reclaimable: string
   reclaimablePct: number
+}
+
+const DOCKER_TYPE_META: Record<string, { color: string; description: string }> = {
+  Images: {
+    color: "bg-amber-500",
+    description: "Images — hasil build/deploy aplikasi (cetakan container). Paling sering numpuk jadi \"sampah\" kalau sering deploy ulang.",
+  },
+  Containers: {
+    color: "bg-blue-500",
+    description: "Containers — instance aplikasi yang sedang berjalan sekarang. Biasanya kecil, jarang jadi masalah.",
+  },
+  "Local Volumes": {
+    color: "bg-emerald-500",
+    description: "Local Volumes — data asli aplikasi (database, file upload, dll). BUKAN sampah, jangan pernah dihapus sembarangan.",
+  },
+  "Build Cache": {
+    color: "bg-violet-500",
+    description: "Build Cache — sisa proses build Docker (layer perantara). Bisa numpuk kalau sering build ulang dari awal.",
+  },
 }
 
 const emptyAppForm = {
@@ -358,6 +378,17 @@ export const VpsServerCard: React.FC<{
 
       {expanded && (
         <div className="px-4 sm:px-5 pb-5 flex flex-col gap-4 border-t border-slate-200/80 pt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-200/80 bg-white/60 px-4 py-3">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Aplikasi</div>
+              <div className="text-xl font-black text-slate-800">{vps.applications.length}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200/80 bg-white/60 px-4 py-3">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Database (Coolify)</div>
+              <div className="text-xl font-black text-slate-800">{vps.coolifyDatabaseCount ?? "-"}</div>
+            </div>
+          </div>
+
           {isOwner && (
             <div className="flex items-center gap-1.5 justify-end flex-wrap">
               {vps.hasCoolify && (
@@ -437,26 +468,31 @@ export const VpsServerCard: React.FC<{
               <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <HardDrive className="w-3.5 h-3.5" /> Disk Docker (breakdown)
               </span>
-              <div className="flex flex-col gap-2">
-                {vps.dockerDisk.map((d) => (
-                  <div key={d.type} className="flex items-center gap-3">
-                    <span className="w-24 flex-shrink-0 text-xs font-bold text-slate-600">{d.type}</span>
-                    <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${d.reclaimablePct > 0 ? "bg-amber-500" : "bg-slate-300"}`}
-                        style={{ width: `${d.reclaimablePct > 0 ? Math.max(d.reclaimablePct, 4) : 0}%` }}
-                      />
+              <div className="flex flex-col gap-3">
+                {vps.dockerDisk.map((d) => {
+                  const totalDockerBytes = (vps.dockerDisk ?? []).reduce((sum, e) => sum + parseDockerSize(e.size), 0)
+                  const sizePct = totalDockerBytes > 0 ? (parseDockerSize(d.size) / totalDockerBytes) * 100 : 0
+                  const meta = DOCKER_TYPE_META[d.type] ?? { color: "bg-slate-400", description: d.type }
+                  return (
+                    <div key={d.type} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-3">
+                        <span className="w-24 flex-shrink-0 text-xs font-bold text-slate-600">{d.type}</span>
+                        <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${meta.color}`} style={{ width: `${sizePct > 0 ? Math.max(sizePct, 3) : 0}%` }} />
+                        </div>
+                        <span className="flex-shrink-0 text-xs font-semibold text-slate-700 text-right">
+                          {d.size}
+                          {d.reclaimablePct > 0 ? (
+                            <span className="text-amber-600"> · {d.reclaimable} sampah</span>
+                          ) : (
+                            <span className="text-slate-400"> · tidak ada sampah</span>
+                          )}
+                        </span>
+                      </div>
+                      <span className="pl-[7.5rem] text-[11px] text-slate-500 font-medium">{meta.description}</span>
                     </div>
-                    <span className="flex-shrink-0 text-xs font-semibold text-slate-700 text-right">
-                      {d.size}
-                      {d.reclaimablePct > 0 ? (
-                        <span className="text-amber-600"> · {d.reclaimable} sampah</span>
-                      ) : (
-                        <span className="text-slate-400"> · tidak ada sampah</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ) : (

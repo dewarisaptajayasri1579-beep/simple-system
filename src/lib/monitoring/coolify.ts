@@ -165,6 +165,9 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   let databases: CoolifyDatabase[] = []
   try {
     databases = await fetchDatabases(apiBase, token)
+    // Cuma update kalau fetch-nya BENERAN berhasil — supaya kegagalan sesaat (instance Coolify
+    // lama tanpa endpoint ini, network blip, dst) tidak menimpa angka lama jadi 0.
+    await prisma.vpsServer.update({ where: { id: vps.id }, data: { coolifyDatabaseCount: databases.length } }).catch(() => {})
   } catch {
     // Best-effort — kalau gagal (mis. instance Coolify lama tanpa endpoint ini), lanjut tanpa info database.
   }
