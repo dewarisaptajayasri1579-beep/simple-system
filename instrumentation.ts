@@ -113,7 +113,8 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
-  // Backup database (dump data schema simple_system) ke Google Drive, jam 20:00 WIB.
+  // Backup database (dump data schema simple_system) ke Cloudflare R2, jam 20:00 WIB.
+  // Retensi otomatis: bulan yang sudah lewat cuma disisakan backup tanggal terakhirnya (lihat lib/backup/r2.ts).
   cron.schedule(
     "0 20 * * *",
     () => {
@@ -137,6 +138,6 @@ export async function register() {
   )
 
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database (20:00), vps-monitoring (03:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring (03:00) WIB"
   )
 }

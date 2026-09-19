@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiUser } from "@/lib/current-user"
 import { canViewMonitoring } from "@/lib/monitoring"
-import { listRecentBackups } from "@/lib/backup/google-drive"
+import { listRecentBackups } from "@/lib/backup/r2"
 
 export async function GET() {
   const user = await getApiUser()

@@ -393,7 +393,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               {/* Backup Terakhir */}
               <div className="flex flex-col gap-2">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
-                  <Archive className="w-3.5 h-3.5" /> Backup Terakhir (Google Drive)
+                  <Archive className="w-3.5 h-3.5" /> Backup Terakhir (Cloudflare R2)
                 </span>
                 {backupError ? (
                   <Alert variant="error">{backupError}</Alert>
@@ -444,7 +444,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
                     </TableContainer>
                   </div>
                 ) : (
-                  <Alert variant="warning">Belum ada file backup ditemukan di Google Drive.</Alert>
+                  <Alert variant="warning">Belum ada file backup ditemukan di R2.</Alert>
                 )}
               </div>
 

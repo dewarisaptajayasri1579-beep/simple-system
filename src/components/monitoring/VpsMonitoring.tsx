@@ -502,11 +502,6 @@ export const VpsServerCard: React.FC<{
 
           {isOwner && (
             <div className="flex items-center gap-1.5 justify-end flex-wrap">
-              {vps.hasCoolify && (
-                <Button variant="secondary" size="sm" isLoading={syncing} loadingText="Sync..." onClick={handleSyncCoolify}>
-                  Sync dari Coolify
-                </Button>
-              )}
               <Button variant="secondary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddApp}>
                 Aplikasi
               </Button>
@@ -658,6 +653,14 @@ export const VpsServerCard: React.FC<{
               </span>
             )}
           </div>
+
+          {isOwner && vps.hasCoolify && (
+            <div className="flex items-center justify-end">
+              <Button variant="secondary" size="sm" isLoading={syncing} loadingText="Sync..." onClick={handleSyncCoolify}>
+                Sync dari Coolify
+              </Button>
+            </div>
+          )}
 
           <TableContainer>
             <Table>

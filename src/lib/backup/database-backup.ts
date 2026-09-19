@@ -1,7 +1,7 @@
 import { gzipSync } from "zlib"
 
 import { prisma } from "@/lib/prisma"
-import { uploadBackupFile } from "./google-drive"
+import { cleanupOldBackups, uploadBackupFile } from "./r2"
 
 const SCHEMA = "simple_system"
 
@@ -18,9 +18,10 @@ function jakartaDateStamp() {
 }
 
 /** Backup logical (data-only, bukan pg_dump) — dump semua tabel di schema `simple_system` lewat
- *  query biasa, bukan pg_dump, supaya tidak perlu install Postgres client tools di image app ini
- *  (lihat catatan di lib/backup/google-drive.ts soal alasan Service Account). Skema/DDL-nya sendiri
- *  sudah tervensiasi lewat prisma/migrations di git, jadi yang perlu di-backup rutin cuma datanya. */
+ *  query biasa, bukan pg_dump, supaya tidak perlu install Postgres client tools di image app ini.
+ *  Skema/DDL-nya sendiri sudah terversi lewat prisma/migrations di git, jadi yang perlu di-backup
+ *  rutin cuma datanya. Disimpan ke Cloudflare R2 (lihat lib/backup/r2.ts), dengan retensi: bulan
+ *  yang sudah lewat cuma disisakan backup tanggal terakhirnya. */
 export async function runDatabaseBackup() {
   const tables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
     `SELECT tablename::text FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
@@ -36,14 +37,14 @@ export async function runDatabaseBackup() {
   const gzipped = gzipSync(Buffer.from(json, "utf-8"))
 
   const fileName = `seven-os-backup-${jakartaDateStamp()}.json.gz`
-  const { fileId, webViewLink } = await uploadBackupFile(fileName, gzipped, "application/gzip")
+  await uploadBackupFile(fileName, gzipped, "application/gzip")
+  const { deletedCount } = await cleanupOldBackups()
 
   return {
     fileName,
     tableCount: tables.length,
     rowCount: Object.values(dump).reduce((sum, rows) => sum + rows.length, 0),
     sizeBytes: gzipped.length,
-    driveFileId: fileId,
-    driveViewLink: webViewLink,
+    deletedOldCount: deletedCount,
   }
 }
