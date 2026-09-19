@@ -108,7 +108,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
           <p className="text-sm text-slate-600 font-medium">Status & kesehatan semua server yang dipantau.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={() => loadVps()}>
+          <Button variant="primary" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={() => loadVps()}>
             Refresh
           </Button>
           {isOwner && (

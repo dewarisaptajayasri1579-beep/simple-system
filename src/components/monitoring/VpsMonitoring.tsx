@@ -668,10 +668,10 @@ export const VpsServerCard: React.FC<{
 
           {isOwner && (
             <div className="flex items-center gap-1.5 justify-end flex-wrap">
-              <Button variant="secondary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddApp}>
+              <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddApp}>
                 Aplikasi
               </Button>
-              <Button variant="secondary" size="sm" leftIcon={<Pencil className="w-4 h-4" />} onClick={openEditVps}>
+              <Button variant="primary" size="sm" leftIcon={<Pencil className="w-4 h-4" />} onClick={openEditVps}>
                 Edit VPS
               </Button>
               <button
@@ -863,11 +863,11 @@ export const VpsServerCard: React.FC<{
                 )}
                 {isOwner && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={() => setPruneConfirmOpen(true)} disabled={pruning || checkingDockerDisk}>
+                    <Button variant="primary" size="sm" onClick={() => setPruneConfirmOpen(true)} disabled={pruning || checkingDockerDisk}>
                       {pruning ? "Membersihkan..." : "Bersihkan yang Tidak Terpakai"}
                     </Button>
                     <Button
-                      variant="secondary"
+                      variant="primary"
                       size="sm"
                       onClick={() => setResetBuilderConfirmOpen(true)}
                       disabled={resettingBuilder || checkingDockerDisk}
@@ -876,7 +876,7 @@ export const VpsServerCard: React.FC<{
                     </Button>
                     {vps.hasCoolify ? (
                       <Button
-                        variant="secondary"
+                        variant="primary"
                         size="sm"
                         leftIcon={<Sparkles className="w-4 h-4" />}
                         isLoading={syncing}
@@ -887,7 +887,7 @@ export const VpsServerCard: React.FC<{
                         Sync & Cek Sekarang
                       </Button>
                     ) : (
-                      <Button variant="secondary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
+                      <Button variant="primary" size="sm" onClick={handleCheckDockerDisk} disabled={checkingDockerDisk || pruning}>
                         {checkingDockerDisk ? "Mengecek..." : "Cek Sekarang"}
                       </Button>
                     )}
