@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
+import { resolveDomainExpiry } from "@/lib/domain-status"
 import { canViewMonitoring } from "@/lib/monitoring"
+import { registrableDomain } from "@/lib/monitoring/rdap"
 import { getVpsDiskAndBackup, type ContainerDiskEntry, type DockerDiskEntry, type VolumeDiskEntry } from "@/lib/monitoring/ssh"
 import { prisma } from "@/lib/prisma"
 
@@ -28,10 +30,39 @@ export async function GET() {
     include: { applications: { orderBy: { name: "asc" } } },
   })
 
+  // Domain root (mis. "onyseven.com") dikelola manual di Pengaturan > Master Data > Domain —
+  // itu acuan resmi tanggal renewal, beda dari `Application.domainExpiresAt` yang auto-lookup
+  // RDAP per SUBDOMAIN aplikasi. Batch satu kali di sini (bukan query per-app di dalam loop,
+  // lihat aturan N+1 di CLAUDE.md) buat dicocokkan ke tiap VPS di bawah.
+  const allRootDomains = new Set<string>()
+  for (const vps of vpsList) {
+    for (const app of vps.applications) {
+      if (app.domain) allRootDomains.add(registrableDomain(app.domain).toLowerCase())
+    }
+  }
+  const domainRows = allRootDomains.size
+    ? await prisma.domain.findMany({
+        where: { name: { in: [...allRootDomains] } },
+        select: { name: true, expiryDate: true, lastPaidAt: true, active: true },
+      })
+    : []
+  const domainByName = new Map(domainRows.map((d) => [d.name.toLowerCase(), d]))
+
   const results = await Promise.all(
     vpsList.map(async (vps) => {
       const live = await getVpsDiskAndBackup(vps)
       const cache = (vps.dockerDiskCache as unknown as DockerDiskCache | null) ?? null
+
+      const rootDomainNames = [...new Set(vps.applications.map((a) => a.domain).filter((d): d is string => Boolean(d)).map((d) => registrableDomain(d).toLowerCase()))]
+      const registeredDomains = rootDomainNames.map((name) => {
+        const row = domainByName.get(name)
+        return {
+          name,
+          tracked: Boolean(row),
+          active: row?.active ?? null,
+          expiryDate: row ? (resolveDomainExpiry(row)?.toISOString() ?? null) : null,
+        }
+      })
 
       return {
         id: vps.id,
@@ -54,6 +85,7 @@ export async function GET() {
         dockerDisk: cache?.dockerDisk ?? null,
         dockerVolumes: cache?.volumes ?? null,
         dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
+        registeredDomains,
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
           const dbContainer = app.databaseUuid ? cache?.containers?.find((c) => c.containerName === app.databaseUuid) : undefined

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown } from "lucide-react"
+import { Server, HardDrive, Archive, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe } from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -59,6 +59,7 @@ export type VpsRow = {
   dockerVolumes: { name: string; size: string }[] | null
   dockerDiskCheckedAt: string | null
   applications: AppRow[]
+  registeredDomains: { name: string; tracked: boolean; active: boolean | null; expiryDate: string | null }[]
 }
 
 export type DockerDiskEntry = {
@@ -589,6 +590,28 @@ export const VpsServerCard: React.FC<{
               )}
             </div>
           </div>
+
+          {vps.registeredDomains.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <Globe className="w-3.5 h-3.5" /> Domain Utama
+              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                {vps.registeredDomains.map((d) => (
+                  <div key={d.name} className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-700">{d.name}</span>
+                    {d.tracked ? (
+                      <DomainExpiryBadge iso={d.expiryDate} />
+                    ) : (
+                      <Badge variant="warning" size="sm">
+                        Belum ada di Pengaturan &gt; Domain
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
