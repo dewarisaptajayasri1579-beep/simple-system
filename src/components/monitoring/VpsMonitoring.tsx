@@ -31,6 +31,8 @@ export type AppRow = {
   dbBackupLink: string | null
   lastAccessedAt: string | null
   lastAccessedBy: string | null
+  lastAccessedIp: string | null
+  lastAccessedCity: string | null
   domainExpiresAt: string | null
   domainExpiryCheckedAt: string | null
   notes: string | null
@@ -787,6 +789,12 @@ export const VpsServerCard: React.FC<{
                           <>
                             <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</span>
                             {app.lastAccessedBy && <div className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">{app.lastAccessedBy}</div>}
+                            {app.lastAccessedIp && (
+                              <div className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
+                                {app.lastAccessedIp}
+                                {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <span className="text-xs font-medium text-slate-400">Belum diketahui</span>

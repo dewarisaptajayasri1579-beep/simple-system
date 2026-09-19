@@ -141,6 +141,8 @@ export async function GET() {
             dbBackupLink: dbBackup?.webViewLink ?? null,
             lastAccessedAt: app.lastAccessedAt,
             lastAccessedBy: app.lastAccessedBy,
+            lastAccessedIp: app.lastAccessedIp,
+            lastAccessedCity: app.lastAccessedCity,
             domainExpiresAt,
             domainExpiryCheckedAt: app.domainExpiryCheckedAt,
             notes: app.notes,

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { lookupIpCity } from "@/lib/monitoring/geoip"
 import { syncCoolifyApplications } from "@/lib/monitoring/coolify"
 import { lookupDomainExpiry } from "@/lib/monitoring/rdap"
 import { getVpsDockerDiskUsage } from "@/lib/monitoring/ssh"
@@ -56,7 +57,10 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
   // Log Traefik cuma dipakai buat aplikasi yang BELUM punya activityQuery — kalau aplikasi itu
   // punya query manual (dijalankan di syncCoolifyApplications, lebih akurat karena tahu identitas
   // user), jangan ditimpa tebakan dari log Traefik yang cuma tahu "ada request", bukan "siapa".
-  let accessChecked = 0
+  // Dikumpulin dulu SEMUA VPS (bukan langsung ditulis per VPS) supaya geolocation IP-nya bisa
+  // di-batch sekali per IP UNIK di bawah — kalau beberapa aplikasi/VPS ke-akses dari IP yang sama
+  // (mis. kantor sendiri), tidak perlu lookup berkali-kali ke API geolocation.
+  const pendingAccessUpdates: { appId: string; at: Date; ip: string | null }[] = []
   for (const vps of refreshedVpsList) {
     const appsWithoutQuery = vps.applications.filter((a) => !a.activityQuery)
     const domains = appsWithoutQuery.map((a) => a.domain).filter((d): d is string => !!d)
@@ -67,12 +71,31 @@ export async function runVpsMonitoringRefresh(vpsId?: string) {
         if (!app.domain) continue
         const last = lastMap.get(app.domain)
         if (!last) continue
-        await prisma.application.update({ where: { id: app.id }, data: { lastAccessedAt: last } })
-        accessChecked += 1
+        pendingAccessUpdates.push({ appId: app.id, at: last.at, ip: last.ip })
       }
     } catch (e) {
       console.error(`[vps-monitoring] cek akses gagal untuk VPS "${vps.name}":`, e)
     }
+  }
+
+  const uniqueIps = [...new Set(pendingAccessUpdates.map((u) => u.ip).filter((ip): ip is string => !!ip))]
+  const cityByIp = new Map<string, string>()
+  await Promise.all(
+    uniqueIps.map(async (ip) => {
+      const city = await lookupIpCity(ip)
+      if (city) cityByIp.set(ip, city)
+    })
+  )
+
+  let accessChecked = 0
+  for (const u of pendingAccessUpdates) {
+    await prisma.application
+      .update({
+        where: { id: u.appId },
+        data: { lastAccessedAt: u.at, lastAccessedIp: u.ip, lastAccessedCity: u.ip ? (cityByIp.get(u.ip) ?? null) : null },
+      })
+      .catch(() => {})
+    accessChecked += 1
   }
 
   let dockerDiskRefreshed = 0

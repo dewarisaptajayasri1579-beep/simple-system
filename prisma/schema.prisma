@@ -202,6 +202,13 @@ model Application {
   backupLocation        String?   @map("backup_location")
   lastBackupAt          DateTime? @map("last_backup_at")
   lastAccessedAt        DateTime? @map("last_accessed_at")
+  /// IP client dari request terakhir yang match — cuma keisi lewat tebakan log Traefik (null kalau
+  /// dari activityQuery, karena query SQL manual tidak tahu IP; lihat getLastAccessedByDomain() di
+  /// src/lib/monitoring/traefik-access.ts).
+  lastAccessedIp        String?   @map("last_accessed_ip")
+  /// "Kota, Negara" hasil geolocation lastAccessedIp (lihat lookupIpCity() di
+  /// src/lib/monitoring/geoip.ts) — null kalau IP-nya privat/lookup gagal, best-effort.
+  lastAccessedCity      String?   @map("last_accessed_city")
   domainExpiresAt       DateTime? @map("domain_expires_at")
   domainExpiryCheckedAt DateTime? @map("domain_expiry_checked_at")
   notes                 String?
