@@ -837,12 +837,6 @@ export const VpsServerCard: React.FC<{
     }
   }
 
-  const handleDeleteApp = async (app: AppRow) => {
-    if (!confirm(`Hapus aplikasi "${app.name}" dari daftar pantauan?`)) return
-    await fetch(`/api/monitoring/applications/${app.id}`, { method: "DELETE" })
-    onChanged()
-  }
-
   const health = computeVpsHealth(vps)
   const healthBadgeVariant = health.level === "kritis" ? "danger" : health.level === "perhatian" ? "warning" : "success"
   const healthLabel = health.level === "kritis" ? "Kritis" : health.level === "perhatian" ? "Perhatian" : "Sehat"
@@ -1296,95 +1290,112 @@ export const VpsServerCard: React.FC<{
                           )}
                         </div>
                         <div className="text-xs mt-1">
+                          <span className="text-slate-400 font-semibold">Disk App: </span>
                           <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
                         </div>
                       </TableCell>
                       {/* Deploy & Database: domain+expiry, git+branch, info database + disk-nya, status backup */}
                       <TableCell>
-                        {app.domain ? (
-                          <a
-                            href={`https://${app.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
-                          >
-                            <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                          </a>
-                        ) : (
-                          <div className="text-slate-400 text-xs">Tanpa domain</div>
-                        )}
-                        <div className="mt-1">
-                          <DomainExpiryBadge iso={app.domainExpiresAt} />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Domain &amp; Git</span>
+                          {app.domain ? (
+                            <a
+                              href={`https://${app.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
+                            >
+                              <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                            </a>
+                          ) : (
+                            <div className="text-slate-400 text-xs">Tanpa domain</div>
+                          )}
+                          {app.domain && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] text-slate-400 font-semibold">Habis:</span>
+                              <DomainExpiryBadge iso={app.domainExpiresAt} />
+                            </div>
+                          )}
+                          {app.gitRepository ? (
+                            <a
+                              href={app.gitRepository}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
+                            >
+                              <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-xs block">Tanpa git</span>
+                          )}
+                          {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
                         </div>
-                        {app.gitRepository ? (
-                          <a
-                            href={app.gitRepository}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all mt-1.5"
-                          >
-                            <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
-                          </a>
-                        ) : (
-                          <span className="text-slate-400 text-xs mt-1.5 block">Tanpa git</span>
-                        )}
-                        {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
-                        <div className="text-xs font-semibold text-slate-700 mt-1.5">
-                          {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
-                        </div>
-                        {app.databaseInfo && (
-                          <div className="text-xs mt-0.5">
-                            <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
+
+                        <div className="flex flex-col gap-1 mt-2.5 pt-2.5 border-t border-slate-100">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Database</span>
+                          <div className="text-xs font-semibold text-slate-700">
+                            {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
                           </div>
-                        )}
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          {app.dbBackupAt ? (
+                          {app.databaseInfo && (
+                            <div className="text-xs">
+                              <span className="text-slate-400 font-semibold">Disk DB: </span>
+                              <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            {app.dbBackupAt ? (
+                              <>
+                                <span className="text-xs font-semibold text-slate-700">Backup DB: {formatDateTimeId(app.dbBackupAt)}</span>
+                                {app.dbBackupLink && (
+                                  <a
+                                    href={app.dbBackupLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs font-medium text-slate-400">Belum ada backup DB</span>
+                            )}
+                            {isOwner && app.databaseUuid && (
+                              <button
+                                onClick={() => handleBackupNow(app.databaseUuid!)}
+                                disabled={backingUpDbUuid === app.databaseUuid}
+                                className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Backup Sekarang"
+                                title="Backup Sekarang"
+                              >
+                                <DatabaseBackup className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      {/* Aktivitas: terakhir diakses (relatif + tanggal absolut) + siapa + dari mana, plus KPI penggunaan 7 hari */}
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Terakhir Diakses</span>
+                          {app.lastAccessedAt ? (
                             <>
-                              <span className="text-xs font-semibold text-slate-700">Backup: {formatDateTimeId(app.dbBackupAt)}</span>
-                              {app.dbBackupLink && (
-                                <a
-                                  href={app.dbBackupLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
+                              <span className="text-xs font-bold text-slate-800">{timeAgoId(app.lastAccessedAt)}</span>
+                              <span className="text-[11px] text-slate-500 font-medium">{formatDateTimeId(app.lastAccessedAt)}</span>
+                              {app.lastAccessedBy && <span className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">Oleh: {app.lastAccessedBy}</span>}
+                              {app.lastAccessedIp && (
+                                <span className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
+                                  {app.lastAccessedIp}
+                                  {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
+                                </span>
                               )}
                             </>
                           ) : (
-                            <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
-                          )}
-                          {isOwner && app.databaseUuid && (
-                            <button
-                              onClick={() => handleBackupNow(app.databaseUuid!)}
-                              disabled={backingUpDbUuid === app.databaseUuid}
-                              className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              aria-label="Backup Sekarang"
-                              title="Backup Sekarang"
-                            >
-                              <DatabaseBackup className="w-3.5 h-3.5" />
-                            </button>
+                            <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                           )}
                         </div>
-                      </TableCell>
-                      {/* Aktivitas: terakhir diakses + siapa + dari mana, plus KPI penggunaan 7 hari */}
-                      <TableCell>
-                        {app.lastAccessedAt ? (
-                          <>
-                            <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(app.lastAccessedAt)}</span>
-                            {app.lastAccessedBy && <div className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">{app.lastAccessedBy}</div>}
-                            {app.lastAccessedIp && (
-                              <div className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
-                                {app.lastAccessedIp}
-                                {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
-                        )}
-                        <div className="mt-1.5">
+                        <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Penggunaan 7 Hari</span>
                           <UsageBadge traffic={app.traffic} />
                         </div>
                       </TableCell>
@@ -1396,13 +1407,6 @@ export const VpsServerCard: React.FC<{
                             aria-label="Edit"
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteApp(app)}
-                            className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            aria-label="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </TableCell>
                       )}
