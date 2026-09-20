@@ -5,7 +5,7 @@ import { Card, CardTitle, CardDescription, FilterableTable, type FilterableColum
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { BillingFollowUpRefType } from "@/lib/billing-follow-up";
 
-export type BillingFollowUpStatusKey = "aktif_dalam_batas" | "aktif_lewat" | "selesai_tepat_waktu" | "selesai_telat";
+export type BillingFollowUpStatusKey = "aktif_dalam_batas" | "aktif_lewat" | "selesai_tepat_waktu" | "selesai_telat" | "ditutup_ragu_ragu";
 
 export interface BillingFollowUpRow {
   id: string;
@@ -40,14 +40,17 @@ const STATUS_OPTIONS: { value: BillingFollowUpStatusKey; label: string }[] = [
   { value: "aktif_lewat", label: "Aktif — Lewat Deadline" },
   { value: "selesai_tepat_waktu", label: "Selesai — Tepat Waktu" },
   { value: "selesai_telat", label: "Selesai — Ada yang Telat" },
+  { value: "ditutup_ragu_ragu", label: "Ditutup — Piutang Ragu-Ragu" },
 ];
 
 // StatusBadge belum punya varian buat status ini — reuse warna yang paling deket maknanya.
-const STATUS_BADGE_TYPE: Record<BillingFollowUpStatusKey, "expiring_this_month" | "expired" | "safe" | "partial"> = {
+const STATUS_BADGE_TYPE: Record<BillingFollowUpStatusKey, "expiring_this_month" | "expired" | "safe" | "partial" | "voided"> = {
   aktif_dalam_batas: "expiring_this_month",
   aktif_lewat: "expired",
   selesai_tepat_waktu: "safe",
   selesai_telat: "partial",
+  // Bukan prestasi & bukan kegagalan SLA — ditutup karena piutangnya dianggap tidak akan cair.
+  ditutup_ragu_ragu: "voided",
 };
 
 const columns: FilterableColumn<BillingFollowUpRow>[] = [

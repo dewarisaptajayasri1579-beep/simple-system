@@ -19,7 +19,7 @@ export default async function ArusKasPage() {
     prisma.maintenance.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
-      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted" },
+      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null },
       include: { client: true, payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
     }),
     prisma.projectPaymentSchedule.findMany({

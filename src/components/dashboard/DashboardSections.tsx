@@ -10,6 +10,7 @@ import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { PiutangFollowUpButton } from "./PiutangFollowUpButton";
+import { MarkDoubtfulButton } from "./PiutangRaguRaguSection";
 import { SyncDomainStatusButton } from "./SyncDomainStatusButton";
 import { DeactivateDomainButton } from "./DeactivateDomainButton";
 import { type AccountOption } from "./MarkPaidButton";
@@ -109,7 +110,11 @@ interface PiutangClientTotal {
   invoiceCount: number;
 }
 
-function piutangColumns(isVisible: (key: string) => boolean, clientTotals: Map<string, PiutangClientTotal>): FilterableColumn<PiutangSummaryRow>[] {
+function piutangColumns(
+  isVisible: (key: string) => boolean,
+  clientTotals: Map<string, PiutangClientTotal>,
+  isOwner: boolean
+): FilterableColumn<PiutangSummaryRow>[] {
   return [
     {
       key: "clientName",
@@ -183,6 +188,19 @@ function piutangColumns(isVisible: (key: string) => boolean, clientTotals: Map<s
         </Link>
       ),
     },
+    // Cuma Owner — menandai ragu-ragu mengurangi Piutang Outstanding, jadi tidak boleh
+    // dilakukan staf (lihat POST /api/invoices/[id]/doubtful yang juga owner-only).
+    ...(isOwner
+      ? [
+          {
+            key: "raguRagu",
+            header: "Ragu-Ragu",
+            cell: (r: PiutangSummaryRow) => (
+              <MarkDoubtfulButton invoiceId={r.id} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} remaining={r.remaining} />
+            ),
+          },
+        ]
+      : []),
     {
       key: "inputRespon",
       header: "Input Respon",
@@ -196,7 +214,7 @@ function piutangColumns(isVisible: (key: string) => boolean, clientTotals: Map<s
   ];
 }
 
-export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({ rows }) => {
+export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; isOwner?: boolean }> = ({ rows, isOwner = false }) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { isVisible, toggle } = useColumnVisibility("dashboard-piutang", PIUTANG_COLUMNS);
 
@@ -239,7 +257,7 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[] }> = ({
           <StatusPills active={statusFilter} onChange={setStatusFilter} options={PIUTANG_STATUS_OPTIONS} counts={counts} total={rows.length} />
         </div>
         <FilterableTable
-          columns={piutangColumns(isVisible, clientTotals)}
+          columns={piutangColumns(isVisible, clientTotals, isOwner)}
           rows={filteredRows}
           rowKey={(r) => r.id}
           emptyMessage="Tidak ada piutang terbuka."

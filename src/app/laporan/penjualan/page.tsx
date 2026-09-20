@@ -28,6 +28,14 @@ export default async function LaporanPenjualanPage({ searchParams }: { searchPar
   const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0)
   const totalCollected = invoices.reduce((sum, i) => sum + i.payments.reduce((s, p) => s + p.amount, 0), 0)
   const totalOutstanding = totalInvoiced - totalCollected
+  // Laporan ini SENGAJA tetap menghitung invoice yang ditandai Piutang Ragu-Ragu — penjualannya
+  // memang terjadi, jadi Total Invoice Terbit tidak boleh berubah gara-gara penandaan itu (dan
+  // Terbit = Tertagih + Outstanding harus tetap balance). Porsinya ditulis terpisah di bawah
+  // kartu Outstanding supaya angkanya bisa dicocokkan dengan Piutang Outstanding di Dashboard
+  // (yang sudah mengeluarkan invoice ragu-ragu).
+  const doubtfulOutstanding = invoices
+    .filter((i) => i.doubtfulAt)
+    .reduce((sum, i) => sum + (i.totalAmount - i.payments.reduce((s, p) => s + p.amount, 0)), 0)
 
   const byClient = new Map<string, { name: string; total: number; collected: number }>()
   for (const inv of invoices) {
@@ -62,6 +70,11 @@ export default async function LaporanPenjualanPage({ searchParams }: { searchPar
           <Card variant="feature" padding="md">
             <CardDescription>Outstanding</CardDescription>
             <p className="text-2xl font-black text-rose-700 mt-1">{formatRupiah(totalOutstanding)}</p>
+            {doubtfulOutstanding > 0 && (
+              <p className="text-[11px] font-bold text-amber-700 mt-1">
+                termasuk {formatRupiah(doubtfulOutstanding)} Piutang Ragu-Ragu
+              </p>
+            )}
           </Card>
         </div>
 

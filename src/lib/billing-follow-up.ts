@@ -40,6 +40,9 @@ export async function ensureBillingFollowUps(db: Db, items: BillingFollowUpRef[]
     where: {
       postStatus: "posted",
       status: { in: ["unpaid", "partial"] },
+      // Invoice ragu-ragu tidak dikejar lagi — jangan dipakai sebagai "invoice nyangkut" yang
+      // bikin siklus baru langsung berstatus menunggu_bayar (lihat Invoice.doubtfulAt).
+      doubtfulAt: null,
       OR: missing.map((i) => ({ costLinkType: i.refType, costLinkId: i.refId })),
     },
     orderBy: { issuedAt: "desc" },
@@ -81,12 +84,17 @@ export interface BillingFollowUpRecordLike {
   promisedPayAt: Date | null
   paidRecordedAt: Date | null
   voidedAt: Date | null
+  // Siklus ditutup tanpa pembayaran (invoice ditandai Piutang Ragu-Ragu) — lihat schema.prisma.
+  writeOffAt: Date | null
 }
 
 /** Hitung tahap SLA sekarang + apakah sudah lewat deadline tahap itu. Return null kalau siklus
  *  sudah selesai (paidRecordedAt terisi) — row itu tidak perlu badge lagi. */
 export function computeSlaStatus(record: BillingFollowUpRecordLike, now: Date = new Date()): BillingFollowUpSla | null {
   if (record.paidRecordedAt) return null
+  // Ditutup karena piutangnya dianggap tidak akan cair — bukan "selesai tepat waktu" dan bukan
+  // "telat", memang tidak dikejar lagi (lihat writeOffAt di schema.prisma).
+  if (record.writeOffAt) return null
 
   let stage: BillingFollowUpStage
   let deadline: Date
@@ -132,7 +140,7 @@ export interface OverdueBillingFollowUp {
  *  (badge nav Dashboard & laporan WA pagi/sore), bukan cuma nunggu staf buka halaman. Caller yang
  *  resolve nama item/client (butuh query Domain/Server/Maintenance terpisah per refType). */
 export async function listOverdueBillingFollowUps(db: Db, now: Date = new Date()): Promise<OverdueBillingFollowUp[]> {
-  const active = await db.billingFollowUp.findMany({ where: { paidRecordedAt: null } })
+  const active = await db.billingFollowUp.findMany({ where: { paidRecordedAt: null, writeOffAt: null } })
   return active
     .map((record) => ({ refType: record.refType as BillingFollowUpRefType, refId: record.refId, sla: computeSlaStatus(record, now) }))
     .filter((r): r is OverdueBillingFollowUp => r.sla !== null && r.sla.overdue)

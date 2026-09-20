@@ -56,6 +56,11 @@ export default async function TindakLanjutTagihanPage() {
     if (sla) {
       statusKey = sla.overdue ? "aktif_lewat" : "aktif_dalam_batas"
       statusLabel = sla.overdue ? `Aktif — lewat ${sla.daysOverdue} hari (${SLA_STAGE_LABEL[sla.stage]})` : `Aktif — ${SLA_STAGE_LABEL[sla.stage]}`
+    } else if (f.writeOffAt && !f.paidRecordedAt) {
+      // Invoice-nya ditandai Piutang Ragu-Ragu oleh Owner — siklusnya berhenti di sini, jangan
+      // ikut dihitung sebagai "selesai tepat waktu" di persentase SLA.
+      statusKey = "ditutup_ragu_ragu"
+      statusLabel = "Ditutup — Piutang Ragu-Ragu"
     } else {
       const evaluation = evaluateClosedCycle(f)
       const late = evaluation?.late ?? false

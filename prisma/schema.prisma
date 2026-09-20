@@ -532,12 +532,20 @@ model BillingFollowUp {
   // ke tahap "perlu ditagih ulang" (bedain dari belum_ditagih yang benar-benar belum pernah
   // ditagih sama sekali — lihat computeSlaStatus di billing-follow-up.ts).
   voidedAt          DateTime? @map("voided_at")
+  // Siklus ditutup TANPA pembayaran — sejauh ini cuma dipakai saat invoice-nya ditandai
+  // Piutang Ragu-Ragu oleh Owner (lihat Invoice.doubtfulAt & POST /api/invoices/[id]/doubtful).
+  // Beda dari paidRecordedAt (ditutup karena dibayar) dan voidedAt (invoice-nya dibatalkan,
+  // masih perlu ditagih ulang): ini berhenti total, tidak dihitung tepat waktu maupun telat.
+  // computeSlaStatus mengembalikan null untuk baris ini, jadi tidak muncul lagi di badge
+  // "SLA Lewat" maupun daftar tagihan yang harus dikejar.
+  writeOffAt        DateTime? @map("write_off_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
   responses BillingFollowUpResponse[]
 
   @@index([refType, refId])
   @@index([invoiceId])
+  @@index([writeOffAt])
   @@map("billing_follow_ups")
   @@schema("simple_system")
 }
@@ -749,12 +757,34 @@ model Invoice {
   voidedById  String?   @map("voided_by_id")
   voidReason  String?   @map("void_reason")
 
+  // ---- Piutang Ragu-Ragu: invoice yang SAH tapi kemungkinan besar tidak akan tertagih (client
+  // kabur, bangkrut, sengketa, dsb). Ditandai manual oleh OWNER dengan alasan wajib lewat
+  // Dashboard, dan sejak itu dikeluarkan dari semua perhitungan Piutang Outstanding (Dashboard,
+  // halaman Piutang, Neraca, Arus Kas) serta berhenti ditagih otomatis (cron follow-up piutang,
+  // SLA tindak lanjut, AI Agent).
+  //
+  // BEDA dari voidReason/postStatus "voided" di atas: void = invoice-nya SALAH INPUT, jadi
+  // dianggap tidak pernah ada. Ragu-ragu = invoice & penjualannya benar, cuma uangnya dianggap
+  // tidak akan cair — invoice tetap posted dan tetap muncul di riwayat/Laporan Penjualan.
+  //
+  // TIDAK ada jurnal sama sekali di sini: Piutang memang bukan akun GL di app ini, cuma field
+  // (Invoice.totalAmount − pembayaran posted) — lihat pedoman_akunting.md. Kalau suatu saat mau
+  // ada Beban Kerugian Piutang di Laba Rugi, itu perubahan terpisah.
+  //
+  // Bisa dibatalkan (di-null-kan lagi) oleh Owner kalau ternyata client-nya bayar.
+  doubtfulAt     DateTime? @map("doubtful_at")
+  doubtfulReason String?   @map("doubtful_reason")
+  doubtfulById   String?   @map("doubtful_by_id")
+
   client   Client           @relation(fields: [clientId], references: [id])
   lines    InvoiceLine[]
   payments InvoicePayment[]
   projectPaymentSchedule ProjectPaymentSchedule?
 
   @@index([clientId])
+  // Dipakai di SEMUA query piutang (`doubtfulAt: null`) — Dashboard, Piutang, Neraca, Arus Kas,
+  // cron follow-up. Lihat aturan index di CLAUDE.md.
+  @@index([doubtfulAt])
   @@map("invoices")
   @@schema("simple_system")
 }

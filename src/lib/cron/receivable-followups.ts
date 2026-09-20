@@ -24,6 +24,9 @@ export async function runReceivableFollowups() {
       dueDate: { lt: now },
       client: { phoneNumber: { not: null } },
       postStatus: "posted",
+      // Invoice yang sudah ditandai Piutang Ragu-Ragu berhenti ditagih otomatis — kirim WA
+      // penagihan ke client yang sudah "dilepas" cuma bikin malu (lihat Invoice.doubtfulAt).
+      doubtfulAt: null,
     },
     include: {
       client: true,
