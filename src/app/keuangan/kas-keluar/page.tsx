@@ -4,8 +4,9 @@ import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
 export default async function KeuanganKasKeluarPage() {
-  // Kas Keluar — Owner+Direktur saja. Role "admin" sekarang cuma Invoice/Pembayaran/Tagihan.
-  const user = await requirePageRole(["owner", "direktur"])
+  // Kas Keluar boleh diinput admin juga (satu-satunya bagian Keuangan yang kebuka buat dia) —
+  // Kas Masuk, Pindah Buku, Kasbon, Slotting Omset tetap Owner+Direktur.
+  const user = await requirePageRole(["owner", "direktur", "admin"])
 
   // domains/servers/maintenances/recurringBills di sini cuma buat resolve nama di kolom
   // Keterangan Riwayat (lihat KasKeluarPanel) — form input-nya sendiri sudah pindah ke
@@ -20,6 +21,7 @@ export default async function KeuanganKasKeluarPage() {
   return (
     <AppLayout userName={user.name} userRole={user.role}>
       <KasKeluarPanel
+        canSeeJournal={user.role !== "admin"}
         domains={domains.map((d) => ({ id: d.id, name: d.name, price: d.sellPrice, clientName: d.client?.name ?? null }))}
         servers={servers.map((s) => ({ id: s.id, name: s.name, price: s.price, clientName: s.client?.name ?? null }))}
         maintenances={maintenances.map((m) => ({ id: m.id, name: m.name, price: m.price, clientName: m.client?.name ?? null }))}

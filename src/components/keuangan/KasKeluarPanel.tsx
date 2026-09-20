@@ -43,7 +43,9 @@ export const KasKeluarPanel: React.FC<{
   servers: BillItemOption[];
   maintenances: BillItemOption[];
   recurringBills: BillItemOption[];
-}> = ({ domains, servers, maintenances, recurringBills }) => {
+  /** Role "admin" boleh input/lihat Kas Keluar tapi tidak boleh lihat jurnalnya. */
+  canSeeJournal?: boolean;
+}> = ({ domains, servers, maintenances, recurringBills, canSeeJournal = true }) => {
   const [rows, setRows] = useState<TransactionRow[] | null>(null);
   const [error, setError] = useState("");
 
@@ -105,6 +107,7 @@ export const KasKeluarPanel: React.FC<{
           transactionId={r.id}
           transactionNumber={r.transactionNumber ?? "-"}
           journalSource={r.journalEntryId ? { entryId: r.journalEntryId } : { sourceType: r.refType ?? "transaction", sourceId: r.refType && r.refId ? r.refId : r.id }}
+          canSeeJournal={canSeeJournal}
         />
       ),
     },

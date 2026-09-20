@@ -21,7 +21,10 @@ export const TransactionPostingBar: React.FC<{
   sources: JournalSource[]
   managedByPaymentId: string | null
   isOwner: boolean
-}> = ({ transactionId, postStatus, sources, managedByPaymentId, isOwner }) => {
+  /** Role "admin" tidak boleh lihat Akuntansi — tombol "Jurnal" (debit/kredit) disembunyikan
+   *  untuk dia, posting/hapus draft Kas Keluar-nya tetap boleh. */
+  canSeeJournal?: boolean
+}> = ({ transactionId, postStatus, sources, managedByPaymentId, isOwner, canSeeJournal = true }) => {
   const router = useRouter()
   const [status, setStatus] = useState(postStatus)
   const [deleting, setDeleting] = useState(false)
@@ -46,7 +49,9 @@ export const TransactionPostingBar: React.FC<{
     <div className="no-print space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge type={status} size="sm" />
-        <JournalButton title="Jurnal Transaksi" sources={sources} postUrl={!managedByPaymentId && status === "draft" ? `/api/transactions/${transactionId}/post` : undefined} previewKind="transaction" previewId={transactionId} />
+        {canSeeJournal && (
+          <JournalButton title="Jurnal Transaksi" sources={sources} postUrl={!managedByPaymentId && status === "draft" ? `/api/transactions/${transactionId}/post` : undefined} previewKind="transaction" previewId={transactionId} />
+        )}
         {managedByPaymentId ? (
           <Link href={`/pembayaran/${managedByPaymentId}`} className="text-xs font-semibold text-blue-600 hover:underline">
             Bagian dari kwitansi Pembayaran — kelola di sana

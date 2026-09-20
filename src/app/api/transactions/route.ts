@@ -9,8 +9,9 @@ import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-look
 import { generateTransactionNumber } from "@/lib/transaction-number"
 import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
-/** Kas masuk/keluar perusahaan — Owner+Direktur saja, sama dengan halaman Keuangan yang
- *  memakainya. Role "admin" (staf penagihan) cuma boleh Invoice/Pembayaran/Tagihan. */
+/** Kas masuk/keluar perusahaan — Owner+Direktur, sama dengan halaman Keuangan yang memakainya.
+ *  Role "admin" dibatasi ke PENGELUARAN saja (dia cuma boleh menu Kas Keluar), lihat GET di
+ *  bawah; role lain (sysadmin Monitoring) tidak boleh sama sekali. */
 function assertKasRole(role: string) {
   return role === "owner" || role === "direktur"
 }
@@ -18,10 +19,14 @@ function assertKasRole(role: string) {
 export async function GET(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (!assertKasRole(user.role)) return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa lihat transaksi kas" }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const type = searchParams.get("type")
+  // Riwayat Kas Keluar (KasKeluarPanel) memanggil ?type=expense — admin boleh persis itu saja,
+  // supaya dia tidak bisa menarik daftar pemasukan/seluruh transaksi lewat query lain.
+  if (!assertKasRole(user.role) && !(user.role === "admin" && type === "expense")) {
+    return NextResponse.json({ error: "Tidak punya akses lihat transaksi kas" }, { status: 403 })
+  }
   const from = searchParams.get("from")
   const to = searchParams.get("to")
   const paymentId = searchParams.get("paymentId")

@@ -25,10 +25,11 @@ model User {
   // "owner" | "direktur" | "admin" | "sysadmin". Ringkasnya di modul Internal:
   //   owner    — semua, tanpa batas.
   //   direktur — semua kecuali yang dikunci khusus Owner (kelola user, master data, dst).
-  //   admin    — STAF PENAGIHAN: cuma Dashboard, Invoice, Pembayaran, dan Tagihan (Piutang/
-  //              Tindak Lanjut) + Master Data di Pengaturan. TIDAK boleh Akuntansi, Laporan,
-  //              Keuangan (kas masuk/keluar), dan Proyek. Lihat navItemsForRole di
-  //              components/layout/Sidebar.tsx + requirePageRole di tiap page.tsx.
+  //   admin    — STAF PENAGIHAN: Dashboard, Invoice, Pembayaran, Tagihan (Piutang/Tindak
+  //              Lanjut), Kas Keluar, + Master Data di Pengaturan. TIDAK boleh Akuntansi,
+  //              Laporan, Proyek, dan sisa menu Keuangan (Kas Masuk, Pindah Buku, Kasbon,
+  //              Slotting Omset). Lihat navItemsForRole di components/layout/Sidebar.tsx +
+  //              requirePageRole di tiap page.tsx.
   //   sysadmin — khusus modul Monitoring Server (lihat catatan di route-route monitoring).
   role         String    @default("admin")
   // Modul apa saja yang boleh diakses user ini — "internal" | "marketing" | "monitoring".

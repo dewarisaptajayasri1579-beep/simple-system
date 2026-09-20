@@ -4,8 +4,8 @@ import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 
 export default async function KeuanganKasKeluarBaruPage() {
-  // Kas Keluar — Owner+Direktur saja. Role "admin" sekarang cuma Invoice/Pembayaran/Tagihan.
-  const user = await requirePageRole(["owner", "direktur"])
+  // Kas Keluar boleh diinput admin juga — lihat catatan di /keuangan/kas-keluar.
+  const user = await requirePageRole(["owner", "direktur", "admin"])
 
   // Sama dengan kas-keluar/page.tsx — lihat komentar di sana soal kenapa TIDAK difilter by
   // price/sellPrice > 0.

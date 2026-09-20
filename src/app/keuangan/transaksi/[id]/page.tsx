@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { TransactionPostingBar } from "@/components/keuangan/TransactionPostingBar"
@@ -34,8 +34,10 @@ export default async function TransactionDetailPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ print?: string }>
 }) {
-  // Detail transaksi kas — Owner+Direktur saja, sama dengan semua halaman /keuangan lain.
-  const user = await requirePageRole(["owner", "direktur"])
+  // Admin ikut boleh karena ini halaman "Lihat/Edit Detail" + "Cetak Bukti Kas" dari baris
+  // Riwayat Kas Keluar yang dia input sendiri — tapi khusus transaksi PENGELUARAN (cek type di
+  // bawah, setelah transaksinya ke-load): Kas Masuk tetap tidak boleh dia lihat.
+  const user = await requirePageRole(["owner", "direktur", "admin"])
   const { id } = await params
   const { print } = await searchParams
 
@@ -47,6 +49,8 @@ export default async function TransactionDetailPage({
     prisma.auditLog.findMany({ where: { entityType: "transaction", entityId: id }, orderBy: { createdAt: "asc" } }),
   ])
   if (!transaction) notFound()
+  // Admin cuma boleh Kas Keluar — pemasukan (pelunasan invoice dkk) dilempar balik ke Dashboard.
+  if (user.role === "admin" && transaction.type !== "expense") redirect("/dashboard")
 
   const userNames = await resolveUserNames([
     transaction.createdById,
@@ -118,6 +122,7 @@ export default async function TransactionDetailPage({
             sources={[source]}
             managedByPaymentId={managedByPaymentId}
             isOwner={user.role === "owner"}
+            canSeeJournal={user.role !== "admin"}
           />
         </div>
 

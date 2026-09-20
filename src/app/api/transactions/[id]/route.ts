@@ -21,6 +21,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const transaction = await prisma.transaction.findUnique({ where: { id }, include: { account: true, category: true } })
   if (!transaction) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 })
+  // Role "admin" cuma boleh menyentuh PENGELUARAN (menu Kas Keluar) — pemasukan/pelunasan
+  // invoice dikelola dari menu Pembayaran oleh Owner/Direktur.
+  if (user.role === "admin" && transaction.type !== "expense") {
+    return NextResponse.json({ error: "Tidak punya akses ke transaksi ini" }, { status: 403 })
+  }
   return NextResponse.json(transaction)
 }
 
@@ -133,6 +138,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params
   const transaction = await prisma.transaction.findUnique({ where: { id }, include: { invoicePayment: true } })
   if (!transaction) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 })
+  // Role "admin" cuma boleh menyentuh PENGELUARAN (menu Kas Keluar) — pemasukan/pelunasan
+  // invoice dikelola dari menu Pembayaran oleh Owner/Direktur.
+  if (user.role === "admin" && transaction.type !== "expense") {
+    return NextResponse.json({ error: "Tidak punya akses ke transaksi ini" }, { status: 403 })
+  }
   if (transaction.postStatus !== "draft") {
     return NextResponse.json({ error: "Transaksi yang sudah diposting/dibatalkan tidak bisa dihapus" }, { status: 400 })
   }

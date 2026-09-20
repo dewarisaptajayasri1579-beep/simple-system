@@ -11,11 +11,13 @@ import { JournalPreviewModal, type JournalSource } from "@/components/akuntansi/
  *  memicu print begitu halaman detail terbuka (lihat query ?print=1, AutoPrint). SENGAJA tidak
  *  ada "Batalkan" di sini — pembatalan cuma boleh dari halaman detail (Owner-only, lihat
  *  TransactionPostingBar), bukan langsung dari baris tabel supaya tidak kepencet tidak sengaja. */
-export const KasKeluarRowActions: React.FC<{ transactionId: string; transactionNumber: string; journalSource: JournalSource }> = ({
-  transactionId,
-  transactionNumber,
-  journalSource,
-}) => {
+export const KasKeluarRowActions: React.FC<{
+  transactionId: string;
+  transactionNumber: string;
+  journalSource: JournalSource;
+  /** Role "admin" tidak boleh lihat Akuntansi — item "Lihat Jurnal" dihilangkan dari menu. */
+  canSeeJournal?: boolean;
+}> = ({ transactionId, transactionNumber, journalSource, canSeeJournal = true }) => {
   const [open, setOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -48,16 +50,18 @@ export const KasKeluarRowActions: React.FC<{ transactionId: string; transactionN
             <Eye className="w-4 h-4 flex-shrink-0" />
             Lihat / Edit Detail
           </Link>
-          <button
-            className={itemClass}
-            onClick={() => {
-              setOpen(false);
-              setJournalOpen(true);
-            }}
-          >
-            <BookOpen className="w-4 h-4 flex-shrink-0" />
-            Lihat Jurnal
-          </button>
+          {canSeeJournal && (
+            <button
+              className={itemClass}
+              onClick={() => {
+                setOpen(false);
+                setJournalOpen(true);
+              }}
+            >
+              <BookOpen className="w-4 h-4 flex-shrink-0" />
+              Lihat Jurnal
+            </button>
+          )}
           <Link href={`/keuangan/transaksi/${transactionId}?print=1`} className={itemClass} onClick={() => setOpen(false)}>
             <Printer className="w-4 h-4 flex-shrink-0" />
             Cetak Bukti Kas

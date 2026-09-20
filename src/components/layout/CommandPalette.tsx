@@ -30,6 +30,8 @@ const SECTIONS: (SectionItem & { adminOk?: boolean })[] = [
   { label: "Invoice", href: "/penjualan", adminOk: true },
   { label: "Buat Invoice Baru", href: "/penjualan/baru", adminOk: true },
   { label: "Keuangan", href: "/keuangan" },
+  { label: "Kas Keluar", href: "/keuangan/kas-keluar", adminOk: true },
+  { label: "Input Kas Keluar", href: "/keuangan/kas-keluar/baru", adminOk: true },
   { label: "Laporan", href: "/laporan" },
   { label: "Laporan Keuangan", href: "/laporan/keuangan" },
   { label: "Laporan Laba Rugi", href: "/laporan/laba-rugi" },
