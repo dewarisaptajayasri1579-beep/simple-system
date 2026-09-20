@@ -1577,6 +1577,8 @@ model Lead {
   @@index([lastInteractionAt])
   @@index([lastChatAt])
   @@index([createdAt])
+  @@index([firstContactAt])
+  @@index([currentActivityStage])
   @@index([lostReasonId])
   @@index([disqualifyReasonId])
   @@index([closedByUserId])
@@ -1627,6 +1629,8 @@ model LeadTemperatureHistory {
 
   @@index([leadId])
   @@index([changedByUserId])
+  // Query "pernah HOT" (conversionRates di kpi.ts): EXISTS per lead + filter toTemperature.
+  @@index([leadId, toTemperature])
   @@map("lead_temperature_history")
   @@schema("simple_system")
 }
@@ -1772,6 +1776,7 @@ model Conversation {
   @@index([leadId])
   @@index([whatsappConnectionId])
   @@index([lidJid])
+  @@index([lastMessageAt])
   @@map("conversations")
   @@schema("simple_system")
 }
@@ -1801,6 +1806,9 @@ model Message {
   aiSuggestion LeadAiSuggestion? @relation(fields: [aiSuggestionId], references: [id])
 
   @@index([conversationId, sentAt])
+  // Query response-time per user (kpi.ts avgResponseTimeByUser) filter sentAt lintas conversation
+  // tanpa conversationId di where, jadi composite [conversationId, sentAt] di atas tidak kepakai.
+  @@index([sentAt])
   @@index([senderUserId])
   @@index([aiSuggestionId])
   @@map("messages")
@@ -1939,6 +1947,10 @@ model LeadFollowUp {
   @@index([assignedUserId, scheduledAt])
   @@index([leadId, scheduledAt])
   @@index([status])
+  // Dashboard/KPI/Laporan sering filter status bareng scheduledAt (due/overdue) atau completedAt
+  // (selesai bulan ini + on-time rate) — composite biar tidak full-scan status lalu filter tanggal.
+  @@index([status, scheduledAt])
+  @@index([status, completedAt])
   @@index([resultTypeId])
   @@index([createdByUserId])
   @@map("lead_follow_ups")

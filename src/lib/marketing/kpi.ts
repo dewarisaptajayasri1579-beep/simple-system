@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { workingMsBetween } from "@/lib/marketing/working-hours"
+import { getWorkingHoursConfig, workingMsBetweenSync } from "@/lib/marketing/working-hours"
 
 /**
  * KPI turunan modul Marketing (docs/06 §20, §22): Avg Response Time (working-hours aware) &
@@ -48,8 +48,9 @@ export async function avgResponseTime(opts: { days?: number; assignedUserId?: st
   }
 
   const capped = pairs.slice(0, 400)
+  const whCfg = await getWorkingHoursConfig()
   let total = 0
-  for (const [a, b] of capped) total += await workingMsBetween(a, b)
+  for (const [a, b] of capped) total += workingMsBetweenSync(a, b, whCfg)
   return { avgMs: capped.length ? Math.round(total / capped.length) : null, samples: capped.length }
 }
 
@@ -77,8 +78,8 @@ export async function avgResponseTimeByUser(
     take: 20000,
   })
 
-  // { userId -> [ms, ms, ...] }
-  const perUser = new Map<string, number[]>()
+  // { userId -> [[inboundAt, outboundAt], ...] }
+  const perUser = new Map<string, [Date, Date][]>()
   let curConv: string | null = null
   let pendingInbound: Date | null = null
   for (const m of messages) {
@@ -91,15 +92,16 @@ export async function avgResponseTimeByUser(
     } else if (m.direction === "OUTBOUND" && pendingInbound) {
       if (m.senderUserId && userIds.includes(m.senderUserId)) {
         const arr = perUser.get(m.senderUserId) ?? []
-        arr.push(await workingMsBetween(pendingInbound, m.sentAt))
+        arr.push([pendingInbound, m.sentAt])
         perUser.set(m.senderUserId, arr)
       }
       pendingInbound = null
     }
   }
 
-  for (const [uid, arr] of perUser) {
-    const capped = arr.slice(0, 300)
+  const whCfg = await getWorkingHoursConfig()
+  for (const [uid, pairs] of perUser) {
+    const capped = pairs.slice(0, 300).map(([a, b]) => workingMsBetweenSync(a, b, whCfg))
     out.set(uid, {
       avgMs: capped.length ? Math.round(capped.reduce((s, x) => s + x, 0) / capped.length) : null,
       samples: capped.length,
@@ -112,12 +114,7 @@ export async function avgResponseTimeByUser(
 export async function conversionRates(where: Record<string, unknown> = {}) {
   const [totalLeads, everHot, reachedProposal, reachedNegotiation, won, lost] = await Promise.all([
     prisma.lead.count({ where }),
-    prisma.lead
-      .findMany({
-        where: { ...where, temperatureHistory: { some: { toTemperature: "HOT" } } },
-        select: { id: true },
-      })
-      .then((r) => r.length),
+    prisma.lead.count({ where: { ...where, temperatureHistory: { some: { toTemperature: "HOT" } } } }),
     prisma.lead.count({ where: { ...where, currentActivityStage: { in: ["PROPOSAL", "NEGOTIATION"] } } }),
     prisma.lead.count({ where: { ...where, currentActivityStage: "NEGOTIATION" } }),
     prisma.lead.count({ where: { ...where, outcome: "WON" } }),

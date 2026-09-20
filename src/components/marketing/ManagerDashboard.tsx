@@ -90,8 +90,10 @@ export const ManagerDashboard: React.FC = () => {
 
   const load = useCallback(async () => {
     const p = new URLSearchParams()
-    if (from) p.set("from", new Date(from).toISOString())
-    if (to) p.set("to", new Date(to + "T23:59:59").toISOString())
+    // Anchor ke WIB (+07:00), sama dengan resolveReportPeriod yang dipakai tab Laporan — supaya
+    // rentang tanggal yang sama tidak menghasilkan angka berbeda antar tab.
+    if (from) p.set("from", new Date(`${from}T00:00:00+07:00`).toISOString())
+    if (to) p.set("to", new Date(`${to}T23:59:59+07:00`).toISOString())
     if (segmentId) p.set("segmentId", segmentId)
     try {
       const res = await fetch(`/api/marketing/dashboard?${p}`, { cache: "no-store" })
