@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { latestBackupPerGroup } from "@/lib/backup/r2"
 import { encryptSecret } from "@/lib/crypto"
 import { getApiUser } from "@/lib/current-user"
+import { jakartaTodayDateIso, parseJakartaDateIso, shiftJakartaDateIso } from "@/lib/datetime"
 import { resolveDomainExpiry } from "@/lib/domain-status"
 import { canViewMonitoring } from "@/lib/monitoring"
 import { coolifyResourceLink, prettifyDatabaseType, r2BucketForVps } from "@/lib/monitoring/coolify"
@@ -40,6 +41,20 @@ function databaseVolumeUsage(
 ): { size: string; virtualSize: string } | null {
   const volume = volumes?.find((v) => v.name.includes(databaseUuid))
   return volume ? { size: volume.size, virtualSize: volume.size } : null
+}
+
+const TRAFFIC_WINDOW_DAYS = 7
+type UsageLabel = "sering" | "normal" | "jarang"
+
+/** Klasifikasi "Sering/Normal/Jarang digunakan" dari rata-rata kunjungan (IP unik) per hari
+ *  selama TRAFFIC_WINDOW_DAYS hari terakhir — ambang batas ANGKA TETAP yang ditentukan user
+ *  langsung (bukan dihitung relatif antar aplikasi), lihat percakapan monitoring soal KPI
+ *  per-aplikasi. Sengaja disimpan sebagai konstanta di sini, gampang diubah 1 tempat kalau
+ *  ternyata kurang pas setelah lihat data riil. */
+function classifyUsage(avgVisitorsPerDay: number): UsageLabel {
+  if (avgVisitorsPerDay >= 20) return "sering"
+  if (avgVisitorsPerDay >= 5) return "normal"
+  return "jarang"
 }
 
 /** List semua VpsServer + Application di bawahnya. Disk usage & backup terakhir dicek LIVE (cepat,
@@ -86,6 +101,25 @@ export async function GET() {
     uniqueBuckets.map((bucket) => latestBackupPerGroup(bucket).catch(() => [] as Awaited<ReturnType<typeof latestBackupPerGroup>>))
   )
   const dbBackups = dbBackupsByBucket.flat()
+
+  // KPI "Sering/Normal/Jarang digunakan" per aplikasi — 1 query buat SEMUA aplikasi sekaligus
+  // (bukan per-app di dalam loop, lihat aturan N+1 di CLAUDE.md), di-grouping di JS. Datanya diisi
+  // cron harian jam 00:15 WIB (lihat runApplicationTrafficStats di src/lib/cron/
+  // application-traffic-stats.ts) yang parse log Traefik — TIDAK dihitung on-demand di sini
+  // karena log itu sendiri cuma nyimpen ~24-30 jam, tidak cukup buat window 7 hari.
+  const allAppIds = vpsList.flatMap((vps) => vps.applications.map((a) => a.id))
+  const trafficWindowStart = parseJakartaDateIso(shiftJakartaDateIso(jakartaTodayDateIso(), -TRAFFIC_WINDOW_DAYS))
+  const trafficStats = allAppIds.length
+    ? await prisma.applicationDailyStat.findMany({
+        where: { applicationId: { in: allAppIds }, date: { gte: trafficWindowStart } },
+        select: { applicationId: true, uniqueVisitors: true, bandwidthBytes: true },
+      })
+    : []
+  const trafficByAppId = new Map<string, { uniqueVisitors: number; bandwidthBytes: bigint }[]>()
+  for (const row of trafficStats) {
+    if (!trafficByAppId.has(row.applicationId)) trafficByAppId.set(row.applicationId, [])
+    trafficByAppId.get(row.applicationId)!.push(row)
+  }
 
   const results = await Promise.all(
     vpsList.map(async (vps) => {
@@ -167,6 +201,19 @@ export async function GET() {
           // Cocokkan ke folder backup R2 lewat UUID database Coolify (nama folder Coolify selalu
           // diakhiri UUID resource database-nya, lihat lib/backup/r2.ts § latestBackupPerGroup).
           const dbBackup = app.databaseUuid ? dbBackups.find((b) => b.group.endsWith(app.databaseUuid!)) ?? null : null
+
+          const trafficRows = trafficByAppId.get(app.id) ?? []
+          const traffic =
+            trafficRows.length > 0
+              ? (() => {
+                  const bandwidthBytes7d = trafficRows.reduce((sum, r) => sum + Number(r.bandwidthBytes), 0)
+                  const totalVisitors = trafficRows.reduce((sum, r) => sum + r.uniqueVisitors, 0)
+                  const activeDays7d = trafficRows.filter((r) => r.uniqueVisitors > 0).length
+                  const avgVisitorsPerDay = totalVisitors / TRAFFIC_WINDOW_DAYS
+                  return { bandwidthBytes7d, avgVisitorsPerDay, activeDays7d, label: classifyUsage(avgVisitorsPerDay) }
+                })()
+              : null
+
           return {
             id: app.id,
             name: app.name,
@@ -192,6 +239,7 @@ export async function GET() {
             hasCoolifySync: Boolean(app.coolifyUuid),
             diskUsage: appContainer ? { size: appContainer.size, virtualSize: appContainer.virtualSize } : null,
             databaseDiskUsage: app.databaseUuid ? databaseVolumeUsage(cache?.volumes, app.databaseUuid) : null,
+            traffic,
           }
         }),
       }

@@ -42,6 +42,7 @@ export type AppRow = {
   hasCoolifySync: boolean
   diskUsage: { size: string; virtualSize: string } | null
   databaseDiskUsage: { size: string; virtualSize: string } | null
+  traffic: { bandwidthBytes7d: number; avgVisitorsPerDay: number; activeDays7d: number; label: "sering" | "normal" | "jarang" } | null
 }
 
 export type VpsRow = {
@@ -186,6 +187,26 @@ function DomainExpiryBadge({ iso }: { iso: string | null }) {
   const label = `${formatDateOnlyId(iso)}${days >= 0 ? ` (${days} hari lagi)` : " (lewat)"}`
   const variant = days < 0 ? "danger" : days < 30 ? "danger" : days < 90 ? "warning" : "success"
   return <Badge variant={variant}>{label}</Badge>
+}
+
+/** KPI penggunaan aplikasi (bandwidth + kunjungan unik, window 7 hari) — datanya cuma keisi kalau
+ *  VPS punya access log Traefik aktif (lihat panduan di form Tambah VPS) DAN sudah lewat minimal 1
+ *  siklus cron harian (00:15 WIB). Sebelum itu, badge-nya "Belum ada data" — bukan otomatis
+ *  dianggap "Jarang" (data kosong beda arti dari "diketahui sepi"). */
+function UsageBadge({ traffic }: { traffic: AppRow["traffic"] }) {
+  if (!traffic) return <span className="text-slate-400 text-xs font-semibold">Belum ada data</span>
+  const variant = traffic.label === "sering" ? "success" : traffic.label === "normal" ? "info" : "warning"
+  const text = traffic.label === "sering" ? "Sering digunakan" : traffic.label === "normal" ? "Normal" : "Jarang digunakan"
+  return (
+    <div className="flex flex-col gap-1">
+      <Badge variant={variant} size="sm">
+        {text}
+      </Badge>
+      <span className="text-[11px] text-slate-500 font-medium">
+        {formatBytes(traffic.bandwidthBytes7d)}/minggu · {traffic.avgVisitorsPerDay.toFixed(1)} kunjungan/hari · {traffic.activeDays7d}/7 hari aktif
+      </span>
+    </div>
+  )
 }
 
 /** Docker format size-nya kayak "23.86GB"/"28.91MB"/"0B" — asumsi 1024-based (sama kayak
@@ -1181,7 +1202,7 @@ export const VpsServerCard: React.FC<{
                           )}
                         </div>
                       </TableCell>
-                      {/* Aktivitas: terakhir diakses + siapa + dari mana */}
+                      {/* Aktivitas: terakhir diakses + siapa + dari mana, plus KPI penggunaan 7 hari */}
                       <TableCell>
                         {app.lastAccessedAt ? (
                           <>
@@ -1197,6 +1218,9 @@ export const VpsServerCard: React.FC<{
                         ) : (
                           <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                         )}
+                        <div className="mt-1.5">
+                          <UsageBadge traffic={app.traffic} />
+                        </div>
                       </TableCell>
                       {isOwner && (
                         <TableCell className="text-right whitespace-nowrap">

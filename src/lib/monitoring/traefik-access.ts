@@ -1,3 +1,5 @@
+import { jakartaTodayDateIso } from "@/lib/datetime"
+
 import { sshExec, sudoWrap, vpsSshCreds, type VpsSshLike } from "./ssh"
 
 export type VpsProxyLike = VpsSshLike & { proxyContainerName: string }
@@ -42,6 +44,22 @@ function extractClientIp(line: string): string | null {
   return null
 }
 
+/** Domain yang di-request — cuma didukung di format JSON ("RequestHost"), field ini tidak ada
+ *  representasinya yang gampang diparsing di format CLF text lama, jadi rekap harian
+ *  (aggregateDailyTraffic) cuma jalan kalau access log Traefik di-set `--accesslog.format=json`
+ *  (lihat panduan setup di form Tambah VPS). */
+function extractRequestHost(line: string): string | null {
+  const m = line.match(/"RequestHost":"([^"]+)"/)
+  return m ? m[1] : null
+}
+
+/** Bytes yang beneran dikirim ke client (sudah termasuk gzip kalau ada) — ini yang dipakai
+ *  sebagai "Bandwidth" di KPI, bukan OriginContentSize (ukuran sebelum kompresi dari origin). */
+function extractDownstreamSize(line: string): number {
+  const m = line.match(/"DownstreamContentSize":(\d+)/)
+  return m ? Number(m[1]) : 0
+}
+
 export type LastAccessEntry = { at: Date; ip: string | null }
 
 /** Ambil timestamp + IP client dari request TERAKHIR per domain dari log akses container reverse
@@ -76,6 +94,71 @@ export async function getLastAccessedByDomain(vps: VpsProxyLike, domains: string
       if (ts && (!latest || ts > latest.at)) latest = { at: ts, ip: extractClientIp(line) }
     }
     if (latest) result.set(domain, latest)
+  }
+  return result
+}
+
+export type DailyTrafficStat = { uniqueVisitors: number; requestCount: number; bandwidthBytes: number }
+
+/** Rekap traffic 1 hari KALENDER JAKARTA (`targetDateIso`, format "YYYY-MM-DD") per domain — beda
+ *  dari getLastAccessedByDomain() yang cuma ambil 1 request TERAKHIR, ini scan SEMUA baris log
+ *  buat hitung IP unik ("Kunjungan"), total request, dan total bytes ke client ("Bandwidth").
+ *  Dipanggil cron harian jam 00:15 WIB buat rekap hari SEBELUMNYA — lihat
+ *  runApplicationTrafficStats() di src/lib/cron/application-traffic-stats.ts.
+ *
+ *  Window `--since 30h` (bukan 24h kayak getLastAccessedByDomain) SENGAJA lebih lebar — supaya
+ *  seluruh hari kemarin (00:00-23:59 Jakarta) kebaca penuh walau cron-nya baru jalan beberapa
+ *  menit setelah tengah malam, bukan kepotong gara-gara window pas-pasan. Cuma dukung format JSON
+ *  (butuh `--accesslog.format=json` di config Traefik) karena RequestHost/DownstreamContentSize
+ *  tidak ada representasi gampang di format CLF text lama. */
+export async function aggregateDailyTraffic(
+  vps: VpsProxyLike,
+  domains: string[],
+  targetDateIso: string
+): Promise<Map<string, DailyTrafficStat>> {
+  const result = new Map<string, DailyTrafficStat>()
+  const cleanDomains = new Set(domains.map((d) => d.trim()).filter(Boolean))
+  if (cleanDomains.size === 0) return result
+
+  let logs: string
+  try {
+    const creds = vpsSshCreds(vps)
+    logs = await sshExec(
+      creds,
+      `${sudoWrap(creds.password, `docker logs ${vps.proxyContainerName} --since 30h 2>&1`)} | tail -n 200000`,
+      25000
+    )
+  } catch {
+    return result
+  }
+
+  const visitorsByDomain = new Map<string, Set<string>>()
+  const requestCountByDomain = new Map<string, number>()
+  const bandwidthByDomain = new Map<string, number>()
+
+  for (const line of logs.split("\n")) {
+    const ts = extractTimestamp(line)
+    if (!ts || jakartaTodayDateIso(ts) !== targetDateIso) continue
+    const host = extractRequestHost(line)
+    if (!host || !cleanDomains.has(host)) continue
+
+    const ip = extractClientIp(line)
+    if (ip) {
+      if (!visitorsByDomain.has(host)) visitorsByDomain.set(host, new Set())
+      visitorsByDomain.get(host)!.add(ip)
+    }
+    requestCountByDomain.set(host, (requestCountByDomain.get(host) ?? 0) + 1)
+    bandwidthByDomain.set(host, (bandwidthByDomain.get(host) ?? 0) + extractDownstreamSize(line))
+  }
+
+  for (const domain of cleanDomains) {
+    const requestCount = requestCountByDomain.get(domain) ?? 0
+    if (requestCount === 0) continue
+    result.set(domain, {
+      uniqueVisitors: visitorsByDomain.get(domain)?.size ?? 0,
+      requestCount,
+      bandwidthBytes: bandwidthByDomain.get(domain) ?? 0,
+    })
   }
   return result
 }

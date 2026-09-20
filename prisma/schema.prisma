@@ -237,10 +237,41 @@ model Application {
   createdById           String?   @map("created_by_id")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
+  dailyStats            ApplicationDailyStat[]
 
   @@index([vpsServerId])
   @@unique([vpsServerId, coolifyUuid])
   @@map("applications")
+  @@schema("simple_system")
+}
+
+/// Rekap traffic HARIAN 1 aplikasi (1 baris = 1 aplikasi + 1 tanggal, kalender Jakarta) — dipakai
+/// buat KPI "Sering/Normal/Jarang digunakan" (badge di monitoring, window 7 hari terakhir). Diisi
+/// oleh cron harian jam 00:15 WIB yang parse log akses Traefik hari SEBELUMNYA (lihat
+/// aggregateDailyTraffic() di src/lib/monitoring/traefik-access.ts + runApplicationTrafficStats()
+/// di src/lib/cron/application-traffic-stats.ts) — SENGAJA direkap & disimpan permanen di sini,
+/// bukan dihitung on-demand dari log Traefik, karena log itu sendiri cuma nyimpen ~24 jam
+/// (`docker logs`), tidak bisa dipakai buat tren berhari-hari.
+model ApplicationDailyStat {
+  id              String      @id @default(uuid())
+  applicationId   String      @map("application_id")
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// Tanggal kalender Jakarta (disimpan jam 00:00 UTC hari itu) yang direkap — BUKAN timestamp
+  /// kapan cron-nya jalan.
+  date            DateTime    @db.Date
+  /// Jumlah IP client BERBEDA yang request ke domain aplikasi ini hari itu — ini yang dipakai
+  /// buat "Kunjungan" di KPI, BUKAN total request mentah (1 orang buka halaman bisa trigger
+  /// puluhan request buat asset/API, jadi total request menyesatkan buat ukur "kunjungan").
+  uniqueVisitors  Int
+  /// Total request mentah hari itu (termasuk asset/API) — disimpan sekalian karena murah, tapi
+  /// bukan yang ditampilkan sebagai KPI utama.
+  requestCount    Int
+  /// Total bytes ke client (field DownstreamContentSize di log JSON Traefik) — "Bandwidth" di KPI.
+  bandwidthBytes  BigInt      @map("bandwidth_bytes")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@unique([applicationId, date])
+  @@map("application_daily_stats")
   @@schema("simple_system")
 }
 
