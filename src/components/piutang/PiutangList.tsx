@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Card, CardTitle, CardDescription, Button, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge";
+import { PiutangStatusCell } from "@/components/dashboard/PiutangStatusTools";
 
 export interface PiutangInvoice {
   id: string;
@@ -13,6 +14,9 @@ export interface PiutangInvoice {
   dueDate: string | null;
   paid: number;
   remaining: number;
+  // Sama seperti PiutangSummaryRow di Dashboard — dipakai kolom "Tindakan" (Pending/Ragu-Ragu).
+  pendingAt: string | null;
+  pendingReason: string | null;
 }
 
 export interface PiutangClientGroup {
@@ -39,7 +43,7 @@ const PIUTANG_STATUS_OPTIONS = [
   { value: "claimed_paid", label: "Diklaim Lunas" },
 ];
 
-function getInvoiceColumns(clientId: string): FilterableColumn<PiutangInvoice>[] {
+function getInvoiceColumns(clientId: string, clientName: string, isOwner: boolean): FilterableColumn<PiutangInvoice>[] {
   return [
     {
       key: "invoiceNumber",
@@ -73,10 +77,29 @@ function getInvoiceColumns(clientId: string): FilterableColumn<PiutangInvoice>[]
         </Link>
       ),
     },
+    // Cuma Owner — sama gate-nya dengan tabel Piutang di Dashboard (lihat PiutangSummarySection
+    // di DashboardSections.tsx), endpoint-nya juga owner-only.
+    ...(isOwner
+      ? [
+          {
+            key: "tindakan",
+            header: "Tindakan",
+            cell: (inv: PiutangInvoice) => (
+              <PiutangStatusCell
+                invoiceId={inv.id}
+                itemLabel={`${inv.invoiceNumber} — ${clientName}`}
+                remaining={inv.remaining}
+                pendingAt={inv.pendingAt}
+                pendingReason={inv.pendingReason}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 }
 
-export const PiutangList: React.FC<{ groups: PiutangClientGroup[] }> = ({ groups }) => {
+export const PiutangList: React.FC<{ groups: PiutangClientGroup[]; isOwner?: boolean }> = ({ groups, isOwner = false }) => {
   return (
     <div className="space-y-6">
       {groups.map((group) => (
@@ -100,7 +123,7 @@ export const PiutangList: React.FC<{ groups: PiutangClientGroup[] }> = ({ groups
               </Link>
             </div>
           </div>
-          <FilterableTable columns={getInvoiceColumns(group.clientId)} rows={group.invoices} rowKey={(inv) => inv.id} />
+          <FilterableTable columns={getInvoiceColumns(group.clientId, group.clientName, isOwner)} rows={group.invoices} rowKey={(inv) => inv.id} />
         </Card>
       ))}
 

@@ -38,6 +38,8 @@ export default async function PiutangPage() {
       dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
       paid,
       remaining,
+      pendingAt: inv.pendingAt ? inv.pendingAt.toISOString() : null,
+      pendingReason: inv.pendingReason,
     })
     group.totalRemaining += remaining
     groupsMap.set(inv.clientId, group)
@@ -62,7 +64,7 @@ export default async function PiutangPage() {
           </div>
         </div>
 
-        <PiutangList groups={groups} />
+        <PiutangList groups={groups} isOwner={user.role === "owner"} />
       </div>
     </AppLayout>
   )

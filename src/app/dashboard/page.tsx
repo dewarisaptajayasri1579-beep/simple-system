@@ -323,12 +323,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const maintenanceDueRows: MaintenanceDueRow[] = maintenanceDueRowsBase.map((r) => ({ ...r, ...slaFor("maintenance", r.id) }))
   const slaOverdueCount = [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows].filter((r) => r.sla?.overdue).length
 
+  // TEMPORARY: Maintenance "Blesscom" dikecualikan dari nominal "Tagihan Belum Ditagih" —
+  // pencatatan & alur penagihannya beda dari Maintenance biasa (rencana: menu khusus Tagihan
+  // Blesscom, belum dibuat), jadi Tgl Tagihan Terakhir-nya di Master Data tidak bisa dipakai
+  // acuan jatuh tempo yang benar untuk sekarang. HAPUS baris ini begitu menu khusus itu ada.
+  const TEMP_EXCLUDED_BELUM_DITAGIH_IDS = new Set(["03d9eb5f-ffdb-4b48-9107-a85ce8de5c24"])
+
   // Kartu "Tagihan Belum Ditagih": total NOMINAL Domain/Server/Maintenance yang SLA-nya masih
   // tahap belum_ditagih, ditambah termin Project yang sudah lewat ambang H-3 tapi belum
   // di-generate invoice-nya (projectUninvoicedSchedules, lihat query di atas).
   const belumDitagihNominal =
     [...domainExpiringRows, ...serverDueRows, ...maintenanceDueRows]
-      .filter((r) => r.sla?.stage === "belum_ditagih" || r.sla?.stage === "tagih_lagi")
+      .filter((r) => (r.sla?.stage === "belum_ditagih" || r.sla?.stage === "tagih_lagi") && !TEMP_EXCLUDED_BELUM_DITAGIH_IDS.has(r.id))
       .reduce((sum, r) => sum + (r.price ?? 0), 0) +
     projectUninvoicedSchedules.reduce((sum, s) => sum + s.amount, 0)
 
