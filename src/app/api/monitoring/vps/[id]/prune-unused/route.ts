@@ -30,7 +30,7 @@ const BUILDX_PRUNE_LOOP =
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa jalankan ini" }, { status: 403 })
+  if (user.role !== "owner" && user.role !== "sysadmin") return NextResponse.json({ error: "Cuma Owner/Sys Administrator yang bisa jalankan ini" }, { status: 403 })
 
   const { id } = await params
   const vps = await prisma.vpsServer.findUnique({ where: { id } })

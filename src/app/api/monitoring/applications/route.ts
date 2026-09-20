@@ -14,7 +14,7 @@ function parseDate(value: unknown): Date | null {
 export async function POST(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa tambah aplikasi" }, { status: 403 })
+  if (user.role !== "owner" && user.role !== "sysadmin") return NextResponse.json({ error: "Cuma Owner/Sys Administrator yang bisa tambah aplikasi" }, { status: 403 })
 
   const body = await request.json().catch(() => null)
   const vpsServerId = typeof body?.vpsServerId === "string" ? body.vpsServerId : ""

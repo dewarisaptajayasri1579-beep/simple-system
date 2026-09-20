@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const data: { role?: string; phoneNumber?: string | null; modules?: string[]; isActive?: boolean } = {}
   if (body?.role !== undefined) {
-    if (!["owner", "direktur", "admin"].includes(body.role)) {
+    if (!["owner", "direktur", "admin", "sysadmin"].includes(body.role)) {
       return NextResponse.json({ error: "Role tidak valid" }, { status: 400 })
     }
     data.role = body.role

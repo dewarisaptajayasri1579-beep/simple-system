@@ -27,8 +27,14 @@ export async function POST(request: Request) {
   const name = typeof body?.name === "string" ? body.name.trim() : ""
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
   const password = typeof body?.password === "string" ? body.password : ""
-  const role = ["owner", "direktur", "admin"].includes(body?.role) ? body.role : "admin"
-  const modules: string[] = Array.isArray(body?.modules) ? body.modules.filter((m: unknown) => VALID_MODULES.includes(m as string)) : ["internal"]
+  const role = ["owner", "direktur", "admin", "sysadmin"].includes(body?.role) ? body.role : "admin"
+  // Sys Administrator defaultnya modul "monitoring" (bukan "internal") kalau owner lupa centang
+  // modul-nya sendiri — role ini memang didesain cuma buat akses Monitoring Server.
+  const modules: string[] = Array.isArray(body?.modules)
+    ? body.modules.filter((m: unknown) => VALID_MODULES.includes(m as string))
+    : role === "sysadmin"
+      ? ["monitoring"]
+      : ["internal"]
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Nama, email, dan password wajib diisi" }, { status: 400 })

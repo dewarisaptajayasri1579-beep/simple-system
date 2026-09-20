@@ -16,6 +16,7 @@ const ROLE_LABEL: Record<string, string> = {
   owner: "Owner",
   direktur: "Direktur",
   admin: "Admin",
+  sysadmin: "Sys Administrator",
 };
 
 export const Header: React.FC<HeaderProps> = ({ userName, userRole = "admin", className = "" }) => {

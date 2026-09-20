@@ -16,7 +16,7 @@ function parseDateField(value: unknown): Date | null | undefined {
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa edit aplikasi" }, { status: 403 })
+  if (user.role !== "owner" && user.role !== "sysadmin") return NextResponse.json({ error: "Cuma Owner/Sys Administrator yang bisa edit aplikasi" }, { status: 403 })
 
   const { id } = await params
   const body = await request.json().catch(() => null)
@@ -45,7 +45,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (user.role !== "owner") return NextResponse.json({ error: "Cuma Owner yang bisa hapus aplikasi" }, { status: 403 })
+  if (user.role !== "owner" && user.role !== "sysadmin") return NextResponse.json({ error: "Cuma Owner/Sys Administrator yang bisa hapus aplikasi" }, { status: 403 })
 
   const { id } = await params
   await prisma.application.delete({ where: { id } }).catch(() => null)

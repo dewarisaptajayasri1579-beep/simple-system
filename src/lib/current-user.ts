@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 
 import { getSessionUser } from "@/lib/auth"
 
-export type Role = "owner" | "direktur" | "admin"
+export type Role = "owner" | "direktur" | "admin" | "sysadmin"
 export type ModuleKey = "internal" | "marketing" | "monitoring"
 
 export const MODULE_LABEL: Record<ModuleKey, string> = {

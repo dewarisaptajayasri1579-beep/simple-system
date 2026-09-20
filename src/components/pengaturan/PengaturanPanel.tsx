@@ -89,6 +89,7 @@ const ROLE_OPTIONS = [
   { value: "owner", label: "Owner" },
   { value: "direktur", label: "Direktur" },
   { value: "admin", label: "Admin" },
+  { value: "sysadmin", label: "Sys Administrator" },
 ];
 
 const TABS = [
