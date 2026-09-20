@@ -33,7 +33,7 @@ export const MonitoringShell: React.FC<{ userName: string; userRole: string; chi
   const pathname = usePathname() || "/monitoring"
   const [menuOpen, setMenuOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "?"
-  const isOwnerOrAdmin = userRole === "owner" || userRole === "admin"
+  const isOwnerOrAdmin = userRole === "owner" || userRole === "admin" || userRole === "sysadmin"
   const nav = NAV.filter((item) => !item.ownerAdminOnly || isOwnerOrAdmin)
   const activeLabel = nav.find((item) => isActivePath(pathname, item.href))?.label ?? "Monitoring Server"
 

@@ -30,6 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.backupLocation === "string") data.backupLocation = body.backupLocation.trim() || null
   if (typeof body.activityQuery === "string") data.activityQuery = body.activityQuery.trim() || null
   if (typeof body.notes === "string") data.notes = body.notes.trim() || null
+  if (typeof body.packageId === "string") data.packageId = body.packageId.trim() || null
 
   const lastBackupAt = parseDateField(body.lastBackupAt)
   if (lastBackupAt !== undefined) data.lastBackupAt = lastBackupAt

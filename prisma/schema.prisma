@@ -238,8 +238,14 @@ model Application {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   dailyStats            ApplicationDailyStat[]
+  /// Paket kuota Disk Space + Bandwidth Bulanan (opsional) — kalau diisi, pemakaian aktual
+  /// (diskUsage+databaseDiskUsage, bandwidth kumulatif bulan berjalan) dibandingkan ke kuota ini
+  /// dan ikut jadi parameter "Perhatian" di dialog Rincian Kesehatan kalau melebihi.
+  packageId             String?            @map("package_id")
+  package               MonitoringPackage? @relation(fields: [packageId], references: [id])
 
   @@index([vpsServerId])
+  @@index([packageId])
   @@unique([vpsServerId, coolifyUuid])
   @@map("applications")
   @@schema("simple_system")
@@ -272,6 +278,23 @@ model ApplicationDailyStat {
 
   @@unique([applicationId, date])
   @@map("application_daily_stats")
+  @@schema("simple_system")
+}
+
+/// Master paket kuota Disk Space + Bandwidth Bulanan yang bisa di-assign per Application (mis.
+/// "Paket 1" = 5GB disk + 50GB bandwidth/bulan) — dibandingkan ke pemakaian aktual (diskUsage app
+/// + databaseDiskUsage, dan bandwidth kumulatif bulan berjalan dari ApplicationDailyStat) buat
+/// deteksi "melebihi paket" di dialog Rincian Kesehatan (computeVpsHealth di
+/// src/components/monitoring/VpsMonitoring.tsx). Dikelola lewat /api/monitoring/packages.
+model MonitoringPackage {
+  id             String        @id @default(uuid())
+  name           String
+  diskSpaceBytes BigInt        @map("disk_space_bytes")
+  bandwidthBytes BigInt        @map("bandwidth_bytes")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  applications   Application[]
+
+  @@map("monitoring_packages")
   @@schema("simple_system")
 }
 

@@ -1,10 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Plus, RefreshCw } from "lucide-react"
+import { Plus, RefreshCw, Package, Pencil, Trash2 } from "lucide-react"
 
 import { Button, Input, Modal, Alert, Spinner } from "@/components/ui"
-import { VpsServerCard, type VpsRow } from "@/components/monitoring/VpsMonitoring"
+import { VpsServerCard, type VpsRow, type MonitoringPackageRow } from "@/components/monitoring/VpsMonitoring"
+
+const emptyPackageForm = { name: "", diskSpaceGb: "", bandwidthGb: "" }
 
 const emptyVpsForm = {
   name: "",
@@ -32,6 +34,14 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
   const [vpsFormError, setVpsFormError] = useState("")
   const [savingVps, setSavingVps] = useState(false)
 
+  const [packages, setPackages] = useState<MonitoringPackageRow[]>([])
+  const [isPackageListOpen, setIsPackageListOpen] = useState(false)
+  const [isPackageFormOpen, setIsPackageFormOpen] = useState(false)
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null)
+  const [packageForm, setPackageForm] = useState(emptyPackageForm)
+  const [packageFormError, setPackageFormError] = useState("")
+  const [savingPackage, setSavingPackage] = useState(false)
+
   const loadVps = useCallback(async () => {
     setVpsError("")
     const res = await fetch("/api/monitoring/vps", { cache: "no-store" })
@@ -39,9 +49,64 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
     else setVpsError((await res.json().catch(() => null))?.error || "Gagal memuat daftar VPS")
   }, [])
 
+  const loadPackages = useCallback(async () => {
+    const res = await fetch("/api/monitoring/packages", { cache: "no-store" })
+    if (res.ok) setPackages(await res.json())
+  }, [])
+
   useEffect(() => {
-    loadVps().finally(() => setLoading(false))
-  }, [loadVps])
+    Promise.all([loadVps(), loadPackages()]).finally(() => setLoading(false))
+  }, [loadVps, loadPackages])
+
+  const openAddPackage = () => {
+    setEditingPackageId(null)
+    setPackageForm(emptyPackageForm)
+    setPackageFormError("")
+    setIsPackageFormOpen(true)
+  }
+
+  const openEditPackage = (pkg: MonitoringPackageRow) => {
+    setEditingPackageId(pkg.id)
+    setPackageForm({
+      name: pkg.name,
+      diskSpaceGb: String(Number(pkg.diskSpaceBytes) / 1024 ** 3),
+      bandwidthGb: String(Number(pkg.bandwidthBytes) / 1024 ** 3),
+    })
+    setPackageFormError("")
+    setIsPackageFormOpen(true)
+  }
+
+  const handleSavePackage = async () => {
+    setPackageFormError("")
+    if (!packageForm.name.trim() || !packageForm.diskSpaceGb || !packageForm.bandwidthGb) {
+      setPackageFormError("Nama, Disk Space, dan Bandwidth wajib diisi")
+      return
+    }
+    setSavingPackage(true)
+    try {
+      const body = { name: packageForm.name.trim(), diskSpaceGb: Number(packageForm.diskSpaceGb), bandwidthGb: Number(packageForm.bandwidthGb) }
+      const res = await fetch(editingPackageId ? `/api/monitoring/packages/${editingPackageId}` : "/api/monitoring/packages", {
+        method: editingPackageId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setPackageFormError(data?.error || "Gagal menyimpan paket")
+        return
+      }
+      setIsPackageFormOpen(false)
+      await loadPackages()
+    } finally {
+      setSavingPackage(false)
+    }
+  }
+
+  const handleDeletePackage = async (pkg: MonitoringPackageRow) => {
+    if (!confirm(`Hapus paket "${pkg.name}"? Aplikasi yang masih pakai paket ini akan jadi "Tanpa Paket".`)) return
+    await fetch(`/api/monitoring/packages/${pkg.id}`, { method: "DELETE" })
+    await Promise.all([loadPackages(), loadVps()])
+  }
 
   const openAddVps = () => {
     setVpsForm(emptyVpsForm)
@@ -112,6 +177,11 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
             Refresh
           </Button>
           {isOwner && (
+            <Button variant="secondary" size="sm" leftIcon={<Package className="w-4 h-4" />} onClick={() => setIsPackageListOpen(true)}>
+              Kelola Paket
+            </Button>
+          )}
+          {isOwner && (
             <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddVps}>
               Tambah VPS
             </Button>
@@ -131,6 +201,7 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
             expanded={expandedId === vps.id}
             onToggleExpand={() => toggle(vps.id)}
             onChanged={loadVps}
+            packages={packages}
           />
         ))}
       </div>
@@ -240,6 +311,93 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
             />
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPackageListOpen}
+        onClose={() => setIsPackageListOpen(false)}
+        title="Kelola Paket Disk/Bandwidth"
+        subtitle="Di-assign per aplikasi lewat form Tambah/Edit Aplikasi — dicek terhadap pemakaian aktual di dialog Rincian Kesehatan."
+        size="lg"
+        footer={
+          <Button variant="secondary" onClick={() => setIsPackageListOpen(false)}>
+            Tutup
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Button size="sm" variant="outline" leftIcon={<Plus className="w-4 h-4" />} onClick={openAddPackage} className="self-start">
+            Tambah Paket
+          </Button>
+          {packages.length === 0 ? (
+            <p className="text-sm text-slate-500 font-medium">Belum ada paket.</p>
+          ) : (
+            <div className="rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
+              {packages.map((pkg) => (
+                <div key={pkg.id} className="flex items-center justify-between gap-3 px-4 py-3 bg-white/70">
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-800 truncate">{pkg.name}</div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {(Number(pkg.diskSpaceBytes) / 1024 ** 3).toFixed(0)}GB disk · {(Number(pkg.bandwidthBytes) / 1024 ** 3).toFixed(0)}GB bandwidth/bulan
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => openEditPackage(pkg)}
+                      className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                      aria-label="Edit"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeletePackage(pkg)}
+                      className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                      aria-label="Hapus"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPackageFormOpen}
+        onClose={() => !savingPackage && setIsPackageFormOpen(false)}
+        title={editingPackageId ? "Edit Paket" : "Tambah Paket"}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsPackageFormOpen(false)} disabled={savingPackage}>
+              Batal
+            </Button>
+            <Button variant="primary" onClick={handleSavePackage} isLoading={savingPackage} loadingText="Menyimpan...">
+              Simpan
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {packageFormError && <Alert variant="error">{packageFormError}</Alert>}
+          <Input label="Nama Paket" placeholder="mis. Paket 1" value={packageForm.name} onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })} />
+          <Input
+            label="Disk Space (GB)"
+            type="number"
+            placeholder="5"
+            value={packageForm.diskSpaceGb}
+            onChange={(e) => setPackageForm({ ...packageForm, diskSpaceGb: e.target.value })}
+          />
+          <Input
+            label="Bandwidth per Bulan (GB)"
+            type="number"
+            placeholder="50"
+            value={packageForm.bandwidthGb}
+            onChange={(e) => setPackageForm({ ...packageForm, bandwidthGb: e.target.value })}
+          />
         </div>
       </Modal>
     </div>

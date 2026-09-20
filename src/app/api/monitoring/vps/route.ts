@@ -70,7 +70,7 @@ export async function GET() {
 
   const vpsList = await prisma.vpsServer.findMany({
     orderBy: { createdAt: "asc" },
-    include: { applications: { orderBy: { name: "asc" } } },
+    include: { applications: { orderBy: { name: "asc" }, include: { package: true } } },
   })
 
   // Domain root (mis. "onyseven.com") dikelola manual di Pengaturan > Master Data > Domain —
@@ -109,13 +109,20 @@ export async function GET() {
   // karena log itu sendiri cuma nyimpen ~24-30 jam, tidak cukup buat window 7 hari.
   const allAppIds = vpsList.flatMap((vps) => vps.applications.map((a) => a.id))
   const trafficWindowStart = parseJakartaDateIso(shiftJakartaDateIso(jakartaTodayDateIso(), -TRAFFIC_WINDOW_DAYS))
+  // Kuota Bandwidth paket (lihat MonitoringPackage) itu BULANAN, beda window dari KPI "Sering/
+  // Normal/Jarang" yang 7 hari — ambil dari tanggal 1 bulan berjalan. Awal bulan kadang LEBIH JAUH
+  // ke belakang dari trafficWindowStart (mis. tanggal 15, bulan berjalan mulai 14 hari lalu) tapi
+  // kadang lebih DEKAT (mis. tanggal 3) — jadi query 1x dari yang paling awal di antara keduanya,
+  // lalu filter dua window itu di JS dari hasil yang sama (bukan 2 query terpisah).
+  const monthStart = parseJakartaDateIso(`${jakartaTodayDateIso().slice(0, 7)}-01`)
+  const statsRangeStart = monthStart < trafficWindowStart ? monthStart : trafficWindowStart
   const trafficStats = allAppIds.length
     ? await prisma.applicationDailyStat.findMany({
-        where: { applicationId: { in: allAppIds }, date: { gte: trafficWindowStart } },
-        select: { applicationId: true, uniqueVisitors: true, bandwidthBytes: true },
+        where: { applicationId: { in: allAppIds }, date: { gte: statsRangeStart } },
+        select: { applicationId: true, date: true, uniqueVisitors: true, bandwidthBytes: true },
       })
     : []
-  const trafficByAppId = new Map<string, { uniqueVisitors: number; bandwidthBytes: bigint }[]>()
+  const trafficByAppId = new Map<string, { date: Date; uniqueVisitors: number; bandwidthBytes: bigint }[]>()
   for (const row of trafficStats) {
     if (!trafficByAppId.has(row.applicationId)) trafficByAppId.set(row.applicationId, [])
     trafficByAppId.get(row.applicationId)!.push(row)
@@ -202,7 +209,8 @@ export async function GET() {
           // diakhiri UUID resource database-nya, lihat lib/backup/r2.ts § latestBackupPerGroup).
           const dbBackup = app.databaseUuid ? dbBackups.find((b) => b.group.endsWith(app.databaseUuid!)) ?? null : null
 
-          const trafficRows = trafficByAppId.get(app.id) ?? []
+          const allTrafficRows = trafficByAppId.get(app.id) ?? []
+          const trafficRows = allTrafficRows.filter((r) => r.date >= trafficWindowStart)
           const traffic =
             trafficRows.length > 0
               ? (() => {
@@ -213,6 +221,9 @@ export async function GET() {
                   return { bandwidthBytes7d, avgVisitorsPerDay, activeDays7d, label: classifyUsage(avgVisitorsPerDay) }
                 })()
               : null
+          const bandwidthBytesThisMonth = allTrafficRows
+            .filter((r) => r.date >= monthStart)
+            .reduce((sum, r) => sum + Number(r.bandwidthBytes), 0)
 
           return {
             id: app.id,
@@ -240,6 +251,10 @@ export async function GET() {
             diskUsage: appContainer ? { size: appContainer.size, virtualSize: appContainer.virtualSize } : null,
             databaseDiskUsage: app.databaseUuid ? databaseVolumeUsage(cache?.volumes, app.databaseUuid) : null,
             traffic,
+            bandwidthBytesThisMonth,
+            package: app.package
+              ? { id: app.package.id, name: app.package.name, diskSpaceBytes: app.package.diskSpaceBytes.toString(), bandwidthBytes: app.package.bandwidthBytes.toString() }
+              : null,
           }
         }),
       }

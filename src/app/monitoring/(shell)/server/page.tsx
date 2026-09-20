@@ -6,7 +6,10 @@ import { ServerSection } from "@/components/pengaturan/MasterDataPanel"
 
 export default async function MonitoringServerPage() {
   const user = await getCurrentUser("monitoring")
-  if (user.role !== "owner" && user.role !== "admin") redirect("/dashboard")
+  if (user.role !== "owner" && user.role !== "admin" && user.role !== "sysadmin") redirect("/dashboard")
+  // Sys Administrator boleh LIHAT daftar server, tapi data finansialnya (Harga, Terakhir Bayar,
+  // Tandai Lunas) bukan urusan role ini — disembunyikan di ServerSection lewat restrictedView.
+  const restrictedView = user.role === "sysadmin"
 
   const [servers, vendors, cloudTypes, clients] = await Promise.all([
     prisma.server.findMany({ include: { vendor: true, cloudType: true, period: true, client: true }, orderBy: { name: "asc" } }),
@@ -30,6 +33,7 @@ export default async function MonitoringServerPage() {
         vendors={vendors}
         cloudTypes={cloudTypes}
         clients={clients}
+        restrictedView={restrictedView}
       />
     </div>
   )

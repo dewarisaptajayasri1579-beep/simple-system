@@ -31,10 +31,11 @@ export async function POST(request: Request) {
   const notes = typeof body?.notes === "string" ? body.notes.trim() || null : null
   const lastBackupAt = parseDate(body?.lastBackupAt)
   const domainExpiresAt = parseDate(body?.domainExpiresAt)
+  const packageId = typeof body?.packageId === "string" ? body.packageId.trim() || null : null
 
   const created = await prisma.application
     .create({
-      data: { vpsServerId, name, domain, gitRepository, gitBranch, backupLocation, activityQuery, notes, lastBackupAt, domainExpiresAt },
+      data: { vpsServerId, name, domain, gitRepository, gitBranch, backupLocation, activityQuery, notes, lastBackupAt, domainExpiresAt, packageId },
       select: { id: true },
     })
     .catch(() => null)

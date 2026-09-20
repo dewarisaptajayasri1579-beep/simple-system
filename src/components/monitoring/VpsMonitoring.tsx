@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users, Search, DatabaseBackup } from "lucide-react"
 
-import { Button, Input, Textarea, Modal, Alert, Badge } from "@/components/ui"
+import { Button, Input, Textarea, Modal, Alert, Badge, Select } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { formatDateTimeId, formatDateOnlyId } from "@/lib/monitoring"
 
@@ -43,6 +43,16 @@ export type AppRow = {
   diskUsage: { size: string; virtualSize: string } | null
   databaseDiskUsage: { size: string; virtualSize: string } | null
   traffic: { bandwidthBytes7d: number; avgVisitorsPerDay: number; activeDays7d: number; label: "sering" | "normal" | "jarang" } | null
+  bandwidthBytesThisMonth: number
+  package: MonitoringPackageRow | null
+}
+
+export type MonitoringPackageRow = {
+  id: string
+  name: string
+  /** BigInt dikirim API sebagai string (presisi) — parse ke Number pas dipakai (skala GB aman). */
+  diskSpaceBytes: string
+  bandwidthBytes: string
 }
 
 export type VpsRow = {
@@ -135,6 +145,7 @@ const emptyAppForm = {
   lastBackupAt: "",
   domainExpiresAt: "",
   notes: "",
+  packageId: "",
 }
 
 export function isBackupStale(iso: string | null) {
@@ -509,6 +520,30 @@ function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string
     })
   }
 
+  // Paket kuota Disk Space + Bandwidth per aplikasi (opsional, lihat MonitoringPackage) — cuma
+  // dicek buat aplikasi yang memang di-assign paket. Disk dibandingkan ke pemakaian LIVE
+  // (diskUsage app + databaseDiskUsage, format Docker "23.86GB" — dipakai parseDockerSize yang
+  // sama dengan breakdown disk lainnya), Bandwidth ke kumulatif bulan berjalan.
+  for (const app of vps.applications) {
+    if (!app.package) continue
+    const diskUsedBytes = parseDockerSize(app.diskUsage?.size) + parseDockerSize(app.databaseDiskUsage?.size)
+    const diskQuotaBytes = Number(app.package.diskSpaceBytes)
+    checks.push({
+      key: `pkg-disk-${app.id}`,
+      label: `Disk "${app.name}" (${app.package.name})`,
+      status: diskUsedBytes > diskQuotaBytes ? "warning" : "ok",
+      detail: `${formatBytes(diskUsedBytes)} dari kuota ${formatBytes(diskQuotaBytes)}`,
+    })
+
+    const bandwidthQuotaBytes = Number(app.package.bandwidthBytes)
+    checks.push({
+      key: `pkg-bandwidth-${app.id}`,
+      label: `Bandwidth "${app.name}" (${app.package.name})`,
+      status: app.bandwidthBytesThisMonth > bandwidthQuotaBytes ? "warning" : "ok",
+      detail: `${formatBytes(app.bandwidthBytesThisMonth)} dari kuota ${formatBytes(bandwidthQuotaBytes)}/bulan (bulan berjalan)`,
+    })
+  }
+
   const levelChecks = checks.filter((c) => !c.informational)
   const criticalChecks = levelChecks.filter((c) => c.status === "critical")
   const warningChecks = levelChecks.filter((c) => c.status === "warning")
@@ -543,7 +578,8 @@ export const VpsServerCard: React.FC<{
   expanded: boolean
   onToggleExpand: () => void
   onChanged: () => void
-}> = ({ vps, isOwner, expanded, onToggleExpand, onChanged }) => {
+  packages: MonitoringPackageRow[]
+}> = ({ vps, isOwner, expanded, onToggleExpand, onChanged, packages }) => {
   const [syncing, setSyncing] = useState(false)
   const [checkingDockerDisk, setCheckingDockerDisk] = useState(false)
   const [pruning, setPruning] = useState(false)
@@ -757,6 +793,7 @@ export const VpsServerCard: React.FC<{
       lastBackupAt: app.lastBackupAt ? app.lastBackupAt.slice(0, 10) : "",
       domainExpiresAt: app.domainExpiresAt ? app.domainExpiresAt.slice(0, 10) : "",
       notes: app.notes ?? "",
+      packageId: app.package?.id ?? "",
     })
     setAppFormError("")
     setIsAppModalOpen(true)
@@ -781,6 +818,7 @@ export const VpsServerCard: React.FC<{
         lastBackupAt: appForm.lastBackupAt,
         domainExpiresAt: appForm.domainExpiresAt,
         notes: appForm.notes.trim(),
+        packageId: appForm.packageId,
       }
       const res = await fetch(editingAppId ? `/api/monitoring/applications/${editingAppId}` : "/api/monitoring/applications", {
         method: editingAppId ? "PATCH" : "POST",
@@ -1631,6 +1669,17 @@ export const VpsServerCard: React.FC<{
               onChange={(e) => setAppForm({ ...appForm, domainExpiresAt: e.target.value })}
             />
           </div>
+          <Select
+            label="Paket Disk/Bandwidth (opsional)"
+            helperText="Kalau diisi, pemakaian disk (app+database) & bandwidth bulanan dicek terhadap kuota paket ini — muncul di dialog Rincian Kesehatan kalau melebihi."
+            placeholder="Tanpa Paket"
+            value={appForm.packageId}
+            onChange={(v) => setAppForm({ ...appForm, packageId: v })}
+            options={packages.map((p) => ({
+              value: p.id,
+              label: `${p.name} — ${(Number(p.diskSpaceBytes) / 1024 ** 3).toFixed(0)}GB disk / ${(Number(p.bandwidthBytes) / 1024 ** 3).toFixed(0)}GB bandwidth`,
+            }))}
+          />
           <Textarea label="Catatan" value={appForm.notes} onChange={(e) => setAppForm({ ...appForm, notes: e.target.value })} rows={2} />
         </div>
       </Modal>
@@ -1772,13 +1821,16 @@ export const VpsServerCard: React.FC<{
         <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
           {(
             [
-              { key: "resource", label: "Resource Server" },
-              { key: "db", label: "Database" },
-              { key: "domain", label: "Domain" },
+              { key: "resource", label: "Resource Server", prefix: null },
+              { key: "db", label: "Database", prefix: "db-" },
+              { key: "domain", label: "Domain", prefix: "domain-" },
+              { key: "pkg", label: "Paket Aplikasi", prefix: "pkg-" },
             ] as const
           ).map((group) => {
             const items = health.checks.filter((c) =>
-              group.key === "db" ? c.key.startsWith("db-") : group.key === "domain" ? c.key.startsWith("domain-") : !c.key.startsWith("db-") && !c.key.startsWith("domain-")
+              group.prefix
+                ? c.key.startsWith(group.prefix)
+                : !c.key.startsWith("db-") && !c.key.startsWith("domain-") && !c.key.startsWith("pkg-")
             )
             if (items.length === 0) return null
             return (

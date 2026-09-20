@@ -6,7 +6,11 @@ import { DomainSection } from "@/components/pengaturan/MasterDataPanel"
 
 export default async function MonitoringDomainPage() {
   const user = await getCurrentUser("monitoring")
-  if (user.role !== "owner" && user.role !== "admin") redirect("/dashboard")
+  if (user.role !== "owner" && user.role !== "admin" && user.role !== "sysadmin") redirect("/dashboard")
+  // Sys Administrator boleh LIHAT daftar domain (buat cek expiry pas kerja teknis), tapi data
+  // finansialnya (Harga Jual, Estimasi Habis, Tandai Lunas, Buat Invoice Perpanjangan) bukan
+  // urusan role ini — disembunyikan di DomainSection lewat prop restrictedView.
+  const restrictedView = user.role === "sysadmin"
 
   const [domains, clients] = await Promise.all([
     prisma.domain.findMany({ include: { client: true }, orderBy: { name: "asc" } }),
@@ -26,6 +30,7 @@ export default async function MonitoringDomainPage() {
           expiryDate: d.expiryDate ? d.expiryDate.toISOString() : null,
         }))}
         clients={clients}
+        restrictedView={restrictedView}
       />
     </div>
   )

@@ -352,12 +352,13 @@ const SERVER_COLUMNS = [
   { key: "aktif", label: "Aktif" },
 ];
 
-export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; cloudTypes: LookupRow[]; clients: ClientRow[] }> = ({
-  rows: initialRows,
-  vendors,
-  cloudTypes,
-  clients,
-}) => {
+export const ServerSection: React.FC<{
+  rows: ServerRow[];
+  vendors: VendorRow[];
+  cloudTypes: LookupRow[];
+  clients: ClientRow[];
+  restrictedView?: boolean;
+}> = ({ rows: initialRows, vendors, cloudTypes, clients, restrictedView = false }) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [editing, setEditing] = useState<ServerRow | null>(null);
@@ -366,7 +367,12 @@ export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; 
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const { isVisible, toggle } = useColumnVisibility("server", SERVER_COLUMNS);
+  const { isVisible: isVisibleRaw, toggle } = useColumnVisibility("server", SERVER_COLUMNS);
+  // Sys Administrator (lihat halaman Server di dalam shell Monitoring) TIDAK boleh lihat/ubah
+  // data finansial server — sama pola dengan DomainSection di atas.
+  const serverRestrictedKeys = restrictedView ? ["price", "lastPaid"] : [];
+  const isVisible = (key: string) => (serverRestrictedKeys.includes(key) ? false : isVisibleRaw(key));
+  const visibleColumnDefs = SERVER_COLUMNS.filter((c) => !serverRestrictedKeys.includes(c.key));
 
   const vendorOptions = useMemo(() => vendors.map((v) => ({ value: v.id, label: v.name })), [vendors]);
   const cloudTypeOptions = useMemo(() => cloudTypes.map((c) => ({ value: c.id, label: c.name })), [cloudTypes]);
@@ -613,7 +619,7 @@ export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; 
       header: "Aksi",
       cell: (s) => (
         <div className="flex items-center gap-1.5">
-          {s.active && s.price ? (
+          {!restrictedView && s.active && s.price ? (
             <Button size="sm" variant="outline" onClick={() => openPay(s)}>
               Tandai Lunas
             </Button>
@@ -637,7 +643,7 @@ export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; 
             {activeCount} aktif{rows.length > activeCount ? `, ${rows.length - activeCount} nonaktif` : ""}
           </CardDescription>
         </div>
-        <ColumnVisibilityMenu columns={SERVER_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+        <ColumnVisibilityMenu columns={visibleColumnDefs} isVisible={isVisible} onToggle={toggle} />
       </div>
       <div className="px-5 sm:px-6 pb-2 flex flex-col sm:flex-row gap-3">
         <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
@@ -690,13 +696,17 @@ export const ServerSection: React.FC<{ rows: ServerRow[]; vendors: VendorRow[]; 
             <Input label="Core" value={form.core ?? ""} onChange={(e) => setForm((f) => ({ ...f, core: e.target.value }))} />
             <Input label="RAM" value={form.ram ?? ""} onChange={(e) => setForm((f) => ({ ...f, ram: e.target.value }))} />
             <Input label="Storage" value={form.storage ?? ""} onChange={(e) => setForm((f) => ({ ...f, storage: e.target.value }))} />
-            <CurrencyInput label="Harga" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
-            <Input
-              label="Terakhir Bayar"
-              type="date"
-              value={form.lastPaidAt ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
-            />
+            {!restrictedView && (
+              <>
+                <CurrencyInput label="Harga" value={form.price ?? 0} onChange={(v) => setForm((f) => ({ ...f, price: v }))} />
+                <Input
+                  label="Terakhir Bayar"
+                  type="date"
+                  value={form.lastPaidAt ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, lastPaidAt: e.target.value }))}
+                />
+              </>
+            )}
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <input type="checkbox" checked={form.active ?? true} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="w-5 h-5" />
@@ -1469,7 +1479,11 @@ const DOMAIN_STATUS_OPTIONS = [
   { value: "safe", label: "Aman" },
 ];
 
-export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }> = ({ rows: initialRows, clients: initialClients }) => {
+export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[]; restrictedView?: boolean }> = ({
+  rows: initialRows,
+  clients: initialClients,
+  restrictedView = false,
+}) => {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -1492,7 +1506,14 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
   const [hasClientFilter, setHasClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
-  const { isVisible, toggle } = useColumnVisibility("domain", DOMAIN_COLUMNS);
+  const { isVisible: isVisibleRaw, toggle } = useColumnVisibility("domain", DOMAIN_COLUMNS);
+  // Sys Administrator (lihat halaman Domain di dalam shell Monitoring) TIDAK boleh lihat/ubah
+  // data finansial domain — paksa kolom ini invisible terlepas dari preferensi localStorage user
+  // sendiri, dan hilangkan juga dari menu toggle-nya (visibleColumnDefs di bawah) biar tidak bisa
+  // dinyalain balik lewat UI.
+  const domainRestrictedKeys = restrictedView ? ["price", "expiry"] : [];
+  const isVisible = (key: string) => (domainRestrictedKeys.includes(key) ? false : isVisibleRaw(key));
+  const visibleColumnDefs = DOMAIN_COLUMNS.filter((c) => !domainRestrictedKeys.includes(c.key));
 
   useEffect(() => {
     fetch("/api/legacy-sales-clients")
@@ -1831,7 +1852,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
         });
         return (
           <div className="flex items-center gap-1.5">
-            {needsRenewal && (
+            {needsRenewal && !restrictedView && (
               <Link href={`/penjualan/baru?${renewalParams.toString()}`}>
                 <Button size="sm" variant="outline">
                   Buat Invoice Perpanjangan
@@ -1912,7 +1933,7 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
           <Button size="sm" variant="outline" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
             Tambah Domain
           </Button>
-          <ColumnVisibilityMenu columns={DOMAIN_COLUMNS} isVisible={isVisible} onToggle={toggle} />
+          <ColumnVisibilityMenu columns={visibleColumnDefs} isVisible={isVisible} onToggle={toggle} />
         </div>
         <SortableTable
           columns={columns}
@@ -1941,7 +1962,9 @@ export const DomainSection: React.FC<{ rows: DomainRow[]; clients: ClientRow[] }
               placeholder="Internal (7Smarts)"
               searchable
             />
-            <CurrencyInput label="Harga Jual" value={form.sellPrice ?? 0} onChange={(v) => setForm((f) => ({ ...f, sellPrice: v }))} />
+            {!restrictedView && (
+              <CurrencyInput label="Harga Jual" value={form.sellPrice ?? 0} onChange={(v) => setForm((f) => ({ ...f, sellPrice: v }))} />
+            )}
             <Input
               label="Terakhir Bayar"
               type="date"
