@@ -369,10 +369,13 @@ function TablePagination({ page, pageCount, total, onChange }: { page: number; p
 type VpsHealthLevel = "sehat" | "perhatian" | "kritis"
 
 /** Kesimpulan 1 badge dari semua sinyal yang ada per VPS — supaya kelihatan langsung tanpa expand
- *  card. "Kritis" kalau ada yang beneran rusak/mati (disk/RAM nyaris penuh, database mati, domain
- *  sudah expired); "Perhatian" kalau masih jalan tapi mulai mencurigakan (disk/RAM tinggi, swap
- *  kepake, backup lewat 1 hari, domain mau expired). Ambang sama persis dengan warna tiap mini-bar
- *  individual (≥90 rose, ≥75 amber) supaya konsisten — bukan angka baru yang beda sendiri. */
+ *  card. "Kritis" kalau ada yang beneran rusak/mati (disk/RAM nyaris penuh, LEBIH DARI 5 database
+ *  mati sekaligus, domain sudah expired); "Perhatian" kalau masih jalan tapi mulai mencurigakan
+ *  (disk/RAM tinggi, swap kepake, backup lewat 1 hari, 1-5 database mati, domain mau expired).
+ *  Ambang disk/RAM sama persis dengan warna tiap mini-bar individual (≥90 rose, ≥75 amber) supaya
+ *  konsisten. Database mati SENGAJA dihitung per JUMLAH (bukan langsung Kritis begitu 1 mati) —
+ *  VPS dengan banyak database (mis. 7smarts, 17 database) wajar ada beberapa yang sengaja
+ *  di-stop (dev/staging/tidak dipakai lagi), jadi 1-2 mati itu normal, bukan insiden. */
 function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string[] } {
   const critical: string[] = []
   const warning: string[] = []
@@ -389,9 +392,14 @@ function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string
 
   if (vps.swap && vps.swap.usedPct > 50) warning.push(`Swap ${vps.swap.usedPct.toFixed(0)}% terpakai`)
 
+  const inactiveDatabases = vps.databases.filter((db) => !db.isActive)
+  if (inactiveDatabases.length > 5) {
+    critical.push(`${inactiveDatabases.length} database mati (${inactiveDatabases.map((d) => d.name).join(", ")})`)
+  } else if (inactiveDatabases.length > 0) {
+    warning.push(`${inactiveDatabases.length} database mati (${inactiveDatabases.map((d) => d.name).join(", ")})`)
+  }
   for (const db of vps.databases) {
-    if (!db.isActive) critical.push(`Database "${db.name}" mati`)
-    else if (isBackupStale(db.dbBackupAt)) warning.push(`Backup "${db.name}" lebih dari 1 hari`)
+    if (db.isActive && isBackupStale(db.dbBackupAt)) warning.push(`Backup "${db.name}" lebih dari 1 hari`)
   }
 
   for (const d of vps.registeredDomains) {
