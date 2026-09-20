@@ -182,12 +182,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         remaining: Math.max(0, inv.totalAmount - paid),
         status: inv.status,
         billingFollowUpId: billingFollowUpIdByInvoiceId.get(inv.id) ?? null,
+        pendingAt: inv.pendingAt ? inv.pendingAt.toISOString() : null,
+        pendingReason: inv.pendingReason,
       }
     })
     .filter((r) => r.remaining > 0)
     .sort(byDueDateAsc)
 
   const totalOutstanding = piutangRows.reduce((sum, r) => sum + r.remaining, 0)
+
+  // Piutang Pending — penagihannya ditunda Owner, tapi TETAP bagian dari totalOutstanding di
+  // atas (beda dari ragu-ragu yang dikeluarkan). Ditampilkan sebagai rincian "dari itu sekian
+  // ditunda" biar kelihatan berapa banyak piutang yang sedang tidak dikejar.
+  const pendingRows = piutangRows.filter((r) => r.pendingAt)
+  const totalPending = pendingRows.reduce((sum, r) => sum + r.remaining, 0)
 
   // Piutang Ragu-Ragu — dikeluarkan dari totalOutstanding di atas (query openInvoices sudah
   // filter doubtfulAt: null), ditampilkan terpisah supaya tetap kelihatan & bisa diaktifkan lagi.
@@ -406,6 +414,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { label: "SLA Lewat", href: "/tagihan/tindak-lanjut", count: slaOverdueCount, color: "rose" },
     { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
+    ...(pendingRows.length > 0 ? [{ label: "Pending", href: "#piutang", count: pendingRows.length, color: "sky" as const }] : []),
     ...(doubtfulRows.length > 0
       ? [{ label: "Ragu-Ragu", href: "#ragu-ragu", count: doubtfulRows.length, color: "amber" as const }]
       : []),
@@ -439,6 +448,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <Card variant="feature" padding="md">
             <CardDescription>Piutang Outstanding</CardDescription>
             <p className="text-2xl font-black text-rose-700 mt-1">{formatRupiah(totalOutstanding)}</p>
+            {totalPending > 0 && (
+              <p className="text-[11px] font-bold text-sky-700 mt-1">
+                termasuk {formatRupiah(totalPending)} pending ({pendingRows.length} invoice, ditunda)
+              </p>
+            )}
             {totalDoubtful > 0 && (
               <p className="text-[11px] font-bold text-amber-700 mt-1">
                 + {formatRupiah(totalDoubtful)} ragu-ragu ({doubtfulRows.length} invoice, tidak dihitung)

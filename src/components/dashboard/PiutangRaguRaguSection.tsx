@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, Modal, Alert, Textarea, Card, CardTitle, CardDescription, FilterableTable, type FilterableColumn } from "@/components/ui";
+import { Card, CardTitle, CardDescription, FilterableTable, type FilterableColumn } from "@/components/ui";
+import { ClearStatusButton } from "./PiutangStatusTools";
 
 /** "Piutang Ragu-Ragu" — tagihan yang sah tapi dianggap tidak akan cair (client kabur/bangkrut/
  *  sengketa). Ditandai MANUAL oleh Owner dengan alasan wajib; sejak ditandai, invoice-nya keluar
@@ -32,105 +31,6 @@ export interface PiutangRaguRaguRow {
   doubtfulReason: string;
   doubtfulByName: string | null;
 }
-
-/** Tombol per-baris di tabel Piutang (Dashboard) — cuma dirender untuk Owner. */
-export const MarkDoubtfulButton: React.FC<{ invoiceId: string; itemLabel: string; remaining: number }> = ({ invoiceId, itemLabel, remaining }) => {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const submit = async () => {
-    setSaving(true);
-    setError("");
-    const res = await fetch(`/api/invoices/${invoiceId}/doubtful`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reason.trim() }),
-    });
-    const data = await res.json().catch(() => null);
-    setSaving(false);
-    if (!res.ok) {
-      setError(data?.error || "Gagal menandai ragu-ragu");
-      return;
-    }
-    setOpen(false);
-    setReason("");
-    router.refresh();
-  };
-
-  return (
-    <>
-      <Button size="sm" variant="outline" className="!text-amber-700 !border-amber-300 hover:!bg-amber-50" onClick={() => setOpen(true)}>
-        Ragu-Ragu
-      </Button>
-      <Modal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        title="Tandai Piutang Ragu-Ragu"
-        subtitle={`${itemLabel} — sisa ${formatRupiah(remaining)} akan dikeluarkan dari Piutang Outstanding dan berhenti ditagih otomatis. Invoice-nya tetap tersimpan dan bisa diaktifkan lagi kapan saja.`}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Batal
-            </Button>
-            <Button variant="primary" onClick={submit} isLoading={saving} disabled={!reason.trim()}>
-              Tandai Ragu-Ragu
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          {error && (
-            <Alert variant="error" onClose={() => setError("")}>
-              {error}
-            </Alert>
-          )}
-          <Textarea
-            label="Alasan (wajib)"
-            placeholder="Mis. client sudah tidak bisa dihubungi sejak Maret, kantornya tutup."
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-          />
-          <p className="text-xs text-slate-500 font-medium">
-            Alasan ini tersimpan permanen di riwayat (audit log) bersama nama kamu dan tanggalnya.
-          </p>
-        </div>
-      </Modal>
-    </>
-  );
-};
-
-const RestoreButton: React.FC<{ invoiceId: string; itemLabel: string }> = ({ invoiceId, itemLabel }) => {
-  const router = useRouter();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const submit = async () => {
-    if (!confirm(`Aktifkan lagi ${itemLabel}? Invoice ini akan kembali dihitung sebagai Piutang Outstanding dan ditagih seperti biasa.`)) return;
-    setSaving(true);
-    setError("");
-    const res = await fetch(`/api/invoices/${invoiceId}/doubtful`, { method: "DELETE" });
-    const data = await res.json().catch(() => null);
-    setSaving(false);
-    if (!res.ok) {
-      setError(data?.error || "Gagal mengaktifkan lagi");
-      return;
-    }
-    router.refresh();
-  };
-
-  return (
-    <div className="space-y-1">
-      <Button size="sm" variant="outline" onClick={submit} isLoading={saving}>
-        Aktifkan Lagi
-      </Button>
-      {error && <p className="text-[11px] font-semibold text-rose-700">{error}</p>}
-    </div>
-  );
-};
 
 export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOwner: boolean }> = ({ rows, isOwner }) => {
   const total = rows.reduce((sum, r) => sum + r.remaining, 0);
@@ -168,7 +68,13 @@ export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOw
           {
             key: "aksi",
             header: "Aksi",
-            cell: (r: PiutangRaguRaguRow) => <RestoreButton invoiceId={r.id} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} />,
+            cell: (r: PiutangRaguRaguRow) => (
+              <ClearStatusButton
+                endpoint={`/api/invoices/${r.id}/doubtful`}
+                label="Aktifkan Lagi"
+                confirmText={`Aktifkan lagi ${r.invoiceNumber} — ${r.clientName}? Invoice ini kembali dihitung sebagai Piutang Outstanding dan ditagih seperti biasa.`}
+              />
+            ),
           },
         ]
       : []),

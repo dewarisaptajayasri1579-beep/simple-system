@@ -31,7 +31,9 @@ export const DashboardNavBadges: React.FC<{ items: DashboardNavBadge[] }> = ({ i
       <div className="flex flex-wrap gap-2.5">
         {items.map((item) => (
           <a
-            key={item.href}
+            // href saja tidak cukup unik — beberapa badge sengaja mengarah ke anchor yang sama
+            // (mis. "Piutang" & "Pending" sama-sama ke #piutang), jadi label ikut masuk key.
+            key={`${item.label}:${item.href}`}
             href={item.href}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold border backdrop-blur-md shadow-xs transition-colors ${COLOR_CLASSES[item.color]}`}
           >

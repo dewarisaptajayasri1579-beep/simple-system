@@ -115,10 +115,15 @@ Supaya kebijakan ini **tidak berubah jadi jalan buntu**, yang membuatnya berhasi
 
 Di tingkat ini, **serah-terimanya adalah tawaran Zoom/Telp itu sendiri** — harga dibahas Sales di sana.
 
-**Tingkat 2 — lead mendesak angka DAN menolak meeting:**
-1. **Terus terang, jangan berputar** — katakan apa adanya bahwa harga ditentukan tim yang berwenang: *"saya hubungkan ke tim kami ya Kak, biar angkanya pas"*. Jangan mengulang "tergantung kebutuhan" untuk kedua kalinya.
-2. **Notifikasi mendesak ke PIC** (`createNotification`), bukan notifikasi biasa yang tenggelam.
-3. **Beri lead kepastian waktu**, jangan menggantung.
+**Tingkat 2 — lead mendesak angka DAN menolak meeting.** Jawaban baku yang sudah disetujui:
+
+> "Baik Kak Andri, saya paham — jangan sampai Kakak sudah luangkan waktu zoom tapi ternyata nggak sesuai anggaran 🙏
+> Untuk angka, izin saya hubungkan ke tim kami ya Kak. Biar Kakak dapat gambaran yang benar-benar pas dengan kebutuhan tadi (kasir + sales keliling + piutang), bukan kira-kira dari saya.
+> Saya kabari tim sekarang. Enaknya dihubungi hari ini atau besok pagi ya Kak?"
+
+Unsurnya: (1) akui kekhawatiran lead lebih dulu; (2) **bingkai serah-terima sebagai keuntungan lead** — "biar pas, bukan kira-kira dari saya", inilah yang membedakannya dari mengelak; (3) sebut ulang kebutuhan lead secara spesifik sebagai bukti menyimak; (4) kepastian waktu + pilihan biner; (5) nol angka, termasuk tidak menyinggung termin. Jangan mengulang "harga menyesuaikan kebutuhan" untuk kedua kalinya.
+
+Di belakang layar: **notifikasi mendesak ke PIC** (`createNotification`, bukan notifikasi biasa yang tenggelam) + kenaikan prioritas lead.
 
 **Pertanyaan harga = sinyal beli terkuat.** Sistem sudah punya analisa `BUYING_SIGNAL` di `LeadAiAnalysis`. Maka saat lead menanyakan harga, selain notifikasi mendesak, momen ini layak **menaikkan prioritas/temperature lead** — supaya muncul di urutan atas "Kerjakan Dulu" milik Sales. Ini mengubah pertanyaan harga dari titik buntu menjadi **pemicu tindakan tercepat** dalam sistem.
 

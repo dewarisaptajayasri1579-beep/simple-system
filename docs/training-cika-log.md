@@ -347,3 +347,22 @@ Cabang sebaliknya: kalau lead **tidak mau** meeting, Cika tetap harus **menggali
 - ⚠️ **Batas yang harus tetap dijaga (untuk Sales)**: "mulai dari 17 juta" ≠ "harga untuk Kakak 17 juta". Jangkar boleh; penawaran untuk lingkup spesifik tetap butuh perhitungan.
 - 📌 **Manfaat sampingan dari keputusan "Cika nol angka"**: harga tidak perlu dirawat di KB produk sama sekali, sehingga Cika mustahil menyebut harga usang. Risiko itu hilang seluruhnya.
 
+### Sesi 7 — jawaban baku Cika saat lead mendesak harga ✅ DISETUJUI
+
+Balasan yang benar untuk situasi di atas (lead mendesak angka **dan** menahan meeting) — **sudah disetujui user, jadi acuan system prompt**:
+
+> Baik Kak Andri, saya paham — jangan sampai Kakak sudah luangkan waktu zoom tapi ternyata nggak sesuai anggaran 🙏
+>
+> Untuk angka, izin saya hubungkan ke tim kami ya Kak. Biar Kakak dapat gambaran yang benar-benar pas dengan kebutuhan tadi (kasir + sales keliling + piutang), bukan kira-kira dari saya.
+>
+> Saya kabari tim sekarang. Enaknya dihubungi hari ini atau besok pagi ya Kak?
+
+**Unsur penyusunnya:**
+1. **Akui kekhawatirannya lebih dulu** — "jangan sampai sudah luangkan waktu tapi tidak sesuai anggaran". Menunjukkan Cika mengerti maksud lead, bukan menghindar.
+2. **Serah-terima dibingkai sebagai keuntungan lead** — "biar dapat gambaran yang **pas**, bukan kira-kira dari saya". Ini yang membedakan dari mengelak: alasannya demi ketepatan untuk lead, bukan demi menutupi.
+3. **Sebut ulang kebutuhan lead secara spesifik** (kasir + sales keliling + piutang) — bukti menyimak, dan menegaskan tim akan datang dengan konteks lengkap.
+4. **Kepastian waktu + pilihan biner** ("hari ini atau besok pagi?") — lead tidak digantung, dan tetap mudah dibalas.
+5. **Nol angka**, termasuk tidak menyinggung termin pembayaran.
+
+Di belakang layar, balasan ini memicu **notifikasi mendesak ke PIC** dan **kenaikan prioritas lead** (§2.2f).
+

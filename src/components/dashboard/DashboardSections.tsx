@@ -10,7 +10,7 @@ import { EditableIdentifier } from "./EditableIdentifier";
 import { OwnerCell } from "@/components/shared/OwnerCell";
 import { EditableDateCell } from "@/components/shared/EditableDateCell";
 import { PiutangFollowUpButton } from "./PiutangFollowUpButton";
-import { MarkDoubtfulButton } from "./PiutangRaguRaguSection";
+import { PiutangStatusCell } from "./PiutangStatusTools";
 import { SyncDomainStatusButton } from "./SyncDomainStatusButton";
 import { DeactivateDomainButton } from "./DeactivateDomainButton";
 import { type AccountOption } from "./MarkPaidButton";
@@ -87,6 +87,10 @@ export interface PiutangSummaryRow {
   remaining: number;
   status: string;
   billingFollowUpId: string | null;
+  // Piutang Pending — penagihan ditunda Owner, TETAP dihitung di Piutang Outstanding (beda dari
+  // ragu-ragu yang keluar dari tabel ini sama sekali). Lihat Invoice.pendingAt di schema.prisma.
+  pendingAt: string | null;
+  pendingReason: string | null;
 }
 
 const PIUTANG_STATUS_OPTIONS: { value: string; label: string; type: StatusBadgeType }[] = [
@@ -188,15 +192,21 @@ function piutangColumns(
         </Link>
       ),
     },
-    // Cuma Owner — menandai ragu-ragu mengurangi Piutang Outstanding, jadi tidak boleh
-    // dilakukan staf (lihat POST /api/invoices/[id]/doubtful yang juga owner-only).
+    // Cuma Owner — menunda/meragukan tagihan mengubah cara piutang ini dihitung & ditagih,
+    // jadi tidak boleh dilakukan staf (endpoint-nya juga owner-only).
     ...(isOwner
       ? [
           {
-            key: "raguRagu",
-            header: "Ragu-Ragu",
+            key: "tindakan",
+            header: "Tindakan",
             cell: (r: PiutangSummaryRow) => (
-              <MarkDoubtfulButton invoiceId={r.id} itemLabel={`${r.invoiceNumber} — ${r.clientName}`} remaining={r.remaining} />
+              <PiutangStatusCell
+                invoiceId={r.id}
+                itemLabel={`${r.invoiceNumber} — ${r.clientName}`}
+                remaining={r.remaining}
+                pendingAt={r.pendingAt}
+                pendingReason={r.pendingReason}
+              />
             ),
           },
         ]

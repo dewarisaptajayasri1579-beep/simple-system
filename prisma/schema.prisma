@@ -776,6 +776,25 @@ model Invoice {
   doubtfulReason String?   @map("doubtful_reason")
   doubtfulById   String?   @map("doubtful_by_id")
 
+  // ---- Piutang Pending: tagihan yang SENGAJA ditunda penagihannya untuk sementara (client minta
+  // tempo, nunggu berita acara/termin, lagi dinegosiasi, dsb). Ditandai manual oleh OWNER dengan
+  // alasan wajib, sama seperti ragu-ragu.
+  //
+  // BEDA PENTING dari doubtfulAt di atas: Pending TETAP DIHITUNG sebagai Piutang Outstanding —
+  // uangnya masih diharapkan masuk, cuma jadwal nagihnya digeser. Yang berhenti cuma penagihan
+  // OTOMATIS (cron WA follow-up piutang), supaya client yang sudah minta tempo tidak dikirimi
+  // tagihan terus. Baris-nya tetap ada di tabel Piutang, cuma dikasih badge "Pending" + alasan.
+  //
+  // Ragu-ragu = tidak akan cair (keluar dari Piutang Outstanding).
+  // Pending    = akan cair, tapi nanti (tetap di Piutang Outstanding).
+  //
+  // Satu invoice tidak boleh dua-duanya: menandai ragu-ragu otomatis menghapus pending
+  // (eskalasi dari "ditunda" jadi "tidak akan cair"), dan menandai pending ditolak kalau
+  // invoice-nya sedang ragu-ragu — lihat POST /api/invoices/[id]/pending & /doubtful.
+  pendingAt     DateTime? @map("pending_at")
+  pendingReason String?   @map("pending_reason")
+  pendingById   String?   @map("pending_by_id")
+
   client   Client           @relation(fields: [clientId], references: [id])
   lines    InvoiceLine[]
   payments InvoicePayment[]
@@ -785,6 +804,8 @@ model Invoice {
   // Dipakai di SEMUA query piutang (`doubtfulAt: null`) — Dashboard, Piutang, Neraca, Arus Kas,
   // cron follow-up. Lihat aturan index di CLAUDE.md.
   @@index([doubtfulAt])
+  // Dipakai cron follow-up piutang (`pendingAt: null`) buat melewati tagihan yang ditunda.
+  @@index([pendingAt])
   @@map("invoices")
   @@schema("simple_system")
 }

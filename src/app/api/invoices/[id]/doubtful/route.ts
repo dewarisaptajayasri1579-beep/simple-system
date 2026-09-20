@@ -56,7 +56,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.invoice.update({
       where: { id },
-      data: { doubtfulAt, doubtfulReason: reason, doubtfulById: user.id },
+      // pendingAt ikut dibersihkan: ragu-ragu itu eskalasi dari pending ("ditunda" jadi "tidak
+      // akan cair"), satu invoice tidak boleh menyandang dua status sekaligus (lihat catatan di
+      // model Invoice & POST /api/invoices/[id]/pending).
+      data: { doubtfulAt, doubtfulReason: reason, doubtfulById: user.id, pendingAt: null, pendingReason: null, pendingById: null },
       include: { client: true },
     })
 
@@ -78,6 +81,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           clientName: invoice.client.name,
           remaining,
           reason,
+          // Kalau sebelumnya pending, catat alasan lamanya biar riwayat eskalasinya utuh.
+          previousPendingReason: invoice.pendingReason,
         },
       },
     })

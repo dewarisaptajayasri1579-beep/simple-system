@@ -27,6 +27,10 @@ export async function runReceivableFollowups() {
       // Invoice yang sudah ditandai Piutang Ragu-Ragu berhenti ditagih otomatis — kirim WA
       // penagihan ke client yang sudah "dilepas" cuma bikin malu (lihat Invoice.doubtfulAt).
       doubtfulAt: null,
+      // Pending = client sudah minta tempo / lagi dinego, jangan dikirimi tagihan otomatis
+      // sampai Owner melepas statusnya. Tagihannya SENDIRI tetap dihitung di Piutang
+      // Outstanding (beda dari ragu-ragu) — lihat Invoice.pendingAt.
+      pendingAt: null,
     },
     include: {
       client: true,
