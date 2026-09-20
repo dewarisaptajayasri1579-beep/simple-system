@@ -36,6 +36,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.coolifyApiToken === "string") {
     data.coolifyApiToken = body.coolifyApiToken.trim() ? encryptSecret(body.coolifyApiToken.trim()) : null
   }
+  if (typeof body.panelType === "string" && ["none", "coolify", "enhance"].includes(body.panelType)) data.panelType = body.panelType
+  if (typeof body.enhanceApiUrl === "string") data.enhanceApiUrl = body.enhanceApiUrl.trim() || null
+  if (typeof body.enhanceApiToken === "string") {
+    data.enhanceApiToken = body.enhanceApiToken.trim() ? encryptSecret(body.enhanceApiToken.trim()) : null
+  }
+  if (typeof body.enhanceOrgId === "string") data.enhanceOrgId = body.enhanceOrgId.trim() || null
 
   const updated = await prisma.vpsServer.update({ where: { id }, data, select: { id: true } }).catch(() => null)
   if (!updated) return NextResponse.json({ error: "VPS tidak ditemukan" }, { status: 404 })

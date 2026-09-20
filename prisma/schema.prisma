@@ -141,8 +141,21 @@ model VpsServer {
   diskPath           String        @default("/") @map("disk_path")
   backupCheckPath    String?       @map("backup_check_path")
   proxyContainerName String        @default("coolify-proxy") @map("proxy_container_name")
+  /// Jenis panel yang dipakai VPS ini (default "none" = tanpa panel, semua aplikasi diisi manual
+  /// satu-satu) — dipilih waktu Tambah/Edit VPS, MENENTUKAN kredensial mana yang relevan
+  /// ("coolify" pakai coolifyApiUrl/coolifyApiToken di bawah, "enhance" pakai
+  /// enhanceApiUrl/enhanceApiToken/enhanceOrgId). Disk/RAM/CPU/backup via SSH tetap jalan sama
+  /// untuk SEMUA jenis panel (panel-agnostic) — lihat percakapan monitoring 2026-09-20.
+  panelType          String        @default("none") @map("panel_type")
   coolifyApiUrl      String?       @map("coolify_api_url")
   coolifyApiToken    String?       @map("coolify_api_token")
+  /// Kredensial API Enhance (enhance.com) — beda dari Coolify, Enhance minta Organization ID
+  /// SELAIN bearer token (lihat {enhanceApiUrl}/api/docs/ punya organisasi itu sendiri). Sync
+  /// otomatis (mapping Website Enhance ke Application) BELUM diimplementasi — field ini baru
+  /// disimpan buat dipakai di pengembangan lanjutan.
+  enhanceApiUrl      String?       @map("enhance_api_url")
+  enhanceApiToken    String?       @map("enhance_api_token")
+  enhanceOrgId       String?       @map("enhance_org_id")
   /// Jumlah resource Database di Coolify VPS ini (bukan jumlah Application) — diisi waktu sync
   /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di
   /// src/lib/monitoring/coolify.ts). Null kalau belum pernah sync sama sekali.

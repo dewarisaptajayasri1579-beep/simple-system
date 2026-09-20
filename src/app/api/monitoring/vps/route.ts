@@ -176,9 +176,12 @@ export async function GET() {
         diskPath: vps.diskPath,
         backupCheckPath: vps.backupCheckPath,
         proxyContainerName: vps.proxyContainerName,
+        panelType: vps.panelType,
         hasCoolify: Boolean(vps.coolifyApiUrl && vps.coolifyApiToken),
         coolifyApiUrl: vps.coolifyApiUrl,
         coolifyDatabaseCount: vps.coolifyDatabaseCount,
+        enhanceApiUrl: vps.enhanceApiUrl,
+        enhanceOrgId: vps.enhanceOrgId,
         createdAt: vps.createdAt,
         disk: live.disk,
         diskError: live.diskError,
@@ -285,6 +288,10 @@ export async function POST(request: Request) {
     typeof body?.proxyContainerName === "string" && body.proxyContainerName.trim() ? body.proxyContainerName.trim() : "coolify-proxy"
   const coolifyApiUrl = typeof body?.coolifyApiUrl === "string" ? body.coolifyApiUrl.trim() : ""
   const coolifyApiToken = typeof body?.coolifyApiToken === "string" ? body.coolifyApiToken.trim() : ""
+  const panelType = typeof body?.panelType === "string" && ["none", "coolify", "enhance"].includes(body.panelType) ? body.panelType : "none"
+  const enhanceApiUrl = typeof body?.enhanceApiUrl === "string" ? body.enhanceApiUrl.trim() : ""
+  const enhanceApiToken = typeof body?.enhanceApiToken === "string" ? body.enhanceApiToken.trim() : ""
+  const enhanceOrgId = typeof body?.enhanceOrgId === "string" ? body.enhanceOrgId.trim() : ""
 
   if (!name || !host || !sshUser) {
     return NextResponse.json({ error: "Nama, host, dan SSH user wajib diisi" }, { status: 400 })
@@ -304,8 +311,12 @@ export async function POST(request: Request) {
       diskPath,
       backupCheckPath: backupCheckPath || null,
       proxyContainerName,
+      panelType,
       coolifyApiUrl: coolifyApiUrl || null,
       coolifyApiToken: coolifyApiToken ? encryptSecret(coolifyApiToken) : null,
+      enhanceApiUrl: enhanceApiUrl || null,
+      enhanceApiToken: enhanceApiToken ? encryptSecret(enhanceApiToken) : null,
+      enhanceOrgId: enhanceOrgId || null,
       createdById: user.id,
     },
     select: { id: true, name: true, createdAt: true },

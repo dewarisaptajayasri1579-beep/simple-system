@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Plus, RefreshCw, Package, Pencil, Trash2 } from "lucide-react"
 
-import { Button, Input, Modal, Alert, Spinner } from "@/components/ui"
+import { Button, Input, Modal, Alert, Spinner, Select } from "@/components/ui"
 import { VpsServerCard, type VpsRow, type MonitoringPackageRow } from "@/components/monitoring/VpsMonitoring"
 
 const emptyPackageForm = { name: "", diskSpaceGb: "", bandwidthGb: "" }
@@ -18,8 +18,12 @@ const emptyVpsForm = {
   diskPath: "/",
   backupCheckPath: "",
   proxyContainerName: "coolify-proxy",
+  panelType: "none" as "none" | "coolify" | "enhance",
   coolifyApiUrl: "",
   coolifyApiToken: "",
+  enhanceApiUrl: "",
+  enhanceApiToken: "",
+  enhanceOrgId: "",
 }
 
 export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner }) => {
@@ -139,8 +143,12 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
           diskPath: vpsForm.diskPath.trim() || "/",
           backupCheckPath: vpsForm.backupCheckPath.trim(),
           proxyContainerName: vpsForm.proxyContainerName.trim() || "coolify-proxy",
+          panelType: vpsForm.panelType,
           coolifyApiUrl: vpsForm.coolifyApiUrl.trim(),
           coolifyApiToken: vpsForm.coolifyApiToken.trim(),
+          enhanceApiUrl: vpsForm.enhanceApiUrl.trim(),
+          enhanceApiToken: vpsForm.enhanceApiToken.trim(),
+          enhanceOrgId: vpsForm.enhanceOrgId.trim(),
         }),
       })
       const data = await res.json().catch(() => null)
@@ -290,27 +298,72 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
               onChange={(e) => setVpsForm({ ...vpsForm, backupCheckPath: e.target.value })}
             />
           </div>
-          <Input
-            label="Nama Container Proxy"
-            helperText='Default Coolify: "coolify-proxy" — dipakai buat cek log akses Traefik'
-            value={vpsForm.proxyContainerName}
-            onChange={(e) => setVpsForm({ ...vpsForm, proxyContainerName: e.target.value })}
+          <Select
+            label="Panel"
+            helperText="Disk/RAM/CPU/backup lewat SSH di atas tetap jalan buat semua jenis panel — pilihan ini cuma menentukan cara sync daftar Aplikasi."
+            value={vpsForm.panelType}
+            onChange={(v) => setVpsForm({ ...vpsForm, panelType: v as "none" | "coolify" | "enhance" })}
+            options={[
+              { value: "none", label: "Tanpa Panel (Aplikasi diisi manual)" },
+              { value: "coolify", label: "Coolify" },
+              { value: "enhance", label: "Enhance" },
+            ]}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Coolify API URL (opsional)"
-              placeholder="https://coolify.contoh.com/api/v1"
-              value={vpsForm.coolifyApiUrl}
-              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiUrl: e.target.value })}
-            />
-            <Input
-              label="Coolify API Token (opsional)"
-              isPassword
-              autoComplete="new-password"
-              value={vpsForm.coolifyApiToken}
-              onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
-            />
-          </div>
+
+          {vpsForm.panelType === "coolify" && (
+            <>
+              <Input
+                label="Nama Container Proxy"
+                helperText='Default Coolify: "coolify-proxy" — dipakai buat cek log akses Traefik'
+                value={vpsForm.proxyContainerName}
+                onChange={(e) => setVpsForm({ ...vpsForm, proxyContainerName: e.target.value })}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Coolify API URL"
+                  placeholder="https://coolify.contoh.com/api/v1"
+                  value={vpsForm.coolifyApiUrl}
+                  onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiUrl: e.target.value })}
+                />
+                <Input
+                  label="Coolify API Token"
+                  isPassword
+                  autoComplete="new-password"
+                  value={vpsForm.coolifyApiToken}
+                  onChange={(e) => setVpsForm({ ...vpsForm, coolifyApiToken: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+
+          {vpsForm.panelType === "enhance" && (
+            <>
+              <Alert variant="info">
+                Sync otomatis daftar Aplikasi dari Enhance belum tersedia — kredensial ini disimpan buat pengembangan lanjutan. Untuk sekarang,
+                tambahkan aplikasi/website VPS ini secara manual setelah VPS-nya tersimpan.
+              </Alert>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Enhance API URL"
+                  placeholder="https://panel.contoh.com"
+                  value={vpsForm.enhanceApiUrl}
+                  onChange={(e) => setVpsForm({ ...vpsForm, enhanceApiUrl: e.target.value })}
+                />
+                <Input
+                  label="Enhance Organization ID"
+                  value={vpsForm.enhanceOrgId}
+                  onChange={(e) => setVpsForm({ ...vpsForm, enhanceOrgId: e.target.value })}
+                />
+              </div>
+              <Input
+                label="Enhance API Token"
+                isPassword
+                autoComplete="new-password"
+                value={vpsForm.enhanceApiToken}
+                onChange={(e) => setVpsForm({ ...vpsForm, enhanceApiToken: e.target.value })}
+              />
+            </>
+          )}
         </div>
       </Modal>
 
