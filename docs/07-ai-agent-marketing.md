@@ -25,10 +25,12 @@ Jadi sudah ada fondasi "AI analysis" (satu-arah, generate insight), tapi belum a
 > Bagian ini akan diisi bertahap seiring diskusi dengan user.
 
 ### 2.1 Tujuan / Masalah yang mau diselesaikan
-- TBD
+- **Backup tim Sales saat lead terlalu lama tidak dijawab.** Kalau sales tidak merespon chat lead dalam waktu tertentu, AI Agent turun tangan menjawab supaya lead tidak ditinggal / dingin.
+- (kemungkinan tujuan lain menyusul — ini baru salah satu)
 
 ### 2.2 Peran Agent
-- TBD (contoh: copilot chat internal untuk sales? auto-reply ke lead? asisten follow-up? qualifier lead?)
+- Backup responder untuk chat lead yang telat dijawab sales (WhatsApp inbox marketing).
+- TBD tujuan/peran lain
 
 ### 2.3 Channel / Interface
 - TBD (dashboard internal, WhatsApp langsung ke lead, dsb)
@@ -42,6 +44,7 @@ Jadi sudah ada fondasi "AI analysis" (satu-arah, generate insight), tapi belum a
 
 ### 2.6 Model & Biaya
 - TBD (pakai `claude-haiku-4-5` vs `claude-sonnet-5`, kapan pakai yang mana)
+- API key Anthropic sudah tersedia (dari Console project "director_assistant_agent"), reuse env var `ANTHROPIC_API_KEY` yang sudah dipakai di `src/lib/agent.ts` & `src/lib/marketing/ai.ts` — tidak perlu setup key baru.
 
 ---
 
