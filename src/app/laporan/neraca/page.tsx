@@ -15,7 +15,7 @@ export default async function NeracaPage() {
   const [balances, invoices, bills, servers] = await Promise.all([
     computeAllAccountBalances(),
     prisma.invoice.findMany({
-      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null },
+      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null, pendingAt: null },
       include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
     }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),

@@ -7,11 +7,10 @@ import { invoiceCashDue } from "@/lib/invoice-due"
 /** Tandai invoice sebagai **Piutang Pending** (POST) atau lepas penandaan itu (DELETE) —
  *  Owner-only, alasan WAJIB diisi.
  *
- *  Pending = penagihannya SENGAJA ditunda sementara (client minta tempo, nunggu berita acara,
- *  lagi dinego). Uangnya masih diharapkan masuk, jadi invoice ini TETAP DIHITUNG di Piutang
- *  Outstanding — beda dari Piutang Ragu-Ragu (lihat ../doubtful) yang dikeluarkan dari hitungan
- *  karena dianggap tidak akan cair. Yang berhenti cuma penagihan OTOMATIS (cron WA follow-up
- *  piutang), supaya client yang sudah minta tempo tidak terus dikirimi tagihan.
+ *  Pending = penagihannya SENGAJA ditunda (client minta tempo, nunggu berita acara, lagi
+ *  dinego). Perlakuannya SAMA dengan Piutang Ragu-Ragu (lihat ../doubtful): keluar dari Piutang
+ *  Outstanding dan berhenti ditagih otomatis. Yang membedakan cuma flag-nya, supaya di menu
+ *  "Piutang Ragu-Ragu" kelihatan mana yang cuma ditunda dan mana yang dianggap hangus.
  *
  *  Sama seperti ragu-ragu: tidak ada jurnal sama sekali — Piutang di app ini bukan akun GL,
  *  cuma Invoice.totalAmount − pembayaran posted (lihat pedoman_akunting.md). */
@@ -54,11 +53,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Invoice ini sudah lunas — tidak ada tagihan yang perlu ditunda" }, { status: 400 })
   }
 
+  const pendingAt = new Date()
   const updated = await prisma.$transaction(async (tx) => {
     const result = await tx.invoice.update({
       where: { id },
-      data: { pendingAt: new Date(), pendingReason: reason, pendingById: user.id },
+      data: { pendingAt, pendingReason: reason, pendingById: user.id },
       include: { client: true },
+    })
+
+    // Berhenti mengejar tagihan ini selama ditunda — sama seperti ragu-ragu, siklus SLA yang
+    // masih terbuka ditutup supaya tidak nyangkut di "Tindak Lanjut Tagihan" & badge SLA Lewat.
+    await tx.billingFollowUp.updateMany({
+      where: { invoiceId: id, paidRecordedAt: null, writeOffAt: null },
+      data: { writeOffAt: pendingAt },
     })
 
     await tx.auditLog.create({
@@ -77,7 +84,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(updated)
 }
 
-/** Lepas status pending — tagihan kembali masuk antrean penagihan otomatis seperti biasa. */
+/** Lepas status pending — tagihan kembali dihitung di Piutang Outstanding dan masuk antrean
+ *  penagihan otomatis seperti biasa. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
@@ -95,6 +103,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       where: { id },
       data: { pendingAt: null, pendingReason: null, pendingById: null },
       include: { client: true },
+    })
+
+    await tx.billingFollowUp.updateMany({
+      where: { invoiceId: id, writeOffAt: { not: null } },
+      data: { writeOffAt: null },
     })
 
     await tx.auditLog.create({

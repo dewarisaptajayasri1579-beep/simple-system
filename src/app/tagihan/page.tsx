@@ -2,13 +2,19 @@ import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardTitle, CardDescription } from "@/components/ui"
 import { getCurrentUser } from "@/lib/current-user"
-import { Receipt, Clock, FilePlus2 } from "lucide-react"
+import { Receipt, Clock, FilePlus2, ShieldQuestion } from "lucide-react"
 
 // Hub penagihan (piutang + SLA tindak lanjut) — dipisah dari menu Laporan supaya role "admin"
 // bisa kerja penagihan tanpa ikut kebuka laporan keuangan (Neraca/Laba Rugi/Arus Kas) yang
 // sekarang Owner+Direktur saja. Lihat navItemsForRole di Sidebar.tsx.
 const PAGES = [
   { href: "/tagihan/piutang", icon: Receipt, title: "Piutang", desc: "Daftar tagih — siapa saja yang masih berhutang." },
+  {
+    href: "/tagihan/ragu-ragu",
+    icon: ShieldQuestion,
+    title: "Piutang Ragu-Ragu",
+    desc: "Tagihan yang ditandai Pending atau Ragu-Ragu Owner — tidak dihitung di Piutang Outstanding.",
+  },
   {
     href: "/tagihan/tindak-lanjut",
     icon: Clock,

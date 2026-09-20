@@ -10,7 +10,6 @@ import { computeNextDueDate, getDueBucket, resolveServerExpiry, periodNameToMont
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
 import { invoiceCashDue } from "@/lib/invoice-due"
-import { resolveUserNames } from "@/lib/user-names"
 import {
   PiutangSummarySection,
   DomainExpiringSection,
@@ -22,7 +21,6 @@ import {
   type MaintenanceDueRow,
 } from "@/components/dashboard/DashboardSections"
 import { ProjectTagihanSection, type ProjectTagihanRow } from "@/components/dashboard/ProjectTagihanSection"
-import { PiutangRaguRaguSection, type PiutangRaguRaguRow } from "@/components/dashboard/PiutangRaguRaguSection"
 import { RevenueForecastSection } from "@/components/dashboard/RevenueForecastSection"
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
 import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
@@ -90,7 +88,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     followUps,
     projectSchedules,
     forecastProjectSchedules,
-    doubtfulInvoices,
+    heldInvoices,
   ] = await Promise.all([
     prisma.projectPaymentSchedule.findMany({
       where: { invoiceId: null, dueDate: { lte: projectUninvoicedThreshold }, project: { status: "berjalan" } },
@@ -103,7 +101,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     prisma.maintenance.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
     prisma.invoice.findMany({
-      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null },
+      where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null, pendingAt: null },
       include: {
         client: true,
         payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
@@ -136,16 +134,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       where: { project: { status: "berjalan" } },
       select: { amount: true, dueDate: true, label: true, project: { select: { name: true } } },
     }),
-    // Piutang Ragu-Ragu — invoice yang sengaja dikeluarkan dari Piutang Outstanding oleh Owner
-    // (lihat Invoice.doubtfulAt). Ditampilkan terpisah di section sendiri supaya angkanya tidak
-    // hilang begitu saja dari pandangan, cuma pindah kolom.
+    // Piutang yang ditahan (Pending + Ragu-Ragu) — daftar lengkapnya sudah pindah ke menu
+    // sendiri (/tagihan/ragu-ragu), di sini cuma butuh ringkasannya buat kartu Piutang
+    // Outstanding, jadi tidak perlu tarik semua kolom invoice-nya.
     prisma.invoice.findMany({
-      where: { postStatus: "posted", doubtfulAt: { not: null } },
+      where: { postStatus: "posted", OR: [{ doubtfulAt: { not: null } }, { pendingAt: { not: null } }] },
       include: {
-        client: { select: { name: true, isPemungutPpn: true } },
+        client: { select: { isPemungutPpn: true } },
         payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
       },
-      orderBy: { doubtfulAt: "desc" },
     }),
   ])
 
@@ -191,31 +188,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const totalOutstanding = piutangRows.reduce((sum, r) => sum + r.remaining, 0)
 
-  // Piutang Pending — penagihannya ditunda Owner, tapi TETAP bagian dari totalOutstanding di
-  // atas (beda dari ragu-ragu yang dikeluarkan). Ditampilkan sebagai rincian "dari itu sekian
-  // ditunda" biar kelihatan berapa banyak piutang yang sedang tidak dikejar.
-  const pendingRows = piutangRows.filter((r) => r.pendingAt)
-  const totalPending = pendingRows.reduce((sum, r) => sum + r.remaining, 0)
-
-  // Piutang Ragu-Ragu — dikeluarkan dari totalOutstanding di atas (query openInvoices sudah
-  // filter doubtfulAt: null), ditampilkan terpisah supaya tetap kelihatan & bisa diaktifkan lagi.
-  const doubtfulUserNames = await resolveUserNames(doubtfulInvoices.map((inv) => inv.doubtfulById))
-  const doubtfulRows: PiutangRaguRaguRow[] = doubtfulInvoices
+  // Piutang yang ditahan Owner (Pending + Ragu-Ragu) — dua-duanya SAMA-SAMA sudah dikeluarkan
+  // dari totalOutstanding di atas (query openInvoices sudah filter doubtfulAt/pendingAt: null).
+  // Daftar lengkapnya ada di menu Tagihan > Piutang Ragu-Ragu (/tagihan/ragu-ragu); di sini
+  // cuma ringkasan angka + link ke sana, supaya jumlahnya tidak hilang dari pandangan.
+  const heldRows = heldInvoices
     .map((inv) => {
       const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
-      return {
-        id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        clientName: inv.client.name,
-        remaining: Math.max(0, invoiceCashDue(inv, inv.client.isPemungutPpn) - paid),
-        dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
-        doubtfulAt: inv.doubtfulAt!.toISOString(),
-        doubtfulReason: inv.doubtfulReason ?? "-",
-        doubtfulByName: inv.doubtfulById ? (doubtfulUserNames.get(inv.doubtfulById) ?? null) : null,
-      }
+      return { remaining: Math.max(0, invoiceCashDue(inv, inv.client.isPemungutPpn) - paid), isPending: Boolean(inv.pendingAt) }
     })
     .filter((r) => r.remaining > 0)
-  const totalDoubtful = doubtfulRows.reduce((sum, r) => sum + r.remaining, 0)
+  const pendingHeldCount = heldRows.filter((r) => r.isPending).length
+  const totalPending = heldRows.filter((r) => r.isPending).reduce((sum, r) => sum + r.remaining, 0)
+  const doubtfulHeldCount = heldRows.length - pendingHeldCount
+  const totalDoubtful = heldRows.filter((r) => !r.isPending).reduce((sum, r) => sum + r.remaining, 0)
 
   // Domain: sudah lewat tempo, habis bulan ini, atau habis bulan depan.
   const domainExpiringRowsBase = domains
@@ -414,9 +400,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { label: "SLA Lewat", href: "/tagihan/tindak-lanjut", count: slaOverdueCount, color: "rose" },
     { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
-    ...(pendingRows.length > 0 ? [{ label: "Pending", href: "#piutang", count: pendingRows.length, color: "sky" as const }] : []),
-    ...(doubtfulRows.length > 0
-      ? [{ label: "Ragu-Ragu", href: "#ragu-ragu", count: doubtfulRows.length, color: "amber" as const }]
+    ...(pendingHeldCount + doubtfulHeldCount > 0
+      ? [{ label: "Ditahan", href: "/tagihan/ragu-ragu", count: pendingHeldCount + doubtfulHeldCount, color: "amber" as const }]
       : []),
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
     { label: "Server", href: "#server", count: serverDueRows.length, color: "violet" },
@@ -448,15 +433,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <Card variant="feature" padding="md">
             <CardDescription>Piutang Outstanding</CardDescription>
             <p className="text-2xl font-black text-rose-700 mt-1">{formatRupiah(totalOutstanding)}</p>
-            {totalPending > 0 && (
-              <p className="text-[11px] font-bold text-sky-700 mt-1">
-                termasuk {formatRupiah(totalPending)} pending ({pendingRows.length} invoice, ditunda)
-              </p>
-            )}
-            {totalDoubtful > 0 && (
-              <p className="text-[11px] font-bold text-amber-700 mt-1">
-                + {formatRupiah(totalDoubtful)} ragu-ragu ({doubtfulRows.length} invoice, tidak dihitung)
-              </p>
+            {totalPending + totalDoubtful > 0 && (
+              <Link href="/tagihan/ragu-ragu" className="block text-[11px] font-bold text-amber-700 mt-1 hover:underline">
+                + {formatRupiah(totalPending + totalDoubtful)} ditahan ({pendingHeldCount} pending, {doubtfulHeldCount} ragu-ragu) — tidak dihitung
+              </Link>
             )}
           </Card>
           <Card variant="feature" padding="md">
@@ -476,11 +456,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div id="piutang" className="scroll-mt-[150px]">
           <PiutangSummarySection rows={piutangRows} isOwner={user.role === "owner"} />
         </div>
-        {doubtfulRows.length > 0 && (
-          <div id="ragu-ragu" className="scroll-mt-[150px]">
-            <PiutangRaguRaguSection rows={doubtfulRows} isOwner={user.role === "owner"} />
-          </div>
-        )}
         <div id="domain" className="scroll-mt-[150px]">
           <DomainExpiringSection rows={domainExpiringRows} clients={clientOptions} accounts={accounts} isOwner={user.role === "owner"} rangeToIso={hasDateRange ? dateToIso : null} />
         </div>

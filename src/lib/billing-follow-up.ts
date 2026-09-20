@@ -40,9 +40,10 @@ export async function ensureBillingFollowUps(db: Db, items: BillingFollowUpRef[]
     where: {
       postStatus: "posted",
       status: { in: ["unpaid", "partial"] },
-      // Invoice ragu-ragu tidak dikejar lagi — jangan dipakai sebagai "invoice nyangkut" yang
-      // bikin siklus baru langsung berstatus menunggu_bayar (lihat Invoice.doubtfulAt).
+      // Invoice ragu-ragu/pending tidak dikejar lagi — jangan dipakai sebagai "invoice nyangkut"
+      // yang bikin siklus baru langsung berstatus menunggu_bayar (lihat Invoice.doubtfulAt).
       doubtfulAt: null,
+      pendingAt: null,
       OR: missing.map((i) => ({ costLinkType: i.refType, costLinkId: i.refId })),
     },
     orderBy: { issuedAt: "desc" },

@@ -28,13 +28,13 @@ export default async function LaporanPenjualanPage({ searchParams }: { searchPar
   const totalInvoiced = invoices.reduce((sum, i) => sum + i.totalAmount, 0)
   const totalCollected = invoices.reduce((sum, i) => sum + i.payments.reduce((s, p) => s + p.amount, 0), 0)
   const totalOutstanding = totalInvoiced - totalCollected
-  // Laporan ini SENGAJA tetap menghitung invoice yang ditandai Piutang Ragu-Ragu — penjualannya
+  // Laporan ini SENGAJA tetap menghitung invoice yang ditandai Pending/Ragu-Ragu — penjualannya
   // memang terjadi, jadi Total Invoice Terbit tidak boleh berubah gara-gara penandaan itu (dan
   // Terbit = Tertagih + Outstanding harus tetap balance). Porsinya ditulis terpisah di bawah
   // kartu Outstanding supaya angkanya bisa dicocokkan dengan Piutang Outstanding di Dashboard
-  // (yang sudah mengeluarkan invoice ragu-ragu).
+  // (yang sudah mengeluarkan kedua flag itu — lihat menu Tagihan > Piutang Ragu-Ragu).
   const doubtfulOutstanding = invoices
-    .filter((i) => i.doubtfulAt)
+    .filter((i) => i.doubtfulAt || i.pendingAt)
     .reduce((sum, i) => sum + (i.totalAmount - i.payments.reduce((s, p) => s + p.amount, 0)), 0)
 
   const byClient = new Map<string, { name: string; total: number; collected: number }>()

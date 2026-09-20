@@ -312,7 +312,7 @@ async function markRecurringBillPaid(input: { billName: string }) {
 async function getMyInvoices(clientId: string) {
   const client = await prisma.client.findUnique({ where: { id: clientId } })
   const invoices = await prisma.invoice.findMany({
-    where: { clientId, status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null },
+    where: { clientId, status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null, pendingAt: null },
     include: { payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
     orderBy: { dueDate: "asc" },
   })

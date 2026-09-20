@@ -8,7 +8,7 @@ export default async function PiutangPage() {
   const user = await getCurrentUser()
 
   const invoices = await prisma.invoice.findMany({
-    where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null },
+    where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null, pendingAt: null },
     include: {
       client: true,
       payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },

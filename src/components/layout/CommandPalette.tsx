@@ -25,6 +25,7 @@ const SECTIONS: (SectionItem & { adminOk?: boolean })[] = [
   { label: "Dashboard Finance", href: "/dashboard-finance" },
   { label: "Tagihan", href: "/tagihan", adminOk: true },
   { label: "Piutang", href: "/tagihan/piutang", adminOk: true },
+  { label: "Piutang Ragu-Ragu", href: "/tagihan/ragu-ragu", adminOk: true },
   { label: "Tindak Lanjut Tagihan", href: "/tagihan/tindak-lanjut", adminOk: true },
   { label: "Pembayaran", href: "/pembayaran", adminOk: true },
   { label: "Invoice", href: "/penjualan", adminOk: true },
