@@ -149,12 +149,15 @@ model VpsServer {
   panelType          String        @default("none") @map("panel_type")
   coolifyApiUrl      String?       @map("coolify_api_url")
   coolifyApiToken    String?       @map("coolify_api_token")
-  /// Kredensial API Enhance (enhance.com) — beda dari Coolify, Enhance minta Organization ID
-  /// SELAIN bearer token (lihat {enhanceApiUrl}/api/docs/ punya organisasi itu sendiri). Sync
-  /// otomatis (mapping Website Enhance ke Application) BELUM diimplementasi — field ini baru
-  /// disimpan buat dipakai di pengembangan lanjutan.
+  /// Kredensial API Enhance (enhance.com) — user cuma isi API URL + Token (disepakati 2026-09-21,
+  /// bukan diminta manual cari Organization ID). Sync otomatis (mapping Website Enhance ke
+  /// Application) BELUM diimplementasi — field ini baru disimpan buat dipakai di pengembangan
+  /// lanjutan.
   enhanceApiUrl      String?       @map("enhance_api_url")
   enhanceApiToken    String?       @map("enhance_api_token")
+  /// TIDAK diisi lewat form — Enhance API butuh Organization ID selain token, rencana diisi
+  /// OTOMATIS pas sync pertama kali (panggil endpoint list org pakai token di atas, ambil org
+  /// pertama/satu-satunya), bukan diminta user cari manual dari UI Enhance.
   enhanceOrgId       String?       @map("enhance_org_id")
   /// Jumlah resource Database di Coolify VPS ini (bukan jumlah Application) — diisi waktu sync
   /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di

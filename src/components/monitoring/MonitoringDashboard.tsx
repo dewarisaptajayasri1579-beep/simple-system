@@ -350,18 +350,13 @@ export const MonitoringDashboard: React.FC<{ isOwner: boolean }> = ({ isOwner })
                   onChange={(e) => setVpsForm({ ...vpsForm, enhanceApiUrl: e.target.value })}
                 />
                 <Input
-                  label="Enhance Organization ID"
-                  value={vpsForm.enhanceOrgId}
-                  onChange={(e) => setVpsForm({ ...vpsForm, enhanceOrgId: e.target.value })}
+                  label="Enhance API Token"
+                  isPassword
+                  autoComplete="new-password"
+                  value={vpsForm.enhanceApiToken}
+                  onChange={(e) => setVpsForm({ ...vpsForm, enhanceApiToken: e.target.value })}
                 />
               </div>
-              <Input
-                label="Enhance API Token"
-                isPassword
-                autoComplete="new-password"
-                value={vpsForm.enhanceApiToken}
-                onChange={(e) => setVpsForm({ ...vpsForm, enhanceApiToken: e.target.value })}
-              />
             </>
           )}
         </div>

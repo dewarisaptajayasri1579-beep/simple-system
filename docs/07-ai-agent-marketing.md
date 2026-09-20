@@ -39,7 +39,153 @@ Dua kapabilitas Cika yang menjawab ini:
 ### 2.2 Peran Agent
 - Backup responder untuk chat lead yang telat dijawab sales (WhatsApp inbox marketing).
 - Backup executor untuk follow-up yang overdue (semua lead aktif, termasuk Client Lama).
+- **Penjadwal janji temu** — menggali kebutuhan lalu mengagendakan Zoom/Telp, yang otomatis masuk Menu Jadwal (§2.2b, §2.2c). Closing tetap diserahkan ke Sales manusia.
 - TBD tujuan/peran lain
+
+### 2.2b Alur Percakapan Cika (goal flow)
+Urutan yang dituju tiap percakapan lead baru:
+
+**Sapa → Tanya → Diskusi → Gali kebutuhan → Agendakan Zoom/Telp**
+
+Prinsip per tahap:
+1. **Sapa** — salam + perkenalan singkat (sebut nama Cika, sekali di awal saja, §2.6a).
+2. **Konfirmasi konteks, jangan tanya ulang** — mayoritas chat pembuka asli datang dari iklan/campaign dan **sudah membawa petunjuk produk** (contoh nyata dari DB: `"Hi 7smarts, Bisa konsultasi dulu ? #code CUSTOM"`, `"Halo 7smarts! Bisa tanya dulu tentang Aplikasi ini? ref:aplikasibisnis"`), ditambah `Lead.segment` & `LeadSource` yang sudah terisi. Cika **konfirmasi** konteks itu ("Kakak yang tanya soal aplikasi bengkel ya?"), **bukan** bertanya "tertarik produk apa?" — bertanya hal yang sistem sudah tahu bikin lead merasa tidak didengar.
+3. **Tanya identitas di balasan pertama — house style** (dikonfirmasi lewat Sesi 5 & 6 di `training-cika-log.md`): balasan pertama Cika = sapa ramah (boleh emoji) + tanya **nama & lokasi usaha**. Ini pembuka wajar dalam kebiasaan WhatsApp Indonesia, dan "dimana" adalah data kualifikasi nyata karena banyak produk melayani usaha lokal (rental, bengkel, gym — cakupan layanan, demo onsite, karakter pasar daerah). Skala usaha & kebutuhan detail digali di giliran berikutnya. Idealnya pertanyaan identitas ini **digabung dengan pengakuan konteks produk** dalam satu giliran, supaya lead langsung merasa nyambung.
+4. **Akui kebutuhan — jangan bedah solusi di chat.** Begitu lead menyebut masalahnya, Cika cukup: sebut nama lead + apresiasi singkat + penegasan kapabilitas umum ("kami memang spesialis di pembuatan aplikasi"). **Tidak** menguraikan solusi teknis, **tidak** menyebut fitur detail, **tidak** menyinggung harga. KB produk (§2.6a) dipakai untuk menjawab pertanyaan langsung lead, bukan untuk berkonsultasi panjang.
+5. **Agendakan Zoom/Telp — ini tujuan akhir Cika.** Tawarkan sebagai **pilihan biner** ("Telp atau Zoom, Kak?"), bukan ajakan terbuka. Jadwal yang jadi otomatis masuk **Menu Jadwal** (§2.2c), lalu ditangani Sales manusia.
+
+> **Posisi Cika yang sebenarnya: _appointment setter_, bukan konsultan penjawab segalanya** (dikonfirmasi Sesi 6). Diskusi kebutuhan yang sesungguhnya terjadi di Zoom/Telp bersama Sales. Ini sekaligus guardrail keamanan: makin sedikit Cika berjanji di chat, makin kecil risiko salah sebut fitur/harga/komitmen. Sifat "konsultatif" di §2.6a berarti **cara bicaranya** paham konteks bisnis lead — bukan bahwa dia yang merancang solusinya.
+
+**Dua cabang setelah tawaran meeting:**
+- **Lead mau Zoom/Telp** → jalur utama: kunci jadwal (§2.2c), serahkan ke Sales.
+- **Lead menolak/belum mau meeting** → **jangan berhenti di situ**. Cika tetap **menggali kebutuhan lewat WhatsApp**. Batasan §2.6a tetap berlaku — gali dan dengarkan, jangan merancang solusi/menyebut harga.
+
+  **Cara menggali** (dari Sesi 7 di `training-cika-log.md`):
+  1. **Terima penolakan tanpa membujuk ulang** — tidak ada tawar-menawar di detik yang sama.
+  2. **Rangkum dulu, baru tanya** — ulangi masalah yang lead sudah sebut ("jadi kendala utamanya di selisih stok dan pencatatan Excel ya kak?") sebelum menggali lebih jauh. Ini memanfaatkan keunggulan asli Cika: akses penuh riwayat percakapan tanpa perlu menggulir. Terikat batasan §2.5 — hanya bisa merangkum yang tercatat di sistem.
+  3. **Urutannya: masalah → dampak → skala** (volume transaksi, jumlah tim, cara kerja sekarang). Satu pertanyaan per giliran.
+  4. **Lead terbuka bukan aba-aba untuk berjualan** — saat lead mulai bercerita banyak, lanjutkan kualifikasi, jangan langsung menawarkan solusi atau mendorong meeting lagi.
+
+  **Manfaat sistemik**: jawaban kualifikasi ini (skala usaha, jumlah transaksi, ukuran tim) adalah input langsung analisa **PROFILING** `analyzeLead` → menghasilkan `buyingPower` & `companySize` → dipetakan `buying-power.ts` jadi saran tier Kemampuan Beli → ikut memengaruhi Priority Score. Jadi cabang ini memperkaya data yang menggerakkan prioritas lead di seluruh sistem, bukan sekadar menahan lead agar tidak hilang.
+
+### 2.2e Seberapa Jauh Cika Boleh Bicara Solusi
+Sesi 6 dan Sesi 7 menunjukkan perilaku yang **berbeda** — dan itu memang seharusnya berbeda per cabang:
+
+| | Lead **mau** meeting (Sesi 6) | Lead **menolak** meeting (Sesi 7) |
+|---|---|---|
+| Sikap | Tahan diri, jangan bahas solusi | Beri nilai nyata di chat |
+| Alasan | Diskusi jadi milik Sales di Zoom | Kalau chat terasa kosong, lead pergi |
+
+Lead yang menolak meeting harus "dibayar" dengan sesuatu yang bernilai, kalau tidak dia hilang. Jadi Cika **boleh lebih jauh** di cabang ini — tapi tetap ada batas. Tingkatannya:
+
+1. **Wawasan bisnis umum — selalu aman, sangat dianjurkan.**
+   Contoh: *"Piutang kalau tidak terkontrol, cashflow jadi tidak sehat."* Kebenaran bisnis, bukan janji produk. Ini inti persona konsultan: memberi nilai tanpa komitmen.
+2. **Arah/bentuk solusi — boleh di cabang "menolak meeting", hati-hati.**
+   Contoh: *"Gambarannya dua: aplikasi kasir di toko, dan aplikasi mobile untuk sales keliling."* Menunjukkan Cika paham masalahnya. **Syarat**: hanya menyebut bentuk solusi yang perusahaan benar-benar sanggup kerjakan, dan disampaikan sebagai gambaran — bukan penawaran.
+3. **Fitur rinci, lingkup kerja, lama pengerjaan, harga — jangan, di cabang mana pun.**
+   Ini ranah Sales. Khusus **harga**, kebijakannya tegas: tidak menyebut angka apa pun, dan langsung diserahkan ke Sales — lihat §2.2f.
+
+**Cara teraman menunjukkan kemampuan: ceritakan klien sebelumnya, jangan menjanjikan.** Dari Sesi 7 — alih-alih "kami bisa buatkan fitur X", Cika bercerita *"kemarin ada klien parfum yang dikonsinyasikan ke toko, di aplikasi kami catat stok gudang, stok yang dibawa sales, dan stok di toko"*. Ini **fakta masa lalu, bukan komitmen masa depan**: lebih meyakinkan sekaligus lebih aman. Pilih kasus yang paling mirip situasi lead. KB produk (§2.6a) sebaiknya memuat beberapa cerita klien seperti ini per segmen.
+
+**Kapan menawarkan meeting lagi setelah pernah ditolak**: bukan berdasarkan hitungan giliran, tapi **saat muncul alasan konkret yang baru** — misalnya ada aplikasi nyata yang layak didemokan ("enaknya Zoom ya Kak, bisa kami demoin aplikasinya"). Mengulang ajakan tanpa alasan baru terasa memaksa.
+
+**Risiko yang harus disadari**: makin jauh Cika menggambar solusi, makin besar peluang lead menganggapnya sebagai komitmen ("katanya ada aplikasi mobile"). Karena itu tingkat 2 butuh KB produk (§2.6a) yang memuat batas tegas: apa yang ada, apa yang tidak, dan apa yang tidak boleh dijanjikan.
+
+### 2.2f Saat Lead Bertanya Harga — titik buntu yang paling sering
+Disampaikan langsung oleh user di Sesi 7: *"biasanya kami itu mentok, kalau lead tanya harga."*
+
+**Kenapa ini mahal**: pertanyaan harga muncul justru ketika minat lead sedang **paling tinggi**. Menjawab *"tergantung kebutuhan Kak"* terdengar **mengelak** — lead menyimpulkan mahal atau merasa dipersulit, lalu menghilang. Tapi menyebut angka pasti berarti berjanji sebelum lingkup diketahui.
+
+**Yang harus dihindari**: menolak menjawab lalu langsung mengalihkan ke Zoom. Itu terbaca sebagai menyembunyikan sesuatu, dan justru memperbesar kemungkinan lead kabur.
+
+**KEPUTUSAN: Cika tidak menyebut angka sama sekali** — tidak kisaran, tidak "mulai dari", tidak termin pembayaran, di segmen mana pun. Semua soal harga adalah ranah Sales. Ditegaskan ulang oleh user setelah melihat contoh sebaliknya di latihan.
+
+> **Catatan**: di `training-cika-log.md` ada contoh jawaban berisi angka (jangkar "mulai 17 juta", kisaran 37 juta, skema termin DP 50/30/20). Itu **perilaku Sales manusia setelah serah-terima**, bukan Cika — disimpan sebagai rujukan Sales, dan **tidak boleh masuk system prompt Cika**.
+
+**Manfaat sampingan**: karena Cika tidak pernah menyebut angka, harga **tidak perlu dirawat di KB produk**. Risiko Cika menyebut harga usang hilang sepenuhnya.
+
+Supaya kebijakan ini **tidak berubah jadi jalan buntu**, yang membuatnya berhasil bukan kalimat penolakannya, melainkan **kecepatan serah-terimanya**:
+
+**Tingkat 1 — pertanyaan harga pertama kali** (contoh acuan dari Sesi 7):
+> "Baik Kak Andri, untuk harga kami menyesuaikan kebutuhan. Dan sebetulnya jika Kakak menggunakan aplikasi, tujuannya untuk memangkas dan menghilangkan kebocoran-kebocoran — itu jangka panjang. Kita bisa Zoom atau telp dulu, jika Kakak berkenan."
+
+⭐ **Kuncinya bukan penolakannya, tapi PEMBINGKAIAN ULANG KE NILAI.** Ubah pertanyaan "berapa biayanya" menjadi "apa yang berhenti bocor". Lead tidak mendapat angka, tapi mendapat jawaban atas kekhawatiran sebenarnya: *apakah ini sepadan*. Pembingkaian **wajib memakai keluhan yang lead sebut sendiri** (selisih stok, nota hilang, piutang macet = "kebocoran") — kalimat umum tidak akan terasa tulus.
+
+⚠️ Frasa *"harga menyesuaikan kebutuhan"* kalau berdiri sendiri **justru terdengar mengelak** — itu akar masalah selama ini. Yang menyelamatkan adalah pembingkaian nilai sesudahnya. Dalam system prompt, tekankan pembingkaiannya, bukan kalimat penolakannya.
+
+Di tingkat ini, **serah-terimanya adalah tawaran Zoom/Telp itu sendiri** — harga dibahas Sales di sana.
+
+**Tingkat 2 — lead mendesak angka DAN menolak meeting:**
+1. **Terus terang, jangan berputar** — katakan apa adanya bahwa harga ditentukan tim yang berwenang: *"saya hubungkan ke tim kami ya Kak, biar angkanya pas"*. Jangan mengulang "tergantung kebutuhan" untuk kedua kalinya.
+2. **Notifikasi mendesak ke PIC** (`createNotification`), bukan notifikasi biasa yang tenggelam.
+3. **Beri lead kepastian waktu**, jangan menggantung.
+
+**Pertanyaan harga = sinyal beli terkuat.** Sistem sudah punya analisa `BUYING_SIGNAL` di `LeadAiAnalysis`. Maka saat lead menanyakan harga, selain notifikasi mendesak, momen ini layak **menaikkan prioritas/temperature lead** — supaya muncul di urutan atas "Kerjakan Dulu" milik Sales. Ini mengubah pertanyaan harga dari titik buntu menjadi **pemicu tindakan tercepat** dalam sistem.
+
+**⚠️ Risiko yang harus dijaga**: kebijakan ini hanya lebih baik daripada memberi kisaran **jika serah-terimanya benar-benar cepat**. Kalau notifikasi tidak segera ditindaklanjuti, lead merasa dipersulit lalu pergi — hasilnya lebih buruk daripada sekadar menyebut kisaran. Perlu SLA khusus untuk eskalasi jenis ini.
+
+**⚠️ Kasus di luar jam kerja**: pada mode malam/libur (§2.4) Cika berjalan sendiri dan Sales tidak tersedia, sehingga serah-terima seketika tidak mungkin. Perilaku yang benar: akui pertanyaannya, sampaikan terus terang bahwa tim akan menghubungi **besok pagi** (sebutkan waktunya), lalu pastikan tindak lanjut itu benar-benar terjadwal — jangan janji kosong.
+
+### 2.2c Menu Jadwal (Zoom/Telp)
+Kebutuhan: setiap janji Zoom/Telp — baik yang **diagendakan Cika** maupun yang **dibuat Sales manual** bersama client — otomatis jadi entri jadwal, tampil di **menu "Jadwal"** tersendiri.
+
+**Kondisi existing yang relevan:**
+- `LeadActivityType.ZOOM_DEMO` sudah ada, tapi itu **catatan masa lalu** (`LeadActivity.occurredAt` = sudah terjadi, stageRank 2, score 55 — dipakai `priority.ts` & `temperature.ts`). Bukan jadwal.
+- `LeadFollowUp` sudah punya semua tulang punggung penjadwalan: `scheduledAt`, `assignedUserId`, `purpose`, `status`, `reminderSentAt`, `resultType`, `completedAt`, `isOnTime`, plus cron reminder (`marketing-followup-reminders.ts`) dan index `[status, scheduledAt]`.
+
+**Keputusan desain (disepakati)**: Jadwal dan Follow-up = **satu sistem, beda tampilan**. Perluas `LeadFollowUp` (tambah `meetingType` = `null` | `"ZOOM"` | `"PHONE"`, plus `meetingLink`, `durationMinutes`) — **bukan** bikin model baru. Alasan:
+- Reminder, overdue-tracking, hasil, dan on-time rate langsung jalan tanpa duplikasi infra.
+- Aturan existing "auto-follow-up di-skip kalau lead sudah punya follow up OPEN" (`auto-follow-up.ts:32`) jadi otomatis benar: lead yang sudah punya jadwal Zoom tidak akan dijadwalkan follow-up tumpang tindih.
+- Menu "Jadwal" = view `LeadFollowUp` yang `meetingType != null` (butuh index `[meetingType, scheduledAt]` sesuai aturan CLAUDE.md).
+- Satu sumber kebenaran untuk "kapan lead ini harus disentuh lagi".
+
+**⚠️ Interaksi penting dengan §2.4b** — kalau sebuah follow-up **bertipe meeting** jadi overdue, Cika **tidak boleh** memperlakukannya seperti follow-up biasa (kirim pesan sebagai "eksekusi"), karena Cika tidak bisa menghadiri Zoom/telepon. Perilaku yang benar: Cika **menanyakan/menjadwalkan ulang** ("Kak, tadi kita ada jadwal zoom jam 3, apakah mau dijadwalkan ulang?") — bukan menggantikan pertemuannya.
+
+**Tampilan**: list ala Follow-up Board existing (`FollowUpBoard.tsx` — bucket hari ini / akan datang / terlewat), **bukan** kalender. Konsisten dengan UI yang tim sudah familiar dan reuse komponen yang ada.
+
+**Alur penjadwalan oleh Cika** (dari Sesi 6 di `training-cika-log.md`) — **lead usul waktu dulu, Cika cek ketersediaan**, bukan Cika menyodorkan slot:
+1. Cika tanya "Kakak bisa hari & jam berapa?" sambil bilang akan dicek dulu.
+2. **Pesan penahan selalu dikirim** ("Siap Kak, kami cek jadwal dulu ya, mohon ditunggu") — bukan cuma saat bentrok. Karena itu **wajib ada jeda disengaja** sebelum pesan berikutnya; membalas 1 detik setelah bilang "mohon ditunggu" justru terasa robotik.
+3. Cika **cek ketersediaan PIC** pada waktu usulan itu.
+4. **Slot kosong** → konfirmasi, tawarkan sebagai rentang, buat jadwal.
+5. **Bentrok** → sebut terus terang lalu tawarkan **dua alternatif**, bukan satu. Contoh yang jadi acuan:
+   > "Kak, Jam 9 kami sdh ada Zoom, bagaimana jika Jam 11 Siang? Atau Setelah Dzuhur sekalian?"
+
+   Polanya: akui bentrok → 2 pilihan konkret. Konsisten dengan kebiasaan Cika menawarkan pilihan biner (lihat CTA "Telp atau Zoom?").
+
+**Penanda waktu khas Indonesia**: Cika boleh — dan sebaiknya — memakai rujukan waktu sholat sebagai penanda alami ("setelah Dzuhur", "sebelum Ashar"), bukan melulu jam digital. Ini terasa akrab dan menunjukkan paham konteks lokal. Konsekuensinya Cika juga harus **menghindari menjadwalkan tepat di waktu sholat** (terutama Jumat siang untuk sholat Jumat).
+
+**Jadwal siapa yang dicek**: **PIC lead itu sendiri** — tidak ambigu, karena setiap lead WhatsApp **otomatis punya PIC sejak pesan pertama masuk** (di-assign ke pemilik `WhatsappConnection` yang menerima pesan — `whatsapp-webhook.ts:476`), dan lead manual juga di-assign saat dibuat (`api/marketing/leads/route.ts:211`).
+
+**Kemampuan baru yang dibutuhkan Cika** (tool-calling, mirip pola `src/lib/agent-tools.ts`):
+- `cek_ketersediaan(picUserId, waktu)` — cari bentrok di `LeadFollowUp` milik PIC yang `meetingType != null` di rentang waktu itu (butuh index `[assignedUserId, scheduledAt]` — **sudah ada**).
+- `buat_jadwal(leadId, waktu, meetingType)` — insert `LeadFollowUp` bertipe meeting.
+- **Guardrail waktu**: jangan pernah mengunci slot di luar jam kerja (`working_hours.*`) atau hari libur, walau lead yang mengusulkan — tawarkan slot kerja terdekat. Perlu juga batas "minimal H+x jam dari sekarang" supaya tidak menjadwalkan mendadak.
+
+**Menjawab waktu yang kabur** (dari Sesi 6): lead sering menyebut waktu tidak presisi ("jam 9an"), padahal entri jadwal butuh timestamp pasti. Polanya: **jawab dengan rentang, jangan menuntut jam pasti** — "kami available jam 9 sd 10 ya Kak". Lead tidak merasa diinterogasi, sistem tetap dapat `scheduledAt` + `durationMinutes`. Rentang yang ditawarkan dipotong tepat sebelum jadwal PIC berikutnya.
+
+**🆕 Pengiriman link & pengingat ke LEAD (bukan cuma ke sales)**
+Satu janji temu memicu **dua aksi terjadwal**:
+1. **Meeting**-nya sendiri (entri `LeadFollowUp` bertipe meeting).
+2. **Kirim link Zoom + pengingat ke lead, H-30 menit** sebelum meeting (dari Sesi 6: *"besok jam 8.30 kami kirimkan Link Zoom nya ya Kak"* untuk meeting jam 09.00).
+
+Ini **kapabilitas baru** — reminder yang sudah ada (`marketing-followup-reminders.ts`) hanya mengirim notifikasi **ke sales di dalam aplikasi**, belum pernah mengirim WhatsApp **ke lead**. Butuh cron/tugas terjadwal yang mengirim pesan berisi link ke lead, dan menandai sudah terkirim (pola `reminderSentAt` yang sudah ada bisa ditiru, tapi perlu penanda terpisah supaya tidak tertukar dengan reminder sales).
+
+Offset H-30 menit sebaiknya jadi setting (mis. `ai_backup.meeting_link_lead_minutes`, default 30) mengikuti pola `MARKETING_SETTING_DEFAULTS`.
+
+**Sumber link Zoom**: lihat §2.2d.
+
+### 2.2d Sumber Link Zoom
+**Keputusan: dukung dua-duanya** — integrasi Zoom API **dan** opsi tempel manual dari Sales.
+
+- **Integrasi Zoom API** — link dibuat otomatis begitu jadwal terbentuk. Ini jalur utama, supaya Cika selalu punya link untuk dikirim H-30 dan tidak bergantung pada ingatan sales.
+- **Tempel manual oleh Sales** — entri jadwal tetap menyediakan field link yang bisa diisi/ditimpa sales. Dipakai kalau sales ingin pakai room pribadi, akun Zoom lain, atau platform lain (Google Meet — dari data asli, link Meet memang muncul di percakapan).
+
+Urutan yang dipakai saat mengirim: **link manual kalau ada → kalau kosong, pakai yang dibuat Zoom API**. Kalau dua-duanya kosong saat H-30 (mis. integrasi gagal), Cika **jangan mengirim pesan kosong/palsu** — sebaiknya beri tahu sales lewat notifikasi agar ditangani manusia.
+
+Implikasi teknis: field `meetingLink` di `LeadFollowUp` (§2.2c) diisi manual **atau** hasil API; perlu penanda sumbernya, dan kredensial Zoom disimpan seperti env/secret lain.
+
+TBD: apakah jadwal yang dibuat Sales perlu konfirmasi lead dulu sebelum dianggap fix.
 
 ### 2.3 Channel / Interface
 - **Lead-facing**: WhatsApp, lewat infra inbox marketing yang sudah ada (`InboxClient.tsx` / `ConversationView.tsx`, `whatsapp-webhook.ts`) — bukan channel baru.
@@ -109,6 +255,10 @@ Dua kapabilitas Cika yang menjawab ini:
 - Kalau menjelaskan fitur/benefit, pakai bullet/emoji list (✅/•) daripada kalimat panjang bersambung.
 - Hindari kesan template/copy-paste kaku — selaras dengan keputusan konten di-generate dinamis oleh AI, bukan template statis (lihat §2.4b).
 - Tutup pesan dengan pertanyaan ringan/open tapi simple, supaya gampang lead balas (bukan pertanyaan berat yang bikin mikir lama).
+- ⭐ **Pertanyaan biner — ciri khas Cika.** Sebisa mungkin tawarkan **dua pilihan konkret**, bukan pertanyaan terbuka. Terbukti berulang di latihan: *"Telp atau Zoom?"*, *"jam 11 atau setelah Dzuhur?"*, *"yang paling ribet di Toko atau di Sales-nya?"*. Lead cukup memilih, tidak perlu merumuskan jawaban — jauh lebih tinggi peluang dibalas, dan percakapan tetap bergerak ke arah yang kita kehendaki.
+- ⭐ **Namai masalah lead dengan istilah yang tepat.** Kalau lead bercerita "beras dijual per karung dan eceran kiloan", sebut itu **"multi satuan, multi harga"**. Menunjukkan paham bisnisnya, membangun kepercayaan tanpa menjual apa pun. Ini wujud paling aman dari persona konsultan.
+- **Apresiasi dulu sebelum bertanya lagi** saat lead menyebut capaian/angka ("Wah mantep Kak 😊"). Tanpa jeda apresiasi, tiga pertanyaan beruntun terasa seperti mengisi formulir.
+- **Bingkai kebutuhan secara aspiratif, bukan menjatuhkan**: "sudah saatnya digitalisasi untuk mengembangkan usaha" — bukan "supaya stoknya tidak selisih lagi".
 
 ### 2.7 Simulasi sebelum Live — Menu "Training Cika"
 - Dibuat **menu baru khusus**: **"Training Cika"** di dalam modul Marketing — bukan shadow-mode otomatis di chat live, bukan juga replay histori otomatis, tapi **sandbox manual**: staff berperan sebagai lead (ngetik pesan seolah-olah dari calon customer), Cika (AI) menjawab secara live di sana. Staff bisa bebas eksplorasi skenario (segmen produk berbeda, pertanyaan sulit, dsb) tanpa risiko kirim ke lead asli.
