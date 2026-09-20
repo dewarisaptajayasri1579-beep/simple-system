@@ -395,6 +395,25 @@ function TablePagination({ page, pageCount, total, onChange }: { page: number; p
 }
 
 type VpsHealthLevel = "sehat" | "perhatian" | "kritis"
+type HealthCheckStatus = "ok" | "warning" | "critical" | "unknown"
+
+export interface HealthCheckItem {
+  key: string
+  label: string
+  status: HealthCheckStatus
+  detail: string
+  /** true = ditampilkan di dialog rincian tapi TIDAK ikut menentukan badge Sehat/Perhatian/Kritis
+   *  (dipakai buat CPU — load rata-rata wajar naik-turun cepat, beda dari disk/RAM yang begitu
+   *  tinggi biasanya masalah menetap). */
+  informational?: boolean
+}
+
+const HEALTH_STATUS_META: Record<HealthCheckStatus, { label: string; badge: "success" | "warning" | "danger" | "secondary" }> = {
+  ok: { label: "Sehat", badge: "success" },
+  warning: { label: "Perhatian", badge: "warning" },
+  critical: { label: "Kritis", badge: "danger" },
+  unknown: { label: "Tidak Diketahui", badge: "secondary" },
+}
 
 /** Kesimpulan 1 badge dari semua sinyal yang ada per VPS — supaya kelihatan langsung tanpa expand
  *  card. "Kritis" kalau ada yang beneran rusak/mati (disk/RAM nyaris penuh, LEBIH DARI 5 database
@@ -403,43 +422,100 @@ type VpsHealthLevel = "sehat" | "perhatian" | "kritis"
  *  Ambang disk/RAM sama persis dengan warna tiap mini-bar individual (≥90 rose, ≥75 amber) supaya
  *  konsisten. Database mati SENGAJA dihitung per JUMLAH (bukan langsung Kritis begitu 1 mati) —
  *  VPS dengan banyak database (mis. 7smarts, 17 database) wajar ada beberapa yang sengaja
- *  di-stop (dev/staging/tidak dipakai lagi), jadi 1-2 mati itu normal, bukan insiden. */
-function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string[] } {
-  const critical: string[] = []
-  const warning: string[] = []
+ *  di-stop (dev/staging/tidak dipakai lagi), jadi 1-2 mati itu normal, bukan insiden.
+ *
+ *  `checks` berisi SEMUA parameter yang dicek (bukan cuma yang bermasalah) — dipakai dialog
+ *  rincian yang muncul saat badge di-klik (permintaan Owner 2026-09-20: "parameternya kenapa
+ *  kamu tampilkan saat di klik badge... semua parameter apa, yang sehat, yang kritis mana"). */
+function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string[]; checks: HealthCheckItem[] } {
+  const checks: HealthCheckItem[] = []
 
-  if (vps.disk) {
-    if (vps.disk.usedPct >= 90) critical.push(`Disk ${vps.disk.usedPct}% penuh`)
-    else if (vps.disk.usedPct >= 75) warning.push(`Disk ${vps.disk.usedPct}% terpakai`)
+  if (vps.diskError) {
+    checks.push({ key: "disk", label: "Disk", status: "unknown", detail: vps.diskError })
+  } else if (vps.disk) {
+    const pct = vps.disk.usedPct
+    checks.push({
+      key: "disk",
+      label: "Disk",
+      status: pct >= 90 ? "critical" : pct >= 75 ? "warning" : "ok",
+      detail: `${pct}% terpakai (${vps.disk.usedPretty} / ${vps.disk.totalPretty})`,
+    })
+  } else {
+    checks.push({ key: "disk", label: "Disk", status: "unknown", detail: "Tidak ada data" })
   }
 
-  if (vps.ram) {
-    if (vps.ram.usedPct >= 90) critical.push(`RAM ${vps.ram.usedPct.toFixed(0)}% penuh`)
-    else if (vps.ram.usedPct >= 75) warning.push(`RAM ${vps.ram.usedPct.toFixed(0)}% terpakai`)
+  if (vps.ramError) {
+    checks.push({ key: "ram", label: "RAM", status: "unknown", detail: vps.ramError })
+  } else if (vps.ram) {
+    const pct = vps.ram.usedPct
+    checks.push({
+      key: "ram",
+      label: "RAM",
+      status: pct >= 90 ? "critical" : pct >= 75 ? "warning" : "ok",
+      detail: `${pct.toFixed(0)}% terpakai (${formatBytes(vps.ram.usedBytes)} / ${formatBytes(vps.ram.totalBytes)})`,
+    })
+  } else {
+    checks.push({ key: "ram", label: "RAM", status: "unknown", detail: "Tidak ada data" })
   }
 
-  if (vps.swap && vps.swap.usedPct > 50) warning.push(`Swap ${vps.swap.usedPct.toFixed(0)}% terpakai`)
+  if (vps.swap) {
+    const pct = vps.swap.usedPct
+    checks.push({
+      key: "swap",
+      label: "Swap",
+      status: pct > 50 ? "warning" : "ok",
+      detail: pct > 0 ? `${pct.toFixed(0)}% terpakai (${formatBytes(vps.swap.usedBytes)} / ${formatBytes(vps.swap.totalBytes)})` : "Tidak terpakai",
+    })
+  } else {
+    checks.push({ key: "swap", label: "Swap", status: "ok", detail: "Tidak ada swap" })
+  }
+
+  if (vps.cpuError) {
+    checks.push({ key: "cpu", label: "CPU", status: "unknown", detail: vps.cpuError, informational: true })
+  } else if (vps.cpu) {
+    const pct = vps.cpu.loadPct1m
+    checks.push({
+      key: "cpu",
+      label: "CPU",
+      status: pct >= 90 ? "critical" : pct >= 75 ? "warning" : "ok",
+      detail: `Load ${pct.toFixed(0)}% dari ${vps.cpu.cores} core`,
+      informational: true,
+    })
+  }
 
   const inactiveDatabases = vps.databases.filter((db) => !db.isActive)
-  if (inactiveDatabases.length > 5) {
-    critical.push(`${inactiveDatabases.length} database mati (${inactiveDatabases.map((d) => d.name).join(", ")})`)
-  } else if (inactiveDatabases.length > 0) {
-    warning.push(`${inactiveDatabases.length} database mati (${inactiveDatabases.map((d) => d.name).join(", ")})`)
-  }
+  const inactiveTier: HealthCheckStatus = inactiveDatabases.length > 5 ? "critical" : "warning"
   for (const db of vps.databases) {
-    if (db.isActive && isBackupStale(db.dbBackupAt)) warning.push(`Backup "${db.name}" lebih dari 1 hari`)
+    if (!db.isActive) {
+      checks.push({ key: `db-${db.uuid}`, label: `Database "${db.name}"`, status: inactiveTier, detail: "Mati/nonaktif" })
+    } else if (isBackupStale(db.dbBackupAt)) {
+      checks.push({ key: `db-${db.uuid}`, label: `Database "${db.name}"`, status: "warning", detail: "Backup lebih dari 1 hari" })
+    } else {
+      checks.push({ key: `db-${db.uuid}`, label: `Database "${db.name}"`, status: "ok", detail: "Aktif, backup terbaru" })
+    }
   }
 
   for (const d of vps.registeredDomains) {
-    if (!d.expiryDate) continue
+    if (!d.expiryDate) {
+      checks.push({ key: `domain-${d.name}`, label: `Domain ${d.name}`, status: "unknown", detail: "Tanggal berakhir tidak diketahui" })
+      continue
+    }
     const days = Math.floor((new Date(d.expiryDate).getTime() - Date.now()) / 86_400_000)
-    if (days < 0) critical.push(`Domain ${d.name} sudah expired`)
-    else if (days < 30) warning.push(`Domain ${d.name} habis ${days} hari lagi`)
+    checks.push({
+      key: `domain-${d.name}`,
+      label: `Domain ${d.name}`,
+      status: days < 0 ? "critical" : days < 30 ? "warning" : "ok",
+      detail: days < 0 ? `Sudah expired ${Math.abs(days)} hari lalu` : `Habis ${days} hari lagi`,
+    })
   }
 
-  if (critical.length > 0) return { level: "kritis", reasons: critical }
-  if (warning.length > 0) return { level: "perhatian", reasons: warning }
-  return { level: "sehat", reasons: [] }
+  const levelChecks = checks.filter((c) => !c.informational)
+  const criticalChecks = levelChecks.filter((c) => c.status === "critical")
+  const warningChecks = levelChecks.filter((c) => c.status === "warning")
+  const level: VpsHealthLevel = criticalChecks.length > 0 ? "kritis" : warningChecks.length > 0 ? "perhatian" : "sehat"
+  const reasons = (level === "kritis" ? criticalChecks : level === "perhatian" ? warningChecks : []).map((c) => `${c.label}: ${c.detail}`)
+
+  return { level, reasons, checks }
 }
 
 /** Dipakai buat urutkan tabel Aplikasi/Database — baris yang bermasalah ditaruh paling atas
@@ -479,6 +555,7 @@ export const VpsServerCard: React.FC<{
     setDbPage(1)
   }, [search])
   const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
+  const [healthDetailOpen, setHealthDetailOpen] = useState(false)
   const [volumesModalOpen, setVolumesModalOpen] = useState(false)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneResult, setPruneResult] = useState<{
@@ -781,7 +858,25 @@ export const VpsServerCard: React.FC<{
             <UsageMiniBar label="CPU" pct={vps.cpu?.loadPct1m ?? null} error={vps.cpuError} />
             <UsageMiniBar label="RAM" pct={vps.ram?.usedPct ?? null} error={vps.ramError} />
           </div>
-          <Badge variant={healthBadgeVariant} size="sm" title={health.reasons.length > 0 ? health.reasons.join(" · ") : "Semua normal"}>
+          <Badge
+            variant={healthBadgeVariant}
+            size="sm"
+            className="cursor-pointer hover:brightness-95 transition-[filter]"
+            role="button"
+            tabIndex={0}
+            title="Klik untuk lihat rincian semua parameter"
+            onClick={(e) => {
+              e.stopPropagation()
+              setHealthDetailOpen(true)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                setHealthDetailOpen(true)
+              }
+            }}
+          >
             {healthLabel}
           </Badge>
           <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -1665,6 +1760,52 @@ export const VpsServerCard: React.FC<{
             )}
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={healthDetailOpen}
+        onClose={() => setHealthDetailOpen(false)}
+        title={`Rincian Kesehatan — ${vps.name}`}
+        subtitle={`Kesimpulan: ${healthLabel}`}
+        size="lg"
+      >
+        <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+          {(
+            [
+              { key: "resource", label: "Resource Server" },
+              { key: "db", label: "Database" },
+              { key: "domain", label: "Domain" },
+            ] as const
+          ).map((group) => {
+            const items = health.checks.filter((c) =>
+              group.key === "db" ? c.key.startsWith("db-") : group.key === "domain" ? c.key.startsWith("domain-") : !c.key.startsWith("db-") && !c.key.startsWith("domain-")
+            )
+            if (items.length === 0) return null
+            return (
+              <div key={group.key} className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                  {group.label} {group.key !== "resource" && `(${items.length})`}
+                </span>
+                <div className="rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
+                  {items.map((c) => (
+                    <div key={c.key} className="flex items-center justify-between gap-3 px-3.5 py-2.5 bg-white/70">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-800 truncate">
+                          {c.label}
+                          {c.informational && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(info)</span>}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">{c.detail}</div>
+                      </div>
+                      <Badge variant={HEALTH_STATUS_META[c.status].badge} size="sm" className="flex-shrink-0">
+                        {HEALTH_STATUS_META[c.status].label}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </Modal>
     </div>
   )
