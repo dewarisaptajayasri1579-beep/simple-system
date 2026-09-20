@@ -247,6 +247,34 @@ function formatBytes(bytes: number): string {
  *  gini nyelip dianggap "tidak ada sampah" padahal nyatanya aman dihapus. */
 const BUILDKIT_CACHE_VOLUME_RE = /^buildx_buildkit_/i
 
+/** Volume Docker (mis. "postgres-data-dx6jpdbid0x8hieqtaef4tjp") namanya cuma UUID mentah, tidak
+ *  kebaca ini database yang mana — UUID di ujung nama volume itu PERSIS UUID resource database
+ *  Coolify (pola yang sama dipakai databaseVolumeUsage() di server, GET /api/monitoring/vps),
+ *  jadi cocokkan ke daftar database yang sudah kita tau (vps.databases) buat kasih nama aslinya. */
+function volumeDatabaseName(volumeName: string, databases: VpsRow["databases"]): string | null {
+  return databases.find((db) => volumeName.includes(db.uuid))?.name ?? null
+}
+
+/** 1 baris volume di breakdown "Local Volumes" — dipakai di preview (8 teratas) DAN di modal
+ *  "semua volume", supaya stylingnya selalu sama persis. */
+function VolumeRow({ v, databases }: { v: { name: string; size: string }; databases: VpsRow["databases"] }) {
+  const isCache = BUILDKIT_CACHE_VOLUME_RE.test(v.name)
+  const dbName = volumeDatabaseName(v.name, databases)
+  return (
+    <div className="flex items-center justify-between gap-2 text-[11px]">
+      <span className={`font-medium truncate ${isCache ? "text-amber-700" : "text-slate-500"}`} title={v.name}>
+        {v.name}
+        {isCache ? (
+          <span className="text-amber-600"> · cache builder, aman dihapus</span>
+        ) : dbName ? (
+          <span className="text-slate-700 font-semibold"> · {dbName}</span>
+        ) : null}
+      </span>
+      <span className={`flex-shrink-0 font-semibold ${isCache ? "text-amber-700" : "text-slate-700"}`}>{v.size}</span>
+    </div>
+  )
+}
+
 /** Ambil nama repo yang gampang dibaca dari URL git (mis. "https://github.com/org/repo.git" →
  *  "org/repo") — fallback ke URL apa adanya kalau bukan URL valid (mis. format SSH
  *  "git@github.com:org/repo.git"). */
@@ -451,6 +479,7 @@ export const VpsServerCard: React.FC<{
     setDbPage(1)
   }, [search])
   const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
+  const [volumesModalOpen, setVolumesModalOpen] = useState(false)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
   const [pruneResult, setPruneResult] = useState<{
     ok: boolean
@@ -1049,20 +1078,16 @@ export const VpsServerCard: React.FC<{
                           {[...vps.dockerVolumes]
                             .sort((a, b) => parseDockerSize(b.size) - parseDockerSize(a.size))
                             .slice(0, 8)
-                            .map((v) => {
-                              const isCache = BUILDKIT_CACHE_VOLUME_RE.test(v.name)
-                              return (
-                                <div key={v.name} className="flex items-center justify-between gap-2 text-[11px]">
-                                  <span className={`font-medium truncate ${isCache ? "text-amber-700" : "text-slate-500"}`} title={v.name}>
-                                    {v.name}
-                                    {isCache ? <span className="text-amber-600"> · cache builder, aman dihapus</span> : null}
-                                  </span>
-                                  <span className={`flex-shrink-0 font-semibold ${isCache ? "text-amber-700" : "text-slate-700"}`}>{v.size}</span>
-                                </div>
-                              )
-                            })}
+                            .map((v) => (
+                              <VolumeRow key={v.name} v={v} databases={vps.databases} />
+                            ))}
                           {vps.dockerVolumes.length > 8 && (
-                            <span className="text-[11px] text-slate-400">+{vps.dockerVolumes.length - 8} volume lainnya</span>
+                            <button
+                              onClick={() => setVolumesModalOpen(true)}
+                              className="text-left text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                            >
+                              +{vps.dockerVolumes.length - 8} volume lainnya
+                            </button>
                           )}
                         </div>
                       )}
@@ -1512,6 +1537,27 @@ export const VpsServerCard: React.FC<{
             />
           </div>
           <Textarea label="Catatan" value={appForm.notes} onChange={(e) => setAppForm({ ...appForm, notes: e.target.value })} rows={2} />
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={volumesModalOpen}
+        onClose={() => setVolumesModalOpen(false)}
+        title="Semua Local Volumes"
+        subtitle={`VPS "${vps.name}" — ${vps.dockerVolumes?.length ?? 0} volume`}
+        size="lg"
+        footer={
+          <Button variant="primary" onClick={() => setVolumesModalOpen(false)}>
+            Tutup
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-1">
+          {[...(vps.dockerVolumes ?? [])]
+            .sort((a, b) => parseDockerSize(b.size) - parseDockerSize(a.size))
+            .map((v) => (
+              <VolumeRow key={v.name} v={v} databases={vps.databases} />
+            ))}
         </div>
       </Modal>
 
