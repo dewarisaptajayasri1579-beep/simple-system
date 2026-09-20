@@ -159,7 +159,7 @@ async function checkDuplicateActiveSla(): Promise<ConsistencyFinding[]> {
         severity: "error",
         entityLabel: key,
         description: `${ids.length} siklus BillingFollowUp aktif sekaligus untuk item yang sama (harusnya maks. 1)`,
-        href: "/laporan/tindak-lanjut-tagihan",
+        href: "/tagihan/tindak-lanjut",
       })
     }
   }

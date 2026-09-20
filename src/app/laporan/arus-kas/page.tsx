@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { computeAllAccountBalances } from "@/lib/account-balance"
 import { resolveDomainExpiry } from "@/lib/domain-status"
@@ -10,7 +10,8 @@ import { ArusKasSection } from "@/components/laporan/ArusKasSection"
 type FollowUpRefType = "domain" | "server" | "maintenance"
 
 export default async function ArusKasPage() {
-  const user = await getCurrentUser()
+  // Laporan keuangan — Owner+Direktur saja (role "admin" tidak boleh lihat angka pembukuan).
+  const user = await requirePageRole(["owner", "direktur"])
 
   const [domains, servers, maintenances, recurringBills, invoices, projectSchedules, balances] = await Promise.all([
     prisma.domain.findMany({ where: { active: true, clientId: { not: null } }, include: { client: true } }),

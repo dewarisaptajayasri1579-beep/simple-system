@@ -1,9 +1,10 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { ProjectForm } from "@/components/proyek/ProjectForm"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 
 export default async function NewProjectPage() {
-  const user = await getCurrentUser()
+  // Proyek — Owner+Direktur saja (role "admin" cuma Invoice/Pembayaran/Tagihan).
+  const user = await requirePageRole(["owner", "direktur"])
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>

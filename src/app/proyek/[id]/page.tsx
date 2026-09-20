@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card } from "@/components/ui"
 import { ProjectScheduleTable } from "@/components/proyek/ProjectScheduleTable"
 import { ProjectInfoSection } from "@/components/proyek/ProjectInfoSection"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { ArrowLeft } from "lucide-react"
 
@@ -15,7 +15,8 @@ function formatRupiah(amount: number) {
 }
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser()
+  // Proyek — Owner+Direktur saja (role "admin" cuma Invoice/Pembayaran/Tagihan).
+  const user = await requirePageRole(["owner", "direktur"])
   const { id } = await params
 
   const project = await prisma.project.findUnique({

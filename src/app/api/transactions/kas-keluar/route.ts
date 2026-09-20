@@ -28,6 +28,11 @@ interface LineInput {
 export async function POST(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  // Uang keluar perusahaan — Owner+Direktur saja, sama dengan halaman /keuangan/kas-keluar.
+  // Role "admin" (staf penagihan) sudah tidak boleh menyentuh kas sama sekali.
+  if (user.role !== "owner" && user.role !== "direktur") {
+    return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa input Kas Keluar" }, { status: 403 })
+  }
 
   const body = await request.json().catch(() => null)
   const accountId = typeof body?.accountId === "string" ? body.accountId : ""

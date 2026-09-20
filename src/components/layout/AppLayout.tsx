@@ -46,7 +46,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, userName, userRo
         <BottomBar userRole={userRole} />
       </div>
 
-      <CommandPalette />
+      <CommandPalette userRole={userRole} />
     </div>
   );
 };

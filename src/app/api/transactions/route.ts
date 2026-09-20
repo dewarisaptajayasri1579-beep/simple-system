@@ -9,9 +9,16 @@ import { getAccountCoaCode, getCategoryCoaCode } from "@/lib/accounting/coa-look
 import { generateTransactionNumber } from "@/lib/transaction-number"
 import { logTransactionEvent } from "@/lib/accounting/transaction-audit"
 
+/** Kas masuk/keluar perusahaan — Owner+Direktur saja, sama dengan halaman Keuangan yang
+ *  memakainya. Role "admin" (staf penagihan) cuma boleh Invoice/Pembayaran/Tagihan. */
+function assertKasRole(role: string) {
+  return role === "owner" || role === "direktur"
+}
+
 export async function GET(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  if (!assertKasRole(user.role)) return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa lihat transaksi kas" }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
   const type = searchParams.get("type")
@@ -54,6 +61,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  if (!assertKasRole(user.role)) return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa input transaksi kas" }, { status: 403 })
 
   const body = await request.json().catch(() => null)
   const type = body?.type === "expense" ? "expense" : "income"

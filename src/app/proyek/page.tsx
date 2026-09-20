@@ -2,14 +2,15 @@ import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Button } from "@/components/ui"
 import { ProjectListTable } from "@/components/proyek/ProjectListTable"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { Plus } from "lucide-react"
 
 const POSTED_PAYMENTS_WHERE = { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" as const } } }] }
 
 export default async function ProyekPage() {
-  const user = await getCurrentUser()
+  // Proyek — Owner+Direktur saja (role "admin" cuma Invoice/Pembayaran/Tagihan).
+  const user = await requirePageRole(["owner", "direktur"])
 
   const projects = await prisma.project.findMany({
     include: {

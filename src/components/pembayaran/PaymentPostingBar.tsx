@@ -9,11 +9,14 @@ import { VoidButton } from "@/components/akuntansi/VoidButton";
 import { PostingConfirmButton } from "@/components/akuntansi/PostingConfirmButton";
 import type { JournalSource } from "@/components/akuntansi/JournalPreviewModal";
 
-export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft" | "posted" | "voided"; sources: JournalSource[] }> = ({
-  paymentId,
-  postStatus,
-  sources,
-}) => {
+export const PaymentPostingBar: React.FC<{
+  paymentId: string;
+  postStatus: "draft" | "posted" | "voided";
+  sources: JournalSource[];
+  /** Role "admin" tidak boleh lihat Akuntansi sama sekali — tombol "Jurnal" (isinya debit/kredit)
+   *  disembunyikan untuk dia, sisanya (posting/hapus draft) tetap boleh. */
+  canSeeJournal?: boolean;
+}> = ({ paymentId, postStatus, sources, canSeeJournal = true }) => {
   const router = useRouter();
   const [status, setStatus] = useState(postStatus);
   const [deleting, setDeleting] = useState(false);
@@ -38,13 +41,15 @@ export const PaymentPostingBar: React.FC<{ paymentId: string; postStatus: "draft
     <div className="no-print space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge type={status} size="sm" />
-        <JournalButton
-          title="Jurnal Pembayaran"
-          sources={sources}
-          postUrl={status === "draft" ? `/api/payments/${paymentId}/post` : undefined}
-          previewKind="payment"
-          previewId={paymentId}
-        />
+        {canSeeJournal && (
+          <JournalButton
+            title="Jurnal Pembayaran"
+            sources={sources}
+            postUrl={status === "draft" ? `/api/payments/${paymentId}/post` : undefined}
+            previewKind="payment"
+            previewId={paymentId}
+          />
+        )}
         {status === "draft" && (
           <>
             <PostingConfirmButton

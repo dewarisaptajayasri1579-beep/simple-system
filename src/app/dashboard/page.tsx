@@ -368,7 +368,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }))
 
   const navBadges: DashboardNavBadge[] = [
-    { label: "SLA Lewat", href: "/laporan/tindak-lanjut-tagihan", count: slaOverdueCount, color: "rose" },
+    { label: "SLA Lewat", href: "/tagihan/tindak-lanjut", count: slaOverdueCount, color: "rose" },
     { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
     { label: "Piutang", href: "#piutang", count: piutangRows.length, color: "rose" },
     { label: "Domain", href: "#domain", count: domainExpiringRows.length, color: "sky" },
@@ -385,7 +385,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
             <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">Ringkasan operasional hari ini.</p>
           </div>
-          <SendWhatsappReportButton />
+          {/* Laporan yang dikirim isinya angka keuangan — role "admin" tidak boleh (lihat gate
+              yang sama di POST /api/reports/send). */}
+          {user.role !== "admin" && <SendWhatsappReportButton />}
         </div>
 
         <DashboardNavBadges items={navBadges} />
@@ -438,7 +440,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             Domain &amp; Biaya Berkala sekarang dikelola di Pengaturan &gt; Master Data (khusus Owner).
           </p>
           <div className="flex flex-wrap gap-3 mt-4">
-            <Link href="/laporan/piutang">
+            <Link href="/tagihan/piutang">
               <Button variant="outline" size="sm">Lihat Piutang</Button>
             </Link>
             <Link href="/penjualan">

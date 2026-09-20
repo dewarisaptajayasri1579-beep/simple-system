@@ -19,6 +19,9 @@ export default async function DashboardFinancePage({ searchParams }: { searchPar
   // Halaman modul Internal — user yang cuma punya akses modul lain (mis. Marketing) tidak boleh
   // masuk lewat URL langsung, sama gate-nya dengan getCurrentUser() di lib/current-user.ts.
   if (user.role !== "owner" && !user.modules.includes("internal")) redirect("/modules")
+  // Biaya Rutin = uang KELUAR perusahaan, bukan urusan penagihan — role "admin" tidak boleh
+  // (menunya juga sudah tidak muncul, lihat navItemsForRole di Sidebar.tsx).
+  if (user.role !== "owner" && user.role !== "direktur") redirect("/dashboard")
 
   const params = await searchParams
   // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, ganti window

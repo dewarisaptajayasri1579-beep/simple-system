@@ -8,6 +8,10 @@ import { runDashboardReport } from "@/lib/cron/dashboard-report"
 export async function POST() {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  // Isi laporannya angka keuangan — role "admin" (staf penagihan) tidak boleh mengirim/melihat.
+  if (user.role !== "owner" && user.role !== "direktur") {
+    return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa kirim laporan ke WA" }, { status: 403 })
+  }
 
   try {
     await runDashboardReport("Manual")

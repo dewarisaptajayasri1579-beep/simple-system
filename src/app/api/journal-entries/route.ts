@@ -7,6 +7,11 @@ import { postJournalEntry, type JournalLineInput } from "@/lib/accounting/post-j
 export async function GET(request: Request) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
+  // Isinya jurnal debit/kredit — sama batasnya dengan GET /api/akuntansi/buku-besar & halaman
+  // Akuntansi: role "admin" (staf penagihan) tidak boleh lihat pembukuan sama sekali.
+  if (user.role !== "owner" && user.role !== "direktur") {
+    return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa lihat Jurnal" }, { status: 403 })
+  }
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")

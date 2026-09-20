@@ -22,10 +22,18 @@ model User {
   email        String    @unique
   passwordHash String    @map("password_hash")
   phoneNumber  String?   @map("phone_number")
-  role         String    @default("admin") // "owner" | "direktur" | "admin"
+  // "owner" | "direktur" | "admin" | "sysadmin". Ringkasnya di modul Internal:
+  //   owner    — semua, tanpa batas.
+  //   direktur — semua kecuali yang dikunci khusus Owner (kelola user, master data, dst).
+  //   admin    — STAF PENAGIHAN: cuma Dashboard, Invoice, Pembayaran, dan Tagihan (Piutang/
+  //              Tindak Lanjut) + Master Data di Pengaturan. TIDAK boleh Akuntansi, Laporan,
+  //              Keuangan (kas masuk/keluar), dan Proyek. Lihat navItemsForRole di
+  //              components/layout/Sidebar.tsx + requirePageRole di tiap page.tsx.
+  //   sysadmin — khusus modul Monitoring Server (lihat catatan di route-route monitoring).
+  role         String    @default("admin")
   // Modul apa saja yang boleh diakses user ini — "internal" | "marketing" | "monitoring".
-  // INDEPENDEN dari `role` di atas: role cuma menentukan detail izin DI DALAM modul Internal
-  // (Kas Keluar saja, Buku Besar per-akun COA, dst — lihat diskusi role Admin), modules
+  // INDEPENDEN dari `role` di atas: role cuma menentukan detail izin DI DALAM modul Internal,
+  // modules
   // menentukan modul mana yang bisa dimasuki sama sekali. Owner SELALU bisa akses semua modul
   // apa pun isi array ini (bypass, sama pola dengan isOwner check di tempat lain) — lihat
   // requireModuleAccess di lib/current-user.ts. Default cuma "internal" karena user lama
@@ -957,11 +965,11 @@ model ChartOfAccount {
   @@schema("simple_system")
 }
 
-/// Daftar akun COA yang boleh dilihat 1 role tertentu di Akuntansi > Buku Besar (lihat Pengaturan
-/// > Akses COA per Role) — cuma dipakai buat role yang DIBATASI (role "admin"), Owner/Direktur
-/// selalu bebas lihat semua akun tanpa perlu baris di tabel ini. Kalau role tidak punya baris
-/// sama sekali di sini, dianggap belum di-set (bukan berarti "boleh semua" atau "tidak boleh
-/// sama sekali") — lihat guard di app/akuntansi/buku-besar/page.tsx.
+/// TIDAK DIPAKAI LAGI (tabel & barisnya sengaja dibiarkan, tidak di-drop). Dulu: daftar akun COA
+/// yang boleh dilihat role "admin" di Akuntansi > Buku Besar, diatur lewat Pengaturan > Akses COA
+/// per Role. Sekarang role "admin" = staf penagihan dan TIDAK boleh masuk Akuntansi sama sekali
+/// (lihat requirePageRole di app/akuntansi/*), jadi tab Pengaturan-nya + API-nya sudah dihapus.
+/// Kalau suatu saat admin boleh lihat Buku Besar lagi, model ini tinggal dipakai ulang.
 model RoleCoaAccess {
   id           String   @id @default(uuid())
   role         String // "admin" — role lain (owner/direktur) tidak butuh baris di sini

@@ -1,8 +1,8 @@
 import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardTitle, CardDescription } from "@/components/ui"
-import { getCurrentUser } from "@/lib/current-user"
-import { ShoppingCart, Landmark, Scale, TrendingUp, BookOpen, LineChart, Receipt, Clock, Wallet } from "lucide-react"
+import { requirePageRole } from "@/lib/current-user"
+import { ShoppingCart, Landmark, Scale, TrendingUp, BookOpen, LineChart, Wallet } from "lucide-react"
 
 const REPORTS = [
   {
@@ -10,13 +10,6 @@ const REPORTS = [
     icon: Wallet,
     title: "Arus Kas Mingguan",
     desc: "Proyeksi pemasukan vs pengeluaran per minggu, dengan saldo kas/bank berjalan.",
-  },
-  { href: "/laporan/piutang", icon: Receipt, title: "Piutang", desc: "Daftar tagih — siapa saja yang masih berhutang." },
-  {
-    href: "/laporan/tindak-lanjut-tagihan",
-    icon: Clock,
-    title: "Tindak Lanjut Tagihan",
-    desc: "Riwayat SLA penagihan Domain/Server/Maintenance — tepat waktu vs telat.",
   },
   { href: "/laporan/penjualan", icon: ShoppingCart, title: "Laporan Penjualan", desc: "Total invoice, tertagih, dan outstanding per periode." },
   { href: "/laporan/keuangan", icon: Landmark, title: "Laporan Keuangan", desc: "Rekap pemasukan & pengeluaran per kategori." },
@@ -27,7 +20,10 @@ const REPORTS = [
 ]
 
 export default async function LaporanHubPage() {
-  const user = await getCurrentUser()
+  // Owner+Direktur saja — semua isinya angka pembukuan. Piutang & Tindak Lanjut Tagihan yang
+  // dulu ikut di sini sudah pindah ke menu Tagihan (/tagihan) supaya role "admin" tetap bisa
+  // kerja penagihan tanpa kebuka laporan keuangan.
+  const user = await requirePageRole(["owner", "direktur"])
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>

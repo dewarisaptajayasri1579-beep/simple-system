@@ -11,10 +11,11 @@ const PAGES = [
 ]
 
 export default async function AkuntansiHubPage() {
-  // Admin cuma boleh Buku Besar (lihat filter PAGES di bawah) — COA & Jurnal Umum tetap
-  // Owner+Direktur saja (halaman-nya sendiri masih requirePageRole(["owner","direktur"])).
-  const user = await requirePageRole(["owner", "direktur", "admin"])
-  const pages = user.role === "admin" ? PAGES.filter((p) => p.href === "/akuntansi/buku-besar") : PAGES
+  // Akuntansi Owner+Direktur saja. Role "admin" (staf penagihan) SENGAJA tidak boleh sama sekali
+  // — dulu dia masih boleh Buku Besar per-akun COA, sekarang dicabut penuh (lihat
+  // navItemsForRole di Sidebar.tsx).
+  const user = await requirePageRole(["owner", "direktur"])
+  const pages = PAGES
 
   return (
     <AppLayout userName={user.name} userRole={user.role}>

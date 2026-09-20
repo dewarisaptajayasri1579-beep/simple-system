@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui"
 import { PeriodFilter } from "@/components/laporan/PeriodFilter"
 import { ClientSalesTable } from "@/components/laporan/ClientSalesTable"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { resolveReportPeriod } from "@/lib/report-period"
 
@@ -11,7 +11,8 @@ function formatRupiah(n: number) {
 }
 
 export default async function LaporanPenjualanPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
-  const user = await getCurrentUser()
+  // Laporan keuangan — Owner+Direktur saja (role "admin" tidak boleh lihat angka pembukuan).
+  const user = await requirePageRole(["owner", "direktur"])
   const params = await searchParams
   const period = resolveReportPeriod(params)
 

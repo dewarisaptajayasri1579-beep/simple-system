@@ -11,6 +11,7 @@ import { revenueCoaCodeForInvoice } from "@/lib/accounting/coa-seed"
 import { markRenewedWithoutCost, markDomainPaid, markServerPaid, markMaintenancePaid } from "@/lib/accounting/mark-paid"
 import { generateTransactionNumber } from "@/lib/transaction-number"
 import { invoiceCashDue } from "@/lib/invoice-due"
+import { notifyOwnerBankPayment } from "@/lib/notify-owner"
 
 export async function GET() {
   const user = await getApiUser()
@@ -143,6 +144,12 @@ export async function POST(request: Request) {
 
   const client = await prisma.client.findUnique({ where: { id: clientId } })
   if (!client) return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 })
+
+  // Akun penerima pelunasan — dulu cuma dicek "tidak kosong" lalu langsung dipakai, padahal
+  // costLink.accountId sudah divalidasi ada. Sekarang di-fetch beneran karena tipenya (kas/bank)
+  // juga menentukan notifikasi ke Owner di akhir (lihat notifyOwnerBankPayment).
+  const account = await prisma.account.findUnique({ where: { id: accountId } })
+  if (!account) return NextResponse.json({ error: "Akun kas/bank tidak ditemukan" }, { status: 404 })
 
   const invoiceById = new Map(invoices.map((inv) => [inv.id, inv]))
   // Kurs (1 unit Invoice.currency = ? IDR) — wajib diisi staf kalau invoice-nya bukan IDR, dipakai
@@ -365,6 +372,30 @@ export async function POST(request: Request) {
 
     return payment
   })
+
+  // Uang masuk ke REKENING BANK yang diinput staf (bukan Owner sendiri) wajib dikabari ke Owner
+  // saat itu juga supaya bisa dicocokkan ke mutasi rekening sebelum diposting. Sengaja di luar
+  // $transaction & di-await dengan catch sendiri — WAHUB mati tidak boleh menggagalkan
+  // pembayaran yang sudah benar tercatat.
+  if (account.type === "bank" && user.role !== "owner") {
+    try {
+      await notifyOwnerBankPayment({
+        paymentId: result.id,
+        paymentNumber: result.paymentNumber,
+        clientName: client.name,
+        totalAmount: result.totalAmount,
+        accountName: account.name,
+        accountBankName: account.bankName,
+        accountNumber: account.accountNumber,
+        invoiceNumbers: lines.map((l) => invoiceById.get(l.invoiceId)!.invoiceNumber),
+        paidAt,
+        inputByName: user.name,
+        inputByRole: user.role,
+      })
+    } catch (error) {
+      console.error("[payments] Gagal kirim notifikasi pembayaran bank ke Owner:", error)
+    }
+  }
 
   return NextResponse.json(result, { status: 201 })
 }

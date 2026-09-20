@@ -18,6 +18,7 @@ import {
   Info,
   RefreshCcw,
   ListChecks,
+  Receipt,
 } from "lucide-react";
 
 export interface NavItem {
@@ -33,22 +34,18 @@ export interface SidebarProps {
   userRole?: string;
 }
 
-// Role "admin" dibatasi ke menu ini saja (lihat diskusi role Admin) — Owner/Direktur tetap lihat
-// semua item di navItems tanpa filter. Keuangan/Akuntansi di-override langsung ke sub-halaman
-// yang boleh diakses (Kas Keluar / Buku Besar), bukan ke hub-nya (yang juga punya Kas Masuk/COA/
-// Jurnal yang admin tidak boleh lihat) — restriksi sebenarnya tetap di masing-masing page.tsx
-// (requirePageRole), ini cuma soal menu mana yang ditampilkan/kemana link-nya mengarah.
-const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Proyek", "Laporan", "Akuntansi", "Pengaturan"]);
-const ADMIN_HREF_OVERRIDE: Record<string, string> = {
-  Keuangan: "/keuangan/kas-keluar",
-  Akuntansi: "/akuntansi/buku-besar",
-};
+// Role "admin" = staf penagihan: cuma input Invoice, input Pembayaran, dan urusan Tagihan
+// (Piutang/Tindak Lanjut). Akuntansi, Laporan, Keuangan (Kas Masuk/Keluar), dan Proyek SENGAJA
+// tidak ada di sini — admin tidak boleh lihat angka pembukuan sama sekali. Pengaturan tetap
+// boleh karena tab-nya sudah dibatasi cuma "Master Data" untuk non-owner (lihat
+// RESTRICTED_ROLE_TABS di PengaturanPanel.tsx), dan itu sumber data Domain/Server/Maintenance
+// yang ditagihkan. Restriksi sebenarnya tetap di masing-masing page.tsx (requirePageRole) —
+// ini cuma soal menu mana yang ditampilkan.
+const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Tagihan", "Pengaturan"]);
 
 export function navItemsForRole(role: string | undefined): NavItem[] {
   if (role !== "admin") return navItems;
-  return navItems
-    .filter((item) => ADMIN_ALLOWED_LABELS.has(item.label))
-    .map((item) => (ADMIN_HREF_OVERRIDE[item.label] ? { ...item, href: ADMIN_HREF_OVERRIDE[item.label] } : item));
+  return navItems.filter((item) => ADMIN_ALLOWED_LABELS.has(item.label));
 }
 
 export const navItems: NavItem[] = [
@@ -56,6 +53,7 @@ export const navItems: NavItem[] = [
   { label: "Dashboard Finance", href: "/dashboard-finance", icon: <RefreshCcw className="w-5 h-5" /> },
   { label: "Invoice", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
+  { label: "Tagihan", href: "/tagihan", icon: <Receipt className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
   { label: "Proyek", href: "/proyek", icon: <FolderKanban className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },

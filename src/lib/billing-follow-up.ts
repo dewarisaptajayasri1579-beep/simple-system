@@ -184,7 +184,7 @@ export interface BillingFollowUpStageTiming {
 }
 
 /** Evaluasi retrospektif buat siklus yang SUDAH selesai (paidRecordedAt terisi) — dipakai laporan
- *  riwayat SLA (lihat /laporan/tindak-lanjut-tagihan), bukan badge Dashboard (itu pakai
+ *  riwayat SLA (lihat /tagihan/tindak-lanjut), bukan badge Dashboard (itu pakai
  *  computeSlaStatus di atas, cuma buat siklus aktif). Tahap yang timestamp-nya nggak lengkap
  *  (mis. invoice dibuat manual tanpa lewat "Tagih Sekarang") dilewati, bukan dianggap telat. */
 export function evaluateClosedCycle(record: BillingFollowUpRecordLike): { late: boolean; stages: BillingFollowUpStageTiming[] } | null {

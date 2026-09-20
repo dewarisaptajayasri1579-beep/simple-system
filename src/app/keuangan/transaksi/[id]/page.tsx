@@ -9,7 +9,7 @@ import { AutoPrint } from "@/components/shared/AutoPrint"
 import { PrintButton } from "@/components/penjualan/PrintButton"
 import { KasKeluarPrintable } from "@/components/keuangan/KasKeluarPrintable"
 import { TransactionActivityLog, type ActivityLogEntry } from "@/components/keuangan/TransactionActivityLog"
-import { getCurrentUser } from "@/lib/current-user"
+import { requirePageRole } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { resolveUserNames } from "@/lib/user-names"
 import { ArrowLeft } from "lucide-react"
@@ -34,7 +34,8 @@ export default async function TransactionDetailPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ print?: string }>
 }) {
-  const user = await getCurrentUser()
+  // Detail transaksi kas — Owner+Direktur saja, sama dengan semua halaman /keuangan lain.
+  const user = await requirePageRole(["owner", "direktur"])
   const { id } = await params
   const { print } = await searchParams
 

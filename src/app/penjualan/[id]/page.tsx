@@ -84,7 +84,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 clientPhone={invoice.client.phoneNumber}
               />
             )}
-            {invoice.totalCost > 0 && (
+            {/* Role "admin" tidak boleh lihat Akuntansi — tombol Jurnal (debit/kredit) ikut
+                disembunyikan, posting invoice-nya sendiri tetap boleh lewat tombol di bawah. */}
+            {invoice.totalCost > 0 && user.role !== "admin" && (
               <JournalButton
                 title={`Jurnal — ${invoice.invoiceNumber}`}
                 sources={[{ sourceType: "invoice", sourceId: invoice.id }]}

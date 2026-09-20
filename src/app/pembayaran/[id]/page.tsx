@@ -110,7 +110,12 @@ export default async function PaymentReceiptPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        <PaymentPostingBar paymentId={payment.id} postStatus={payment.postStatus as "draft" | "posted" | "voided"} sources={journalSources} />
+        <PaymentPostingBar
+          paymentId={payment.id}
+          postStatus={payment.postStatus as "draft" | "posted" | "voided"}
+          sources={journalSources}
+          canSeeJournal={user.role !== "admin"}
+        />
 
         {payment.revenueSlot && (
           <SlottingStatusBar

@@ -17,13 +17,18 @@ interface SectionItem {
   href: string;
 }
 
-const SECTIONS: SectionItem[] = [
-  { label: "Dashboard", href: "/dashboard" },
+// `adminOk` = boleh muncul untuk role "admin" (staf penagihan). Sisanya cuma Owner/Direktur —
+// halamannya sendiri sudah redirect (requirePageRole), ini biar tidak kelihatan di palette dan
+// admin tidak ngeklik menu yang cuma bakal melempar dia balik ke Dashboard.
+const SECTIONS: (SectionItem & { adminOk?: boolean })[] = [
+  { label: "Dashboard", href: "/dashboard", adminOk: true },
   { label: "Dashboard Finance", href: "/dashboard-finance" },
-  { label: "Piutang", href: "/laporan/piutang" },
-  { label: "Pembayaran", href: "/pembayaran" },
-  { label: "Invoice", href: "/penjualan" },
-  { label: "Buat Invoice Baru", href: "/penjualan/baru" },
+  { label: "Tagihan", href: "/tagihan", adminOk: true },
+  { label: "Piutang", href: "/tagihan/piutang", adminOk: true },
+  { label: "Tindak Lanjut Tagihan", href: "/tagihan/tindak-lanjut", adminOk: true },
+  { label: "Pembayaran", href: "/pembayaran", adminOk: true },
+  { label: "Invoice", href: "/penjualan", adminOk: true },
+  { label: "Buat Invoice Baru", href: "/penjualan/baru", adminOk: true },
   { label: "Keuangan", href: "/keuangan" },
   { label: "Laporan", href: "/laporan" },
   { label: "Laporan Keuangan", href: "/laporan/keuangan" },
@@ -33,8 +38,8 @@ const SECTIONS: SectionItem[] = [
   { label: "Laporan Neraca (Akrual)", href: "/laporan/neraca-akrual" },
   { label: "Laporan Penjualan", href: "/laporan/penjualan" },
   { label: "Akuntansi", href: "/akuntansi" },
-  { label: "Dokumentasi", href: "/dokumentasi" },
-  { label: "Pengaturan", href: "/pengaturan" },
+  { label: "Dokumentasi", href: "/dokumentasi", adminOk: true },
+  { label: "Pengaturan", href: "/pengaturan", adminOk: true },
 ];
 
 const TYPE_LABEL: Record<SearchResult["type"], string> = {
@@ -44,7 +49,7 @@ const TYPE_LABEL: Record<SearchResult["type"], string> = {
   server: "Server",
 };
 
-export const CommandPalette: React.FC = () => {
+export const CommandPalette: React.FC<{ userRole?: string }> = ({ userRole }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -85,10 +90,11 @@ export const CommandPalette: React.FC = () => {
   }, [isOpen]);
 
   const matchedSections = useMemo(() => {
+    const allowed = userRole === "admin" ? SECTIONS.filter((s) => s.adminOk) : SECTIONS;
     const term = query.trim().toLowerCase();
-    if (!term) return SECTIONS;
-    return SECTIONS.filter((s) => s.label.toLowerCase().includes(term));
-  }, [query]);
+    if (!term) return allowed;
+    return allowed.filter((s) => s.label.toLowerCase().includes(term));
+  }, [query, userRole]);
 
   useEffect(() => {
     const term = query.trim();
