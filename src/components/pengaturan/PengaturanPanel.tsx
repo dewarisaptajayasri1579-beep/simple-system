@@ -83,6 +83,7 @@ const MODULE_OPTIONS: { value: string; label: string }[] = [
   { value: "internal", label: "Internal" },
   { value: "marketing", label: "Marketing" },
   { value: "monitoring", label: "Monitoring" },
+  { value: "administratif", label: "Administratif" },
 ];
 
 const ROLE_OPTIONS = [

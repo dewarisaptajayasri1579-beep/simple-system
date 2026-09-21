@@ -3,12 +3,13 @@ import { redirect } from "next/navigation"
 import { getSessionUser } from "@/lib/auth"
 
 export type Role = "owner" | "direktur" | "admin" | "sysadmin"
-export type ModuleKey = "internal" | "marketing" | "monitoring"
+export type ModuleKey = "internal" | "marketing" | "monitoring" | "administratif"
 
 export const MODULE_LABEL: Record<ModuleKey, string> = {
   internal: "Internal",
   marketing: "Marketing (Kelola Lead)",
   monitoring: "Monitoring Server",
+  administratif: "Administratif",
 }
 
 /** User yang sedang login DAN boleh masuk ke `module` ini — redirect ke /login kalau belum
