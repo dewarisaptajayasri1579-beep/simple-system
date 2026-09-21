@@ -5,41 +5,62 @@ import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { invoiceCashDue } from "@/lib/invoice-due"
 import { resolveUserNames } from "@/lib/user-names"
+import { resolveDomainExpiry } from "@/lib/domain-status"
+import { resolveServerExpiry } from "@/lib/recurring-bill-status"
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount || 0)
 }
 
-/** Menu Tagihan > Piutang Ragu-Ragu — semua piutang yang "direm" Owner, dua flag sekaligus
- *  (Pending & Ragu-Ragu). Dua-duanya sudah dikeluarkan dari Piutang Outstanding di Dashboard,
- *  halaman Piutang, Neraca, dan Arus Kas; halaman ini tempat angkanya tetap bisa dilihat dan
- *  diaktifkan lagi. Menandai/melepas cuma boleh Owner (lihat API-nya), tapi daftarnya boleh
- *  dilihat siapa pun yang punya akses menu Tagihan. */
+/** Menu Tagihan > Piutang Ragu-Ragu — semua tagihan yang "direm" Owner, dua flag (Pending &
+ *  Ragu-Ragu) x tiga jenis item (Invoice/Domain/Server). Semuanya sudah dikeluarkan dari
+ *  Piutang Outstanding / "Tagihan Belum Ditagih" di Dashboard, Piutang, Neraca, dan Arus Kas;
+ *  halaman ini tempat angkanya tetap bisa dilihat dan diaktifkan lagi. Menandai/melepas cuma
+ *  boleh Owner (lihat API-nya), tapi daftarnya boleh dilihat siapa pun yang punya akses menu
+ *  Tagihan (termasuk role "admin"). */
 export default async function PiutangRaguRaguPage() {
   const user = await getCurrentUser()
 
-  const invoices = await prisma.invoice.findMany({
-    where: { postStatus: "posted", OR: [{ doubtfulAt: { not: null } }, { pendingAt: { not: null } }] },
-    include: {
-      client: { select: { name: true, isPemungutPpn: true } },
-      payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
-    },
-    orderBy: { issuedAt: "desc" },
-  })
+  const [invoices, domains, servers] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { postStatus: "posted", OR: [{ doubtfulAt: { not: null } }, { pendingAt: { not: null } }] },
+      include: {
+        client: { select: { name: true, isPemungutPpn: true } },
+        payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+      },
+      orderBy: { issuedAt: "desc" },
+    }),
+    prisma.domain.findMany({
+      where: { OR: [{ doubtfulAt: { not: null } }, { pendingAt: { not: null } }] },
+      include: { client: { select: { name: true } } },
+    }),
+    prisma.server.findMany({
+      where: { OR: [{ doubtfulAt: { not: null } }, { pendingAt: { not: null } }] },
+      include: { client: { select: { name: true } } },
+    }),
+  ])
 
-  const names = await resolveUserNames(invoices.flatMap((inv) => [inv.doubtfulById, inv.pendingById]))
+  const names = await resolveUserNames([
+    ...invoices.flatMap((inv) => [inv.doubtfulById, inv.pendingById]),
+    ...domains.flatMap((d) => [d.doubtfulById, d.pendingById]),
+    ...servers.flatMap((s) => [s.doubtfulById, s.pendingById]),
+  ])
 
-  const rows: PiutangRaguRaguRow[] = invoices
+  /** true kalau doubtfulAt terisi — ragu-ragu tingkat lebih berat, API-nya membersihkan
+   *  pendingAt saat eskalasi jadi dua-duanya tidak pernah beneran terisi bareng (lihat
+   *  ../../api/invoices/[id]/doubtful & padanannya buat domain/server). */
+  const flagOf = (row: { doubtfulAt: Date | null; pendingAt: Date | null }) => Boolean(row.doubtfulAt)
+
+  const invoiceRows: PiutangRaguRaguRow[] = invoices
     .map((inv) => {
       const paid = inv.payments.reduce((sum, p) => sum + p.amount, 0)
-      // doubtfulAt menang kalau entah bagaimana dua-duanya terisi — ragu-ragu tingkat lebih
-      // berat, dan API-nya memang membersihkan pendingAt saat eskalasi (lihat ../doubtful).
-      const isDoubtful = Boolean(inv.doubtfulAt)
+      const isDoubtful = flagOf(inv)
       const flaggedAt = (isDoubtful ? inv.doubtfulAt : inv.pendingAt)!
       const flaggedById = isDoubtful ? inv.doubtfulById : inv.pendingById
       return {
         id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
+        itemType: "invoice" as const,
+        label: inv.invoiceNumber,
         clientName: inv.client.name,
         remaining: Math.max(0, invoiceCashDue(inv, inv.client.isPemungutPpn) - paid),
         dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
@@ -50,7 +71,50 @@ export default async function PiutangRaguRaguPage() {
       }
     })
     .filter((r) => r.remaining > 0)
-    .sort((a, b) => b.flaggedAt.localeCompare(a.flaggedAt))
+
+  const domainRows: PiutangRaguRaguRow[] = domains.map((d) => {
+    const isDoubtful = flagOf(d)
+    const flaggedAt = (isDoubtful ? d.doubtfulAt : d.pendingAt)!
+    const flaggedById = isDoubtful ? d.doubtfulById : d.pendingById
+    return {
+      id: d.id,
+      itemType: "domain" as const,
+      label: d.name,
+      clientName: d.client?.name ?? "Internal",
+      remaining: d.sellPrice ?? 0,
+      dueDate: (() => {
+        const expiry = resolveDomainExpiry(d)
+        return expiry ? expiry.toISOString() : null
+      })(),
+      flag: isDoubtful ? ("ragu_ragu" as const) : ("pending" as const),
+      flaggedAt: flaggedAt.toISOString(),
+      flaggedReason: (isDoubtful ? d.doubtfulReason : d.pendingReason) ?? "-",
+      flaggedByName: flaggedById ? (names.get(flaggedById) ?? null) : null,
+    }
+  })
+
+  const serverRows: PiutangRaguRaguRow[] = servers.map((s) => {
+    const isDoubtful = flagOf(s)
+    const flaggedAt = (isDoubtful ? s.doubtfulAt : s.pendingAt)!
+    const flaggedById = isDoubtful ? s.doubtfulById : s.pendingById
+    return {
+      id: s.id,
+      itemType: "server" as const,
+      label: s.name,
+      clientName: s.client?.name ?? "Internal",
+      remaining: s.price ?? 0,
+      dueDate: (() => {
+        const nextDue = resolveServerExpiry(s)
+        return nextDue ? nextDue.toISOString() : null
+      })(),
+      flag: isDoubtful ? ("ragu_ragu" as const) : ("pending" as const),
+      flaggedAt: flaggedAt.toISOString(),
+      flaggedReason: (isDoubtful ? s.doubtfulReason : s.pendingReason) ?? "-",
+      flaggedByName: flaggedById ? (names.get(flaggedById) ?? null) : null,
+    }
+  })
+
+  const rows = [...invoiceRows, ...domainRows, ...serverRows].sort((a, b) => b.flaggedAt.localeCompare(a.flaggedAt))
 
   const totalPending = rows.filter((r) => r.flag === "pending").reduce((sum, r) => sum + r.remaining, 0)
   const totalDoubtful = rows.filter((r) => r.flag === "ragu_ragu").reduce((sum, r) => sum + r.remaining, 0)
@@ -61,7 +125,7 @@ export default async function PiutangRaguRaguPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Piutang Ragu-Ragu</h1>
           <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-            Tagihan yang sengaja ditahan Owner — tidak dihitung di Piutang Outstanding dan tidak ditagih otomatis.
+            Invoice, Domain, dan Server yang sengaja ditahan Owner — tidak dihitung di Piutang Outstanding / Tagihan Belum Ditagih, dan tidak ditagih otomatis.
           </p>
         </div>
 

@@ -86,7 +86,8 @@ function getInvoiceColumns(clientId: string, clientName: string, isOwner: boolea
             header: "Tindakan",
             cell: (inv: PiutangInvoice) => (
               <PiutangStatusCell
-                invoiceId={inv.id}
+                itemId={inv.id}
+                basePath="invoices"
                 itemLabel={`${inv.invoiceNumber} — ${clientName}`}
                 remaining={inv.remaining}
                 pendingAt={inv.pendingAt}

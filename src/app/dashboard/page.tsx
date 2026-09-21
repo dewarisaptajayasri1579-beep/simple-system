@@ -96,8 +96,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
-    prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
+    // doubtfulAt/pendingAt: null — domain/server yang ditahan Owner (lihat menu Tagihan >
+    // Piutang Ragu-Ragu) dikeluarkan sama sekali dari Dashboard, sama pola dengan openInvoices.
+    prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { client: true } }),
+    prisma.server.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { period: true, client: true } }),
     prisma.maintenance.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true, vendor: true } }),
     prisma.invoice.findMany({
@@ -219,6 +221,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         expiryDate: d.expiryDate ? d.expiryDate.toISOString() : null,
         dueDate: expiry ? expiry.toISOString() : null,
         bucket: getExpiryBucket(expiry),
+        pendingAt: d.pendingAt ? d.pendingAt.toISOString() : null,
+        pendingReason: d.pendingReason,
       }
     })
     .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month" || r.bucket === "expiring_next_month"))
@@ -239,6 +243,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         price: s.price,
         dueDate: nextDue ? nextDue.toISOString() : null,
         bucket: getExpiryBucket(nextDue),
+        pendingAt: s.pendingAt ? s.pendingAt.toISOString() : null,
+        pendingReason: s.pendingReason,
       }
     })
     .filter((r) => (hasDateRange ? inDateRange(r.dueDate) : r.bucket === "expired" || r.bucket === "expiring_this_month"))

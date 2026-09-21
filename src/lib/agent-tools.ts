@@ -87,7 +87,8 @@ async function getOutstandingInvoices(input: { clientName?: string }) {
 }
 
 async function getDomainsExpiring() {
-  const domains = await prisma.domain.findMany({ where: { active: true }, include: { client: true } })
+  // doubtfulAt/pendingAt: null — jangan suruh staf mengejar domain yang sedang ditahan Owner.
+  const domains = await prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { client: true } })
   return domains
     .map((d) => ({ domain: d, dueDate: resolveDomainExpiry(d), bucket: getExpiryBucket(resolveDomainExpiry(d)) }))
     .filter((r) => r.bucket !== "safe")
@@ -136,7 +137,8 @@ async function deactivateDomain(input: { domainName: string; reason: string }, c
 }
 
 async function getServersExpiring() {
-  const servers = await prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } })
+  // doubtfulAt/pendingAt: null — jangan suruh staf mengejar server yang sedang ditahan Owner.
+  const servers = await prisma.server.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { period: true, client: true } })
   return servers
     .map((s) => ({
       server: s,

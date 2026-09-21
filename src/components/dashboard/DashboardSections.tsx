@@ -201,7 +201,8 @@ function piutangColumns(
             header: "Tindakan",
             cell: (r: PiutangSummaryRow) => (
               <PiutangStatusCell
-                invoiceId={r.id}
+                itemId={r.id}
+                basePath="invoices"
                 itemLabel={`${r.invoiceNumber} — ${r.clientName}`}
                 remaining={r.remaining}
                 pendingAt={r.pendingAt}
@@ -464,6 +465,12 @@ export interface DomainExpiringRow {
   paymentNumber: string | null;
   paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
+  // Pending — dikeluarkan dari "Tagihan Belum Ditagih" & baris ini sendiri (query sudah filter
+  // doubtfulAt/pendingAt: null di server, jadi baris ber-flag TIDAK PERNAH sampai ke sini —
+  // field ini cuma dipakai kolom Tindakan buat MENANDAI, bukan buat nampilin status "sedang
+  // pending" di baris yang sama). Lihat Domain.pendingAt di schema.prisma.
+  pendingAt: string | null;
+  pendingReason: string | null;
 }
 
 const DOMAIN_COLUMNS = [
@@ -642,6 +649,18 @@ export const DomainExpiringSection: React.FC<{
             )}
             {isOwner && <DeactivateDomainButton domainId={r.id} domainName={r.name} />}
           </div>
+          {/* Cuma domain berbayar ke client (bukan infra internal) yang masuk "Tagihan Belum
+              Ditagih" — Pending/Ragu-Ragu cuma masuk akal buat baris itu. */}
+          {isOwner && r.clientId && (
+            <PiutangStatusCell
+              itemId={r.id}
+              basePath="domains"
+              itemLabel={`${r.name} — ${r.owner}`}
+              remaining={r.price ?? 0}
+              pendingAt={r.pendingAt}
+              pendingReason={r.pendingReason}
+            />
+          )}
         </div>
       ),
     },
@@ -695,6 +714,8 @@ export interface ServerDueRow {
   paymentNumber: string | null;
   paymentPostStatus: string | null;
   sla: BillingFollowUpSla | null;
+  pendingAt: string | null;
+  pendingReason: string | null;
 }
 
 const SERVER_COLUMNS = [
@@ -847,6 +868,18 @@ export const ServerDueSection: React.FC<{
               <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />
             )}
           </div>
+          {/* Cuma server berbayar ke client (bukan infra internal) yang masuk "Tagihan Belum
+              Ditagih" — Pending/Ragu-Ragu cuma masuk akal buat baris itu. */}
+          {isOwner && r.clientId && (
+            <PiutangStatusCell
+              itemId={r.id}
+              basePath="servers"
+              itemLabel={`${r.name} — ${r.clientName ?? ""}`}
+              remaining={r.price ?? 0}
+              pendingAt={r.pendingAt}
+              pendingReason={r.pendingReason}
+            />
+          )}
         </div>
       ),
     },

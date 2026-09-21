@@ -5,24 +5,31 @@ import Link from "next/link";
 import { Card, CardTitle, CardDescription, FilterableTable, type FilterableColumn } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ClearStatusButton } from "./PiutangStatusTools";
+import type { StatusItemBasePath } from "./PiutangStatusTools";
 
-/** Daftar piutang yang sudah "direm" Owner — dipakai di menu Tagihan > Piutang Ragu-Ragu.
+/** Daftar tagihan yang sudah "direm" Owner — dipakai di menu Tagihan > Piutang Ragu-Ragu.
+ *  Tiga jenis item bisa ditahan: Invoice (piutang beneran), Domain, dan Server (renewal yang
+ *  belum jadi invoice, ditahan supaya tidak masuk "Tagihan Belum Ditagih" di Dashboard).
  *
- *  Dua flag, perlakuan sama (dua-duanya KELUAR dari Piutang Outstanding dan berhenti ditagih
- *  otomatis), yang beda cuma maknanya:
+ *  Dua flag, perlakuan sama (dua-duanya KELUAR dari Piutang Outstanding / Tagihan Belum
+ *  Ditagih dan berhenti ditagih otomatis), yang beda cuma maknanya:
  *
  *    pending    — ditunda, kemungkinan besar masih cair (client minta tempo / lagi dinego).
  *    ragu_ragu  — kemungkinan besar tidak akan cair sama sekali.
  *
  *  Tidak ada jurnal apa pun di balik ini — Piutang di app ini memang bukan akun GL, cuma hasil
- *  hitung Invoice.totalAmount − pembayaran posted (lihat pedoman_akunting.md). Beda dari
- *  "Batalkan" (Void) yang artinya invoice-nya salah input. */
+ *  hitung Invoice.totalAmount − pembayaran posted (lihat pedoman_akunting.md); Domain/Server
+ *  malah belum jadi invoice sama sekali di titik "belum ditagih". Beda dari "Batalkan" (Void)
+ *  yang artinya invoice-nya salah input. */
 
 export type PiutangFlag = "pending" | "ragu_ragu";
+export type PiutangHeldItemType = "invoice" | "domain" | "server";
 
 export interface PiutangRaguRaguRow {
   id: string;
-  invoiceNumber: string;
+  itemType: PiutangHeldItemType;
+  /** No. Invoice untuk itemType "invoice", nama domain/server untuk yang lain. */
+  label: string;
   clientName: string;
   remaining: number;
   dueDate: string | null;
@@ -50,6 +57,24 @@ const FLAG_OPTIONS = [
   { value: "ragu_ragu", label: FLAG_LABEL.ragu_ragu },
 ];
 
+const ITEM_TYPE_LABEL: Record<PiutangHeldItemType, string> = {
+  invoice: "Invoice",
+  domain: "Domain",
+  server: "Server",
+};
+
+const ITEM_TYPE_OPTIONS = [
+  { value: "invoice", label: ITEM_TYPE_LABEL.invoice },
+  { value: "domain", label: ITEM_TYPE_LABEL.domain },
+  { value: "server", label: ITEM_TYPE_LABEL.server },
+];
+
+const ITEM_TYPE_BASE_PATH: Record<PiutangHeldItemType, StatusItemBasePath> = {
+  invoice: "invoices",
+  domain: "domains",
+  server: "servers",
+};
+
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount || 0);
 }
@@ -59,9 +84,9 @@ function formatDate(iso: string | null) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso));
 }
 
-/** Endpoint per flag — dipakai tombol "Aktifkan Lagi" (DELETE). */
+/** Endpoint per jenis item + flag — dipakai tombol "Aktifkan Lagi" (DELETE). */
 function endpointFor(row: PiutangRaguRaguRow) {
-  return `/api/invoices/${row.id}/${row.flag === "pending" ? "pending" : "doubtful"}`;
+  return `/api/${ITEM_TYPE_BASE_PATH[row.itemType]}/${row.id}/${row.flag === "pending" ? "pending" : "doubtful"}`;
 }
 
 export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOwner: boolean }> = ({ rows, isOwner }) => {
@@ -81,15 +106,25 @@ export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOw
       cell: (r) => <StatusBadge type={FLAG_BADGE[r.flag]} label={FLAG_LABEL[r.flag]} size="sm" />,
     },
     {
-      key: "invoiceNumber",
-      header: "No. Invoice",
-      filterValue: (r) => r.invoiceNumber,
+      key: "itemType",
+      header: "Jenis",
+      filterValue: (r) => r.itemType,
+      filterOptions: ITEM_TYPE_OPTIONS,
+      cell: (r) => <span className="text-xs font-bold text-slate-500 uppercase">{ITEM_TYPE_LABEL[r.itemType]}</span>,
+    },
+    {
+      key: "label",
+      header: "Item",
+      filterValue: (r) => r.label,
       cellClassName: "font-semibold",
-      cell: (r) => (
-        <Link href={`/penjualan/${r.id}`} className="hover:underline">
-          {r.invoiceNumber}
-        </Link>
-      ),
+      cell: (r) =>
+        r.itemType === "invoice" ? (
+          <Link href={`/penjualan/${r.id}`} className="hover:underline">
+            {r.label}
+          </Link>
+        ) : (
+          r.label
+        ),
     },
     { key: "clientName", header: "Client", filterValue: (r) => r.clientName, cell: (r) => r.clientName },
     { key: "dueDate", header: "Jatuh Tempo", cell: (r) => formatDate(r.dueDate) },
@@ -116,7 +151,7 @@ export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOw
               <ClearStatusButton
                 endpoint={endpointFor(r)}
                 label="Aktifkan Lagi"
-                confirmText={`Aktifkan lagi ${r.invoiceNumber} — ${r.clientName}? Invoice ini kembali dihitung sebagai Piutang Outstanding dan ditagih seperti biasa.`}
+                confirmText={`Aktifkan lagi ${r.label} — ${r.clientName}? Ini kembali dihitung & ditagih seperti biasa.`}
               />
             ),
           },
@@ -143,9 +178,9 @@ export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOw
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 px-1">
         <div>
-          <CardTitle>Daftar Piutang Ditahan</CardTitle>
+          <CardTitle>Daftar Tagihan Ditahan</CardTitle>
           <CardDescription>
-            {filteredRows.length} invoice, total {formatRupiah(total)} — sudah TIDAK dihitung di Piutang Outstanding.
+            {filteredRows.length} item, total {formatRupiah(total)} — sudah TIDAK dihitung di Piutang Outstanding / Tagihan Belum Ditagih.
           </CardDescription>
         </div>
       </div>
@@ -159,8 +194,8 @@ export const PiutangRaguRaguSection: React.FC<{ rows: PiutangRaguRaguRow[]; isOw
         <FilterableTable
           columns={columns}
           rows={filteredRows}
-          rowKey={(r) => r.id}
-          emptyMessage="Belum ada piutang yang ditandai pending / ragu-ragu."
+          rowKey={(r) => `${r.itemType}:${r.id}`}
+          emptyMessage="Belum ada tagihan yang ditandai pending / ragu-ragu."
           mobileCardMode
         />
       </Card>

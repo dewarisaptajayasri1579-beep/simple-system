@@ -8,8 +8,10 @@ import { invoiceCashDue } from "@/lib/invoice-due"
  *  laporan gambar pagi/sore, pesan teks WA, dan Q&A grup (biar semuanya selalu ngomong angka yang sama). */
 export async function getDashboardSnapshot() {
   const [domains, servers, bills, openInvoices, clientCount, overdueFollowUps] = await Promise.all([
-    prisma.domain.findMany({ where: { active: true }, include: { client: true } }),
-    prisma.server.findMany({ where: { active: true }, include: { period: true, client: true } }),
+    // doubtfulAt/pendingAt: null — sama pola dengan Dashboard (lihat app/dashboard/page.tsx),
+    // supaya laporan WA pagi/sore tidak ikut menagih item yang sedang ditahan Owner.
+    prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { client: true } }),
+    prisma.server.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
       where: { status: { in: ["unpaid", "partial", "claimed_paid"] }, postStatus: "posted", doubtfulAt: null, pendingAt: null },

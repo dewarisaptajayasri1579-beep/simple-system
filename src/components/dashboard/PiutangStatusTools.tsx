@@ -5,16 +5,23 @@ import { useRouter } from "next/navigation";
 import { Button, Modal, Alert, Textarea } from "@/components/ui";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
-/** Dua "rem" manual Owner untuk sebuah piutang, dipakai di kolom Tindakan tabel Piutang
- *  (Dashboard). Keduanya minta alasan wajib dan tersimpan di audit log:
+/** Dua "rem" manual Owner untuk piutang/tagihan yang belum ditagih — dipakai di kolom Tindakan
+ *  tabel Piutang (invoice), section Domain, dan section Server (Dashboard). Keduanya minta
+ *  alasan wajib dan tersimpan di audit log:
  *
- *  - **Pending**   — penagihan ditunda sementara (client minta tempo/lagi nego). Tagihannya
- *                    TETAP dihitung di Piutang Outstanding, cuma berhenti ditagih otomatis.
- *  - **Ragu-Ragu** — dianggap tidak akan cair. Keluar dari Piutang Outstanding dan pindah ke
- *                    section "Piutang Ragu-Ragu" (lihat PiutangRaguRaguSection).
+ *  - **Pending**   — penagihan ditunda sementara (client minta tempo/lagi nego).
+ *  - **Ragu-Ragu** — dianggap tidak akan cair sama sekali.
  *
- *  Tidak ada jurnal di balik keduanya — Piutang di app ini bukan akun GL, cuma hasil hitung
+ *  Perlakuan keduanya SAMA: keluar dari perhitungan (Piutang Outstanding / Tagihan Belum
+ *  Ditagih) dan berhenti ditagih/dikejar otomatis, sampai dilepas lagi lewat "Aktifkan Lagi"
+ *  (lihat menu Tagihan > Piutang Ragu-Ragu). Endpoint-nya beda per jenis item — lihat `basePath`.
+ *
+ *  Tidak ada jurnal di balik keduanya — Domain/Server belum jadi invoice di titik "belum
+ *  ditagih", dan Piutang invoice sendiri bukan akun GL di app ini, cuma hasil hitung
  *  Invoice.totalAmount − pembayaran posted (lihat pedoman_akunting.md). */
+
+/** Endpoint REST-nya: /api/{basePath}/{itemId}/doubtful atau /pending. */
+export type StatusItemBasePath = "invoices" | "domains" | "servers";
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount || 0);
@@ -94,7 +101,7 @@ const ReasonButton: React.FC<ReasonButtonProps> = ({ label, title, subtitle, end
   );
 };
 
-/** Tombol lepas status (DELETE ke endpoint yang sama) — mis. "Lepas Pending". */
+/** Tombol lepas status (DELETE ke endpoint yang sama) — mis. "Lepas Pending"/"Aktifkan Lagi". */
 export const ClearStatusButton: React.FC<{ endpoint: string; label: string; confirmText: string }> = ({ endpoint, label, confirmText }) => {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -124,39 +131,50 @@ export const ClearStatusButton: React.FC<{ endpoint: string; label: string; conf
   );
 };
 
-export const MarkDoubtfulButton: React.FC<{ invoiceId: string; itemLabel: string; remaining: number }> = ({ invoiceId, itemLabel, remaining }) => (
+export const MarkDoubtfulButton: React.FC<{ itemId: string; basePath: StatusItemBasePath; itemLabel: string; remaining: number }> = ({
+  itemId,
+  basePath,
+  itemLabel,
+  remaining,
+}) => (
   <ReasonButton
     label="Ragu-Ragu"
     className="!text-amber-700 !border-amber-300 hover:!bg-amber-50"
-    title="Tandai Piutang Ragu-Ragu"
-    subtitle={`${itemLabel} — sisa ${formatRupiah(remaining)} akan DIKELUARKAN dari Piutang Outstanding dan berhenti ditagih otomatis. Invoice-nya tetap tersimpan dan bisa diaktifkan lagi kapan saja.`}
-    endpoint={`/api/invoices/${invoiceId}/doubtful`}
+    title="Tandai Ragu-Ragu"
+    subtitle={`${itemLabel} — sisa ${formatRupiah(remaining)} akan DIKELUARKAN dari perhitungan (Piutang Outstanding / Tagihan Belum Ditagih) dan berhenti ditagih otomatis. Datanya tetap tersimpan dan bisa diaktifkan lagi kapan saja.`}
+    endpoint={`/api/${basePath}/${itemId}/doubtful`}
     confirmLabel="Tandai Ragu-Ragu"
     placeholder="Mis. client sudah tidak bisa dihubungi sejak Maret, kantornya tutup."
   />
 );
 
-export const MarkPendingButton: React.FC<{ invoiceId: string; itemLabel: string; remaining: number }> = ({ invoiceId, itemLabel, remaining }) => (
+export const MarkPendingButton: React.FC<{ itemId: string; basePath: StatusItemBasePath; itemLabel: string; remaining: number }> = ({
+  itemId,
+  basePath,
+  itemLabel,
+  remaining,
+}) => (
   <ReasonButton
     label="Pending"
     className="!text-sky-700 !border-sky-300 hover:!bg-sky-50"
-    title="Tandai Piutang Pending"
-    subtitle={`${itemLabel} — sisa ${formatRupiah(remaining)} TETAP dihitung di Piutang Outstanding, cuma berhenti ditagih otomatis sampai statusnya dilepas.`}
-    endpoint={`/api/invoices/${invoiceId}/pending`}
+    title="Tandai Pending"
+    subtitle={`${itemLabel} — sisa ${formatRupiah(remaining)} DIKELUARKAN dari perhitungan (Piutang Outstanding / Tagihan Belum Ditagih) dan berhenti ditagih otomatis sampai statusnya dilepas.`}
+    endpoint={`/api/${basePath}/${itemId}/pending`}
     confirmLabel="Tandai Pending"
     placeholder="Mis. client minta tempo sampai akhir bulan, nunggu pencairan termin dari pusat."
   />
 );
 
-/** Sel "Tindakan" di tabel Piutang — menyesuaikan status invoice-nya sekarang. Cuma dirender
- *  untuk Owner (lihat piutangColumns di DashboardSections.tsx). */
+/** Sel "Tindakan" di tabel Piutang / section Domain / section Server — menyesuaikan status
+ *  item-nya sekarang. Cuma dirender untuk Owner (endpoint-nya juga owner-only). */
 export const PiutangStatusCell: React.FC<{
-  invoiceId: string;
+  itemId: string;
+  basePath: StatusItemBasePath;
   itemLabel: string;
   remaining: number;
   pendingAt: string | null;
   pendingReason: string | null;
-}> = ({ invoiceId, itemLabel, remaining, pendingAt, pendingReason }) => {
+}> = ({ itemId, basePath, itemLabel, remaining, pendingAt, pendingReason }) => {
   if (pendingAt) {
     return (
       <div className="space-y-1.5">
@@ -164,11 +182,11 @@ export const PiutangStatusCell: React.FC<{
         {pendingReason && <p className="text-[11px] text-slate-500 font-medium max-w-[180px]">{pendingReason}</p>}
         <div className="flex flex-wrap gap-1.5">
           <ClearStatusButton
-            endpoint={`/api/invoices/${invoiceId}/pending`}
+            endpoint={`/api/${basePath}/${itemId}/pending`}
             label="Lepas Pending"
-            confirmText={`Lepas status pending ${itemLabel}? Tagihan ini kembali masuk antrean penagihan otomatis.`}
+            confirmText={`Lepas status pending ${itemLabel}? Ini kembali masuk antrean penagihan otomatis.`}
           />
-          <MarkDoubtfulButton invoiceId={invoiceId} itemLabel={itemLabel} remaining={remaining} />
+          <MarkDoubtfulButton itemId={itemId} basePath={basePath} itemLabel={itemLabel} remaining={remaining} />
         </div>
       </div>
     );
@@ -176,8 +194,8 @@ export const PiutangStatusCell: React.FC<{
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      <MarkPendingButton invoiceId={invoiceId} itemLabel={itemLabel} remaining={remaining} />
-      <MarkDoubtfulButton invoiceId={invoiceId} itemLabel={itemLabel} remaining={remaining} />
+      <MarkPendingButton itemId={itemId} basePath={basePath} itemLabel={itemLabel} remaining={remaining} />
+      <MarkDoubtfulButton itemId={itemId} basePath={basePath} itemLabel={itemLabel} remaining={remaining} />
     </div>
   );
 };

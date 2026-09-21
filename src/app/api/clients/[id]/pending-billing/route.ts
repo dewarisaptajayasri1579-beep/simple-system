@@ -35,8 +35,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const showAll = new URL(request.url).searchParams.get("all") === "true"
 
   const [domains, servers, maintenances, projectSchedules] = await Promise.all([
-    prisma.domain.findMany({ where: { active: true, clientId } }),
-    prisma.server.findMany({ where: { active: true, clientId }, include: { period: true } }),
+    // doubtfulAt/pendingAt: null — item yang sedang ditahan Owner tidak boleh ke-tarik otomatis
+    // jadi baris invoice di sini (lihat menu Tagihan > Piutang Ragu-Ragu).
+    prisma.domain.findMany({ where: { active: true, clientId, doubtfulAt: null, pendingAt: null } }),
+    prisma.server.findMany({ where: { active: true, clientId, doubtfulAt: null, pendingAt: null }, include: { period: true } }),
     prisma.maintenance.findMany({ where: { active: true, clientId }, include: { period: true } }),
     prisma.projectPaymentSchedule.findMany({
       where: { OR: [{ invoiceId: null }, { invoice: { is: { postStatus: "voided" } } }], project: { clientId, status: "berjalan" } },

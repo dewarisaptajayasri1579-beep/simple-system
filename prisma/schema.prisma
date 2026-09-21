@@ -465,6 +465,16 @@ model Server {
   active            Boolean   @default(true)
   legacyActiveFlag  String?   @map("legacy_active_flag")
 
+  // ---- Ragu-Ragu / Pending — sama konsep dengan Domain.doubtfulAt/pendingAt di atas (lihat
+  // catatan lengkap di model Invoice). Dikeluarkan dari "Tagihan Belum Ditagih" & section Server
+  // di Dashboard sampai dilepas lagi.
+  doubtfulAt     DateTime? @map("doubtful_at")
+  doubtfulReason String?   @map("doubtful_reason")
+  doubtfulById   String?   @map("doubtful_by_id")
+  pendingAt      DateTime? @map("pending_at")
+  pendingReason  String?   @map("pending_reason")
+  pendingById    String?   @map("pending_by_id")
+
   vendor    Vendor?        @relation(fields: [vendorId], references: [id])
   cloudType CloudType?     @relation(fields: [cloudTypeId], references: [id])
   period    BillingPeriod? @relation(fields: [periodId], references: [id])
@@ -474,6 +484,8 @@ model Server {
   @@index([vendorId])
   @@index([cloudTypeId])
   @@index([periodId])
+  @@index([doubtfulAt])
+  @@index([pendingAt])
   @@map("servers")
   @@schema("simple_system")
 }
@@ -608,12 +620,27 @@ model Domain {
   legacyActiveFlag String?   @map("legacy_active_flag")
   createdAt        DateTime  @default(now()) @map("created_at")
 
+  // ---- Ragu-Ragu / Pending — sama konsep dengan Invoice.doubtfulAt/pendingAt (lihat catatan
+  // lengkap di model Invoice): OWNER menandai renewal domain ini dengan alasan wajib supaya
+  // dikeluarkan dari "Tagihan Belum Ditagih" & section Domain di Dashboard, dan berhenti dikejar
+  // otomatis (SLA tindak-lanjut, AI Agent) — sampai dilepas lagi. Pending = ditunda, kemungkinan
+  // masih cair. Ragu-ragu = kemungkinan tidak akan cair. TIDAK ada jurnal (domain belum jadi
+  // invoice di titik ini, tidak ada apa pun buat dibukukan).
+  doubtfulAt     DateTime? @map("doubtful_at")
+  doubtfulReason String?   @map("doubtful_reason")
+  doubtfulById   String?   @map("doubtful_by_id")
+  pendingAt      DateTime? @map("pending_at")
+  pendingReason  String?   @map("pending_reason")
+  pendingById    String?   @map("pending_by_id")
+
   client        Client?        @relation(fields: [clientId], references: [id])
   cpanelAccount CpanelAccount? @relation(fields: [cpanelAccountId], references: [id])
   subdomains    Subdomain[]
 
   @@index([clientId])
   @@index([cpanelAccountId])
+  @@index([doubtfulAt])
+  @@index([pendingAt])
   @@map("domains")
   @@schema("simple_system")
 }

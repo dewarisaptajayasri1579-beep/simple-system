@@ -14,8 +14,10 @@ export default async function ArusKasPage() {
   const user = await requirePageRole(["owner", "direktur"])
 
   const [domains, servers, maintenances, recurringBills, invoices, projectSchedules, balances] = await Promise.all([
-    prisma.domain.findMany({ where: { active: true, clientId: { not: null } }, include: { client: true } }),
-    prisma.server.findMany({ where: { active: true, clientId: { not: null } }, include: { period: true, client: true } }),
+    // doubtfulAt/pendingAt: null — domain/server yang ditahan Owner tidak diproyeksikan sebagai
+    // pemasukan minggu depan (sama pola dengan invoice di query bawah).
+    prisma.domain.findMany({ where: { active: true, clientId: { not: null }, doubtfulAt: null, pendingAt: null }, include: { client: true } }),
+    prisma.server.findMany({ where: { active: true, clientId: { not: null }, doubtfulAt: null, pendingAt: null }, include: { period: true, client: true } }),
     prisma.maintenance.findMany({ where: { active: true }, include: { period: true, client: true } }),
     prisma.recurringBill.findMany({ where: { active: true }, include: { period: true } }),
     prisma.invoice.findMany({
