@@ -1357,10 +1357,19 @@ export const VpsServerCard: React.FC<{
                               <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
                             </div>
                           )}
-                          <div className="flex items-center gap-1.5">
-                            {app.dbBackupAt ? (
-                              <>
+                          <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-1.5">
+                              {app.dbBackupAt && (
                                 <span className="text-xs font-semibold text-slate-700">Backup DB: {formatDateTimeId(app.dbBackupAt)}</span>
+                              )}
+                              {app.databaseUuid && isBackupStale(app.dbBackupAt) && (
+                                <Badge variant={app.dbBackupAt ? "warning" : "danger"} size="sm">
+                                  {app.dbBackupAt ? "Backup >1 hari" : "Belum ada backup DB"}
+                                </Badge>
+                              )}
+                            </div>
+                            {app.databaseUuid && (
+                              <div className="flex items-center gap-2.5">
                                 {app.dbBackupLink && (
                                   <a
                                     href={app.dbBackupLink}
@@ -1368,23 +1377,21 @@ export const VpsServerCard: React.FC<{
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
                                   >
-                                    <ExternalLink className="w-3 h-3" />
+                                    <ExternalLink className="w-3 h-3" /> Unduh
                                   </a>
                                 )}
-                              </>
-                            ) : (
-                              <span className="text-xs font-medium text-slate-400">Belum ada backup DB</span>
-                            )}
-                            {isOwner && app.databaseUuid && (
-                              <button
-                                onClick={() => handleBackupNow(app.databaseUuid!)}
-                                disabled={backingUpDbUuid === app.databaseUuid}
-                                className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                aria-label="Backup Sekarang"
-                                title="Backup Sekarang"
-                              >
-                                <DatabaseBackup className="w-3.5 h-3.5" />
-                              </button>
+                                {isOwner && (
+                                  <button
+                                    onClick={() => handleBackupNow(app.databaseUuid!)}
+                                    disabled={backingUpDbUuid === app.databaseUuid}
+                                    className="inline-flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label="Backup Sekarang"
+                                    title="Trigger backup baru sekarang"
+                                  >
+                                    <DatabaseBackup className="w-3 h-3" /> Backup Sekarang
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1492,35 +1499,40 @@ export const VpsServerCard: React.FC<{
                           <DiskContribution usage={db.diskUsage} totalBytes={vps.disk?.totalBytes} />
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {db.dbBackupAt ? (
-                              <>
+                          <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-1.5">
+                              {db.dbBackupAt && (
                                 <span className="text-xs font-semibold text-slate-700">{formatDateTimeId(db.dbBackupAt)}</span>
-                                {db.dbBackupLink && (
-                                  <a
-                                    href={db.dbBackupLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-xs font-medium text-slate-400">Belum ada backup</span>
-                            )}
-                            {isOwner && (
-                              <button
-                                onClick={() => handleBackupNow(db.uuid)}
-                                disabled={backingUpDbUuid === db.uuid}
-                                className="text-slate-400 hover:text-blue-600 p-1 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                aria-label="Backup Sekarang"
-                                title="Backup Sekarang"
-                              >
-                                <DatabaseBackup className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                              )}
+                              {isBackupStale(db.dbBackupAt) && (
+                                <Badge variant={db.dbBackupAt ? "warning" : "danger"} size="sm">
+                                  {db.dbBackupAt ? "Backup >1 hari" : "Belum ada backup"}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2.5">
+                              {db.dbBackupLink && (
+                                <a
+                                  href={db.dbBackupLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> Unduh
+                                </a>
+                              )}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleBackupNow(db.uuid)}
+                                  disabled={backingUpDbUuid === db.uuid}
+                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  aria-label="Backup Sekarang"
+                                  title="Trigger backup baru sekarang"
+                                >
+                                  <DatabaseBackup className="w-3 h-3" /> Backup Sekarang
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>
