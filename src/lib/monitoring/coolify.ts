@@ -12,6 +12,19 @@ export type CoolifyApplication = {
   fqdn: string | null
   server_uuid: string
   environment_id: number
+  source_id: number | null
+  source_type: string | null
+}
+
+/// Response GET /github-apps Coolify — "Source" GitHub (GitHub App terinstall, atau "Public GitHub"
+/// default) yang bisa dipakai aplikasi buat deploy dari repo. `id` numerik cuma unik di dalam SATU
+/// instance Coolify (jadi tidak boleh dipakai sebagai key lintas-VPS), `uuid` yang stabil dipakai
+/// buat upsert ke tabel GithubSource kita.
+export type CoolifyGithubApp = {
+  id: number
+  uuid: string
+  name: string
+  is_public: boolean
 }
 
 export type CoolifyEnvVar = {
@@ -131,6 +144,38 @@ async function coolifyPatch(apiBase: string, apiToken: string, path: string, bod
 export async function fetchCoolifyApplications(apiUrl: string, apiToken: string): Promise<CoolifyApplication[]> {
   const data = await coolifyGet(normalizeCoolifyApiUrl(apiUrl), apiToken, "/applications")
   return Array.isArray(data) ? data : []
+}
+
+/// Best-effort — instance Coolify lama atau token tanpa permission tertentu bisa gagal, tidak boleh
+/// menggagalkan sync aplikasi secara keseluruhan.
+async function fetchCoolifyGithubApps(apiBase: string, apiToken: string): Promise<CoolifyGithubApp[]> {
+  try {
+    const data = await coolifyGet(apiBase, apiToken, "/github-apps")
+    return Array.isArray(data) ? data : []
+  } catch {
+    return []
+  }
+}
+
+/// Sinkronkan daftar Git App/Source GitHub milik satu VPS ke tabel GithubSource, lalu balikin map
+/// numeric id Coolify (`source_id` di response /applications) -> id lokal GithubSource — dipakai
+/// syncCoolifyApplications() buat link Application.githubSourceId. Numeric id CUMA valid di dalam
+/// panggilan sync ini (tidak disimpan sebagai key), makanya di-resolve ulang tiap sync lewat uuid.
+async function syncGithubSources(vpsId: string, apiBase: string, apiToken: string): Promise<Map<number, string>> {
+  const sources = await fetchCoolifyGithubApps(apiBase, apiToken)
+  const idToLocalId = new Map<number, string>()
+  for (const source of sources) {
+    if (!source.uuid) continue
+    const saved = await prisma.githubSource
+      .upsert({
+        where: { vpsServerId_coolifyUuid: { vpsServerId: vpsId, coolifyUuid: source.uuid } },
+        create: { vpsServerId: vpsId, coolifyUuid: source.uuid, name: source.name, isPublic: Boolean(source.is_public) },
+        update: { name: source.name, isPublic: Boolean(source.is_public) },
+      })
+      .catch(() => null)
+    if (saved) idToLocalId.set(source.id, saved.id)
+  }
+  return idToLocalId
 }
 
 /** Butuh permission token `read:sensitive` (selain `read`) — tanpa itu, Coolify tidak
@@ -284,6 +329,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   // fetchProjectEnvInfoByEnvironmentId(). Dipakai buat badge + search "Project" + link langsung
   // ke dashboard Coolify di monitoring.
   const projectByEnvId = await fetchProjectEnvInfoByEnvironmentId(apiBase, token)
+  const githubSourceIdByCoolifyId = await syncGithubSources(vps.id, apiBase, token)
 
   let databases: CoolifyDatabase[] = []
   try {
@@ -351,6 +397,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
     }
 
     const projectEnvInfo = projectByEnvId.get(app.environment_id) ?? null
+    const githubSourceId = app.source_id !== null ? (githubSourceIdByCoolifyId.get(app.source_id) ?? null) : null
 
     await prisma.application.upsert({
       where: { vpsServerId_coolifyUuid: { vpsServerId: vps.id, coolifyUuid: app.uuid } },
@@ -366,6 +413,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         coolifyProjectName: projectEnvInfo?.projectName ?? null,
         coolifyProjectUuid: projectEnvInfo?.projectUuid ?? null,
         coolifyEnvironmentUuid: projectEnvInfo?.environmentUuid ?? null,
+        githubSourceId,
       },
       update: {
         name: app.name || app.uuid,
@@ -375,6 +423,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
         coolifyProjectName: projectEnvInfo?.projectName ?? null,
         coolifyProjectUuid: projectEnvInfo?.projectUuid ?? null,
         coolifyEnvironmentUuid: projectEnvInfo?.environmentUuid ?? null,
+        githubSourceId,
         ...(databaseInfo ? { databaseInfo, databaseUuid } : {}),
         ...(activity?.lastAccessedAt ? { lastAccessedAt: activity.lastAccessedAt, lastAccessedBy: activity.lastAccessedBy } : {}),
       },

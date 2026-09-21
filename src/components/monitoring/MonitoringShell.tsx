@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeftRight, Globe, LayoutGrid, Server } from "lucide-react"
+import { ArrowLeftRight, GitFork, Globe, LayoutGrid, Server } from "lucide-react"
 
 import { ModuleLogoutButton } from "@/components/modules/ModuleLogoutButton"
 
@@ -18,6 +18,7 @@ const NAV: NavLeaf[] = [
   { label: "Monitoring Server", href: "/monitoring", icon: <LayoutGrid className="w-5 h-5" /> },
   { label: "Domain", href: "/monitoring/domain", icon: <Globe className="w-5 h-5" />, ownerAdminOnly: true },
   { label: "Server", href: "/monitoring/server", icon: <Server className="w-5 h-5" />, ownerAdminOnly: true },
+  { label: "Git Apps", href: "/monitoring/git-apps", icon: <GitFork className="w-5 h-5" />, ownerAdminOnly: true },
 ]
 
 function isActivePath(pathname: string, href: string) {

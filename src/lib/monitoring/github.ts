@@ -22,18 +22,21 @@ function parseGithubRepo(gitRepository: string): { owner: string; repo: string }
 }
 
 /** Ambil commit terbaru repo GitHub-nya 1 aplikasi lewat REST API resmi — dipakai di modal "Lihat
- *  Detail" aplikasi monitoring. GITHUB_TOKEN (Personal Access Token, scope minimal `repo` read
- *  buat repo privat) OPSIONAL di env — tanpa token, tetap jalan buat repo PUBLIK (kena rate limit
- *  60/jam per IP dari GitHub, bukan dari token), tapi repo privat akan gagal (401) tanpa token.
- *  Best-effort — return array kosong kalau gitRepository bukan GitHub, repo tidak ketemu, token
- *  kurang akses, atau request gagal — TIDAK melempar error ke pemanggil. */
-export async function fetchRecentCommits(gitRepository: string, limit = 10): Promise<GithubCommit[]> {
+ *  Detail" aplikasi monitoring. `token` idealnya Personal Access Token milik akun GitHub yang punya
+ *  akses ke repo itu (diisi manual per Git App/Source lewat menu "Git Apps" — Coolify tidak
+ *  mengekspos private key GitHub App-nya lewat API publik jadi tidak bisa auto-generate, lihat
+ *  GithubSource di schema.prisma), fallback ke env GITHUB_TOKEN kalau tidak ada. Tanpa token sama
+ *  sekali, tetap jalan buat repo PUBLIK (kena rate limit 60/jam per IP dari GitHub), tapi repo
+ *  privat akan gagal (401/404) tanpa token. Best-effort — return array kosong kalau gitRepository
+ *  bukan GitHub, repo tidak ketemu, token kurang akses, atau request gagal — TIDAK melempar error
+ *  ke pemanggil. */
+export async function fetchRecentCommits(gitRepository: string, token?: string | null, limit = 10): Promise<GithubCommit[]> {
   const parsed = parseGithubRepo(gitRepository)
   if (!parsed) return []
 
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
-  const token = process.env.GITHUB_TOKEN
-  if (token) headers.Authorization = `Bearer ${token}`
+  const resolvedToken = token || process.env.GITHUB_TOKEN
+  if (resolvedToken) headers.Authorization = `Bearer ${resolvedToken}`
 
   try {
     const res = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/commits?per_page=${limit}`, {

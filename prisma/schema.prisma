@@ -211,8 +211,37 @@ model VpsServer {
   createdById           String?       @map("created_by_id")
   createdAt             DateTime      @default(now()) @map("created_at")
   applications          Application[]
+  githubSources         GithubSource[]
 
   @@map("vps_servers")
+  @@schema("simple_system")
+}
+
+/// Daftar "Git App"/Source GitHub yang terhubung ke Coolify di satu VpsServer (mis. "git-dewari",
+/// "aya-best", "Public GitHub") — disinkron otomatis dari GET /github-apps Coolify tiap
+/// syncCoolifyApplications() jalan (lihat src/lib/monitoring/coolify.ts). `token` diisi MANUAL oleh
+/// owner/admin lewat menu "Git Apps" (Personal Access Token GitHub punya akun itu sendiri — Coolify
+/// TIDAK mengekspos private key GitHub App-nya lewat API publik, jadi tidak bisa auto-generate token,
+/// lihat percakapan monitoring 2026-09-21) — dienkripsi sama seperti coolifyApiToken/enhanceApiToken
+/// (lihat src/lib/crypto.ts). Application.githubSourceId nunjuk ke sini supaya fetchRecentCommits()
+/// tahu token mana yang harus dipakai buat repo privat aplikasi itu.
+model GithubSource {
+  id           String        @id @default(uuid())
+  vpsServerId  String        @map("vps_server_id")
+  vpsServer    VpsServer     @relation(fields: [vpsServerId], references: [id], onDelete: Cascade)
+  /// UUID Source ini di Coolify (dari GET /github-apps) — dipakai buat upsert biar sync berulang
+  /// tidak bikin duplikat.
+  coolifyUuid  String        @map("coolify_uuid")
+  name         String
+  isPublic     Boolean       @default(false) @map("is_public")
+  token        String?
+  tokenSetAt   DateTime?     @map("token_set_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  applications Application[]
+
+  @@unique([vpsServerId, coolifyUuid])
+  @@map("github_sources")
   @@schema("simple_system")
 }
 
@@ -290,10 +319,17 @@ model Application {
   /// kalau ada jalan yang ke-skip. Lihat runApplicationErrorLogCollection() di
   /// src/lib/cron/application-error-logs.ts.
   errorLogCollectedUntil DateTime?              @map("error_log_collected_until")
+  /// Source GitHub (Git App) yang dipakai buat resolve token PAT pas ambil commit log (lihat
+  /// fetchRecentCommits() di src/lib/monitoring/github.ts) — diisi otomatis waktu sync Coolify,
+  /// dicocokkan dari field `source_id` response GET /applications ke GithubSource.coolifyUuid milik
+  /// VPS yang sama (lihat syncCoolifyApplications()).
+  githubSourceId         String?                @map("github_source_id")
+  githubSource           GithubSource?          @relation(fields: [githubSourceId], references: [id])
 
   @@unique([vpsServerId, coolifyUuid])
   @@index([vpsServerId])
   @@index([packageId])
+  @@index([githubSourceId])
   @@map("applications")
   @@schema("simple_system")
 }
