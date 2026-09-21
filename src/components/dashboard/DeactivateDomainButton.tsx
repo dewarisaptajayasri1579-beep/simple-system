@@ -7,8 +7,17 @@ import { Button, Modal, Alert } from "@/components/ui";
 
 /** Tombol "Nonaktifkan" di kolom Aksi Dashboard > Domain — minta alasan dulu (wajib), dicatat
  *  di DeactivationLog (Pengaturan > Log Nonaktif), lalu domain langsung hilang dari Dashboard
- *  begitu halaman di-refresh (query Dashboard selalu filter active:true). */
-export const DeactivateDomainButton: React.FC<{ domainId: string; domainName: string }> = ({ domainId, domainName }) => {
+ *  begitu halaman di-refresh (query Dashboard selalu filter active:true).
+ *
+ *  `variant="segment"` dipakai Monitoring Keuangan > Uang Masuk: tampil sebagai sepasang pill
+ *  "Aktifkan"/"Nonaktifkan" (bukan ikon power polos) — "Aktifkan" cuma indikator status (baris
+ *  di sana memang selalu domain yang masih aktif, query-nya sudah filter active:true, jadi tidak
+ *  ada aksi buat "mengaktifkan lagi" di sini), "Nonaktifkan" yang jalanin modal alasan yang sama. */
+export const DeactivateDomainButton: React.FC<{ domainId: string; domainName: string; variant?: "icon" | "segment" }> = ({
+  domainId,
+  domainName,
+  variant = "icon",
+}) => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -45,15 +54,30 @@ export const DeactivateDomainButton: React.FC<{ domainId: string; domainName: st
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openModal}
-        title="Nonaktifkan domain"
-        aria-label="Nonaktifkan domain"
-        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-      >
-        <Power className="w-4 h-4" />
-      </button>
+      {variant === "segment" ? (
+        <div className="inline-flex items-center gap-1.5">
+          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-700" title="Domain ini sedang aktif">
+            Aktifkan
+          </span>
+          <button
+            type="button"
+            onClick={openModal}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+          >
+            Nonaktifkan
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={openModal}
+          title="Nonaktifkan domain"
+          aria-label="Nonaktifkan domain"
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+        >
+          <Power className="w-4 h-4" />
+        </button>
+      )}
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Nonaktifkan Domain" subtitle={domainName}>
         <div className="space-y-4">
           {error && <Alert variant="error">{error}</Alert>}

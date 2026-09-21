@@ -37,6 +37,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data.username = username
   }
   if (typeof body?.password === "string" && body.password) data.passwordHash = hashPassword(body.password)
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  if ("basicSalary" in (body ?? {})) data.basicSalary = num(body.basicSalary)
+  if ("positionAllowance" in (body ?? {})) data.positionAllowance = num(body.positionAllowance)
+  if ("dailyAttendanceAllowance" in (body ?? {})) data.dailyAttendanceAllowance = num(body.dailyAttendanceAllowance)
+  if ("dailyTransportAllowance" in (body ?? {})) data.dailyTransportAllowance = num(body.dailyTransportAllowance)
+  if ("bpjsKesehatanDeduction" in (body ?? {})) data.bpjsKesehatanDeduction = num(body.bpjsKesehatanDeduction)
+  if ("bpjsKetenagakerjaanDeduction" in (body ?? {})) data.bpjsKetenagakerjaanDeduction = num(body.bpjsKetenagakerjaanDeduction)
 
   const employee = await prisma.employee.update({ where: { id }, data, select: EMPLOYEE_SELECT })
   await logAudit({ actorUserId: user.id, action: "administratif.karyawan.update", entityType: "employee", entityId: id, before: existing, after: employee })

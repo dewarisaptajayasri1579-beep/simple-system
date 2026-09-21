@@ -10,6 +10,12 @@ export const EMPLOYEE_SELECT = {
   email: true,
   notes: true,
   username: true,
+  basicSalary: true,
+  positionAllowance: true,
+  dailyAttendanceAllowance: true,
+  dailyTransportAllowance: true,
+  bpjsKesehatanDeduction: true,
+  bpjsKetenagakerjaanDeduction: true,
   createdAt: true,
   updatedAt: true,
 } as const

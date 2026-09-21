@@ -1,6 +1,6 @@
 import type { TxClient } from "./post-journal"
 import { postJournalEntry, postJournalEntryFinal, finalizeJournalEntryById } from "./post-journal"
-import { billPaidLines } from "./journal-rules"
+import { billPaidLines, payrollPaidLines } from "./journal-rules"
 import { getAccountCoaCode } from "./coa-lookup"
 import { COA_CODE, bebanCodeForCategory } from "./coa-seed"
 import { computeDomainExpiryDate } from "@/lib/domain-status"
@@ -339,4 +339,57 @@ export async function finalizeTransactionPosting(tx: TxClient, input: { transact
     where: { id: input.transactionId },
     data: { postStatus: "posted", postedAt: new Date(), postedById: input.postedById },
   })
+}
+
+/** Bayar 1 PayrollPeriod — bikin 1 Transaction (refType="payroll") + 1 jurnal gabungan
+ *  untuk SEMUA PayrollItem periode itu sekaligus (bukan per-karyawan, lihat
+ *  payrollPaidLines). Draft -> Posted sama pola dengan markServerPaid dkk: cuma bikin
+ *  Transaction + jurnal draft di sini, Owner/Finance posting manual lewat
+ *  POST /api/transactions/[id]/post yang sudah ada. PayrollPeriod di-lock ("posted") begitu
+ *  fungsi ini dipanggil (BUKAN nunggu Transaction-nya diposting) — supaya PayrollItem tidak
+ *  bisa dihitung ulang lagi setelah proses bayar dimulai. */
+export async function markPayrollPaid(tx: TxClient, input: { payrollPeriodId: string; accountId: string; paidAt: Date; createdBy: string }) {
+  const period = await tx.payrollPeriod.findUnique({ where: { id: input.payrollPeriodId }, include: { items: true } })
+  if (!period) throw new Error("Periode gaji tidak ditemukan")
+  if (period.status === "posted") throw new Error("Periode gaji ini sudah dibayar")
+  if (period.items.length === 0) throw new Error("Periode gaji ini belum punya data karyawan — hitung dulu")
+
+  const totalGross = period.items.reduce((s, i) => s + i.grossPay, 0)
+  const totalKasbon = period.items.reduce((s, i) => s + i.kasbonDeduction, 0)
+  const totalOtherDeduction = period.items.reduce((s, i) => s + i.bpjsKesehatan + i.bpjsKetenagakerjaan + i.otherDeductions, 0)
+  const totalNet = period.items.reduce((s, i) => s + i.netPay, 0)
+  const expenseAmount = totalGross - totalOtherDeduction
+
+  const description = `Pembayaran gaji periode ${period.period}`
+  const transaction = await tx.transaction.create({
+    data: {
+      transactionNumber: await generateTransactionNumber(tx, "expense"),
+      accountId: input.accountId,
+      type: "expense",
+      grossAmount: totalNet,
+      cost: 0,
+      netAmount: totalNet,
+      description,
+      occurredAt: input.paidAt,
+      refType: "payroll",
+      refId: period.id,
+      createdById: input.createdBy,
+    },
+  })
+  await logTransactionEvent(tx, { transactionId: transaction.id, action: "created", actorUserId: input.createdBy, metadata: { via: "Bayar Gaji", period: period.period } })
+
+  const kasBankCoaCode = await getAccountCoaCode(tx, input.accountId)
+  const journalEntry = await postJournalEntry(tx, {
+    date: input.paidAt,
+    description,
+    sourceType: "payroll",
+    sourceId: period.id,
+    createdBy: input.createdBy,
+    lines: payrollPaidLines({ kasBankCoaCode, expenseAmount, cashAmount: totalNet, kasbonAmount: totalKasbon }),
+  })
+  await tx.transaction.update({ where: { id: transaction.id }, data: { journalEntryId: journalEntry.id } })
+
+  await tx.payrollPeriod.update({ where: { id: period.id }, data: { status: "posted", paidAt: input.paidAt, transactionId: transaction.id } })
+
+  return { transaction, period }
 }

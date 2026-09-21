@@ -14,8 +14,10 @@ export default async function UangMasukPage() {
 
   const [domains, serverCount, maintenanceCount, projectCount, clientOptions] = await Promise.all([
     // doubtfulAt/pendingAt: null — domain yang ditahan Owner sengaja dikeluarkan, sama pola
-    // dengan Dashboard utama (lihat src/app/dashboard/page.tsx).
-    prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { client: true }, orderBy: { name: "asc" } }),
+    // dengan Dashboard utama (lihat src/app/dashboard/page.tsx). clientId: not null — domain
+    // Internal (7Smarts, tanpa Client) itu biaya bukan pendapatan, jadi tidak masuk Uang Masuk
+    // sama sekali — nanti muncul di Uang Keluar.
+    prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null, clientId: { not: null } }, include: { client: true }, orderBy: { name: "asc" } }),
     prisma.server.count({ where: { active: true, doubtfulAt: null, pendingAt: null } }),
     prisma.maintenance.count({ where: { active: true } }),
     prisma.project.count({ where: { status: "berjalan" } }),

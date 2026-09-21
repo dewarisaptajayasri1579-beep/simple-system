@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeftRight, CalendarCheck, LayoutGrid, Mail, Users } from "lucide-react"
+import { ArrowLeftRight, CalendarCheck, HandCoins, LayoutGrid, Mail, Users, Wallet } from "lucide-react"
 
 import { ModuleLogoutButton } from "@/components/modules/ModuleLogoutButton"
 
@@ -17,6 +17,8 @@ const NAV: NavLeaf[] = [
   { label: "Beranda", href: "/administratif", icon: <LayoutGrid className="w-5 h-5" /> },
   { label: "Data Karyawan", href: "/administratif/karyawan", icon: <Users className="w-5 h-5" /> },
   { label: "Absensi", href: "/administratif/absensi", icon: <CalendarCheck className="w-5 h-5" /> },
+  { label: "Penggajian", href: "/administratif/penggajian", icon: <Wallet className="w-5 h-5" /> },
+  { label: "Kasbon", href: "/administratif/kasbon", icon: <HandCoins className="w-5 h-5" /> },
   { label: "Surat Menyurat", href: "/administratif/surat", icon: <Mail className="w-5 h-5" /> },
 ]
 
@@ -126,11 +128,11 @@ export const AdministratifShell: React.FC<{ userName: string; children: React.Re
 
       {/* ---- Bottom nav (mobile) ---- */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1">
-        <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
+        <div className="glass-header flex items-center justify-around gap-0.5 overflow-x-auto rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
           {NAV.map((item) => {
             const active = isActivePath(pathname, item.href)
             return (
-              <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-2 py-1 min-w-[58px]">
+              <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-2 py-1 min-w-[50px] flex-shrink-0">
                 <span
                   className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
                     active ? "bg-gradient-to-r from-[#0544cc] to-[#2563eb] text-white shadow-lg shadow-blue-600/30" : "text-slate-500"

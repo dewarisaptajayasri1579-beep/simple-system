@@ -1174,7 +1174,7 @@ model Transaction {
   // Referensi balik opsional ke Server/Domain/RecurringBill kalau Transaction ini hasil
   // "Bayar Server/Domain"/"Tandai Lunas" — dipakai endpoint posting utk tahu lastPaidAt
   // milik record mana yang perlu diupdate saat Transaction ini di-posting.
-  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill" | "maintenance" | "kasbon"
+  refType String? @map("ref_type") // "server" | "domain" | "recurring_bill" | "maintenance" | "kasbon" | "employee_kasbon" | "payroll"
   refId   String? @map("ref_id")
 
   // Kalau Transaction ini dibuat sebagai bagian dari 1 Payment (baris pelunasan invoice ATAU

@@ -7,6 +7,7 @@ import {
   Button,
   Badge,
   Card,
+  CurrencyInput,
   Input,
   Select,
   Textarea,
@@ -31,6 +32,12 @@ interface Employee {
   email: string | null
   notes: string | null
   username: string | null
+  basicSalary: number | null
+  positionAllowance: number | null
+  dailyAttendanceAllowance: number | null
+  dailyTransportAllowance: number | null
+  bpjsKesehatanDeduction: number | null
+  bpjsKetenagakerjaanDeduction: number | null
 }
 
 const STATUS_OPTIONS = [
@@ -57,6 +64,12 @@ const emptyForm = {
   notes: "",
   username: "",
   password: "",
+  basicSalary: 0,
+  positionAllowance: 0,
+  dailyAttendanceAllowance: 0,
+  dailyTransportAllowance: 0,
+  bpjsKesehatanDeduction: 0,
+  bpjsKetenagakerjaanDeduction: 0,
 }
 
 export default function KaryawanPage() {
@@ -103,6 +116,12 @@ export default function KaryawanPage() {
       notes: emp.notes ?? "",
       username: emp.username ?? "",
       password: "",
+      basicSalary: emp.basicSalary ?? 0,
+      positionAllowance: emp.positionAllowance ?? 0,
+      dailyAttendanceAllowance: emp.dailyAttendanceAllowance ?? 0,
+      dailyTransportAllowance: emp.dailyTransportAllowance ?? 0,
+      bpjsKesehatanDeduction: emp.bpjsKesehatanDeduction ?? 0,
+      bpjsKetenagakerjaanDeduction: emp.bpjsKetenagakerjaanDeduction ?? 0,
     })
     setError("")
     setModalOpen(true)
@@ -251,6 +270,18 @@ export default function KaryawanPage() {
           <Input label="No. HP" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <Textarea label="Catatan" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
+
+          <div className="pt-2 border-t border-slate-200/60">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Komponen Gaji (Penggajian)</p>
+            <div className="flex flex-col gap-4">
+              <CurrencyInput label="Gaji Pokok / Bulan" value={form.basicSalary} onChange={(v) => setForm({ ...form, basicSalary: v })} />
+              <CurrencyInput label="Tunjangan Jabatan / Bulan" value={form.positionAllowance} onChange={(v) => setForm({ ...form, positionAllowance: v })} />
+              <CurrencyInput label="Tunjangan Kehadiran / Hari Hadir" value={form.dailyAttendanceAllowance} onChange={(v) => setForm({ ...form, dailyAttendanceAllowance: v })} />
+              <CurrencyInput label="Tunjangan Transport / Hari Hadir" value={form.dailyTransportAllowance} onChange={(v) => setForm({ ...form, dailyTransportAllowance: v })} />
+              <CurrencyInput label="Potongan BPJS Kesehatan / Bulan" value={form.bpjsKesehatanDeduction} onChange={(v) => setForm({ ...form, bpjsKesehatanDeduction: v })} />
+              <CurrencyInput label="Potongan BPJS Ketenagakerjaan / Bulan" value={form.bpjsKetenagakerjaanDeduction} onChange={(v) => setForm({ ...form, bpjsKetenagakerjaanDeduction: v })} />
+            </div>
+          </div>
 
           <div className="pt-2 border-t border-slate-200/60">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Login Android (Absensi)</p>

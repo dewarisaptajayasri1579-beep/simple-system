@@ -28,6 +28,26 @@ export type MetaAdsAccountSummary = {
   totalClicks: number
 }
 
+export type MetaAdsDailyPoint = {
+  date: string // YYYY-MM-DD
+  spend: number
+  impressions: number
+  clicks: number
+  ctr: number
+  cpc: number
+}
+
+export type MetaAdsBreakdownDimension = "age" | "gender" | "region" | "placement"
+
+export type MetaAdsBreakdownRow = {
+  label: string
+  spend: number
+  impressions: number
+  clicks: number
+  ctr: number
+  cpc: number
+}
+
 class MetaAdsApiError extends Error {}
 
 async function graphGet(path: string, accessToken: string, params: Record<string, string>) {

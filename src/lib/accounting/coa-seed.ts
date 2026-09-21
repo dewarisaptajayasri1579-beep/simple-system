@@ -42,6 +42,7 @@ export const COA_SEED: CoaSeedRow[] = [
   { code: "6-4000", name: "Beban Server & Hosting", type: "expense", parentCode: "6-0000" },
   { code: "6-5000", name: "Beban Domain", type: "expense", parentCode: "6-0000" },
   { code: "6-6000", name: "Beban Maintenance", type: "expense", parentCode: "6-0000" },
+  { code: "6-7000", name: "Beban Gaji", type: "expense", parentCode: "6-0000" },
 ]
 
 /** Kode akun baku yang dirujuk langsung oleh journal-rules.ts. */
@@ -67,6 +68,7 @@ export const COA_CODE = {
   bebanServerHosting: "6-4000",
   bebanDomain: "6-5000",
   bebanMaintenance: "6-6000",
+  bebanGaji: "6-7000",
 } as const
 
 /** RecurringBill.category ("kantor" | "pribadi" | "lainnya") -> kode akun beban. */

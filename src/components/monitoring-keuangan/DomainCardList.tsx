@@ -243,7 +243,7 @@ export const DomainCardList: React.FC<{
                     <span className="text-xs text-slate-400">Internal</span>
                   )}
                   {r.sla?.stage === "menunggu_jawaban" && r.billingFollowUpId && <PiutangFollowUpButton billingFollowUpId={r.billingFollowUpId} itemLabel={r.name} />}
-                  {isOwner && <DeactivateDomainButton domainId={r.id} domainName={r.name} />}
+                  {isOwner && <DeactivateDomainButton domainId={r.id} domainName={r.name} variant="segment" />}
                   {isOwner && r.clientId && (
                     <PiutangStatusCell itemId={r.id} basePath="domains" itemLabel={`${r.name} — ${r.owner}`} remaining={r.price ?? 0} pendingAt={r.pendingAt} pendingReason={r.pendingReason} />
                   )}

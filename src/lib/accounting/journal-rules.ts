@@ -105,6 +105,24 @@ export function kasbonDisbursementLines(input: { kasBankCoaCode: string; amount:
   ]
 }
 
+/** Pembayaran gaji 1 PayrollPeriod (lihat markPayrollPaid di mark-paid.ts) — 1 jurnal
+ *  gabungan untuk semua karyawan periode itu, bukan per-karyawan. Debit Beban Gaji SEBESAR
+ *  total gross dikurangi potongan non-kasbon (BPJS/potongan lain) — bukan gross penuh,
+ *  karena BPJS/potongan lain TIDAK dicatat sebagai liability terpisah di v1 (lihat docs
+ *  administratif-hrd-absensi-penggajian.md §5). Kredit Kas/Bank sebesar kas yang benar-benar
+ *  ditransfer (net pay), dan kredit Piutang Karyawan sebesar potongan Kasbon periode ini
+ *  (melunasi sebagian/seluruh EmployeeKasbon outstanding karyawan terkait, akun yang sama
+ *  persis dipakai kasbonDisbursementLines di atas). Balance: expenseAmount = cashAmount +
+ *  kasbonAmount. */
+export function payrollPaidLines(input: { kasBankCoaCode: string; expenseAmount: number; cashAmount: number; kasbonAmount: number }): JournalLineInput[] {
+  const lines: JournalLineInput[] = [
+    { accountCode: COA_CODE.bebanGaji, debit: input.expenseAmount },
+    { accountCode: input.kasBankCoaCode, credit: input.cashAmount },
+  ]
+  if (input.kasbonAmount > 0) lines.push({ accountCode: COA_CODE.piutangKaryawan, credit: input.kasbonAmount })
+  return lines
+}
+
 /** Pelunasan Kasbon (boleh dicicil, dipanggil berkali-kali untuk 1 Kasbon yang sama) — kebalikan
  *  dari kasbonDisbursementLines: debit Kas/Bank yang menerima, kredit Piutang Karyawan. */
 export function kasbonRepaymentLines(input: { kasBankCoaCode: string; amount: number }): JournalLineInput[] {

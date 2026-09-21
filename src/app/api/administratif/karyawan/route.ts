@@ -36,6 +36,13 @@ export async function POST(request: Request) {
   const notes = typeof body?.notes === "string" && body.notes.trim() ? body.notes.trim() : null
   const username = typeof body?.username === "string" && body.username.trim() ? body.username.trim() : null
   const password = typeof body?.password === "string" && body.password ? body.password : null
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null)
+  const basicSalary = num(body?.basicSalary)
+  const positionAllowance = num(body?.positionAllowance)
+  const dailyAttendanceAllowance = num(body?.dailyAttendanceAllowance)
+  const dailyTransportAllowance = num(body?.dailyTransportAllowance)
+  const bpjsKesehatanDeduction = num(body?.bpjsKesehatanDeduction)
+  const bpjsKetenagakerjaanDeduction = num(body?.bpjsKetenagakerjaanDeduction)
 
   if (username) {
     const existing = await prisma.employee.findUnique({ where: { username } })
@@ -43,7 +50,12 @@ export async function POST(request: Request) {
   }
 
   const employee = await prisma.employee.create({
-    data: { name, position, status, joinDate, phone, email, notes, username, passwordHash: password ? hashPassword(password) : null },
+    data: {
+      name, position, status, joinDate, phone, email, notes, username,
+      passwordHash: password ? hashPassword(password) : null,
+      basicSalary, positionAllowance, dailyAttendanceAllowance, dailyTransportAllowance,
+      bpjsKesehatanDeduction, bpjsKetenagakerjaanDeduction,
+    },
     select: EMPLOYEE_SELECT,
   })
   await logAudit({ actorUserId: user.id, action: "administratif.karyawan.create", entityType: "employee", entityId: employee.id, after: employee })

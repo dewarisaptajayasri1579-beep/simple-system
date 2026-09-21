@@ -11,11 +11,12 @@ function startOfToday() {
 }
 
 export default async function AdministratifBerandaPage() {
-  const [totalKaryawan, karyawanAktif, totalSurat, absenHariIni] = await Promise.all([
+  const [totalKaryawan, karyawanAktif, totalSurat, absenHariIni, kasbonOutstanding] = await Promise.all([
     prisma.employee.count(),
     prisma.employee.count({ where: { status: "AKTIF" } }),
     prisma.correspondenceLog.count(),
     prisma.attendanceRecord.count({ where: { date: startOfToday(), status: { in: ["I", "C"] } } }),
+    prisma.employeeKasbon.count({ where: { status: "outstanding" } }),
   ])
 
   return (
@@ -36,13 +37,25 @@ export default async function AdministratifBerandaPage() {
         <Link href="/administratif/karyawan">
           <Card variant="glass" padding="lg" hoverable>
             <CardTitle>Data Karyawan</CardTitle>
-            <CardDescription className="mt-1.5">Kelola master data karyawan — nama, jabatan, status, kontak, login Android.</CardDescription>
+            <CardDescription className="mt-1.5">Kelola master data karyawan — nama, jabatan, status, kontak, login Android, komponen gaji.</CardDescription>
           </Card>
         </Link>
         <Link href="/administratif/absensi">
           <Card variant="glass" padding="lg" hoverable>
             <CardTitle>Absensi</CardTitle>
             <CardDescription className="mt-1.5">Rekap kehadiran, koreksi manual, pengajuan izin/sakit/cuti.</CardDescription>
+          </Card>
+        </Link>
+        <Link href="/administratif/penggajian">
+          <Card variant="glass" padding="lg" hoverable>
+            <CardTitle>Penggajian</CardTitle>
+            <CardDescription className="mt-1.5">Hitung gaji bulanan dari rekap absensi, bayar &amp; jurnal Kas Keluar otomatis.</CardDescription>
+          </Card>
+        </Link>
+        <Link href="/administratif/kasbon">
+          <Card variant="glass" padding="lg" hoverable>
+            <CardTitle>Kasbon Karyawan {kasbonOutstanding > 0 && <span className="text-amber-600">({kasbonOutstanding} outstanding)</span>}</CardTitle>
+            <CardDescription className="mt-1.5">Pencairan kasbon, tercatat otomatis ke Piutang Karyawan.</CardDescription>
           </Card>
         </Link>
         <Link href="/administratif/surat">
