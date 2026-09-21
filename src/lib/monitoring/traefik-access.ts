@@ -138,28 +138,32 @@ export async function getLastAccessedByDomain(vps: VpsProxyLike, domains: string
   return result
 }
 
-export type DailyTrafficStat = { uniqueVisitors: number; requestCount: number; bandwidthBytes: number }
+export type TrafficWindowStat = { requestCount: number; bandwidthBytes: number; ips: Set<string> }
 
-/** Rekap traffic 1 hari KALENDER JAKARTA (`targetDateIso`, format "YYYY-MM-DD") per domain — beda
- *  dari getLastAccessedByDomain() yang cuma ambil 1 request TERAKHIR, ini scan SEMUA baris log
- *  buat hitung IP unik ("Kunjungan"), total request, dan total bytes ke client ("Bandwidth"). Baris
- *  yang lolos isNoiseRequest() (bot/scanner, response gagal) di-skip sama seperti
- *  getLastAccessedByDomain() — supaya KPI "Sering/Normal/Jarang digunakan" tidak ikut kegelembung
- *  bot (lihat percakapan monitoring 2026-09-21). Dipanggil cron harian jam 00:15 WIB buat rekap
- *  hari SEBELUMNYA — lihat runApplicationTrafficStats() di
- *  src/lib/cron/application-traffic-stats.ts.
+/** Ambil & agregasi log Traefik dalam rentang waktu EKSPLISIT `[since, until)`, dikelompokkan per
+ *  HARI KALENDER JAKARTA lalu per domain (peta luar = tanggal ISO, peta dalam = domain) — biasanya
+ *  cuma 1 tanggal, kecuali window-nya kebetulan nyebrang tengah malam WIB. Baris yang lolos
+ *  isNoiseRequest() (bot/scanner, response gagal) di-skip, supaya KPI "Sering/Normal/Jarang
+ *  digunakan" tidak ikut kegelembung bot.
  *
- *  Window `--since 30h` (bukan 24h kayak getLastAccessedByDomain) SENGAJA lebih lebar — supaya
- *  seluruh hari kemarin (00:00-23:59 Jakarta) kebaca penuh walau cron-nya baru jalan beberapa
- *  menit setelah tengah malam, bukan kepotong gara-gara window pas-pasan. Cuma dukung format JSON
- *  (butuh `--accesslog.format=json` di config Traefik) karena RequestHost/DownstreamContentSize
- *  tidak ada representasi gampang di format CLF text lama. */
-export async function aggregateDailyTraffic(
+ *  SENGAJA window PENDEK & eksplisit (dipanggil tiap jam dengan window ~2 jam, lihat
+ *  runApplicationTrafficIncrement() di src/lib/cron/application-traffic-stats.ts) — bukan baca 1
+ *  hari PENUH sekali sehari seperti desain sebelumnya. Log Traefik gabungan semua domain di VPS
+ *  ramai bisa ke-ROTASI Docker (default 10MB×3 file) dalam hitungan JAM, jauh sebelum cron harian
+ *  jam 00:15 sempat membacanya — window pendek jauh di bawah kapasitas rotasi berapa pun ramainya
+ *  VPS (bug nyata 2026-09-21: aplikasi trafik tinggi "tb-thosin" kehilangan seluruh data harinya
+ *  karena baca sekali-sehari kalah cepat dari rotasi log). Caller yang bertanggung jawab MERGE
+ *  (union IP, jumlah request/bandwidth) hasil tiap jam ke baris ApplicationDailyStat hari itu —
+ *  fungsi ini cuma baca APA ADANYA di window yang diminta, tidak tahu apa yang sudah tersimpan
+ *  sebelumnya. Cuma dukung format JSON (butuh `--accesslog.format=json` di config Traefik) karena
+ *  RequestHost/DownstreamContentSize tidak ada representasi gampang di format CLF text lama. */
+export async function collectTrafficWindow(
   vps: VpsProxyLike,
   domains: string[],
-  targetDateIso: string
-): Promise<Map<string, DailyTrafficStat>> {
-  const result = new Map<string, DailyTrafficStat>()
+  since: Date,
+  until: Date
+): Promise<Map<string, Map<string, TrafficWindowStat>>> {
+  const result = new Map<string, Map<string, TrafficWindowStat>>()
   const cleanDomains = new Set(domains.map((d) => d.trim()).filter(Boolean))
   if (cleanDomains.size === 0) return result
 
@@ -168,41 +172,30 @@ export async function aggregateDailyTraffic(
     const creds = vpsSshCreds(vps)
     logs = await sshExec(
       creds,
-      `${sudoWrap(creds.password, `docker logs ${vps.proxyContainerName} --since 30h 2>&1`)} | tail -n 200000`,
+      `${sudoWrap(creds.password, `docker logs ${vps.proxyContainerName} --since '${since.toISOString()}' --until '${until.toISOString()}' 2>&1`)} | tail -n 200000`,
       25000
     )
   } catch {
     return result
   }
 
-  const visitorsByDomain = new Map<string, Set<string>>()
-  const requestCountByDomain = new Map<string, number>()
-  const bandwidthByDomain = new Map<string, number>()
-
   for (const line of logs.split("\n")) {
     const ts = extractTimestamp(line)
-    if (!ts || jakartaTodayDateIso(ts) !== targetDateIso) continue
+    if (!ts || ts < since || ts >= until) continue
     const host = extractRequestHost(line)
     if (!host || !cleanDomains.has(host)) continue
     if (isNoiseRequest(line)) continue
 
+    const dateIso = jakartaTodayDateIso(ts)
+    if (!result.has(dateIso)) result.set(dateIso, new Map())
+    const byDomain = result.get(dateIso)!
+    if (!byDomain.has(host)) byDomain.set(host, { requestCount: 0, bandwidthBytes: 0, ips: new Set() })
+    const stat = byDomain.get(host)!
+    stat.requestCount += 1
+    stat.bandwidthBytes += extractDownstreamSize(line)
     const ip = extractClientIp(line)
-    if (ip) {
-      if (!visitorsByDomain.has(host)) visitorsByDomain.set(host, new Set())
-      visitorsByDomain.get(host)!.add(ip)
-    }
-    requestCountByDomain.set(host, (requestCountByDomain.get(host) ?? 0) + 1)
-    bandwidthByDomain.set(host, (bandwidthByDomain.get(host) ?? 0) + extractDownstreamSize(line))
+    if (ip) stat.ips.add(ip)
   }
 
-  for (const domain of cleanDomains) {
-    const requestCount = requestCountByDomain.get(domain) ?? 0
-    if (requestCount === 0) continue
-    result.set(domain, {
-      uniqueVisitors: visitorsByDomain.get(domain)?.size ?? 0,
-      requestCount,
-      bandwidthBytes: bandwidthByDomain.get(domain) ?? 0,
-    })
-  }
   return result
 }

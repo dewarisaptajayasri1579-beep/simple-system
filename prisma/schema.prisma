@@ -165,6 +165,14 @@ model VpsServer {
   /// ketahuan pas user coba aksi manual seperti "Backup Sekarang" (kejadian nyata 2026-09-21).
   coolifySyncError      String?       @map("coolify_sync_error")
   coolifySyncCheckedAt  DateTime?     @map("coolify_sync_checked_at")
+  /// Cursor: sampai jam berapa (persis) log Traefik VPS ini SUDAH diproses ke ApplicationDailyStat
+  /// — dipakai runApplicationTrafficIncrement() supaya window [cursor, now) TIDAK PERNAH tumpang
+  /// tindih antar-jalan cron per jam (kalau pakai window mundur tetap, mis. 130 menit, requestCount
+  /// jadi ke-double-count karena baris log yang sama kebaca ulang di jalan berikutnya — bug nyata
+  /// ketahuan 2026-09-21 pas testing manual). Null = belum pernah jalan sama sekali, fallback
+  /// mundur 130 menit dari sekarang. Kalau 1 kali jalan ke-skip (server sibuk dsb), cursor lama
+  /// otomatis bikin window berikutnya mundur lebih jauh buat nutup celahnya, bukan kehilangan data.
+  trafficCollectedUntil DateTime?     @map("traffic_collected_until")
   /// Kredensial API Enhance (enhance.com) — user cuma isi API URL + Token (disepakati 2026-09-21,
   /// bukan diminta manual cari Organization ID). Sync otomatis (mapping Website Enhance ke
   /// Application) BELUM diimplementasi — field ini baru disimpan buat dipakai di pengembangan
@@ -285,11 +293,15 @@ model Application {
 
 /// Rekap traffic HARIAN 1 aplikasi (1 baris = 1 aplikasi + 1 tanggal, kalender Jakarta) — dipakai
 /// buat KPI "Sering/Normal/Jarang digunakan" (badge di monitoring, window 7 hari terakhir). Diisi
-/// oleh cron harian jam 00:15 WIB yang parse log akses Traefik hari SEBELUMNYA (lihat
-/// aggregateDailyTraffic() di src/lib/monitoring/traefik-access.ts + runApplicationTrafficStats()
-/// di src/lib/cron/application-traffic-stats.ts) — SENGAJA direkap & disimpan permanen di sini,
-/// bukan dihitung on-demand dari log Traefik, karena log itu sendiri cuma nyimpen ~24 jam
-/// (`docker logs`), tidak bisa dipakai buat tren berhari-hari.
+/// INKREMENTAL tiap jam (bukan sekali sehari baca 1 hari penuh) oleh
+/// runApplicationTrafficIncrement() di src/lib/cron/application-traffic-stats.ts, yang tiap
+/// jalan cuma baca window ~2 jam terakhir (collectTrafficWindow() di
+/// src/lib/monitoring/traefik-access.ts) lalu MERGE ke baris hari ini — SENGAJA begini (bukan
+/// baca 1 hari penuh sekali di jam 00:15 seperti sebelumnya) karena log Traefik VPS ramai bisa
+/// ke-rotasi Docker (default 10MB×3 file) dalam hitungan JAM, jauh sebelum cron harian sempat
+/// membacanya — window pendek jauh di bawah kapasitas rotasi berapa pun ramainya VPS (bug nyata
+/// 2026-09-21: aplikasi trafik tinggi "tb-thosin" kehilangan seluruh data harinya karena baca
+/// sekali-sehari kalah cepat dari rotasi log).
 model ApplicationDailyStat {
   id             String      @id @default(uuid())
   applicationId  String      @map("application_id")
@@ -297,15 +309,21 @@ model ApplicationDailyStat {
   /// Tanggal kalender Jakarta (disimpan jam 00:00 UTC hari itu) yang direkap — BUKAN timestamp
   /// kapan cron-nya jalan.
   date           DateTime    @db.Date
-  /// Jumlah IP client BERBEDA yang request ke domain aplikasi ini hari itu — ini yang dipakai
-  /// buat "Kunjungan" di KPI, BUKAN total request mentah (1 orang buka halaman bisa trigger
-  /// puluhan request buat asset/API, jadi total request menyesatkan buat ukur "kunjungan").
+  /// Jumlah IP UNIK di visitorIps (lihat di bawah) — ini yang dipakai buat "Kunjungan" di KPI,
+  /// BUKAN total request mentah (1 orang buka halaman bisa trigger puluhan request buat
+  /// asset/API, jadi total request menyesatkan buat ukur "kunjungan").
   uniqueVisitors Int
-  /// Total request mentah hari itu (termasuk asset/API) — disimpan sekalian karena murah, tapi
-  /// bukan yang ditampilkan sebagai KPI utama.
+  /// Total request mentah hari itu (termasuk asset/API), diakumulasi lintas semua jalan cron per
+  /// jam — disimpan sekalian karena murah, tapi bukan yang ditampilkan sebagai KPI utama.
   requestCount   Int
-  /// Total bytes ke client (field DownstreamContentSize di log JSON Traefik) — "Bandwidth" di KPI.
+  /// Total bytes ke client (field DownstreamContentSize di log JSON Traefik) — "Bandwidth" di
+  /// KPI, diakumulasi lintas semua jalan cron per jam.
   bandwidthBytes BigInt      @map("bandwidth_bytes")
+  /// Daftar IP client yang SUDAH tercatat hari ini, di-UNION tiap cron jam-an jalan — perlu
+  /// disimpan (bukan cuma count) supaya IP yang sama muncul di jam berbeda tidak ke-double-count
+  /// jadi 2 "kunjungan unik" padahal orangnya sama. Ukurannya wajar (ratusan-ribuan string per
+  /// hari untuk app ramai), bukan dipakai buat query/filter apa pun jadi tidak perlu index.
+  visitorIps     String[]    @default([])
   createdAt      DateTime    @default(now()) @map("created_at")
 
   @@unique([applicationId, date])
