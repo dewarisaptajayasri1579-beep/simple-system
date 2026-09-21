@@ -142,9 +142,12 @@ export type DailyTrafficStat = { uniqueVisitors: number; requestCount: number; b
 
 /** Rekap traffic 1 hari KALENDER JAKARTA (`targetDateIso`, format "YYYY-MM-DD") per domain — beda
  *  dari getLastAccessedByDomain() yang cuma ambil 1 request TERAKHIR, ini scan SEMUA baris log
- *  buat hitung IP unik ("Kunjungan"), total request, dan total bytes ke client ("Bandwidth").
- *  Dipanggil cron harian jam 00:15 WIB buat rekap hari SEBELUMNYA — lihat
- *  runApplicationTrafficStats() di src/lib/cron/application-traffic-stats.ts.
+ *  buat hitung IP unik ("Kunjungan"), total request, dan total bytes ke client ("Bandwidth"). Baris
+ *  yang lolos isNoiseRequest() (bot/scanner, response gagal) di-skip sama seperti
+ *  getLastAccessedByDomain() — supaya KPI "Sering/Normal/Jarang digunakan" tidak ikut kegelembung
+ *  bot (lihat percakapan monitoring 2026-09-21). Dipanggil cron harian jam 00:15 WIB buat rekap
+ *  hari SEBELUMNYA — lihat runApplicationTrafficStats() di
+ *  src/lib/cron/application-traffic-stats.ts.
  *
  *  Window `--since 30h` (bukan 24h kayak getLastAccessedByDomain) SENGAJA lebih lebar — supaya
  *  seluruh hari kemarin (00:00-23:59 Jakarta) kebaca penuh walau cron-nya baru jalan beberapa
@@ -181,6 +184,7 @@ export async function aggregateDailyTraffic(
     if (!ts || jakartaTodayDateIso(ts) !== targetDateIso) continue
     const host = extractRequestHost(line)
     if (!host || !cleanDomains.has(host)) continue
+    if (isNoiseRequest(line)) continue
 
     const ip = extractClientIp(line)
     if (ip) {

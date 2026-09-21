@@ -384,3 +384,33 @@ Di belakang layar, balasan ini memicu **notifikasi mendesak ke PIC** dan **kenai
 - Referral webinar diakui lewat sebutan nama ("Siap Pak Willy") tanpa perlu bertanya ulang nama/lokasi — beda dari opener ad-click generik (Sesi 5/6) yang memang belum bawa identitas. Konteks yang sudah ada tidak digali ulang.
 - Sapaan "Pak" dipakai (bukan "Kak") — mengikuti cara lead menyebut dirinya sendiri ("saya pak Willy"), bukan default tunggal. Perlu dicek apakah ini pola sengaja atau kebetulan.
 
+### Sesi 8 — lanjutan (Pak Willy cerita masalah)
+
+**Pesan Lead**:
+> Ini kak, bengkel saya udah 8 tahun jalan, montir ada 6 orang. Masalahnya tuh saya susah tau siapa yang paling produktif, soalnya nyatet job cuma di kertas nota. Sparepart juga sering ga ketauan sisa berapa, pas dicari ternyata kosong padahal di buku masih ada
+
+**Jawaban Cika**:
+> Menurut bapak, penilaian kinerja montir dari bapak sendiri apa saja pak?
+> yang pasti sistem akan mencatat inputan supaya output yang bpak butuhkan sesuai
+
+**Catatan:**
+- ⭐ **Tidak berasumsi soal definisi "produktif".** "Produktif" bisa berarti jumlah job selesai, omzet yang dihasilkan, kecepatan kerja, atau rating pelanggan — Cika **menanyakan definisi milik lead sendiri**, bukan menerka atau langsung menjelaskan fitur "laporan kinerja montir" generik.
+- ⭐ **Kalimat kedua adalah jaminan tanpa fitur spesifik**: "sistem akan mencatat inputan supaya output yang bapak butuhkan sesuai" — meyakinkan bahwa apa pun definisinya, sistem bisa mengikuti. Ini tetap di **Tingkat 2** (§2.2e: arah solusi, bukan rincian fitur) — tidak menyebut nama fitur, tidak menjanjikan tampilan tertentu.
+- Pola ini **melengkapi** "namai masalah dengan istilah tepat" (Sesi 7, "multi satuan multi harga"): kalau di sana Cika **memberi nama** untuk masalah yang sudah jelas, di sini Cika **bertanya definisi** untuk masalah yang masih kabur ("produktif" itu subjektif per pemilik usaha). Keduanya sama-sama menghindari asumsi sepihak.
+
+### Sesi 8 — lanjutan (menyusun jawaban lead jadi struktur)
+
+**Pesan Lead**:
+> Yang penting sih jumlah job yang diselesaikan sama waktu pengerjaannya kak, jangan sampe kelamaan satu mobil. Sama komplain balik, kalo montirnya kerjaannya asal-asalan pasti mobil balik lagi keluhan sama
+
+**Jawaban Cika**:
+> Siap artinya KPI nanti berdasarkan :
+> 1. Jml Mobil yang dikerjakan
+> 2. Durasi Waktu pengerjaan
+> 3. Hasil Pengerjaan ya Pak -> ini nanti review dari Pelanggan berarti ya pak?
+
+**Catatan:**
+- ⭐ **Menyusun cerita lead jadi kerangka berlabel ("KPI"), lalu dinomori.** Lead bicara mengalir (job selesai, jangan lama, jangan komplain balik) — Cika mengubahnya jadi 3 poin terstruktur. Efeknya mirip "multi satuan multi harga": lead merasa dipahami secara profesional, bukan cuma didengar.
+- ⭐ **Konfirmasi titik yang paling bisa disalahartikan, bukan semua poin.** Dari 3 poin, hanya poin ke-3 ("hasil pengerjaan") yang dikonfirmasi ulang — karena "komplain balik" bisa berarti review pelanggan formal, atau sekadar keluhan lisan yang tidak tercatat di mana pun. Poin 1 & 2 sudah jelas dari kalimat lead sendiri, tidak perlu ditanya ulang. Menunjukkan kalibrasi: tidak semua hal butuh konfirmasi, hanya yang ambigu.
+- Pola gabungan Sesi 8 sejauh ini: **tanya definisi → susun jadi struktur → konfirmasi titik ambigu saja**. Ini alur kualifikasi kebutuhan yang lebih matang dibanding sekadar "gali lalu rangkum" di Sesi 7.
+
