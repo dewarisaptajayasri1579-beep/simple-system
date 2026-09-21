@@ -1,12 +1,16 @@
 # Administratif — HRD: Absensi & Penggajian (Alur Aplikasi Lama, Terverifikasi)
 
-**Status:** Alur bisnis sudah dipelajari dari source code aplikasi lama (Web CodeIgniter 3 +
+**Status:** Dokumen RENCANA — alur bisnis sistem lama + keputusan final (bagian 5) yang jadi
+dasar implementasi. **Backend Absensi & Penggajian SUDAH DIBANGUN** (lihat bagian 6);
+untuk dokumentasi as-built (schema, endpoint, formula persis yang berjalan sekarang), lihat
+[administratif-as-built.md](administratif-as-built.md) — dokumen INI tetap dipertahankan
+sebagai referensi historis (alur sistem lama + kenapa keputusan bisnisnya begitu).
+
+Alur bisnis sudah dipelajari dari source code aplikasi lama (Web CodeIgniter 3 +
 Android Flutter, project **"Fast Absensi"**) dan **diverifikasi langsung dari dump database
 produksi** (bukan tebakan dari kode saja). Sumber riset lengkap ada di
 `~/Documents/Projects/ABSENSI/docs/` (5 dokumen + data export SQL/CSV) — dokumen ini
 merangkum bagian yang relevan buat desain ulang di Modul Administratif (`/administratif`).
-Yang masih terbuka adalah **keputusan bisnis** untuk sistem baru (lihat bagian 5), bukan lagi
-"belum tahu alurnya seperti apa".
 
 **Cakupan:** beda dari `01`–`06` (spek modul Marketing/Simple Lead) dan `monitoring-server.md`
 (as-built Monitoring). Dokumen ini untuk 2 proses baru di Modul Administratif — lihat
@@ -300,12 +304,13 @@ self-service.
 1. ~~Dapat source code aplikasi lama~~ ✅ selesai — riset di `~/Documents/Projects/ABSENSI/docs/`.
 2. ~~Pelajari alur & business rule~~ ✅ selesai — dirangkum di dokumen ini.
 3. ~~Bahas Keputusan Bisnis dengan Owner~~ ✅ selesai — lihat bagian 5 (final).
-4. Pelajari pola `Transaction`/posting jurnal di modul Internal (untuk keputusan #7)
-   sebelum desain schema payroll.
-5. Desain schema Prisma: `AttendanceRecord` (pengganti `m_log`, per `Employee`),
-   `LeaveRequest` (izin/sakit/cuti, tanpa approval), `PayrollPeriod` + `PayrollItem`
-   (mesin hitung bulanan), `EmployeeKasbon` (kasbon khusus karyawan) — mengikuti
-   konvensi yang sudah ada (`Employee`, `CorrespondenceLog`).
-6. Implementasi halaman & API di `/administratif` (menyusul `karyawan/` dan `surat/`
-   yang sudah ada): Absensi (input/rekap manual oleh HR), Penggajian (hitung → review →
-   posting → slip).
+4. ~~Pelajari pola `Transaction`/posting jurnal di modul Internal~~ ✅ selesai — reuse
+   `markServerPaid()` sebagai template.
+5. ~~Desain & bangun schema Prisma~~ ✅ selesai — `AttendanceRecord`, `LeaveRequest`,
+   `HrSettings`, `EmployeeSession`, `PayrollPeriod`/`PayrollItem`, `EmployeeKasbon`.
+6. ~~Implementasi halaman & API di `/administratif`~~ ✅ selesai — Absensi (web + API
+   Android) dan Penggajian (hitung → review → bayar → jurnal Kas Keluar).
+   **Detail lengkap apa yang jadi & di file mana: lihat
+   [administratif-as-built.md](administratif-as-built.md).**
+7. **Belum dikerjakan**: integrasi app Android Flutter yang sudah ada ke API baru ini
+   (lihat as-built §7), slip gaji PDF, auto-lunas Kasbon dari potongan gaji.

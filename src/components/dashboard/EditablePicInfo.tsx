@@ -53,16 +53,19 @@ export const EditablePicInfo: React.FC<{
 
   return (
     <>
+      {/* text-left + items-start: <button> mewarisi text-align:center dari UA stylesheet, jadi
+          begitu teksnya wrap ke 2 baris (nama PIC/nomor panjang) barisnya jadi rata tengah dan
+          kelihatan tidak rapi. */}
       <button
         type="button"
         onClick={openEdit}
-        className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors cursor-pointer group"
+        className="mt-1 flex items-start gap-1.5 text-left text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors cursor-pointer group"
       >
-        <span>
-          PIC: {picName || <span className="italic text-slate-400">klik isi</span>} · No. HP:{" "}
-          {picPhone || <span className="italic text-slate-400">klik isi</span>}
+        <span className="min-w-0 flex flex-col gap-0.5">
+          <span className="break-words">PIC: {picName || <span className="italic text-slate-400">klik isi</span>}</span>
+          <span className="break-words">No. HP: {picPhone || <span className="italic text-slate-400">klik isi</span>}</span>
         </span>
-        <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <Pencil className="w-3 h-3 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
       </button>
 
       <Modal isOpen={isEditing} onClose={() => setIsEditing(false)} title="Edit PIC" size="sm">
