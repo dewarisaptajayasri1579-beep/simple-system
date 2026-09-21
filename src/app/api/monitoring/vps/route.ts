@@ -167,6 +167,20 @@ export async function GET() {
         }
       })
 
+      // Total kunjungan HARI INI (kalender Jakarta) dijumlah lintas semua aplikasi VPS ini — dipakai
+      // StatTile "Aktivitas Hari Ini" di kartu Aplikasi (bergaya list, lihat percakapan monitoring
+      // 2026-09-21). Angka riil dari ApplicationDailyStat (sudah disaring bot/request gagal waktu
+      // direkap cron, lihat aggregateDailyTraffic) — BUKAN direka-reka dari rata-rata 7 hari.
+      const todayIso = jakartaTodayDateIso()
+      const vpsAppIds = new Set(vps.applications.map((a) => a.id))
+      let activityToday = 0
+      for (const [appId, rows] of trafficByAppId) {
+        if (!vpsAppIds.has(appId)) continue
+        for (const row of rows) {
+          if (jakartaTodayDateIso(row.date) === todayIso) activityToday += row.uniqueVisitors
+        }
+      }
+
       return {
         id: vps.id,
         name: vps.name,
@@ -200,6 +214,7 @@ export async function GET() {
         dockerVolumes: cache?.volumes ?? null,
         dockerDiskCheckedAt: vps.dockerDiskCheckedAt,
         registeredDomains,
+        activityToday,
         databases,
         applications: vps.applications.map((app) => {
           const appContainer = app.coolifyUuid ? cache?.containers?.find((c) => c.coolifyAppUuid === app.coolifyUuid) : undefined
@@ -246,6 +261,7 @@ export async function GET() {
             lastAccessedBy: app.lastAccessedBy,
             lastAccessedIp: app.lastAccessedIp,
             lastAccessedCity: app.lastAccessedCity,
+            createdAt: app.createdAt,
             coolifyProjectName: app.coolifyProjectName,
             coolifyLink: coolifyResourceLink(vps.coolifyApiUrl, "application", app.coolifyProjectUuid, app.coolifyEnvironmentUuid, app.coolifyUuid),
             domainExpiresAt,

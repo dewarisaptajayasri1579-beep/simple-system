@@ -17,6 +17,7 @@ import {
   FolderKanban,
   Info,
   ListChecks,
+  ActivitySquare,
 } from "lucide-react";
 
 export interface NavItem {
@@ -48,16 +49,21 @@ export interface SidebarProps {
 //
 // Restriksi sebenarnya tetap di masing-masing page.tsx (requirePageRole) — ini cuma soal menu
 // mana yang ditampilkan/kemana link-nya mengarah.
-const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Pengaturan"]);
+const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Monitoring Keuangan", "Pengaturan"]);
 const ADMIN_HREF_OVERRIDE: Record<string, string> = {
   Keuangan: "/keuangan/kas-keluar",
 };
 
+// Monitoring Keuangan (Uang Masuk/Uang Keluar) sengaja Owner+Admin saja — Direktur/Sysadmin
+// tidak perlu lihat menu ini (beda dari kebanyakan menu lain yang default tampil ke semua role
+// selain admin).
+const MONITORING_KEUANGAN_ROLES = new Set(["owner", "admin"]);
+
 export function navItemsForRole(role: string | undefined): NavItem[] {
-  if (role !== "admin") return navItems;
-  return navItems
-    .filter((item) => ADMIN_ALLOWED_LABELS.has(item.label))
-    .map((item) => (ADMIN_HREF_OVERRIDE[item.label] ? { ...item, href: ADMIN_HREF_OVERRIDE[item.label] } : item));
+  const base = role !== "admin" ? navItems : navItems.filter((item) => ADMIN_ALLOWED_LABELS.has(item.label));
+  return base
+    .filter((item) => item.label !== "Monitoring Keuangan" || MONITORING_KEUANGAN_ROLES.has(role ?? ""))
+    .map((item) => (role === "admin" && ADMIN_HREF_OVERRIDE[item.label] ? { ...item, href: ADMIN_HREF_OVERRIDE[item.label] } : item));
 }
 
 export const navItems: NavItem[] = [
@@ -65,6 +71,7 @@ export const navItems: NavItem[] = [
   { label: "Invoice", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
+  { label: "Monitoring Keuangan", href: "/monitoring-keuangan", icon: <ActivitySquare className="w-5 h-5" /> },
   { label: "Proyek", href: "/proyek", icon: <FolderKanban className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Akuntansi", href: "/akuntansi", icon: <BookOpen className="w-5 h-5" /> },

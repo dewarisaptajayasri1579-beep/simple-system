@@ -45,6 +45,7 @@ export type AppRow = {
   traffic: { bandwidthBytes7d: number; avgVisitorsPerDay: number; activeDays7d: number; label: "sering" | "normal" | "jarang" } | null
   bandwidthBytesThisMonth: number
   package: MonitoringPackageRow | null
+  createdAt: string
 }
 
 export type MonitoringPackageRow = {
@@ -96,6 +97,7 @@ export type VpsRow = {
   dockerDiskCheckedAt: string | null
   applications: AppRow[]
   registeredDomains: { name: string; tracked: boolean; active: boolean | null; expiryDate: string | null }[]
+  activityToday: number
   databases: {
     uuid: string
     name: string
@@ -196,9 +198,13 @@ function dockerDiskProgressLabel(pct: number): string {
   return "Hampir selesai…"
 }
 
+function daysUntil(iso: string): number {
+  return Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000)
+}
+
 function DomainExpiryBadge({ iso }: { iso: string | null }) {
   if (!iso) return <span className="text-slate-400 text-xs font-semibold">Belum diketahui</span>
-  const days = Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000)
+  const days = daysUntil(iso)
   const label = `${formatDateOnlyId(iso)}${days >= 0 ? ` (${days} hari lagi)` : " (lewat)"}`
   const variant = days < 0 ? "danger" : days < 30 ? "danger" : days < 90 ? "warning" : "success"
   return <Badge variant={variant}>{label}</Badge>
@@ -609,10 +615,13 @@ export const VpsServerCard: React.FC<{
   const [search, setSearch] = useState("")
   const [appPage, setAppPage] = useState(1)
   const [dbPage, setDbPage] = useState(1)
+  const [appFilterMode, setAppFilterMode] = useState<"all" | "needsBackup" | "expiringSoon">("all")
+  const [appSortMode, setAppSortMode] = useState<"terbaru" | "nama">("terbaru")
+  const [viewingApp, setViewingApp] = useState<AppRow | null>(null)
   useEffect(() => {
     setAppPage(1)
     setDbPage(1)
-  }, [search])
+  }, [search, appFilterMode])
   const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
   const [healthDetailOpen, setHealthDetailOpen] = useState(false)
   const [volumesModalOpen, setVolumesModalOpen] = useState(false)
@@ -883,11 +892,30 @@ export const VpsServerCard: React.FC<{
   // nambah kompleksitas (endpoint terpisah) tanpa benar² ngurangin payload (lihat percakapan
   // monitoring). Yang bermasalah (isAppUnhealthy/isDbUnhealthy) ditaruh paling atas biar kelihatan
   // tanpa perlu buka halaman jauh-jauh.
+  const appNeedsBackup = (app: AppRow) => Boolean(app.databaseUuid && isBackupStale(app.dbBackupAt))
+  const appExpiringSoon = (app: AppRow) => Boolean(app.domainExpiresAt && daysUntil(app.domainExpiresAt) < 30)
+  // StatTile dihitung dari SEMUA aplikasi (bukan yang lolos search/filter) — supaya angkanya tetap
+  // jadi acuan total yang stabil walau user lagi nyari/nyaring sesuatu yang lain.
+  const appStats = {
+    total: vps.applications.length,
+    needsBackup: vps.applications.filter(appNeedsBackup).length,
+    expiringSoon: vps.applications.filter(appExpiringSoon).length,
+  }
+
   const PAGE_SIZE = 10
   const searchTerm = search.trim().toLowerCase()
   const sortedApplications = [...vps.applications]
     .filter((app) => !searchTerm || [app.name, app.domain, app.coolifyProjectName].some((v) => v?.toLowerCase().includes(searchTerm)))
-    .sort((a, b) => Number(isAppUnhealthy(b)) - Number(isAppUnhealthy(a)))
+    .filter((app) => {
+      if (appFilterMode === "needsBackup") return appNeedsBackup(app)
+      if (appFilterMode === "expiringSoon") return appExpiringSoon(app)
+      return true
+    })
+    .sort((a, b) => {
+      if (appSortMode === "nama") return a.name.localeCompare(b.name)
+      if (isAppUnhealthy(a) !== isAppUnhealthy(b)) return Number(isAppUnhealthy(b)) - Number(isAppUnhealthy(a))
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
   const appPageCount = Math.max(Math.ceil(sortedApplications.length / PAGE_SIZE), 1)
   // Clamp (bukan cuma pakai appPage mentah) — data bisa berubah (delete/refresh) sampai page
   // lama jadi out-of-range, tanpa ini malah kelihatan "tidak ada hasil" yang menyesatkan.
