@@ -1,7 +1,27 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Server, HardDrive, Cpu, MemoryStick, Plus, Trash2, Pencil, ExternalLink, GitBranch, ChevronDown, Globe, Sparkles, Users, Search, DatabaseBackup } from "lucide-react"
+import {
+  Server,
+  HardDrive,
+  Cpu,
+  MemoryStick,
+  Plus,
+  Trash2,
+  Pencil,
+  ExternalLink,
+  GitBranch,
+  ChevronDown,
+  Globe,
+  Sparkles,
+  Search,
+  DatabaseBackup,
+  Box,
+  Database,
+  Clock,
+  TrendingUp,
+  Eye,
+} from "lucide-react"
 
 import { Button, Input, Textarea, Modal, Alert, Badge, Select } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
@@ -226,6 +246,36 @@ function UsageBadge({ traffic }: { traffic: AppRow["traffic"] }) {
       <span className="text-[11px] text-slate-500 font-medium">
         {formatBytes(traffic.bandwidthBytes7d)}/minggu · {traffic.avgVisitorsPerDay.toFixed(1)} kunjungan/hari · {traffic.activeDays7d}/7 hari aktif
       </span>
+    </div>
+  )
+}
+
+/** Kartu ringkasan kecil di atas daftar Aplikasi (gaya cardlist, lihat mockup/cardlist
+ *  aplikasi.png) — angka SELALU dari data riil (dihitung dari appStats/vps.activityToday), TIDAK
+ *  ada delta "naik/turun dari bulan lalu" seperti di mockup karena tidak ada baseline historis
+ *  yang beneran disimpan (lihat percakapan monitoring 2026-09-21) — dipalsukan itu lebih menyesatkan
+ *  daripada tidak ditampilkan sama sekali. */
+function StatTile({ icon, iconClassName, label, value, hint }: { icon: React.ReactNode; iconClassName: string; label: string; value: number; hint: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3.5 flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconClassName}`}>{icon}</div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold text-slate-500 truncate">{label}</div>
+        <div className="text-xl font-black text-slate-900 leading-tight">{value}</div>
+        <div className="text-[11px] text-slate-400 font-medium truncate">{hint}</div>
+      </div>
+    </div>
+  )
+}
+
+/** 1 baris label+value di modal "Lihat Detail" — baris disembunyikan total kalau value-nya
+ *  kosong (null/undefined/string kosong), supaya modal tidak penuh baris "-" yang tidak berguna. */
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (value === null || value === undefined || value === "") return null
+  return (
+    <div className="grid grid-cols-3 gap-3 py-2 border-b border-slate-100 last:border-b-0">
+      <span className="text-xs font-bold text-slate-500 col-span-1">{label}</span>
+      <span className="text-xs text-slate-800 font-medium col-span-2 break-words">{value}</span>
     </div>
   )
 }
@@ -1294,39 +1344,99 @@ export const VpsServerCard: React.FC<{
             )}
           </div>
 
-          {(vps.applications.length > 0 || vps.databases.length > 0) && (
-            <Input
-              placeholder="Cari nama aplikasi/database, domain, atau project Coolify…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              leftIcon={<Search className="w-4 h-4" />}
-            />
+          {vps.applications.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatTile
+                icon={<Box className="w-5 h-5 text-blue-600" />}
+                iconClassName="bg-blue-50"
+                label="Total Aplikasi"
+                value={appStats.total}
+                hint="terdaftar di VPS ini"
+              />
+              <StatTile
+                icon={<Database className="w-5 h-5 text-rose-600" />}
+                iconClassName="bg-rose-50"
+                label="Perlu Backup DB"
+                value={appStats.needsBackup}
+                hint="perlu ditindaklanjuti"
+              />
+              <StatTile
+                icon={<Clock className="w-5 h-5 text-amber-600" />}
+                iconClassName="bg-amber-50"
+                label="Domain Akan Habis"
+                value={appStats.expiringSoon}
+                hint="dalam 30 hari"
+              />
+              <StatTile
+                icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
+                iconClassName="bg-indigo-50"
+                label="Aktivitas Hari Ini"
+                value={vps.activityToday}
+                hint="kunjungan aplikasi"
+              />
+            </div>
           )}
 
-          <TableContainer>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">#</TableHead>
-                  <TableHead className="w-64">Aplikasi</TableHead>
-                  <TableHead>Deploy &amp; Database</TableHead>
-                  <TableHead className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Aktivitas</TableHead>
-                  {isOwner && <TableHead className="text-right">Aksi</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredApplications.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={isOwner ? 5 : 4} className="text-center text-slate-400 text-xs font-semibold py-6">
-                      {vps.applications.length === 0 ? "Belum ada aplikasi terdaftar di VPS ini." : "Tidak ada aplikasi yang cocok dengan pencarian."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredApplications.map((app, index) => (
-                    <TableRow key={app.id}>
-                      <TableCell className="text-slate-400 font-semibold">{index + 1}</TableCell>
-                      {/* Identitas: nama + badge, disk usage aplikasi */}
-                      <TableCell>
+          {(vps.applications.length > 0 || vps.databases.length > 0) && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <Input
+                  placeholder="Cari nama aplikasi/database, domain, atau project Coolify…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  leftIcon={<Search className="w-4 h-4" />}
+                />
+              </div>
+              {vps.applications.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(
+                    [
+                      { value: "all", label: `Semua (${appStats.total})` },
+                      { value: "needsBackup", label: `Perlu Backup (${appStats.needsBackup})` },
+                      { value: "expiringSoon", label: `Akan Habis (${appStats.expiringSoon})` },
+                    ] as const
+                  ).map((chip) => (
+                    <button
+                      key={chip.value}
+                      onClick={() => setAppFilterMode(chip.value)}
+                      className={`px-3 h-8 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
+                        appFilterMode === chip.value
+                          ? "bg-blue-600 border-blue-600 text-white"
+                          : "bg-white border-slate-200/90 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                  <select
+                    value={appSortMode}
+                    onChange={(e) => setAppSortMode(e.target.value as "terbaru" | "nama")}
+                    className="h-8 pl-2.5 pr-6 rounded-full bg-white border border-slate-200/90 text-xs font-bold text-slate-600 cursor-pointer focus:outline-none"
+                    aria-label="Urutkan aplikasi"
+                  >
+                    <option value="terbaru">Urutkan: Terbaru</option>
+                    <option value="nama">Urutkan: Nama (A-Z)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            {filteredApplications.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 text-center text-slate-400 text-xs font-semibold py-8">
+                {vps.applications.length === 0 ? "Belum ada aplikasi terdaftar di VPS ini." : "Tidak ada aplikasi yang cocok dengan pencarian/filter."}
+              </div>
+            ) : (
+              filteredApplications.map((app, index) => (
+                <div key={app.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 sm:p-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_auto] gap-4 lg:gap-5">
+                    {/* Identitas: # + nama + badge, disk usage aplikasi */}
+                    <div className="flex gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-bold flex items-center justify-center flex-shrink-0">
+                        {(currentAppPage - 1) * PAGE_SIZE + index + 1}
+                      </span>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-900">{app.name}</span>
                           {app.hasCoolifySync && (
@@ -1356,136 +1466,130 @@ export const VpsServerCard: React.FC<{
                           <span className="text-slate-400 font-semibold">Disk App: </span>
                           <DiskContribution usage={app.diskUsage} totalBytes={vps.disk?.totalBytes} />
                         </div>
-                      </TableCell>
-                      {/* Deploy & Database: domain+expiry, git+branch, info database + disk-nya, status backup */}
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Domain &amp; Git</span>
-                          {app.domain ? (
-                            <a
-                              href={`https://${app.domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
-                            >
-                              <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                            </a>
-                          ) : (
-                            <div className="text-slate-400 text-xs">Tanpa domain</div>
-                          )}
-                          {app.domain && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[11px] text-slate-400 font-semibold">Habis:</span>
-                              <DomainExpiryBadge iso={app.domainExpiresAt} />
-                            </div>
-                          )}
-                          {app.gitRepository ? (
-                            <a
-                              href={app.gitRepository}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
-                            >
-                              <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 text-xs block">Tanpa git</span>
-                          )}
-                          {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
+                      </div>
+                    </div>
+                    {/* Deploy & Domain: domain+expiry, git+branch */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Deploy &amp; Domain</span>
+                      {app.domain ? (
+                        <a
+                          href={`https://${app.domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
+                        >
+                          <span>{app.domain}</span> <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                        </a>
+                      ) : (
+                        <div className="text-slate-400 text-xs">Tanpa domain</div>
+                      )}
+                      {app.domain && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] text-slate-400 font-semibold">Habis:</span>
+                          <DomainExpiryBadge iso={app.domainExpiresAt} />
                         </div>
-
-                        <div className="flex flex-col gap-1 mt-2.5 pt-2.5 border-t border-slate-100">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Database</span>
-                          <div className="text-xs font-semibold text-slate-700">
-                            {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
-                          </div>
-                          {app.databaseInfo && (
-                            <div className="text-xs">
-                              <span className="text-slate-400 font-semibold">Disk DB: </span>
-                              <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
-                            </div>
-                          )}
-                          <div className="flex flex-col items-start gap-1">
-                            <div className="flex items-center gap-1.5">
-                              {app.dbBackupAt && (
-                                <span className="text-xs font-semibold text-slate-700">Backup DB: {formatDateTimeId(app.dbBackupAt)}</span>
-                              )}
-                              {app.databaseUuid && isBackupStale(app.dbBackupAt) && (
-                                <Badge variant={app.dbBackupAt ? "warning" : "danger"} size="sm">
-                                  {app.dbBackupAt ? "Backup >1 hari" : "Belum ada backup DB"}
-                                </Badge>
-                              )}
-                            </div>
-                            {app.databaseUuid && (
-                              <div className="flex items-center gap-2.5">
-                                {app.dbBackupLink && (
-                                  <a
-                                    href={app.dbBackupLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
-                                  >
-                                    <ExternalLink className="w-3 h-3" /> Unduh
-                                  </a>
-                                )}
-                                {isOwner && (
-                                  <button
-                                    onClick={() => handleBackupNow(app.databaseUuid!)}
-                                    disabled={backingUpDbUuid === app.databaseUuid}
-                                    className="inline-flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                    aria-label="Backup Sekarang"
-                                    title="Trigger backup baru sekarang"
-                                  >
-                                    <DatabaseBackup className="w-3 h-3" /> Backup Sekarang
-                                  </button>
-                                )}
-                              </div>
+                      )}
+                      {app.gitRepository ? (
+                        <a
+                          href={app.gitRepository}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs break-all"
+                        >
+                          <GitBranch className="w-3 h-3 flex-shrink-0" /> {repoDisplayName(app.gitRepository)}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400 text-xs block">Tanpa git</span>
+                      )}
+                      {app.gitBranch && <div className="text-[11px] text-slate-500 font-medium">branch: {app.gitBranch}</div>}
+                    </div>
+                    {/* Database: info + disk-nya + status backup */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Database</span>
+                      <div className="text-xs font-semibold text-slate-700">
+                        {app.databaseInfo || <span className="text-slate-400 font-normal">Tanpa database</span>}
+                      </div>
+                      {app.databaseInfo && (
+                        <div className="text-xs">
+                          <span className="text-slate-400 font-semibold">Disk DB: </span>
+                          <DiskContribution usage={app.databaseDiskUsage} totalBytes={vps.disk?.totalBytes} />
+                        </div>
+                      )}
+                      <div className="flex flex-col items-start gap-1">
+                        {app.databaseUuid && isBackupStale(app.dbBackupAt) && (
+                          <Badge variant={app.dbBackupAt ? "warning" : "danger"} size="sm">
+                            {app.dbBackupAt ? "Backup >1 hari" : "Belum ada backup DB"}
+                          </Badge>
+                        )}
+                        {app.dbBackupAt && !isBackupStale(app.dbBackupAt) && (
+                          <span className="text-xs font-semibold text-slate-700">Backup {timeAgoId(app.dbBackupAt)}</span>
+                        )}
+                        {app.databaseUuid && (
+                          <div className="flex items-center gap-2.5">
+                            {app.dbBackupLink && (
+                              <a
+                                href={app.dbBackupLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Unduh
+                              </a>
+                            )}
+                            {isOwner && (
+                              <button
+                                onClick={() => handleBackupNow(app.databaseUuid!)}
+                                disabled={backingUpDbUuid === app.databaseUuid}
+                                className="inline-flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Backup Sekarang"
+                                title="Trigger backup baru sekarang"
+                              >
+                                <DatabaseBackup className="w-3 h-3" /> Backup Sekarang
+                              </button>
                             )}
                           </div>
-                        </div>
-                      </TableCell>
-                      {/* Aktivitas: terakhir diakses (relatif + tanggal absolut) + siapa + dari mana, plus KPI penggunaan 7 hari */}
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Terakhir Diakses</span>
-                          {app.lastAccessedAt ? (
-                            <>
-                              <span className="text-xs font-bold text-slate-800">{timeAgoId(app.lastAccessedAt)}</span>
-                              <span className="text-[11px] text-slate-500 font-medium">{formatDateTimeId(app.lastAccessedAt)}</span>
-                              {app.lastAccessedBy && <span className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">Oleh: {app.lastAccessedBy}</span>}
-                              {app.lastAccessedIp && (
-                                <span className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
-                                  {app.lastAccessedIp}
-                                  {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Aktivitas: terakhir diakses + KPI penggunaan 7 hari */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Terakhir Diakses</span>
+                      {app.lastAccessedAt ? (
+                        <>
+                          <span className="text-xs font-bold text-slate-800">{timeAgoId(app.lastAccessedAt)}</span>
+                          <span className="text-[11px] text-slate-500 font-medium">{formatDateTimeId(app.lastAccessedAt)}</span>
+                          {app.lastAccessedBy && <span className="text-[11px] text-slate-500 font-medium truncate max-w-[140px]">Oleh: {app.lastAccessedBy}</span>}
+                          {app.lastAccessedIp && (
+                            <span className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
+                              {app.lastAccessedIp}
+                              {app.lastAccessedCity && ` · ${app.lastAccessedCity}`}
+                            </span>
                           )}
-                        </div>
-                        <div className="mt-2.5 pt-2.5 border-t border-slate-100">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Penggunaan 7 Hari</span>
-                          <UsageBadge traffic={app.traffic} />
-                        </div>
-                      </TableCell>
-                      {isOwner && (
-                        <TableCell className="text-right whitespace-nowrap">
-                          <button
-                            onClick={() => openEditApp(app)}
-                            className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                            aria-label="Edit"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        </TableCell>
+                        </>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-400">Belum diketahui</span>
                       )}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Penggunaan 7 Hari</span>
+                        <UsageBadge traffic={app.traffic} />
+                      </div>
+                    </div>
+                    {/* Aksi */}
+                    <div className="flex lg:flex-col gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setViewingApp(app)} leftIcon={<Eye className="w-3.5 h-3.5" />}>
+                        Lihat Detail
+                      </Button>
+                      {isOwner && (
+                        <Button size="sm" variant="outline" onClick={() => openEditApp(app)} leftIcon={<Pencil className="w-3.5 h-3.5" />}>
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
           <TablePagination page={currentAppPage} pageCount={appPageCount} total={sortedApplications.length} onChange={setAppPage} />
 
           {vps.databases.length > 0 && (
@@ -1980,6 +2084,65 @@ export const VpsServerCard: React.FC<{
             )
           })}
         </div>
+      </Modal>
+
+      <Modal isOpen={!!viewingApp} onClose={() => setViewingApp(null)} title={viewingApp?.name ?? ""} subtitle="Rincian Aplikasi (read-only)" size="lg">
+        {viewingApp && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {viewingApp.hasCoolifySync && <Badge variant="info">Coolify</Badge>}
+              {viewingApp.coolifyProjectName && <Badge variant="primary">{viewingApp.coolifyProjectName}</Badge>}
+              {viewingApp.coolifyLink && (
+                <a
+                  href={viewingApp.coolifyLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Buka di Coolify
+                </a>
+              )}
+            </div>
+
+            <DetailRow label="Domain" value={viewingApp.domain ? <a href={`https://${viewingApp.domain}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-semibold break-all">{viewingApp.domain}</a> : null} />
+            <DetailRow label="Domain Habis" value={viewingApp.domainExpiresAt ? formatDateTimeId(viewingApp.domainExpiresAt) : null} />
+            <DetailRow label="Git Repository" value={viewingApp.gitRepository ? <a href={viewingApp.gitRepository} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-semibold break-all">{repoDisplayName(viewingApp.gitRepository)}</a> : null} />
+            <DetailRow label="Git Branch" value={viewingApp.gitBranch} />
+            <DetailRow label="Database" value={viewingApp.databaseInfo} />
+            <DetailRow label="Query Aktivitas Manual" value={viewingApp.activityQuery ? <code className="text-[11px] break-all">{viewingApp.activityQuery}</code> : null} />
+            <DetailRow
+              label="Backup Database"
+              value={viewingApp.dbBackupAt ? formatDateTimeId(viewingApp.dbBackupAt) : viewingApp.databaseUuid ? "Belum ada backup" : null}
+            />
+            <DetailRow label="Backup Manual (lokasi)" value={viewingApp.backupLocation} />
+            <DetailRow label="Backup Manual (terakhir)" value={viewingApp.lastBackupAt ? formatDateTimeId(viewingApp.lastBackupAt) : null} />
+            <DetailRow
+              label="Terakhir Diakses"
+              value={
+                viewingApp.lastAccessedAt
+                  ? `${formatDateTimeId(viewingApp.lastAccessedAt)}${viewingApp.lastAccessedBy ? ` — oleh ${viewingApp.lastAccessedBy}` : ""}${viewingApp.lastAccessedIp ? ` — ${viewingApp.lastAccessedIp}${viewingApp.lastAccessedCity ? ` (${viewingApp.lastAccessedCity})` : ""}` : ""}`
+                  : null
+              }
+            />
+            <DetailRow
+              label="Penggunaan 7 Hari"
+              value={
+                viewingApp.traffic
+                  ? `${formatBytes(viewingApp.traffic.bandwidthBytes7d)} · ${viewingApp.traffic.avgVisitorsPerDay.toFixed(1)} kunjungan/hari · ${viewingApp.traffic.activeDays7d}/7 hari aktif`
+                  : null
+              }
+            />
+            <DetailRow label="Bandwidth Bulan Ini" value={formatBytes(viewingApp.bandwidthBytesThisMonth)} />
+            {viewingApp.package && (
+              <DetailRow
+                label="Paket"
+                value={`${viewingApp.package.name} — ${(Number(viewingApp.package.diskSpaceBytes) / 1024 ** 3).toFixed(0)}GB disk / ${(Number(viewingApp.package.bandwidthBytes) / 1024 ** 3).toFixed(0)}GB bandwidth`}
+              />
+            )}
+            <DetailRow label="Catatan" value={viewingApp.notes} />
+            <DetailRow label="Terdaftar Sejak" value={formatDateTimeId(viewingApp.createdAt)} />
+          </div>
+        )}
       </Modal>
     </div>
   )
