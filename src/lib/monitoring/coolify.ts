@@ -186,6 +186,22 @@ function findDatabaseUrlValue(envs: CoolifyEnvVar[]): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null
 }
 
+/** Beberapa aplikasi (mis. Laravel) split kredensial database jadi env var terpisah (DB_HOST,
+ *  DB_PORT, DB_USERNAME, dst) alih-alih 1 connection string gabungan — kalau
+ *  findDatabaseUrlValue() di atas tidak ketemu apa-apa (tidak ada satu pun env var yang cocok
+ *  pola DATABASE_URL/DB_URL/dst), coba cari HOST-nya langsung dari salah satu variasi nama umum
+ *  ini. Coolify pakai UUID resource database sebagai hostname internalnya di Docker network
+ *  (lihat matchDatabaseByHost di bawah) — nilai host mentah ini sudah cukup buat matching, tidak
+ *  perlu construct connection string penuh. Ketahuan lewat kasus nyata 2026-09-21: aplikasi
+ *  "tb-thosin" (Laravel, database MariaDB) pakai DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD
+ *  terpisah, jadi databaseInfo-nya tidak pernah ke-isi walau database-nya beneran ada & aktif. */
+function findDatabaseHostValue(envs: CoolifyEnvVar[]): string | null {
+  const pattern = /^(DB|DATABASE|MYSQL|MARIADB|POSTGRES|PG)_HOST$/i
+  const candidate = envs.find((e) => pattern.test(e.key))
+  const value = candidate?.real_value ?? candidate?.value
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
 /** Ambil hostname dari connection string apa pun yang valid sebagai URL (postgres://, mysql://,
  *  redis://, dst — parser bawaan JS tidak peduli scheme-nya asal formatnya URL standar). */
 function extractHost(connectionString: string): string | null {
@@ -320,7 +336,7 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
       try {
         const envs = await fetchApplicationEnvs(apiBase, token, app.uuid)
         const dbUrl = findDatabaseUrlValue(envs)
-        const host = dbUrl ? extractHost(dbUrl) : null
+        const host = dbUrl ? extractHost(dbUrl) : findDatabaseHostValue(envs)
         const matched = host ? matchDatabaseByHost(host, databases) : null
         if (matched) {
           databaseInfo = `${prettifyDatabaseType(matched.database_type)} — ${matched.name}`
