@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { TrendingUp, Users } from "lucide-react"
 
 import { Alert, Card, Select, Spinner } from "@/components/ui"
+import { MetaAdsAiInsight } from "./MetaAdsAiInsight"
 
 type MetaAdsDailyPoint = { date: string; spend: number; impressions: number; clicks: number; ctr: number; cpc: number }
 type MetaAdsBreakdownRow = { label: string; spend: number; impressions: number; clicks: number; ctr: number; cpc: number }
@@ -229,7 +230,26 @@ export function MetaAdsAnalysis({ range, currency }: { range: string; currency: 
               <Spinner />
             </div>
           ) : data && data.trend.length > 0 ? (
-            <TrendChart points={data.trend} currency={currency} />
+            <>
+              <TrendChart points={data.trend} currency={currency} />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 pt-3 border-t border-slate-200/60">
+                <span className="flex items-center gap-2">
+                  <svg width="18" height="8" aria-hidden="true" className="flex-shrink-0">
+                    <line x1="1" y1="4" x2="17" y2="4" stroke={CHART_BLUE} strokeWidth={2} strokeLinecap="round" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-slate-700">Spend per hari</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <svg width="12" height="12" aria-hidden="true" className="flex-shrink-0">
+                    <circle cx="6" cy="6" r="4" fill={CHART_BLUE} stroke="#fff" strokeWidth={2} />
+                  </svg>
+                  <span className="text-[11px] font-semibold text-slate-500">Hari terakhir ada data</span>
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  Sumbu tegak = rupiah · arahkan kursor ke grafik untuk lihat klik &amp; CTR per tanggal
+                </span>
+              </div>
+            </>
           ) : (
             <p className="text-sm text-slate-500 font-medium text-center py-6">Belum ada data di rentang ini.</p>
           )}
@@ -254,9 +274,24 @@ export function MetaAdsAnalysis({ range, currency }: { range: string; currency: 
             <Spinner />
           </div>
         ) : (
-          <BreakdownTable rows={sortedBreakdown} currency={currency} />
+          <>
+            <BreakdownTable rows={sortedBreakdown} currency={currency} />
+            {sortedBreakdown.length > 0 && (
+              <div className="px-4 sm:px-5 py-3 border-t border-slate-200/60 flex flex-wrap items-center gap-x-5 gap-y-2">
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-2.5 rounded-full bg-blue-600 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-[11px] font-bold text-slate-700">Panjang batang = CTR relatif ke segmen terbaik</span>
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  CTR = seberapa menarik iklannya · CPC = biaya per klik · cek spend dulu — segmen ber-spend kecil belum bisa dipercaya
+                </span>
+              </div>
+            )}
+          </>
         )}
       </Card>
+
+      <MetaAdsAiInsight range={range} />
     </div>
   )
 }
