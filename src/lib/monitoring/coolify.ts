@@ -413,14 +413,33 @@ async function ensureS3Storage(
   return created.uuid
 }
 
-/** Auto-setup backup-ke-R2 buat database Coolify yang BELUM punya jadwal backup sama sekali —
+/** Coolify simpan jenis database jadwal backup sebagai nama class internal PHP-nya (mis.
+ *  "App\Models\StandalonePostgresql" buat database_type "standalone-postgresql") — dipakai
+ *  ensureDatabaseBackups() buat mastiin jadwal yang ketemu BENERAN punya database ini, bukan
+ *  jadwal database lain yang kebetulan nyasar ke-serialisasi di sini (lihat komentar
+ *  ensureDatabaseBackups di bawah). */
+function coolifyBackupModelClassForType(databaseType: string): string {
+  const pascalCase = databaseType.replace(/(^|-)([a-z])/g, (_match, _sep, c: string) => c.toUpperCase())
+  return `App\\Models\\${pascalCase}`
+}
+
+/** Auto-setup backup-ke-R2 buat database Coolify yang BELUM punya jadwal backup MILIKNYA SENDIRI —
  *  supaya database baru yang dibuat belakangan otomatis ke-backup tanpa perlu setup manual lagi.
- *  Kalau database itu SUDAH punya minimal 1 jadwal backup (termasuk yang dibuat manual sebelumnya,
- *  save_s3 atau bukan), TIDAK disentuh — dianggap sudah dikelola manual, supaya tidak dobel/menimpa
- *  konfigurasi yang sengaja di-custom user (buat migrasi paksa SEMUA database termasuk yang sudah
- *  ada jadwalnya ke bucket VPS tertentu, pakai migrateAllDatabaseBackupsToVpsBucket() di bawah,
- *  bukan fungsi ini). Butuh token dengan ability `write`, beda dari token `read`-only yang cukup
- *  buat syncCoolifyApplications di atas. */
+ *  Kalau database itu SUDAH punya minimal 1 jadwal backup dengan database_type YANG COCOK
+ *  (termasuk yang dibuat manual sebelumnya, save_s3 atau bukan), TIDAK disentuh — dianggap sudah
+ *  dikelola manual, supaya tidak dobel/menimpa konfigurasi yang sengaja di-custom user.
+ *
+ *  Cek TIPE-nya (bukan cuma "ada jadwal apa pun") SENGAJA ditambahkan setelah nemu bug nyata
+ *  2026-09-21: GET /databases/{uuid}/backups Coolify kadang balikin jadwal database LAIN yang
+ *  ke-serialisasi salah di response (mis. database Postgres baru dikira "sudah ada jadwal" cuma
+ *  karena ke-tempel jadwal MariaDB database lain) — pengecekan lama (`existing.length > 0`) ketipu
+ *  dan SKIP database yang sebenarnya belum pernah dibackup sama sekali (lihat percakapan
+ *  monitoring — os-template baru ketahuan belum ke-backup pas user coba "Backup Sekarang" manual).
+ *
+ *  Butuh token dengan ability `write`, beda dari token `read`-only yang cukup buat
+ *  syncCoolifyApplications di atas. Migrasi paksa SEMUA database (termasuk yang sudah ada
+ *  jadwalnya) ke bucket VPS tertentu pakai migrateAllDatabaseBackupsToVpsBucket() di bawah, bukan
+ *  fungsi ini. */
 export async function ensureDatabaseBackups(
   vps: SyncCoolifyVps & { id: string; coolifyS3StorageUuid: string | null; r2BucketName: string | null }
 ): Promise<{ created: number }> {
@@ -437,8 +456,10 @@ export async function ensureDatabaseBackups(
   let created = 0
   for (const db of databases) {
     try {
-      const existing = await coolifyGet(apiBase, token, `/databases/${db.uuid}/backups`)
-      if (Array.isArray(existing) && existing.length > 0) continue
+      const existing = (await coolifyGet(apiBase, token, `/databases/${db.uuid}/backups`)) as { database_type?: string }[]
+      const expectedType = coolifyBackupModelClassForType(db.database_type)
+      const hasOwnSchedule = Array.isArray(existing) && existing.some((c) => c.database_type === expectedType)
+      if (hasOwnSchedule) continue
 
       await coolifyPost(apiBase, token, `/databases/${db.uuid}/backups`, {
         frequency: "0 21 * * *",
