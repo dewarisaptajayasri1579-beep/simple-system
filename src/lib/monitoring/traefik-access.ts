@@ -60,13 +60,52 @@ function extractDownstreamSize(line: string): number {
   return m ? Number(m[1]) : 0
 }
 
+function extractStatus(line: string): number | null {
+  const m = line.match(/"DownstreamStatus":(\d+)/)
+  return m ? Number(m[1]) : null
+}
+
+function extractRequestPath(line: string): string | null {
+  const m = line.match(/"RequestPath":"([^"]*)"/)
+  return m ? m[1] : null
+}
+
+/** Path yang lazim diketuk bot/crawler/scanner, BUKAN navigasi user beneran — dicek terpisah dari
+ *  status karena bot kadang dapat 200 (mis. robots.txt beneran ada). */
+const BOT_PATH_PATTERNS = [
+  /^\/robots\.txt$/i,
+  /^\/favicon\.ico$/i,
+  /^\/sitemap\.xml$/i,
+  /^\/\.well-known\//i,
+  /^\/wp-login\.php$/i,
+  /^\/wp-admin/i,
+  /^\/xmlrpc\.php$/i,
+]
+
+/** Baris log dianggap BUKAN kunjungan user asli kalau responsnya gagal (bukan 2xx/3xx — mis.
+ *  request nyasar ke catchall router karena app-nya lagi tidak reachable, dapat 503) ATAU path-nya
+ *  cuma metadata yang lazim diketuk bot (robots.txt, favicon, wp-login, dst). Dipakai
+ *  getLastAccessedByDomain supaya "Terakhir Diakses" tidak ketipu bot/request gagal yang kebetulan
+ *  timestamp-nya paling baru (bug nyata, ketahuan 2026-09-21: robots.txt dari bot, status 503,
+ *  kepilih jadi "terakhir diakses" padahal bukan kunjungan beneran). Cuma berlaku format JSON
+ *  (CLF text lama tidak punya representasi status/path yang gampang diparsing terpisah — baris
+ *  CLF tetap dianggap valid apa adanya, best-effort). */
+function isNoiseRequest(line: string): boolean {
+  const status = extractStatus(line)
+  if (status !== null && (status < 200 || status >= 400)) return true
+  const path = extractRequestPath(line)
+  if (path && BOT_PATH_PATTERNS.some((p) => p.test(path))) return true
+  return false
+}
+
 export type LastAccessEntry = { at: Date; ip: string | null }
 
-/** Ambil timestamp + IP client dari request TERAKHIR per domain dari log akses container reverse
- *  proxy Coolify (default "coolify-proxy", yaitu Traefik) — 1 SSH call per VPS untuk SEMUA domain
- *  sekaligus (bukan per-app), supaya tidak buka banyak koneksi SSH cuma buat baca log yang sama
- *  berulang. Best-effort: kalau container tidak ada / access log Traefik tidak aktif / format log
- *  tidak dikenali, domain itu cuma tidak ke-update — tidak melempar error ke pemanggil (lihat
+/** Ambil timestamp + IP client dari request TERAKHIR (yang lolos filter isNoiseRequest — bukan
+ *  bot/scanner, bukan response gagal) per domain dari log akses container reverse proxy Coolify
+ *  (default "coolify-proxy", yaitu Traefik) — 1 SSH call per VPS untuk SEMUA domain sekaligus
+ *  (bukan per-app), supaya tidak buka banyak koneksi SSH cuma buat baca log yang sama berulang.
+ *  Best-effort: kalau container tidak ada / access log Traefik tidak aktif / format log tidak
+ *  dikenali, domain itu cuma tidak ke-update — tidak melempar error ke pemanggil (lihat
  *  src/lib/cron/vps-monitoring.ts yang menjalankan ini per VPS). */
 export async function getLastAccessedByDomain(vps: VpsProxyLike, domains: string[]): Promise<Map<string, LastAccessEntry>> {
   const result = new Map<string, LastAccessEntry>()
@@ -90,6 +129,7 @@ export async function getLastAccessedByDomain(vps: VpsProxyLike, domains: string
     let latest: LastAccessEntry | null = null
     for (const line of lines) {
       if (!line.includes(domain)) continue
+      if (isNoiseRequest(line)) continue
       const ts = extractTimestamp(line)
       if (ts && (!latest || ts > latest.at)) latest = { at: ts, ip: extractClientIp(line) }
     }
