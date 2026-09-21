@@ -303,17 +303,28 @@ function repoDisplayName(url: string): string {
   }
 }
 
-/** Tampilkan ukuran image (virtual size) + kontribusinya ke total disk VPS dalam persen — angka
- *  writable layer (biasanya cuma beberapa KB, kurang bermakna buat non-teknis) SENGAJA tidak
- *  ditampilkan, cuma dipakai buat tooltip. Warna teks kontras (slate-700), bukan abu-abu pudar. */
+/** Tampilkan data MILIK aplikasi ini sendiri (writable layer) sebagai angka utama, "total" (virtual
+ *  size, termasuk base image Docker yang dipakai BERSAMA container lain) sebagai keterangan
+ *  sekunder. Sebelumnya virtual size yang jadi angka utama — ternyata bikin bingung (pernah
+ *  ditanya "kenapa app 100MB source code kepakai 2GB") karena base image yang sama kehitung
+ *  penuh di SETIAP aplikasi yang pakainya, jadi kalau dijumlah antar-aplikasi hasilnya jauh
+ *  melebihi disk fisik yang beneran terpakai (lihat percakapan monitoring 2026-09-21 — angka
+ *  writable riil biasanya cuma puluhan KB, sementara virtual size bisa 200MB-1.6GB per aplikasi
+ *  gara-gara base image bersama). */
 function DiskContribution({ usage, totalBytes }: { usage: { size: string; virtualSize: string } | null; totalBytes: number | undefined }) {
   if (!usage) return <span className="text-slate-400">-</span>
   const virtualBytes = parseDockerSize(usage.virtualSize)
   const pct = totalBytes ? (virtualBytes / totalBytes) * 100 : null
   return (
-    <span className="font-semibold text-slate-700" title={`Writable layer: ${usage.size}`}>
-      ~{usage.virtualSize}
-      {pct !== null && <span className="text-slate-500"> ({pct < 0.1 ? "<0.1" : pct.toFixed(1)}% dari total)</span>}
+    <span className="font-semibold text-slate-700">
+      {usage.size} data aplikasi
+      <span
+        className="text-slate-400 font-normal"
+        title="Termasuk base image Docker yang dipakai BERSAMA container lain — jangan dijumlah antar-aplikasi, base image yang sama cuma kehitung 1x di disk fisik VPS."
+      >
+        {" "}
+        · ~{usage.virtualSize} total{pct !== null && ` (${pct < 0.1 ? "<0.1" : pct.toFixed(1)}% dari disk)`}
+      </span>
     </span>
   )
 }
