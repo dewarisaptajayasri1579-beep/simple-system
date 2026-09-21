@@ -283,6 +283,13 @@ model Application {
   /// dan ikut jadi parameter "Perhatian" di dialog Rincian Kesehatan kalau melebihi.
   packageId              String?                @map("package_id")
   package                MonitoringPackage?     @relation(fields: [packageId], references: [id])
+  errorLogs              ApplicationErrorLog[]
+  /// Cursor: sampai jam berapa (persis) log container aplikasi ini SUDAH di-scan buat error log —
+  /// pola sama seperti VpsServer.trafficCollectedUntil, supaya window scan tiap jalan cron per jam
+  /// tidak tumpang tindih (baris log yang sama tidak ke-scan ulang) dan otomatis mundur lebih jauh
+  /// kalau ada jalan yang ke-skip. Lihat runApplicationErrorLogCollection() di
+  /// src/lib/cron/application-error-logs.ts.
+  errorLogCollectedUntil DateTime?              @map("error_log_collected_until")
 
   @@unique([vpsServerId, coolifyUuid])
   @@index([vpsServerId])
@@ -328,6 +335,29 @@ model ApplicationDailyStat {
 
   @@unique([applicationId, date])
   @@map("application_daily_stats")
+  @@schema("simple_system")
+}
+
+/// Baris error yang tertangkap dari log container 1 aplikasi (di-scan cron per jam, cari baris
+/// yang mengandung kata kunci error/exception/fatal/panic — best-effort, BUKAN parser terstruktur
+/// per framework, jadi bisa ada false positive/negative tergantung format log masing-masing
+/// aplikasi). Lihat runApplicationErrorLogCollection() di
+/// src/lib/cron/application-error-logs.ts. Retensi 30 hari (dihapus otomatis di cron yang sama)
+/// supaya tabelnya tidak numpuk tanpa batas.
+model ApplicationErrorLog {
+  id            String      @id @default(uuid())
+  applicationId String      @map("application_id")
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// Baris log mentah (dipotong maks ~2000 karakter) yang cocok kata kunci error.
+  message       String
+  /// Timestamp kejadian — dicoba diparsing dari isi baris log itu sendiri (format umum
+  /// "YYYY-MM-DD HH:mm:ss"), fallback ke waktu cron ini jalan kalau baris log tidak punya
+  /// timestamp yang gampang dikenali.
+  occurredAt    DateTime    @map("occurred_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([applicationId, occurredAt])
+  @@map("application_error_logs")
   @@schema("simple_system")
 }
 

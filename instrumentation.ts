@@ -212,7 +212,23 @@ export async function register() {
     { timezone: "Asia/Jakarta" }
   )
 
+  // Scan log container tiap aplikasi buat baris yang kelihatan error/exception, disimpan ke
+  // ApplicationErrorLog buat ditampilkan di modal "Lihat Detail" monitoring — TIAP JAM, window
+  // pendek per cursor per-aplikasi (pola sama dengan traffic increment di atas), sekalian bersihkan
+  // log lebih dari 30 hari. Lihat runApplicationErrorLogCollection() di
+  // src/lib/cron/application-error-logs.ts.
+  cron.schedule(
+    "13 * * * *",
+    async () => {
+      const { runApplicationErrorLogCollection } = await import("@/lib/cron/application-error-logs")
+      runApplicationErrorLogCollection()
+        .then((r) => console.log(`[cron] application-error-logs selesai: ${r.logsStored} baris error baru disimpan`))
+        .catch((e) => console.error("[cron] application-error-logs gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
+
   console.log(
-    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring ringan (tiap jam :00) + disk Docker (03:00), traffic aplikasi (tiap jam :07), retensi backup R2 (tgl 1 jam 02:00) WIB"
+    "[cron] Terdaftar: auto-invoice termin project (06:00), laporan pagi (07:00), laporan sore (16:00), rekap mingguan (Senin 07:30), cek biaya berkala (08:00), follow-up piutang (09:00), reminder follow up lead (tiap jam :05), backup database ke R2 (20:00), vps-monitoring ringan (tiap jam :00) + disk Docker (03:00), traffic aplikasi (tiap jam :07), error log aplikasi (tiap jam :13), retensi backup R2 (tgl 1 jam 02:00) WIB"
   )
 }

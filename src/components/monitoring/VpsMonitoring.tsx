@@ -76,6 +76,9 @@ export type MonitoringPackageRow = {
   bandwidthBytes: string
 }
 
+type GithubCommitRow = { sha: string; message: string; author: string | null; date: string | null; url: string }
+type ErrorLogRow = { id: string; message: string; occurredAt: string }
+
 export type VpsRow = {
   id: string
   name: string
@@ -670,6 +673,27 @@ export const VpsServerCard: React.FC<{
   const [appFilterMode, setAppFilterMode] = useState<"all" | "needsBackup" | "expiringSoon">("all")
   const [appSortMode, setAppSortMode] = useState<"terbaru" | "nama">("terbaru")
   const [viewingApp, setViewingApp] = useState<AppRow | null>(null)
+  const [viewingCommits, setViewingCommits] = useState<GithubCommitRow[] | null>(null)
+  const [viewingErrorLogs, setViewingErrorLogs] = useState<ErrorLogRow[] | null>(null)
+  useEffect(() => {
+    if (!viewingApp) {
+      setViewingCommits(null)
+      setViewingErrorLogs(null)
+      return
+    }
+    if (viewingApp.gitRepository) {
+      fetch(`/api/monitoring/applications/${viewingApp.id}/commits`)
+        .then((r) => r.json())
+        .then(setViewingCommits)
+        .catch(() => setViewingCommits([]))
+    } else {
+      setViewingCommits([])
+    }
+    fetch(`/api/monitoring/applications/${viewingApp.id}/error-logs`)
+      .then((r) => r.json())
+      .then(setViewingErrorLogs)
+      .catch(() => setViewingErrorLogs([]))
+  }, [viewingApp])
   const [dbFilterMode, setDbFilterMode] = useState<"all" | "active" | "needsBackup">("all")
   const [dbSortMode, setDbSortMode] = useState<"terbaru" | "nama">("terbaru")
   const [viewingDb, setViewingDb] = useState<DatabaseRow | null>(null)
@@ -2238,6 +2262,55 @@ export const VpsServerCard: React.FC<{
             )}
             <DetailRow label="Catatan" value={viewingApp.notes} />
             <DetailRow label="Terdaftar Sejak" value={formatDateTimeId(viewingApp.createdAt)} />
+
+            <div className="pt-2 border-t border-slate-200">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Commit Terbaru</span>
+              {viewingCommits === null ? (
+                <p className="text-xs text-slate-400 mt-1">Memuat...</p>
+              ) : viewingCommits.length === 0 ? (
+                <p className="text-xs text-slate-400 mt-1">
+                  {viewingApp.gitRepository ? "Tidak ada commit ditemukan (repo privat tanpa akses token?)." : "Aplikasi ini tidak punya git repository."}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1 mt-1.5 max-h-48 overflow-y-auto">
+                  {viewingCommits.map((c) => (
+                    <a
+                      key={c.sha}
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start justify-between gap-2 text-xs hover:bg-slate-50 rounded-lg px-2 py-1.5 -mx-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-800 truncate">{c.message}</div>
+                        <div className="text-[11px] text-slate-400">
+                          {c.author ?? "?"} {c.date && `· ${timeAgoId(c.date)}`}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">{c.sha.slice(0, 7)}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Log Error Terbaru (30 hari)</span>
+              {viewingErrorLogs === null ? (
+                <p className="text-xs text-slate-400 mt-1">Memuat...</p>
+              ) : viewingErrorLogs.length === 0 ? (
+                <p className="text-xs text-slate-400 mt-1">Tidak ada error tercatat.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5 mt-1.5 max-h-48 overflow-y-auto">
+                  {viewingErrorLogs.map((e) => (
+                    <div key={e.id} className="text-xs bg-rose-50/60 border border-rose-100 rounded-lg px-2.5 py-1.5">
+                      <div className="text-[11px] text-rose-500 font-semibold mb-0.5">{formatDateTimeId(e.occurredAt)}</div>
+                      <div className="text-slate-700 font-mono text-[11px] break-all">{e.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
