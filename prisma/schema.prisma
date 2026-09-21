@@ -1725,6 +1725,21 @@ model Lead {
   // (nama di-resolve lewat lib/user-names.ts).
   priorityPinnedById     String?   @map("priority_pinned_by_id")
   priorityPinNote        String?   @map("priority_pin_note")
+  // "Lead Potensial" — hasil PEMILAHAN MANUAL Tim: lead mana yang layak dikejar serius, dipilah
+  // satu-satu dari daftar lead semua segmen. SENGAJA field terpisah, bukan outcome baru dan bukan
+  // menaikkan priorityScore:
+  //  - bukan outcome: lead-nya masih hidup di funnel (OPEN) dan tetap muncul di daftar Lead biasa
+  //    — ini penanda kurasi, bukan status akhir seperti WON/LOST/CLIENT_LAMA.
+  //  - bukan skor: priorityScore dihitung ulang Priority Engine tiap ada event, jadi angka yang
+  //    dipaksa manusia pasti ketimpa sendiri (alasan yang sama dengan priorityPinnedAt).
+  // Beda dari priorityPinnedAt ("Prioritas SPV"): itu perintah kerja dari atasan (wajib ada PIC,
+  // biasanya sekalian dijadwalkan follow up) dan hanya SPV/Manager yang boleh; ini hasil
+  // penyaringan yang boleh dilakukan semua anggota Tim, tanpa efek ke PIC/jadwal.
+  potentialAt            DateTime? @map("potential_at")
+  // Snapshot id user yang menggeser, BUKAN relasi FK — pola sama dengan priorityPinnedById di
+  // atas (nama di-resolve lewat lib/user-names.ts).
+  potentialById          String?   @map("potential_by_id")
+  potentialNote          String?   @map("potential_note")
   firstContactAt         DateTime  @default(now()) @map("first_contact_at")
   lastInteractionAt      DateTime? @map("last_interaction_at")
   lastCustomerMessageAt  DateTime? @map("last_customer_message_at")
@@ -1789,6 +1804,10 @@ model Lead {
   // Lead/Inbox/Follow Up, jadi wajib ada indexnya sejak awal (lihat CLAUDE.md).
   @@index([priorityPinnedAt])
   @@index([priorityPinnedById])
+  // Menu Lead Potensial = where potentialAt != null + orderBy potentialAt desc, jadi indexnya
+  // wajib ada sejak awal (lihat CLAUDE.md). potentialById buat laporan "siapa yang memilah".
+  @@index([potentialAt])
+  @@index([potentialById])
   @@index([lastInteractionAt])
   @@index([lastChatAt])
   @@index([createdAt])

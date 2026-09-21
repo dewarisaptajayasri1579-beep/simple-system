@@ -102,13 +102,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const isCurrentPic = activePic?.id === user.id
   // Nama penanda prioritas — priorityPinnedById disimpan sebagai id mentah (bukan relasi FK),
   // lihat catatan di schema.prisma.
-  const pinnedByName = lead.priorityPinnedById
-    ? ((await resolveUserNames([lead.priorityPinnedById])).get(lead.priorityPinnedById) ?? null)
-    : null
+  // Sekalian nama penggeser ke Lead Potensial — kolom snapshot id yang sama polanya.
+  const snapshotNames = await resolveUserNames([lead.priorityPinnedById, lead.potentialById])
+  const pinnedByName = lead.priorityPinnedById ? (snapshotNames.get(lead.priorityPinnedById) ?? null) : null
+  const potentialByName = lead.potentialById ? (snapshotNames.get(lead.potentialById) ?? null) : null
   const lockActive = lead.temperatureLockedUntil != null && lead.temperatureLockedUntil.getTime() > Date.now()
 
   return NextResponse.json({
-    lead: serializeLead({ ...lead, priorityPinnedByName: pinnedByName }),
+    lead: serializeLead({ ...lead, priorityPinnedByName: pinnedByName, potentialByName }),
     pic: activePic,
     canAct,
     viewerRole: marketingRole,
@@ -234,6 +235,9 @@ function serializeLead(lead: any) {
     priorityPinnedAt: lead.priorityPinnedAt?.toISOString() ?? null,
     priorityPinNote: lead.priorityPinNote ?? null,
     priorityPinnedByName: lead.priorityPinnedByName ?? null,
+    potentialAt: lead.potentialAt?.toISOString() ?? null,
+    potentialNote: lead.potentialNote ?? null,
+    potentialByName: lead.potentialByName ?? null,
     segment: lead.segment,
     source: lead.source,
     lostReason: lead.lostReason,

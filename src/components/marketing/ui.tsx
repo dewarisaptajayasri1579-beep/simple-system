@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { CalendarDays, Star } from "lucide-react"
+import { CalendarDays, Gem, Star } from "lucide-react"
 
 import { Badge, Input, Select, type BadgeProps } from "@/components/ui"
 import { DATE_RANGE_LABEL, type DateRangePreset } from "@/lib/marketing/date-range"
@@ -174,6 +174,28 @@ export const PriorityPinBadge: React.FC<{ pinnedAt: string | null; note?: string
     >
       <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
       Prioritas
+      {!compact && note ? <span className="font-bold normal-case tracking-normal">· {note}</span> : null}
+    </span>
+  )
+}
+
+/** Penanda "Lead Potensial" — lead yang sudah dipilah manual Tim (lihat api/.../potential).
+ *  Warnanya sengaja beda tajam dari PriorityPinBadge (ungu vs kuning): dua-duanya bisa nempel di
+ *  baris yang sama dan artinya beda — kuning = perintah didahulukan dari SPV, ungu = hasil
+ *  penyaringan Tim. */
+export const PotentialBadge: React.FC<{ potentialAt: string | null; note?: string | null; compact?: boolean }> = ({
+  potentialAt,
+  note,
+  compact,
+}) => {
+  if (!potentialAt) return null
+  return (
+    <span
+      title={note ? `Lead Potensial — ${note}` : "Sudah digeser ke Lead Potensial"}
+      className="inline-flex items-center gap-1 flex-shrink-0 rounded-full border border-violet-300 bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-800"
+    >
+      <Gem className="w-3 h-3 text-violet-600" />
+      Potensial
       {!compact && note ? <span className="font-bold normal-case tracking-normal">· {note}</span> : null}
     </span>
   )

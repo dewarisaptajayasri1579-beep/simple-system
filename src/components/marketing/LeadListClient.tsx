@@ -24,7 +24,8 @@ import {
   TableRow,
 } from "@/components/ui"
 import { useListScrollRestore } from "@/lib/use-list-scroll-restore"
-import { DateRangeFilter, MktHeader, OutcomeBadge, PriorityPinBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
+import { PotentialButton } from "./PotentialButton"
+import { DateRangeFilter, MktHeader, OutcomeBadge, PotentialBadge, PriorityPinBadge, ScopeToggle, STAGE_LABEL, tempBadgeVariant } from "./ui"
 import type { DateRangePreset } from "@/lib/marketing/date-range"
 
 interface LeadRow {
@@ -41,6 +42,9 @@ interface LeadRow {
   priorityPinnedAt: string | null
   priorityPinNote: string | null
   priorityPinnedByName: string | null
+  potentialAt: string | null
+  potentialNote: string | null
+  potentialByName: string | null
   segmentName: string | null
   buyingPowerTierName: string | null
   note: string | null
@@ -79,11 +83,14 @@ function relTime(iso: string | null) {
   return fmtDate(iso)
 }
 
-export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: string; title?: string }> = ({
-  isSales = false,
-  forcedOutcome,
-  title = "Lead",
-}) => {
+export const LeadListClient: React.FC<{
+  isSales?: boolean
+  forcedOutcome?: string
+  title?: string
+  /** Menu Lead Potensial — cuma lead yang sudah digeser Tim, dan filter "Pemilahan" disembunyikan
+   *  (di daftar yang isinya memang semua potensial, filter itu tidak ada gunanya). */
+  potentialOnly?: boolean
+}> = ({ isSales = false, forcedOutcome, title = "Lead", potentialOnly = false }) => {
   const [rows, setRows] = useState<LeadRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -102,7 +109,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
   const [outcome, setOutcome] = useState(forcedOutcome ?? searchParams.get("outcome") ?? "")
   const [priorityLevel, setPriorityLevel] = useState(searchParams.get("priorityLevel") ?? "")
   const [picUserId, setPicUserId] = useState(searchParams.get("picUserId") ?? "")
-  const [sort, setSort] = useState(searchParams.get("sort") ?? "priority")
+  // "" = semua · "1" = sudah digeser ke Lead Potensial · "0" = belum dipilah (buat sesi pemilahan).
+  const [potential, setPotential] = useState(potentialOnly ? "1" : (searchParams.get("potential") ?? ""))
+  const defaultSort = potentialOnly ? "potential" : "priority"
+  const [sort, setSort] = useState(searchParams.get("sort") ?? defaultSort)
   // Filter tanggal MASUK lead (firstContactAt) — lihat DateRangeFilter & date-range.ts.
   const [dateRange, setDateRange] = useState<DateRangePreset>((searchParams.get("dateRange") as DateRangePreset) ?? "all")
   const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") ?? "")
@@ -169,6 +179,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         if (outcome) p.set("outcome", outcome)
         if (priorityLevel) p.set("priorityLevel", priorityLevel)
         if (picUserId) p.set("picUserId", picUserId)
+        if (potential) p.set("potential", potential)
         if (dateRange !== "all") p.set("dateRange", dateRange)
         if (dateRange === "custom") {
           if (dateFrom) p.set("dateFrom", dateFrom)
@@ -188,7 +199,8 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
           if (!forcedOutcome && outcome) urlParams.set("outcome", outcome)
           if (priorityLevel) urlParams.set("priorityLevel", priorityLevel)
           if (picUserId) urlParams.set("picUserId", picUserId)
-          if (sort !== "priority") urlParams.set("sort", sort)
+          if (!potentialOnly && potential) urlParams.set("potential", potential)
+          if (sort !== defaultSort) urlParams.set("sort", sort)
           if (dateRange !== "all") urlParams.set("dateRange", dateRange)
           if (dateRange === "custom") {
             if (dateFrom) urlParams.set("dateFrom", dateFrom)
@@ -212,7 +224,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
         setLoading(false)
       }
     },
-    [page, scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, dateRange, dateFrom, dateTo, isSales, forcedOutcome, pathname, router],
+    [page, scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, potential, dateRange, dateFrom, dateTo, isSales, forcedOutcome, potentialOnly, defaultSort, pathname, router],
   )
 
   useEffect(() => {
@@ -221,7 +233,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
 
   // Ganti filter = hasil barunya beda total, jadi halaman balik ke 1. Render pertama dilewati
   // supaya halaman yang dipulihkan dari URL (kasus Back) tidak ikut kereset ke 1.
-  const filterSig = JSON.stringify([scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, dateRange, dateFrom, dateTo])
+  const filterSig = JSON.stringify([scope, sort, segmentId, buyingPowerTierId, temperature, stage, outcome, priorityLevel, picUserId, potential, dateRange, dateFrom, dateTo])
   const firstRenderRef = useRef(true)
   useEffect(() => {
     if (firstRenderRef.current) {
@@ -249,6 +261,33 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
 
   const opt = (arr: MetaOption[]) => arr.map((s) => ({ value: s.id, label: s.name }))
 
+  /**
+   * Hasil klik tombol Potensial diterapkan OPTIMISTIC ke baris yang bersangkutan, bukan `load()`
+   * ulang. Ini alat pemilahan massal: satu refetch per klik berarti skeleton berkedip dan posisi
+   * scroll hilang tiap kali satu baris dipilah — praktis tidak bisa dipakai untuk menyusuri
+   * ratusan lead. Di menu Lead Potensial, lead yang dilepas memang langsung keluar dari daftar
+   * (dia sudah tidak termasuk isi menu ini); di daftar Lead biasa barisnya tetap di tempatnya,
+   * cuma penandanya berubah, supaya urutan tidak melompat di bawah kursor.
+   */
+  const applyPotential = (id: string, nowPotential: boolean) => {
+    if (potentialOnly && !nowPotential) {
+      setRows((prev) => prev.filter((r) => r.id !== id))
+      setTotal((t) => Math.max(0, t - 1))
+      return
+    }
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              potentialAt: nowPotential ? new Date().toISOString() : null,
+              potentialNote: nowPotential ? r.potentialNote : null,
+            }
+          : r,
+      ),
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <MktHeader
@@ -258,7 +297,10 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
           </>
         }
       >
-        {!forcedOutcome && (
+        {/* "Tambah Lead" tidak ditampilkan di menu turunan (Client Lama, Lead Potensial) — lead
+            baru yang dibuat dari situ tidak akan muncul di daftarnya sendiri, jadi tombolnya cuma
+            bikin bingung. */}
+        {!forcedOutcome && !potentialOnly && (
           <Button size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={() => { setShowAdd(true); setAddErr(null) }}>
             Tambah Lead
           </Button>
@@ -361,9 +403,24 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
             <Select options={[{ value: "", label: "Semua PIC" }, ...opt(users)]} value={picUserId} onChange={setPicUserId} sizeVariant="sm" />
           </div>
         )}
+        {!potentialOnly && (
+          <div className="w-44">
+            <Select
+              options={[
+                { value: "", label: "Semua (dipilah/belum)" },
+                { value: "1", label: "Sudah Potensial" },
+                { value: "0", label: "Belum Dipilah" },
+              ]}
+              value={potential}
+              onChange={setPotential}
+              sizeVariant="sm"
+            />
+          </div>
+        )}
         <div className="w-48">
           <Select
             options={[
+              ...(potentialOnly ? [{ value: "potential", label: "Urut: Waktu Digeser" }] : []),
               { value: "priority", label: "Urut: Skor Prioritas" },
               { value: "chat", label: "Urut: Chat Terakhir" },
               { value: "recent", label: "Urut: Interaksi Terbaru" },
@@ -401,6 +458,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                     <TableHead>PIC</TableHead>
                     <TableHead>Chat Terakhir</TableHead>
                     <TableHead>Follow Up</TableHead>
+                    <TableHead>Potensial</TableHead>
                     <TableHead>Outcome</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -422,6 +480,12 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                           <div className="text-xs font-bold text-amber-700 truncate max-w-[220px] mt-0.5">
                             ⭐ {l.priorityPinNote}
                             {l.priorityPinnedByName ? <span className="font-medium text-amber-600"> — {l.priorityPinnedByName}</span> : null}
+                          </div>
+                        )}
+                        {l.potentialAt && (l.potentialNote || l.potentialByName) && (
+                          <div className="text-xs font-bold text-violet-700 truncate max-w-[220px] mt-0.5">
+                            💎 {l.potentialNote || "Digeser ke Potensial"}
+                            {l.potentialByName ? <span className="font-medium text-violet-500"> — {l.potentialByName}</span> : null}
                           </div>
                         )}
                         {l.note && <div className="text-xs text-amber-700 italic truncate max-w-[220px] mt-0.5">📌 {l.note}</div>}
@@ -451,6 +515,18 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                       <TableCell className="text-slate-500">{relTime(l.lastChatAt)}</TableCell>
                       <TableCell className="text-slate-500">{fmtDate(l.nextFollowUpAt)}</TableCell>
                       <TableCell>
+                        {/* Tombol pemilahan — satu klik geser/lepas, tanpa modal (lihat
+                            PotentialButton). Tombolnya sendiri sudah menunjukkan statusnya, jadi
+                            di tabel tidak perlu badge lagi. */}
+                        <PotentialButton
+                          leadId={l.id}
+                          potentialAt={l.potentialAt}
+                          potentialNote={l.potentialNote}
+                          mode="toggle"
+                          onDone={() => applyPotential(l.id, !l.potentialAt)}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} /> {l.outcome === "OPEN" ? <span className="text-slate-400">Open</span> : null}
                       </TableCell>
                     </TableRow>
@@ -470,6 +546,7 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                       <p className="text-sm font-bold text-slate-800 truncate">{l.displayName}</p>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <PriorityPinBadge pinnedAt={l.priorityPinnedAt} note={l.priorityPinNote} compact />
+                        <PotentialBadge potentialAt={l.potentialAt} note={l.potentialNote} compact />
                         <OutcomeBadge outcome={l.outcome} lostReason={l.lostReasonName} />
                         <Badge variant={tempBadgeVariant(l.temperature)} size="sm">{l.temperature}</Badge>
                       </div>
@@ -477,6 +554,9 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                     <p className="text-xs text-slate-400 truncate mt-0.5">{l.companyName || l.whatsappNumber}</p>
                     {l.priorityPinnedAt && l.priorityPinNote && (
                       <p className="text-xs font-bold text-amber-700 truncate mt-0.5">⭐ {l.priorityPinNote}</p>
+                    )}
+                    {l.potentialAt && l.potentialNote && (
+                      <p className="text-xs font-bold text-violet-700 truncate mt-0.5">💎 {l.potentialNote}</p>
                     )}
                     {l.note && <p className="text-xs text-amber-700 italic truncate mt-0.5">📌 {l.note}</p>}
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -486,9 +566,20 @@ export const LeadListClient: React.FC<{ isSales?: boolean; forcedOutcome?: strin
                       <Badge variant="info" size="sm">Skor {Math.round(l.priorityScore)}</Badge>
                       {l.pic && <span className="text-[10px] font-semibold text-slate-400">PIC: {l.pic.name}</span>}
                     </div>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
-                      <span>💬 {relTime(l.lastChatAt)}</span>
-                      {l.lastActivity && <span>· {l.lastActivity.name} {relTime(l.lastActivity.at)}</span>}
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 min-w-0">
+                        <span>💬 {relTime(l.lastChatAt)}</span>
+                        {l.lastActivity && <span className="truncate">· {l.lastActivity.name} {relTime(l.lastActivity.at)}</span>}
+                      </div>
+                      {/* Tombolnya di dalam <Link> ke detail — klik-nya distop di PotentialButton
+                          supaya memilah dari HP tidak ikut membuka halaman detail tiap baris. */}
+                      <PotentialButton
+                        leadId={l.id}
+                        potentialAt={l.potentialAt}
+                        potentialNote={l.potentialNote}
+                        mode="toggle"
+                        onDone={() => applyPotential(l.id, !l.potentialAt)}
+                      />
                     </div>
                   </Card>
                 </Link>

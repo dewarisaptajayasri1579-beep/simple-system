@@ -7,9 +7,10 @@ import { ArrowLeft, MessageSquare, Mic, RefreshCw, Square } from "lucide-react"
 
 import { Alert, Badge, Button, Card, Input, Select, SkeletonList, Textarea } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
+import { PotentialButton } from "./PotentialButton"
 import { PriorityPinButton } from "./PriorityPinButton"
 import { SegmentPicker } from "./SegmentPicker"
-import { OUTCOME_LABEL, outcomeBadgeVariant, OutcomeBadge, PriorityPinBadge, tempBadgeVariant } from "./ui"
+import { OUTCOME_LABEL, outcomeBadgeVariant, OutcomeBadge, PotentialBadge, PriorityPinBadge, tempBadgeVariant } from "./ui"
 
 interface Opt {
   id: string
@@ -45,6 +46,9 @@ interface LeadDetail {
   priorityPinnedAt: string | null
   priorityPinNote: string | null
   priorityPinnedByName: string | null
+  potentialAt: string | null
+  potentialNote: string | null
+  potentialByName: string | null
   buyingPowerSource: string
   dealValue: number | null
   wonNote: string | null
@@ -105,6 +109,8 @@ const AUDIT_LABEL: Record<string, string> = {
   "marketing.assignment.takeover": "Ambil alih PIC",
   "marketing.assignment.reassign": "Reassign PIC",
   "marketing.message.send": "Kirim pesan",
+  "marketing.lead.potential": "Geser ke Lead Potensial",
+  "marketing.lead.potential_remove": "Lepas dari Lead Potensial",
 }
 
 const TEMPS = ["COLD", "WARM", "HOT"] as const
@@ -540,7 +546,15 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
               {lead.segment && <Badge variant="secondary" size="sm">{lead.segment.name}</Badge>}
               <OutcomeBadge outcome={lead.outcome} lostReason={lead.lostReason?.name} />
               <PriorityPinBadge pinnedAt={lead.priorityPinnedAt} note={lead.priorityPinNote} />
+              <PotentialBadge potentialAt={lead.potentialAt} note={lead.potentialNote} />
             </div>
+            {lead.potentialAt && (
+              <p className="text-xs font-bold text-violet-700 mt-1">
+                💎 Lead Potensial · digeser {fmt(lead.potentialAt)}
+                {lead.potentialByName ? ` oleh ${lead.potentialByName}` : ""}
+                {lead.potentialNote ? ` — ${lead.potentialNote}` : ""}
+              </p>
+            )}
             <p className="text-sm text-slate-500 mt-0.5">
               {lead.companyName ? `${lead.companyName} · ` : ""}
               {lead.whatsappNumber}
@@ -551,6 +565,13 @@ export const LeadDetailClient: React.FC<{ leadId: string }> = ({ leadId }) => {
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+            {/* Boleh semua anggota Tim (bukan cuma PIC/SPV) — lihat izin di api/.../potential. */}
+            <PotentialButton
+              leadId={leadId}
+              potentialAt={lead.potentialAt}
+              potentialNote={lead.potentialNote}
+              onDone={() => load()}
+            />
             <PriorityPinButton
               leadId={leadId}
               pinnedAt={lead.priorityPinnedAt}

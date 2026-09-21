@@ -6,6 +6,22 @@ const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
 
 export type MetaAdsDatePreset = "today" | "yesterday" | "last_7d" | "last_14d" | "last_30d" | "this_month" | "last_month"
 
+/** Metrik niat beli dari `actions` Meta. Klik cuma menandakan penasaran; yang benar-benar
+ *  mendekati "orang ini butuh" adalah dia MULAI chat, lalu LANJUT sampai beberapa pesan.
+ *  Dipakai sebagai patokan utama menggantikan CPC — lihat catatan di ai-insight.ts. */
+export type MetaConversionMetrics = {
+  /** Orang yang membuka percakapan WhatsApp/Messenger dari iklan (7 hari). */
+  conversationsStarted: number
+  /** Yang lanjut sampai ±5 pesan — paling dekat ke calon pembeli sungguhan. */
+  deepConversations: number
+  /** Memblokir iklan/pesannya — sinyal audiens salah sasaran atau iklan mengganggu. */
+  blocks: number
+  /** spend ÷ conversationsStarted. null kalau belum ada percakapan sama sekali. */
+  costPerConversation: number | null
+  /** spend ÷ deepConversations — angka yang paling layak jadi patokan keputusan budget. */
+  costPerDeepConversation: number | null
+}
+
 export type MetaCampaignInsight = {
   campaignId: string
   campaignName: string
@@ -18,7 +34,7 @@ export type MetaCampaignInsight = {
   ctr: number // persen
   cpc: number // per klik, mata uang akun
   cpm: number // per 1000 impression
-}
+} & MetaConversionMetrics
 
 export type MetaAdsAccountSummary = {
   currency: string
@@ -26,7 +42,7 @@ export type MetaAdsAccountSummary = {
   totalImpressions: number
   totalReach: number
   totalClicks: number
-}
+} & MetaConversionMetrics
 
 export type MetaAdsDailyPoint = {
   date: string // YYYY-MM-DD
@@ -46,7 +62,7 @@ export type MetaAdsBreakdownRow = {
   clicks: number
   ctr: number
   cpc: number
-}
+} & MetaConversionMetrics
 
 class MetaAdsApiError extends Error {}
 
@@ -62,6 +78,34 @@ async function graphGet(path: string, accessToken: string, params: Record<string
     throw new MetaAdsApiError(message)
   }
   return body
+}
+
+/** Nama action di Meta. "depth_5" artinya percakapan mencapai ±5 pesan — Meta tidak
+ *  menyediakan "jumlah closing", jadi ini proxy terdekat yang tersedia untuk niat beli. */
+const ACTION_CONVERSATION_STARTED = "onsite_conversion.messaging_conversation_started_7d"
+const ACTION_DEEP_CONVERSATION = "onsite_conversion.messaging_user_depth_5_message_send"
+const ACTION_BLOCK = "onsite_conversion.messaging_block"
+
+type MetaActionEntry = { action_type?: string; value?: string | number }
+
+function actionValue(actions: unknown, type: string): number {
+  if (!Array.isArray(actions)) return 0
+  const hit = (actions as MetaActionEntry[]).find((a) => a?.action_type === type)
+  return hit ? num(hit.value) : 0
+}
+
+/** Ekstrak metrik niat beli dari satu baris insight. Akun yang belum pernah pakai iklan
+ *  percakapan akan mengembalikan semua nol — itu wajar, bukan error. */
+function extractConversionMetrics(row: Record<string, unknown>, spend: number): MetaConversionMetrics {
+  const conversationsStarted = actionValue(row.actions, ACTION_CONVERSATION_STARTED)
+  const deepConversations = actionValue(row.actions, ACTION_DEEP_CONVERSATION)
+  return {
+    conversationsStarted,
+    deepConversations,
+    blocks: actionValue(row.actions, ACTION_BLOCK),
+    costPerConversation: conversationsStarted > 0 ? spend / conversationsStarted : null,
+    costPerDeepConversation: deepConversations > 0 ? spend / deepConversations : null,
+  }
 }
 
 function num(value: unknown): number {
@@ -81,27 +125,38 @@ export async function fetchCampaignInsights(
   const body = await graphGet(`/${adAccountId}/insights`, accessToken, {
     level: "campaign",
     date_preset: datePreset,
-    fields: "campaign_id,campaign_name,objective,spend,impressions,reach,clicks,ctr,cpc,cpm",
+    fields: "campaign_id,campaign_name,objective,spend,impressions,reach,clicks,ctr,cpc,cpm,actions",
     limit: "500",
   })
 
   const statusById = await fetchCampaignStatuses(adAccountId, accessToken)
 
-  const rows: MetaCampaignInsight[] = (body.data ?? []).map((row: Record<string, unknown>) => ({
-    campaignId: String(row.campaign_id),
-    campaignName: String(row.campaign_name ?? "-"),
-    status: statusById.get(String(row.campaign_id)) ?? "UNKNOWN",
-    objective: (row.objective as string) ?? null,
-    spend: num(row.spend),
-    impressions: num(row.impressions),
-    reach: num(row.reach),
-    clicks: num(row.clicks),
-    ctr: num(row.ctr),
-    cpc: num(row.cpc),
-    cpm: num(row.cpm),
-  }))
+  const rows: MetaCampaignInsight[] = (body.data ?? []).map((row: Record<string, unknown>) => {
+    const spend = num(row.spend)
+    return {
+      campaignId: String(row.campaign_id),
+      campaignName: String(row.campaign_name ?? "-"),
+      status: statusById.get(String(row.campaign_id)) ?? "UNKNOWN",
+      objective: (row.objective as string) ?? null,
+      spend,
+      impressions: num(row.impressions),
+      reach: num(row.reach),
+      clicks: num(row.clicks),
+      ctr: num(row.ctr),
+      cpc: num(row.cpc),
+      cpm: num(row.cpm),
+      ...extractConversionMetrics(row, spend),
+    }
+  })
 
-  return rows.sort((a, b) => b.spend - a.spend)
+  // Diurutkan dari yang paling efisien menghasilkan percakapan serius — bukan dari spend
+  // terbesar. Campaign tanpa percakapan sama sekali ditaruh di bawah.
+  return rows.sort((a, b) => {
+    if (a.costPerDeepConversation === null && b.costPerDeepConversation === null) return b.spend - a.spend
+    if (a.costPerDeepConversation === null) return 1
+    if (b.costPerDeepConversation === null) return -1
+    return a.costPerDeepConversation - b.costPerDeepConversation
+  })
 }
 
 async function fetchCampaignStatuses(adAccountId: string, accessToken: string): Promise<Map<string, string>> {
@@ -119,18 +174,20 @@ export async function fetchAccountSummary(adAccountId: string, accessToken: stri
   const [insightsBody, accountBody] = await Promise.all([
     graphGet(`/${adAccountId}/insights`, accessToken, {
       date_preset: datePreset,
-      fields: "spend,impressions,reach,clicks",
+      fields: "spend,impressions,reach,clicks,actions",
     }),
     graphGet(`/${adAccountId}`, accessToken, { fields: "currency" }),
   ])
 
   const row = insightsBody.data?.[0] ?? {}
+  const totalSpend = num(row.spend)
   return {
     currency: accountBody.currency ?? "IDR",
-    totalSpend: num(row.spend),
+    totalSpend,
     totalImpressions: num(row.impressions),
     totalReach: num(row.reach),
     totalClicks: num(row.clicks),
+    ...extractConversionMetrics(row, totalSpend),
   }
 }
 
@@ -180,20 +237,32 @@ export async function fetchBreakdownInsights(
   const body = await graphGet(`/${adAccountId}/insights`, accessToken, {
     date_preset: datePreset,
     breakdowns,
-    fields: "spend,impressions,clicks,ctr,cpc",
+    fields: "spend,impressions,clicks,ctr,cpc,actions",
     limit: "500",
   })
 
-  const rows: MetaAdsBreakdownRow[] = (body.data ?? []).map((row: Record<string, unknown>) => ({
-    label: labelForBreakdownRow(dimension, row),
-    spend: num(row.spend),
-    impressions: num(row.impressions),
-    clicks: num(row.clicks),
-    ctr: num(row.ctr),
-    cpc: num(row.cpc),
-  }))
+  const rows: MetaAdsBreakdownRow[] = (body.data ?? []).map((row: Record<string, unknown>) => {
+    const spend = num(row.spend)
+    return {
+      label: labelForBreakdownRow(dimension, row),
+      spend,
+      impressions: num(row.impressions),
+      clicks: num(row.clicks),
+      ctr: num(row.ctr),
+      cpc: num(row.cpc),
+      ...extractConversionMetrics(row, spend),
+    }
+  })
 
-  return rows.sort((a, b) => b.ctr - a.ctr)
+  // Segmen yang menghasilkan percakapan serius PALING MURAH duluan — itu yang mendekati
+  // "orang yang butuh". Segmen yang cuma ramai klik tapi nol percakapan jatuh ke bawah,
+  // walau CTR-nya tinggi (kasus nyata: klik murah tapi tidak ada yang lanjut chat).
+  return rows.sort((a, b) => {
+    if (a.costPerDeepConversation === null && b.costPerDeepConversation === null) return b.ctr - a.ctr
+    if (a.costPerDeepConversation === null) return 1
+    if (b.costPerDeepConversation === null) return -1
+    return a.costPerDeepConversation - b.costPerDeepConversation
+  })
 }
 
 function labelForBreakdownRow(dimension: MetaAdsBreakdownDimension, row: Record<string, unknown>): string {

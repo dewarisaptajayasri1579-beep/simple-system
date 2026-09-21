@@ -40,10 +40,19 @@ export async function GET(request: Request) {
   // CLOSING/CLIENT_LAMA punya menu sendiri (/marketing/closing, /marketing/client-lama) — lead
   // dengan outcome itu sengaja tidak dihitung sebagai "Lead" di daftar ini, kecuali diminta
   // eksplisit lewat ?outcome=.
+  // ?potential=1 — cuma lead yang sudah digeser Tim ke "Lead Potensial" (menu
+  // /marketing/lead-potensial). potential=0 = sisa yang belum dipilah, buat sesi pemilahan.
+  const potentialParam = sp.get("potential")
+  if (potentialParam === "1") where.potentialAt = { not: null }
+  else if (potentialParam === "0") where.potentialAt = null
   if (sp.get("outcome")) where.outcome = sp.get("outcome")!
   // NOT_RELEVANT ikut disembunyikan dari daftar Lead aktif — lead nyasar bukan pekerjaan yang
   // perlu dikejar, tapi tetap bisa dibuka lewat filter Status "Bukan Prospek".
-  else where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA", "NOT_RELEVANT"] }
+  // Pengecualian: menu Lead Potensial (?potential=1) menampilkan APA PUN outcome-nya. Daftar itu
+  // isinya lead yang sudah dipilah manusia satu per satu — kalau lead-nya lalu jadi Closing atau
+  // ditandai Bukan Prospek, dia harus tetap kelihatan di situ (bisa dicek/dilepas), bukan hilang
+  // tanpa jejak dari daftar yang susah payah dikurasi.
+  else if (potentialParam !== "1") where.outcome = { notIn: ["CLOSING", "CLIENT_LAMA", "NOT_RELEVANT"] }
   if (sp.get("priorityLevel")) where.priorityLevel = sp.get("priorityLevel")!
   // ?pinned=1 — cuma lead yang ditandai prioritas oleh SPV/Manager (filter pill "Prioritas SPV").
   if (sp.get("pinned") === "1") where.priorityPinnedAt = { not: null }
@@ -75,7 +84,11 @@ export async function GET(request: Request) {
         ? [pinnedFirst, { lastChatAt: { sort: "desc", nulls: "last" } }]
         : sort === "created"
           ? [pinnedFirst, { createdAt: "desc" }]
-          : [pinnedFirst, { priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
+          : // "potential" = urut waktu digeser ke Lead Potensial, yang baru dipilah di atas —
+            // default sortir menu /marketing/lead-potensial.
+            sort === "potential"
+            ? [pinnedFirst, { potentialAt: { sort: "desc", nulls: "last" } }]
+            : [pinnedFirst, { priorityScore: "desc" }, { lastInteractionAt: { sort: "desc", nulls: "last" } }]
 
   const [total, rows] = await Promise.all([
     prisma.lead.count({ where }),
@@ -97,6 +110,9 @@ export async function GET(request: Request) {
         priorityPinnedAt: true,
         priorityPinnedById: true,
         priorityPinNote: true,
+        potentialAt: true,
+        potentialById: true,
+        potentialNote: true,
         lastInteractionAt: true,
         lastChatAt: true,
         firstContactAt: true,
@@ -110,7 +126,7 @@ export async function GET(request: Request) {
   ])
 
   const leadIds = rows.map((r) => r.id)
-  const [assignments, nextFollowUps, lastActivities, actable, pinnerNames] = await Promise.all([
+  const [assignments, nextFollowUps, lastActivities, actable, snapshotNames] = await Promise.all([
     prisma.leadAssignment.findMany({
       where: { leadId: { in: leadIds }, isActive: true },
       select: { leadId: true, assignedUser: { select: { id: true, name: true } } },
@@ -127,7 +143,9 @@ export async function GET(request: Request) {
       select: { leadId: true, occurredAt: true, note: true, activityType: { select: { name: true } } },
     }),
     actableLeadIds(user, leadIds),
-    resolveUserNames(rows.map((r) => r.priorityPinnedById)),
+    // Satu resolve buat dua kolom snapshot id (penanda prioritas & penggeser ke Lead Potensial) —
+    // keduanya id mentah, bukan relasi FK (lihat schema.prisma).
+    resolveUserNames([...rows.map((r) => r.priorityPinnedById), ...rows.map((r) => r.potentialById)]),
   ])
   const picByLead = new Map(assignments.map((a) => [a.leadId, a.assignedUser]))
   const nextFuByLead = new Map(nextFollowUps.map((g) => [g.leadId, g._min.scheduledAt]))
@@ -150,7 +168,10 @@ export async function GET(request: Request) {
       lostReasonName: r.lostReason?.name ?? null,
       priorityPinnedAt: r.priorityPinnedAt?.toISOString() ?? null,
       priorityPinNote: r.priorityPinNote ?? null,
-      priorityPinnedByName: r.priorityPinnedById ? (pinnerNames.get(r.priorityPinnedById) ?? null) : null,
+      priorityPinnedByName: r.priorityPinnedById ? (snapshotNames.get(r.priorityPinnedById) ?? null) : null,
+      potentialAt: r.potentialAt?.toISOString() ?? null,
+      potentialNote: r.potentialNote ?? null,
+      potentialByName: r.potentialById ? (snapshotNames.get(r.potentialById) ?? null) : null,
       segmentName: r.segment?.name ?? null,
       buyingPowerTierName: r.buyingPowerTier?.name ?? null,
       note: r.note ?? null,

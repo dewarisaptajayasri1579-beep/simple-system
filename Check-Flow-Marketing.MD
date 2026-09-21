@@ -97,6 +97,26 @@ flowchart TD
 - **Outcome** `POST /leads/[id]/outcome` — WON→`wonAt`; LOST→wajib `lostReasonId`+`lostAt`;
   OPEN→bersihkan. `recalcLeadPriority` (lead non-OPEN → skor 0/LOW).
 
+### 5b. Lead Potensial (pemilahan manual Tim)
+- **Buat apa:** Tim menyusuri daftar lead **semua segmen**, memilah satu per satu, lalu menggeser
+  yang layak dikejar ke daftar kurasi **Lead Potensial** (`/marketing/lead-potensial`).
+- **Endpoint** `POST`/`DELETE /api/marketing/leads/[id]/potential` → `Lead.potentialAt` /
+  `potentialById` (snapshot id, bukan FK) / `potentialNote` (opsional). Audit
+  `marketing.lead.potential` & `…potential_remove`.
+- **Izin:** SEMUA anggota Tim (bukan `canActOnLead`) — ini kerja penyaringan massal, kalau
+  dibatasi PIC praktis tidak bisa jalan. Tidak menyentuh PIC/temperatur/outcome/jadwal. Role
+  SALES tetap cuma melihat lead miliknya (enforcement di `GET /api/marketing/leads`).
+- **Sengaja BUKAN** outcome baru & BUKAN penambah `priorityScore`: lead-nya masih di funnel dan
+  **tetap muncul di daftar Lead biasa** — ini penanda kurasi, bukan status akhir. Beda dari
+  "Prioritas SPV" (`priorityPinnedAt`): itu perintah kerja atasan (wajib PIC + biasanya sekalian
+  follow up, SPV/Manager saja).
+- **Filter:** `?potential=1` (sudah dipilah) / `?potential=0` (belum dipilah, buat sesi
+  pemilahan) + `sort=potential` (urut waktu digeser). `?potential=1` **tidak** ikut menyembunyikan
+  outcome CLOSING/CLIENT_LAMA/NOT_RELEVANT — daftar hasil kurasi tidak boleh hilang tanpa jejak.
+- **UI:** tombol 1-klik per baris di daftar Lead (desktop kolom "Potensial" + kartu mobile,
+  optimistic tanpa refetch biar memilah ratusan baris tidak berkedip), tombol bercatatan di Detail
+  Lead, badge ungu 💎 (`PotentialBadge`) di daftar/detail.
+
 ### 6. Aktivitas & Follow Up
 - **Aktivitas** `POST /leads/[id]/activities` — `canActOnLead`; geser `currentActivityStage` **maju
   saja** (rank NONE<DISCUSSION<ZOOM_DEMO<PROPOSAL<NEGOTIATION); `recalcLeadPriority`; audit.

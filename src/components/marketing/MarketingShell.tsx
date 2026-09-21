@@ -9,6 +9,7 @@ import {
   CalendarClock,
   ChartNoAxesCombined,
   ChevronDown,
+  Gem,
   History,
   LayoutGrid,
   LogOut,
@@ -58,6 +59,7 @@ const NAV: NavNode[] = [
     icon: <Users className="w-5 h-5" />,
     children: [
       leaf("Semua Lead", "/marketing/leads", <Users className="w-5 h-5" />),
+      leaf("Lead Potensial", "/marketing/lead-potensial", <Gem className="w-5 h-5" />),
       leaf("Follow Up", "/marketing/follow-up", <CalendarClock className="w-5 h-5" />),
       leaf("Closing", "/marketing/closing", <Trophy className="w-5 h-5" />),
       leaf("Client Lama", "/marketing/client-lama", <History className="w-5 h-5" />),
