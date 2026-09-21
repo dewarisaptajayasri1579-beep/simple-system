@@ -15,13 +15,12 @@ import { SyncDomainStatusButton } from "@/components/dashboard/SyncDomainStatusB
 import { DeactivateDomainButton } from "@/components/dashboard/DeactivateDomainButton"
 import { domainFollowUpMessage } from "@/lib/follow-up-templates"
 import { getExpiryBucket, type ExpiryBucket } from "@/lib/domain-status"
-import {
-  type DomainExpiringRow,
-  bucketToStatus,
-  bucketLabel,
-  SlaBadge,
-  TagihAction,
-} from "@/components/dashboard/DashboardSections"
+import { CLIENT_RESPONSE_LABEL, type ClientResponseType } from "@/lib/billing-follow-up"
+import { type DomainExpiringRow, bucketLabel, SlaBadge, TagihAction } from "@/components/dashboard/DashboardSections"
+
+export type DomainCardRow = DomainExpiringRow & {
+  lastResponse: { responseType: string; note: string | null; createdAt: string } | null
+}
 
 function formatRupiah(n: number | null) {
   if (!n) return "-"
@@ -33,6 +32,22 @@ function formatDate(iso: string | null) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(iso))
 }
 
+/** "3 hari lalu" — dipakai di Track (kapan ditagih/dibayar) & Respon Terakhir, biar langsung
+ *  kebaca umurnya tanpa mengira-ngira dari tanggal. */
+function relativeDays(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))
+  if (days <= 0) return "Hari ini"
+  if (days === 1) return "1 hari lalu"
+  return `${days} hari lalu`
+}
+
+const BUCKET_DATE_CLASS: Record<ExpiryBucket, string> = {
+  expired: "text-rose-700",
+  expiring_this_month: "text-amber-700",
+  expiring_next_month: "text-sky-700",
+  safe: "text-slate-800",
+}
+
 const STATUS_FILTER_OPTIONS: { value: ExpiryBucket | "all"; label: string }[] = [
   { value: "all", label: "Semua Status" },
   { value: "expired", label: bucketLabel.expired },
@@ -42,7 +57,7 @@ const STATUS_FILTER_OPTIONS: { value: ExpiryBucket | "all"; label: string }[] = 
 ]
 
 export const DomainCardList: React.FC<{
-  rows: DomainExpiringRow[]
+  rows: DomainCardRow[]
   clients: { id: string; name: string }[]
   isOwner: boolean
   title?: string
@@ -92,14 +107,14 @@ export const DomainCardList: React.FC<{
         ) : (
           filteredRows.map((r) => (
             <div key={r.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 sm:p-5">
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_auto] gap-4 lg:gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-4 lg:gap-5 lg:items-start">
                 {/* Domain: nama + owner + PIC + follow-up WA */}
                 <div className="flex gap-2.5 min-w-0">
                   <span className="w-8 h-8 rounded-xl bg-sky-500/15 text-sky-700 flex items-center justify-center flex-shrink-0">
                     <Globe className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
-                    <div className="font-bold text-slate-900 truncate">{r.name}</div>
+                    <div className="font-bold text-slate-900 break-words">{r.name}</div>
                     <div className="text-xs text-slate-600 truncate">{r.owner}</div>
                     {r.clientId && (
                       <>
@@ -122,7 +137,7 @@ export const DomainCardList: React.FC<{
                   </div>
                 </div>
 
-                {/* Internal/Client + Jatuh Tempo */}
+                {/* Kontrak: Internal/Client + Tgl Berakhir */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Internal/Client</span>
                   <OwnerCell
@@ -134,62 +149,80 @@ export const DomainCardList: React.FC<{
                   />
                   <div className="mt-1.5 pt-1.5 border-t border-slate-100">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1">Tgl Berakhir</span>
-                    <EditableDateCell
-                      apiPath={`/api/domains/${r.id}`}
-                      field="expiryDate"
-                      value={r.expiryDate}
-                      formatDate={(d) => formatDate(d ? d.toISOString() : null)}
-                      title="Klik untuk ubah tanggal berakhir"
-                      onUpdated={(expiryDate) =>
-                        setRows((prev) =>
-                          prev.map((row) => (row.id === r.id ? { ...row, expiryDate, dueDate: expiryDate, bucket: getExpiryBucket(expiryDate ? new Date(expiryDate) : null) } : row))
-                        )
-                      }
-                    />
+                    <div className={`text-sm font-bold ${BUCKET_DATE_CLASS[r.bucket]}`}>
+                      <EditableDateCell
+                        apiPath={`/api/domains/${r.id}`}
+                        field="expiryDate"
+                        value={r.expiryDate}
+                        formatDate={(d) => formatDate(d ? d.toISOString() : null)}
+                        title="Klik untuk ubah tanggal berakhir"
+                        onUpdated={(expiryDate) =>
+                          setRows((prev) =>
+                            prev.map((row) => (row.id === r.id ? { ...row, expiryDate, dueDate: expiryDate, bucket: getExpiryBucket(expiryDate ? new Date(expiryDate) : null) } : row))
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Harga & Status */}
+                {/* Harga & Status — satu badge status saja (SLA kalau ada siklus, "Aktif" kalau tidak) */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Harga Jual</span>
                   <span className="text-sm font-black text-slate-900">{formatRupiah(r.price)}</span>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                    <StatusBadge type={bucketToStatus[r.bucket]} label={bucketLabel[r.bucket]} size="sm" />
-                    <SlaBadge sla={r.sla} />
-                    {!r.sla && r.clientId && <Badge variant="success" size="sm">Aktif</Badge>}
+                  <div className="mt-0.5">
+                    {r.sla ? <SlaBadge sla={r.sla} /> : <Badge variant="success" size="sm">Aktif</Badge>}
                   </div>
                 </div>
 
-                {/* Track */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Track</span>
-                  <div className="text-xs">
-                    {r.invoicedAt ? formatDate(r.invoicedAt) : <span className="text-slate-400">-</span>}
-                    {r.invoiceNumber &&
-                      (r.invoiceId ? (
-                        <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                          {" "}
-                          · {r.invoiceNumber}
-                        </Link>
+                {/* Track & Respon Terakhir */}
+                <div className="flex flex-col gap-2.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Track</span>
+                    <div className="text-xs mt-1">
+                      {r.invoicedAt ? (
+                        <span className="font-semibold text-slate-700">{relativeDays(r.invoicedAt)}</span>
                       ) : (
-                        <span className="text-slate-500"> · {r.invoiceNumber}</span>
-                      ))}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span>
-                      {r.paidAt ? formatDate(r.paidAt) : <span className="text-slate-400">-</span>}
+                        <span className="text-slate-400">Belum ditagih</span>
+                      )}
+                      {r.invoiceNumber &&
+                        (r.invoiceId ? (
+                          <Link href={`/penjualan/${r.invoiceId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {" "}
+                            · {r.invoiceNumber}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-500"> · {r.invoiceNumber}</span>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                      {r.paidAt ? (
+                        <span className="font-semibold text-emerald-700">{relativeDays(r.paidAt)}</span>
+                      ) : (
+                        <span className="text-slate-400">Belum bayar</span>
+                      )}
                       {r.paymentNumber &&
                         (r.paymentId ? (
                           <Link href={`/pembayaran/${r.paymentId}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            {" "}
                             · {r.paymentNumber}
                           </Link>
                         ) : (
-                          <span className="text-slate-500"> · {r.paymentNumber}</span>
+                          <span className="text-slate-500">· {r.paymentNumber}</span>
                         ))}
-                    </span>
-                    {r.paymentPostStatus && <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />}
+                      {r.paymentPostStatus && <StatusBadge type={r.paymentPostStatus === "posted" ? "posted" : "draft"} size="sm" />}
+                    </div>
                   </div>
+
+                  {r.lastResponse && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Respon Terakhir</span>
+                      <div className="text-xs mt-1">
+                        <span className="font-semibold text-slate-700">{CLIENT_RESPONSE_LABEL[r.lastResponse.responseType as ClientResponseType] ?? r.lastResponse.responseType}</span>
+                        <span className="text-slate-400"> · {relativeDays(r.lastResponse.createdAt)}</span>
+                      </div>
+                      {r.lastResponse.note && <div className="text-[11px] text-slate-500 mt-0.5 break-words">{r.lastResponse.note}</div>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Aksi */}

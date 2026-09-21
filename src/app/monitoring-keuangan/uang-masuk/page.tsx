@@ -6,8 +6,7 @@ import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
 import { DomainSummaryCards } from "@/components/monitoring-keuangan/DomainSummaryCards"
-import { DomainCardList } from "@/components/monitoring-keuangan/DomainCardList"
-import { type DomainExpiringRow } from "@/components/dashboard/DashboardSections"
+import { DomainCardList, type DomainCardRow } from "@/components/monitoring-keuangan/DomainCardList"
 
 export default async function UangMasukPage() {
   const user = await getCurrentUser()
@@ -68,7 +67,25 @@ export default async function UangMasukPage() {
       : []
   const invoiceById = new Map(followUpInvoices.map((inv) => [inv.id, inv]))
 
-  const domainRows: DomainExpiringRow[] = domainRowsBase
+  // Respon terakhir Client (lihat "Input Respon" di Piutang) — cuma buat siklus yang sudah
+  // pernah ditagih, biar staf lain langsung tahu janji/nego terakhir tanpa buka modal.
+  const respondedFollowUpIds = activeFollowUps.filter((f) => f.invoicedAt).map((f) => f.id)
+  const responses =
+    respondedFollowUpIds.length > 0
+      ? await prisma.billingFollowUpResponse.findMany({
+          where: { billingFollowUpId: { in: respondedFollowUpIds } },
+          orderBy: { createdAt: "desc" },
+          select: { billingFollowUpId: true, responseType: true, note: true, createdAt: true },
+        })
+      : []
+  const lastResponseByFollowUpId = new Map<string, { responseType: string; note: string | null; createdAt: string }>()
+  for (const r of responses) {
+    if (!lastResponseByFollowUpId.has(r.billingFollowUpId)) {
+      lastResponseByFollowUpId.set(r.billingFollowUpId, { responseType: r.responseType, note: r.note, createdAt: r.createdAt.toISOString() })
+    }
+  }
+
+  const domainRows: DomainCardRow[] = domainRowsBase
     .map((r) => {
       const record = r.clientId ? followUpByRef.get(`domain:${r.id}`) : undefined
       const invoice = record?.invoiceId ? invoiceById.get(record.invoiceId) : undefined
@@ -84,6 +101,7 @@ export default async function UangMasukPage() {
         paymentNumber: latestPayment?.payment?.paymentNumber ?? null,
         paymentPostStatus: latestPayment?.payment?.postStatus ?? null,
         sla: record ? computeSlaStatus(record) : null,
+        lastResponse: record ? (lastResponseByFollowUpId.get(record.id) ?? null) : null,
       }
     })
     .sort((a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity))

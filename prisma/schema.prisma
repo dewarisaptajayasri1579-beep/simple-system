@@ -1193,6 +1193,7 @@ model Transaction {
   category       Category?       @relation(fields: [categoryId], references: [id])
   invoicePayment InvoicePayment?
   journalEntry   JournalEntry?   @relation(fields: [journalEntryId], references: [id])
+  payrollPeriod  PayrollPeriod?
 
   @@index([accountId])
   @@index([categoryId])
@@ -2292,10 +2293,20 @@ model Employee {
   username     String? @unique @map("username")
   passwordHash String? @map("password_hash")
 
+  // Komponen gaji master — dipakai mesin hitung Penggajian (lihat PayrollItem). Nullable
+  // karena tidak semua Employee otomatis dapat komponen ini (mis. belum diisi HR).
+  basicSalary                  Float? @map("basic_salary")
+  positionAllowance            Float? @map("position_allowance")
+  dailyAttendanceAllowance     Float? @map("daily_attendance_allowance")
+  dailyTransportAllowance      Float? @map("daily_transport_allowance")
+  bpjsKesehatanDeduction       Float? @map("bpjs_kesehatan_deduction")
+  bpjsKetenagakerjaanDeduction Float? @map("bpjs_ketenagakerjaan_deduction")
+
   sessions      EmployeeSession[]
   attendances   AttendanceRecord[]
   leaveRequests LeaveRequest[]
   kasbons       EmployeeKasbon[]
+  payrollItems  PayrollItem[]
 
   @@index([status])
   @@map("employees")
@@ -2427,6 +2438,68 @@ model EmployeeKasbon {
   @@index([employeeId])
   @@index([status])
   @@map("employee_kasbons")
+  @@schema("simple_system")
+}
+
+// Mesin hitung gaji bulanan — 1 baris per periode (cutoff HrSettings.tglCutoff s.d.
+// cutoff bulan berikutnya). Draft -> Posted: dihitung ulang bebas selagi draft (hapus &
+// buat ulang semua PayrollItem), begitu posted (dibayar) tidak boleh dihitung ulang lagi.
+// Pembayaran dicatat lewat markPayrollPaid (src/lib/accounting/mark-paid.ts) yang bikin
+// Transaction (refType="payroll") + jurnal Kas Keluar, link presisi lewat transactionId
+// (sama alasan seperti Transaction.journalEntryId).
+model PayrollPeriod {
+  id            String    @id @default(uuid())
+  period        String    @unique // "YYYY-MM"
+  periodStart   DateTime  @map("period_start")
+  periodEnd     DateTime  @map("period_end")
+  effectiveDays Int       @map("effective_days")
+  status        String    @default("draft") // "draft" | "posted"
+  paidAt        DateTime? @map("paid_at")
+  transactionId String?   @unique @map("transaction_id")
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  items       PayrollItem[]
+  transaction Transaction?  @relation(fields: [transactionId], references: [id])
+
+  @@map("payroll_periods")
+  @@schema("simple_system")
+}
+
+// 1 baris per karyawan per PayrollPeriod. Field ber-komentar "editable HR" boleh diubah
+// manual sebelum periode di-posting (BPJS/kasbon/potongan lain tidak dihitung otomatis
+// penuh — HR yang menentukan nominalnya berdasarkan EmployeeKasbon outstanding, dst).
+model PayrollItem {
+  id                  String   @id @default(uuid())
+  payrollPeriodId     String   @map("payroll_period_id")
+  employeeId          String   @map("employee_id")
+  basicSalary         Float    @map("basic_salary") // snapshot Employee saat dihitung
+  positionAllowance   Float    @default(0) @map("position_allowance")
+  attendanceAllowance Float    @default(0) @map("attendance_allowance")
+  transportAllowance  Float    @default(0) @map("transport_allowance")
+  overtimeMinutes     Int      @default(0) @map("overtime_minutes")
+  overtimePay         Float    @default(0) @map("overtime_pay")
+  attendanceBonus     Float    @default(0) @map("attendance_bonus") // premi kehadiran
+  otherEarnings       Float    @default(0) @map("other_earnings") // editable HR
+  bpjsKesehatan       Float    @default(0) @map("bpjs_kesehatan") // editable HR
+  bpjsKetenagakerjaan Float    @default(0) @map("bpjs_ketenagakerjaan") // editable HR
+  kasbonDeduction     Float    @default(0) @map("kasbon_deduction") // editable HR
+  otherDeductions     Float    @default(0) @map("other_deductions") // editable HR
+  daysPresent         Int      @default(0) @map("days_present")
+  daysLeave           Int      @default(0) @map("days_leave")
+  daysAbsent          Int      @default(0) @map("days_absent")
+  grossPay            Float    @map("gross_pay")
+  totalDeduction       Float   @map("total_deduction")
+  netPay              Float    @map("net_pay") // boleh negatif (keputusan bisnis final, lihat docs)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  payrollPeriod PayrollPeriod @relation(fields: [payrollPeriodId], references: [id])
+  employee      Employee      @relation(fields: [employeeId], references: [id])
+
+  @@unique([payrollPeriodId, employeeId])
+  @@map("payroll_items")
   @@schema("simple_system")
 }
 
