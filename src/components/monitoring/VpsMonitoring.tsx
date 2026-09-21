@@ -68,6 +68,7 @@ export type VpsRow = {
   hasCoolify: boolean
   coolifyApiUrl: string | null
   coolifyDatabaseCount: number | null
+  coolifySyncError: string | null
   enhanceApiUrl: string | null
   enhanceOrgId: string | null
   createdAt: string
@@ -443,6 +444,14 @@ const HEALTH_STATUS_META: Record<HealthCheckStatus, { label: string; badge: "suc
  *  kamu tampilkan saat di klik badge... semua parameter apa, yang sehat, yang kritis mana"). */
 function computeVpsHealth(vps: VpsRow): { level: VpsHealthLevel; reasons: string[]; checks: HealthCheckItem[] } {
   const checks: HealthCheckItem[] = []
+
+  // Token API Coolify rusak (dicabut/expired/direinstall di sisi Coolify) bikin SEMUA data
+  // aplikasi/database di VPS ini diam-diam jadi cache basi — critical, bukan sekadar warning,
+  // karena user tidak bisa lagi percaya data yang ditampilkan sampai token-nya dibetulkan (lihat
+  // kejadian nyata 2026-09-21, ketahuan baru pas coba "Backup Sekarang").
+  if (vps.hasCoolify && vps.coolifySyncError) {
+    checks.push({ key: "coolify-sync", label: "Sinkronisasi Coolify", status: "critical", detail: vps.coolifySyncError })
+  }
 
   if (vps.diskError) {
     checks.push({ key: "disk", label: "Disk", status: "unknown", detail: vps.diskError })
@@ -1894,6 +1903,7 @@ export const VpsServerCard: React.FC<{
         <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
           {(
             [
+              { key: "sync", label: "Sinkronisasi", prefix: "coolify-" },
               { key: "resource", label: "Resource Server", prefix: null },
               { key: "db", label: "Database", prefix: "db-" },
               { key: "domain", label: "Domain", prefix: "domain-" },
@@ -1903,7 +1913,7 @@ export const VpsServerCard: React.FC<{
             const items = health.checks.filter((c) =>
               group.prefix
                 ? c.key.startsWith(group.prefix)
-                : !c.key.startsWith("db-") && !c.key.startsWith("domain-") && !c.key.startsWith("pkg-")
+                : !c.key.startsWith("db-") && !c.key.startsWith("domain-") && !c.key.startsWith("pkg-") && !c.key.startsWith("coolify-")
             )
             if (items.length === 0) return null
             return (

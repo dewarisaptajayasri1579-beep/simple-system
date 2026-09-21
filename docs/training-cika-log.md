@@ -414,3 +414,23 @@ Di belakang layar, balasan ini memicu **notifikasi mendesak ke PIC** dan **kenai
 - ⭐ **Konfirmasi titik yang paling bisa disalahartikan, bukan semua poin.** Dari 3 poin, hanya poin ke-3 ("hasil pengerjaan") yang dikonfirmasi ulang — karena "komplain balik" bisa berarti review pelanggan formal, atau sekadar keluhan lisan yang tidak tercatat di mana pun. Poin 1 & 2 sudah jelas dari kalimat lead sendiri, tidak perlu ditanya ulang. Menunjukkan kalibrasi: tidak semua hal butuh konfirmasi, hanya yang ambigu.
 - Pola gabungan Sesi 8 sejauh ini: **tanya definisi → susun jadi struktur → konfirmasi titik ambigu saja**. Ini alur kualifikasi kebutuhan yang lebih matang dibanding sekadar "gali lalu rangkum" di Sesi 7.
 
+### Sesi 8 — lanjutan (ide solusi konkret muncul) 🟡 ISI BAGUS, GAYA PERLU DIKOREKSI
+
+**Pesan Lead**:
+> Iya bener kak, kadang pelanggan komplain langsung ke saya bukan ke montirnya, jadi saya yang harus turun tangan. Capek juga jadinya
+
+**Jawaban Cika**:
+> Siap Pak, nah itu nanti sebetulnya di Kwitansi atau Invoice Pembayaran disertakan QRCode Whatsapp Customer Service Pak, nanti yang pegang bisa tim bapak sendiri. Untuk Meningkatkan pelayanan pak, supaya terecord, kalau bapak mau, itu Whatsapp Customer Service juga bisa kita sambungkan ke Aplikasi Pak, jadi dari Aplikasi bisa mantau chat di Whatsapp, melihat respon time tim Bapak. Keren kan Pak? hehe
+
+**Catatan — dipisah isi vs gaya:**
+
+**🟢 Isinya emas untuk KB** (persis tujuan Sesi 8 — pengetahuan 14 tahun yang tidak bisa diminta "ingat-ingat", keluar sendiri lewat kasus nyata):
+- **Insight bisnis**: keluhan pelanggan ke bengkel sering tidak terpusat — pemilik usaha sendiri jadi tempat pelarian komplain karena montir tidak punya jalur resmi menerima keluhan.
+- **Solusi konkret**: QR code Customer Service di kwitansi/invoice → diarahkan ke WhatsApp tim (bukan montir perorangan) → opsional disambungkan ke aplikasi untuk monitoring chat & response time.
+- Disimpan ke `marketing-kb/bengkel.md`.
+
+**🔴 Gayanya melanggar dua aturan yang sudah ditetapkan:**
+1. **Terlalu rinci untuk Cika** (§2.2e) — ini sudah level fitur konkret (QR code di invoice, integrasi WA-ke-app, dashboard response time), bukan lagi "arah solusi" seperti "2 aplikasi: kasir + mobile" di Sesi 6. Cika semestinya menyimpan wawasan ini sebagai bekal, tapi menyampaikannya dalam bentuk **lebih kabur** dan diarahkan ke Zoom untuk detailnya.
+2. **Tidak menutup ke appointment** — Cika berhenti di "Keren kan Pak? hehe", tidak mendorong ke Zoom/Telp sama sekali. Bertentangan dengan posisi Cika sebagai *appointment setter* (§2.2b/§2.2e). Ini pola perilaku Sales-yang-sudah-in-the-zone (fokus meyakinkan), bukan Cika.
+- **Rekomendasi versi Cika**: *"Wah itu bisa banget dibantu Pak — nanti komplain langsung ke tim, bukan ke Bapak lagi. Enaknya kita bahas lebih detail di Zoom atau Telp Pak, biar sekalian saya tunjukkan gambarannya?"* — insight sama, tanpa rincian teknis, ditutup ajakan meeting.
+

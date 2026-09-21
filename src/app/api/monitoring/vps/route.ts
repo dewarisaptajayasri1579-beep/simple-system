@@ -180,6 +180,7 @@ export async function GET() {
         hasCoolify: Boolean(vps.coolifyApiUrl && vps.coolifyApiToken),
         coolifyApiUrl: vps.coolifyApiUrl,
         coolifyDatabaseCount: vps.coolifyDatabaseCount,
+        coolifySyncError: vps.coolifySyncError,
         enhanceApiUrl: vps.enhanceApiUrl,
         enhanceOrgId: vps.enhanceOrgId,
         createdAt: vps.createdAt,

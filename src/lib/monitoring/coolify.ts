@@ -247,7 +247,23 @@ export async function syncCoolifyApplications(vps: SyncCoolifyVps): Promise<{ sy
   const apiBase = normalizeCoolifyApiUrl(vps.coolifyApiUrl)
   const token = decryptSecret(vps.coolifyApiToken)
 
-  const apps = await fetchCoolifyApplications(vps.coolifyApiUrl, token)
+  // Panggilan API PERTAMA ke Coolify — kalau token-nya rusak/dicabut, ini yang gagal duluan
+  // (401). Dicatat ke VpsServer.coolifySyncError supaya ketahuan LANGSUNG lewat badge kesehatan,
+  // bukan cuma diam-diam gagal di log cron (lihat komentar field di schema.prisma).
+  let apps: CoolifyApplication[]
+  try {
+    apps = await fetchCoolifyApplications(vps.coolifyApiUrl, token)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Sync Coolify gagal"
+    await prisma.vpsServer
+      .update({ where: { id: vps.id }, data: { coolifySyncError: message, coolifySyncCheckedAt: new Date() } })
+      .catch(() => {})
+    throw e
+  }
+  await prisma.vpsServer
+    .update({ where: { id: vps.id }, data: { coolifySyncError: null, coolifySyncCheckedAt: new Date() } })
+    .catch(() => {})
+
   // Sekali panggil buat semua project di Coolify VPS ini (bukan per aplikasi/database) — lihat
   // fetchProjectEnvInfoByEnvironmentId(). Dipakai buat badge + search "Project" + link langsung
   // ke dashboard Coolify di monitoring.

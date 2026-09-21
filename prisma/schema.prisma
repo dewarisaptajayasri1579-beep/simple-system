@@ -158,6 +158,13 @@ model VpsServer {
   panelType             String        @default("none") @map("panel_type")
   coolifyApiUrl         String?       @map("coolify_api_url")
   coolifyApiToken       String?       @map("coolify_api_token")
+  /// Pesan error terakhir dari sync Coolify (mis. "Coolify API error 401 (...)") — null kalau
+  /// sync terakhir sukses atau belum pernah sync. Diisi otomatis di syncCoolifyApplications()
+  /// supaya token yang rusak (dicabut/expired/direinstall di sisi Coolify) ketahuan LANGSUNG
+  /// sebagai warning di kartu VPS (lihat computeVpsHealth di VpsMonitoring.tsx) — bukan baru
+  /// ketahuan pas user coba aksi manual seperti "Backup Sekarang" (kejadian nyata 2026-09-21).
+  coolifySyncError      String?       @map("coolify_sync_error")
+  coolifySyncCheckedAt  DateTime?     @map("coolify_sync_checked_at")
   /// Kredensial API Enhance (enhance.com) — user cuma isi API URL + Token (disepakati 2026-09-21,
   /// bukan diminta manual cari Organization ID). Sync otomatis (mapping Website Enhance ke
   /// Application) BELUM diimplementasi — field ini baru disimpan buat dipakai di pengembangan

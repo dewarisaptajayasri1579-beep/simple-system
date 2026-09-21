@@ -15,7 +15,13 @@ Digali dari pengalaman 14 tahun Ony, metode "tebak-koreksi" (lihat `README.md`).
 
 ## Cerita klien
 
-*(belum digali)*
+*(belum digali — cerita "sebelum vs sesudah" klien nyata belum ada)*
+
+## Ide solusi (dari roleplay, Sesi 8 `training-cika-log.md`)
+
+- **Masalah**: keluhan pelanggan sering tidak terpusat — pelanggan komplain langsung ke pemilik bengkel, bukan ke montir/tim, karena tidak ada jalur resmi. Pemilik jadi "pemadam kebakaran" pribadi untuk tiap komplain.
+- **Solusi**: QR code Customer Service dicetak di kwitansi/invoice → diarahkan ke WhatsApp **tim** (bukan montir perorangan) → opsional disambungkan ke aplikasi untuk memantau chat & response time tim.
+- **Kegunaan untuk Cika**: dipakai sebagai *insight*, disampaikan dalam bentuk arah solusi yang lebih kabur (§2.2e Tingkat 2), lalu diarahkan ke Zoom untuk detail — **bukan** dijelaskan serinci ini di chat (lihat catatan gaya di training log).
 
 ## Tanda bahaya
 
