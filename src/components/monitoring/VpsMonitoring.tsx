@@ -118,18 +118,20 @@ export type VpsRow = {
   applications: AppRow[]
   registeredDomains: { name: string; tracked: boolean; active: boolean | null; expiryDate: string | null }[]
   activityToday: number
-  databases: {
-    uuid: string
-    name: string
-    databaseType: string
-    diskUsage: { size: string; virtualSize: string } | null
-    isActive: boolean
-    lastOnlineAt: string | null
-    dbBackupAt: string | null
-    dbBackupLink: string | null
-    projectName: string | null
-    coolifyLink: string | null
-  }[]
+  databases: DatabaseRow[]
+}
+
+export type DatabaseRow = {
+  uuid: string
+  name: string
+  databaseType: string
+  diskUsage: { size: string; virtualSize: string } | null
+  isActive: boolean
+  lastOnlineAt: string | null
+  dbBackupAt: string | null
+  dbBackupLink: string | null
+  projectName: string | null
+  coolifyLink: string | null
 }
 
 export type DockerDiskEntry = {
@@ -668,10 +670,13 @@ export const VpsServerCard: React.FC<{
   const [appFilterMode, setAppFilterMode] = useState<"all" | "needsBackup" | "expiringSoon">("all")
   const [appSortMode, setAppSortMode] = useState<"terbaru" | "nama">("terbaru")
   const [viewingApp, setViewingApp] = useState<AppRow | null>(null)
+  const [dbFilterMode, setDbFilterMode] = useState<"all" | "active" | "needsBackup">("all")
+  const [dbSortMode, setDbSortMode] = useState<"terbaru" | "nama">("terbaru")
+  const [viewingDb, setViewingDb] = useState<DatabaseRow | null>(null)
   useEffect(() => {
     setAppPage(1)
     setDbPage(1)
-  }, [search, appFilterMode])
+  }, [search, appFilterMode, dbFilterMode])
   const [backingUpDbUuid, setBackingUpDbUuid] = useState<string | null>(null)
   const [healthDetailOpen, setHealthDetailOpen] = useState(false)
   const [volumesModalOpen, setVolumesModalOpen] = useState(false)
@@ -972,9 +977,27 @@ export const VpsServerCard: React.FC<{
   const currentAppPage = Math.min(appPage, appPageCount)
   const filteredApplications = sortedApplications.slice((currentAppPage - 1) * PAGE_SIZE, currentAppPage * PAGE_SIZE)
 
+  const dbNeedsBackup = (db: DatabaseRow) => isBackupStale(db.dbBackupAt)
+  const dbStats = {
+    total: vps.databases.length,
+    active: vps.databases.filter((d) => d.isActive).length,
+    postgresql: vps.databases.filter((d) => d.databaseType === "PostgreSQL").length,
+    mariadb: vps.databases.filter((d) => d.databaseType === "MariaDB").length,
+    needsBackup: vps.databases.filter(dbNeedsBackup).length,
+  }
+
   const sortedDatabases = [...vps.databases]
     .filter((db) => !searchTerm || [db.name, db.projectName].some((v) => v?.toLowerCase().includes(searchTerm)))
-    .sort((a, b) => Number(isDbUnhealthy(b)) - Number(isDbUnhealthy(a)))
+    .filter((db) => {
+      if (dbFilterMode === "active") return db.isActive
+      if (dbFilterMode === "needsBackup") return dbNeedsBackup(db)
+      return true
+    })
+    .sort((a, b) => {
+      if (dbSortMode === "nama") return a.name.localeCompare(b.name)
+      if (isDbUnhealthy(a) !== isDbUnhealthy(b)) return Number(isDbUnhealthy(b)) - Number(isDbUnhealthy(a))
+      return new Date(b.lastOnlineAt ?? 0).getTime() - new Date(a.lastOnlineAt ?? 0).getTime()
+    })
   const dbPageCount = Math.max(Math.ceil(sortedDatabases.length / PAGE_SIZE), 1)
   const currentDbPage = Math.min(dbPage, dbPageCount)
   const filteredDatabases = sortedDatabases.slice((currentDbPage - 1) * PAGE_SIZE, currentDbPage * PAGE_SIZE)
