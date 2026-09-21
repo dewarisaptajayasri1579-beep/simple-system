@@ -1,12 +1,13 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Landmark, Megaphone, ServerCog, ClipboardList, Table2 } from "lucide-react"
+import { Landmark, Megaphone, ServerCog, ClipboardList, Table2, LineChart } from "lucide-react"
 
 import { Card, CardTitle, CardDescription } from "@/components/ui"
 import { AppLogo } from "@/components/ui/AppLogo"
 import { ModuleLogoutButton } from "@/components/modules/ModuleLogoutButton"
 import { getSessionUser } from "@/lib/auth"
 import type { ModuleKey } from "@/lib/current-user"
+import { canViewMetaAds } from "@/lib/meta-ads/access"
 
 const MODULE_CARDS: { key: ModuleKey; href: string; title: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "internal", href: "/dashboard", title: "Internal", desc: "Invoice, Pembayaran, Keuangan, Proyek, Laporan, Akuntansi.", icon: Landmark },
@@ -14,17 +15,24 @@ const MODULE_CARDS: { key: ModuleKey; href: string; title: string; desc: string;
   { key: "monitoring", href: "/monitoring", title: "Monitoring Server", desc: "Status & kesehatan server yang dipantau.", icon: ServerCog },
   { key: "administratif", href: "/administratif", title: "Administratif", desc: "Data karyawan & log surat-menyurat.", icon: ClipboardList },
   { key: "spreadsheet", href: "/spreadsheet", title: "From Spreadsheet", desc: "Lihat isi Google Sheets yang di-link.", icon: Table2 },
+  { key: "meta-ads", href: "/meta-ads", title: "Meta Ads", desc: "Performa iklan Facebook & Instagram Ads.", icon: LineChart },
 ]
 
 /** Halaman antara login dan masuk ke 1 modul — SENGAJA tidak pakai getCurrentUser() (itu
  *  default gate ke modul "internal", akan salah buat user yang cuma punya akses Marketing/
  *  Monitoring). Card yang muncul cuma yang ada di User.modules (Owner bypass, selalu lihat
- *  semua) — lihat catatan lengkap di lib/current-user.ts. */
+ *  semua) — lihat catatan lengkap di lib/current-user.ts. Pengecualian: "meta-ads" TIDAK pakai
+ *  User.modules sama sekali — visibilitasnya ikut role Tim Marketing (Owner + SPV), lihat
+ *  lib/meta-ads/access.ts. */
 export default async function ModulesPage() {
   const user = await getSessionUser()
   if (!user) redirect("/login")
 
-  const visibleCards = user.role === "owner" ? MODULE_CARDS : MODULE_CARDS.filter((m) => user.modules.includes(m.key))
+  const metaAdsVisible = await canViewMetaAds(user)
+  const visibleCards =
+    user.role === "owner"
+      ? MODULE_CARDS
+      : MODULE_CARDS.filter((m) => (m.key === "meta-ads" ? metaAdsVisible : user.modules.includes(m.key)))
 
   return (
     <div className="min-h-screen w-full bg-app-mesh flex flex-col p-4 sm:p-6 lg:p-8 font-sans relative overflow-x-hidden">

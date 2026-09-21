@@ -46,7 +46,7 @@ export async function PATCH(request: Request) {
 
   const settings = await prisma.hrSettings.upsert({
     where: { id: "singleton" },
-    create: { id: "singleton", ...DEFAULTS, ...data },
+    create: { ...DEFAULTS, ...data },
     update: data,
   })
 

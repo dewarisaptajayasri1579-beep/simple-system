@@ -282,13 +282,13 @@ export const PiutangSummarySection: React.FC<{ rows: PiutangSummaryRow[]; isOwne
 // ---------------------------------------------------------------------------
 // Bucket vocabulary dipakai bersama oleh Biaya Berkala, Domain, dan Server.
 // ---------------------------------------------------------------------------
-const bucketToStatus: Record<ExpiryBucket, StatusBadgeType> = {
+export const bucketToStatus: Record<ExpiryBucket, StatusBadgeType> = {
   expired: "expired",
   expiring_this_month: "expiring_this_month",
   expiring_next_month: "expiring_next_month",
   safe: "safe",
 };
-const bucketLabel: Record<ExpiryBucket, string> = {
+export const bucketLabel: Record<ExpiryBucket, string> = {
   expired: "Lewat",
   expiring_this_month: "Bulan Ini",
   expiring_next_month: "Bulan Depan",
@@ -309,7 +309,7 @@ const BUCKET_OPTIONS_WITH_SAFE: { value: ExpiryBucket; label: string; type: Stat
 /** Badge SLA tindak-lanjut tagihan (lihat sop.txt/billing-follow-up.ts) — dipakai bareng di
  *  Domain/Server/Maintenance. Reuse warna StatusBadge yang sudah ada: "expired" (merah) kalau
  *  lewat deadline tahap ini, "expiring_this_month" (kuning) kalau masih dalam batas waktu. */
-function SlaBadge({ sla }: { sla: BillingFollowUpSla | null }) {
+export function SlaBadge({ sla }: { sla: BillingFollowUpSla | null }) {
   if (!sla) return null;
   const label = sla.overdue ? `${SLA_STAGE_LABEL[sla.stage]} — lewat ${sla.daysOverdue} hari` : SLA_STAGE_LABEL[sla.stage];
   return <StatusBadge type={sla.overdue ? "expired" : "expiring_this_month"} label={label} size="sm" />;
@@ -319,7 +319,7 @@ function SlaBadge({ sla }: { sla: BillingFollowUpSla | null }) {
  *  lagi "belum_ditagih"), jangan tawarkan bikin invoice baru lagi (bisa dobel), arahkan ke
  *  invoice yang sudah ada. Kalau invoiceId-nya entah kenapa kosong (invoice dibuat manual di
  *  luar alur ini), tetap fallback ke "Tagih Sekarang" biar tidak buntu. */
-function TagihAction({
+export function TagihAction({
   sla,
   invoiceId,
   tagihHref,
@@ -487,13 +487,7 @@ export const DomainExpiringSection: React.FC<{
   accounts: AccountOption[];
   isOwner: boolean;
   rangeToIso?: string | null;
-  // Dipakai Monitoring Keuangan > Uang Masuk — di situ `rows` isinya SEMUA domain (bukan cuma
-  // yang lagi due), jadi butuh judul/deskripsi beda dan bucket "Aman" ikut tampil di pill filter
-  // meskipun rangeToIso tidak dipakai (bukan filter rentang tanggal, cuma "tampilkan semua").
-  title?: string;
-  description?: string;
-  showSafeBucket?: boolean;
-}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso, title, description, showSafeBucket }) => {
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso }) => {
   const rangeActive = Boolean(rangeToIso);
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
@@ -676,9 +670,9 @@ export const DomainExpiringSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{title ?? (rangeActive ? `Domain — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Domain — Lewat / Bulan Ini / Bulan Depan")}</CardTitle>
+          <CardTitle>{rangeActive ? `Domain — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Domain — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
           <CardDescription>
-            {description ?? (rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`)}
+            {rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`}
           </CardDescription>
         </div>
         <div className="flex items-start gap-2">
@@ -689,7 +683,7 @@ export const DomainExpiringSection: React.FC<{
       <StatusPills
         active={statusFilter}
         onChange={setStatusFilter}
-        options={rangeActive || showSafeBucket ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
+        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
         counts={bucketCounts(rows)}
         total={rows.length}
       />

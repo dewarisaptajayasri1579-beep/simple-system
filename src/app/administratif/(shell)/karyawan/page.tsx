@@ -30,6 +30,7 @@ interface Employee {
   phone: string | null
   email: string | null
   notes: string | null
+  username: string | null
 }
 
 const STATUS_OPTIONS = [
@@ -54,6 +55,8 @@ const emptyForm = {
   phone: "",
   email: "",
   notes: "",
+  username: "",
+  password: "",
 }
 
 export default function KaryawanPage() {
@@ -98,6 +101,8 @@ export default function KaryawanPage() {
       phone: emp.phone ?? "",
       email: emp.email ?? "",
       notes: emp.notes ?? "",
+      username: emp.username ?? "",
+      password: "",
     })
     setError("")
     setModalOpen(true)
@@ -165,6 +170,7 @@ export default function KaryawanPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Tanggal Masuk</TableHead>
                 <TableHead>Kontak</TableHead>
+                <TableHead>Login Android</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -182,6 +188,9 @@ export default function KaryawanPage() {
                       <span>{emp.phone || "-"}</span>
                       <span className="text-slate-500">{emp.email || ""}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {emp.username ? <Badge variant="info">{emp.username}</Badge> : <span className="text-slate-400 text-xs">Belum diset</span>}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -242,6 +251,20 @@ export default function KaryawanPage() {
           <Input label="No. HP" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <Textarea label="Catatan" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
+
+          <div className="pt-2 border-t border-slate-200/60">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Login Android (Absensi)</p>
+            <div className="flex flex-col gap-4">
+              <Input label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+              <Input
+                label="Password"
+                type="password"
+                placeholder={editing ? "Kosongkan kalau tidak ingin mengubah" : ""}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

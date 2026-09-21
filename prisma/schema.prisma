@@ -2445,3 +2445,25 @@ model CorrespondenceLog {
   @@map("correspondence_logs")
   @@schema("simple_system")
 }
+
+// ---------------------------------------------------------------------------
+// Modul Meta Ads — performa iklan (campaign) ditarik langsung dari Meta Marketing
+// API tiap page load (tidak di-cache ke tabel lain), cuma kredensial yang disimpan
+// di sini. accessToken dienkripsi (lihat lib/crypto.ts, pola sama dengan
+// VpsServer.sshPassword/coolifyApiToken).
+// ---------------------------------------------------------------------------
+model MetaAdsAccount {
+  id                String    @id @default(uuid())
+  name              String // label bebas, mis. "Blesscom - Ads Utama"
+  adAccountId       String    @map("ad_account_id") // format "act_xxxxxxxxxx"
+  accessToken       String    @map("access_token") // terenkripsi (encryptSecret)
+  isActive          Boolean   @default(true) @map("is_active")
+  lastSyncError     String?   @map("last_sync_error")
+  lastSyncCheckedAt DateTime? @map("last_sync_checked_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("meta_ads_accounts")
+  @@schema("simple_system")
+}

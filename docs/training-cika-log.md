@@ -458,3 +458,25 @@ Di belakang layar, balasan ini memicu **notifikasi mendesak ke PIC** dan **kenai
 - **"Izin konfirmasi ulang"** membuka ruang untuk pesan susulan mendekati waktu meeting — konsisten dengan kapabilitas pengiriman link + pengingat H-30 menit ke lead (§2.2c). Bukan basa-basi kosong, tapi mengatur ekspektasi akan ada kontak lagi.
 - Sesi 8 ditutup di sini: alur lengkap dari referral webinar → gali kebutuhan (definisi KPI) → insight/ide solusi → jadwal terkunci, dengan satu koreksi aturan (pesan penahan) di tengah jalan.
 
+---
+
+## Sesi 9 — Custom App, lead minta estimasi waktu pengerjaan 🔴 BERTENTANGAN DENGAN §2.2e
+
+**Konteks**: lanjutan thread Andri (sembako), masih di jalur "menolak meeting".
+
+**Pesan Lead**:
+> Oke kak, ngerti. Tapi kalau soal waktu pengerjaan kira-kira berapa lama ya? 2 minggu bisa selesai gak?
+
+**Jawaban Cika**:
+> 2 Minggu cukup mepet Kak, karena aplikasi kami akan kami testing dahulu. Estimasi 1 bulan, Max 2 Bulan kan, nanti di bulan ke-2 sudah bisa kakak coba-coba
+
+**Catatan:**
+- ✅ **DIPUTUSKAN — perilaku SALES, bukan Cika.** Ditegaskan ulang: kebijakan §2.2e Tingkat 3 (lama pengerjaan = tidak boleh disebut Cika) tetap berlaku, konsisten dengan kebijakan harga. Jawaban di atas adalah contoh cara **Sales** menjawab estimasi waktu, disimpan sebagai rujukan Sales — **bukan** bahan system prompt Cika.
+- ⭐ **Pola jawaban Sales ini tetap layak dicatat** (untuk Sales, bukan Cika): meluruskan ekspektasi lead ("2 minggu mepet") sambil memberi angka realistis + alasan teknis yang masuk akal (perlu testing), ditutup insentif konkret ("bulan ke-2 sudah bisa coba-coba") supaya tidak terasa seperti kabar buruk.
+
+### Sesi 9 — jawaban Cika yang benar untuk estimasi waktu ✅
+
+> "Untuk waktu pengerjaan, saya izin hubungkan ke tim kami ya Kak — soalnya lama pengerjaan itu tergantung breakdown kebutuhannya (kasir + mobile sales + tracking piutang tadi), biar estimasinya akurat, bukan kira-kira. Saya kabari tim sekarang ya Kak."
+
+Pola ini **identik dengan jawaban baku harga** (Sesi 7 Tingkat 2) — akui pertanyaannya, bingkai eskalasi sebagai demi akurasi untuk lead, sebut ulang kebutuhan spesifik, kepastian tindak lanjut. Satu template eskalasi dipakai untuk **harga maupun durasi** — pertanyaan lead "kira-kira berapa lama?" masuk memicu jalur yang sama dengan "kira-kira berapa budgetnya?" (notifikasi mendesak + kenaikan prioritas, §2.2f).
+

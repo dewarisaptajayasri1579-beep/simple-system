@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeftRight, CalendarCheck, LayoutGrid, Mail, Users } from "lucide-react"
+import { ArrowLeftRight, LayoutGrid, Settings } from "lucide-react"
 
 import { ModuleLogoutButton } from "@/components/modules/ModuleLogoutButton"
 
@@ -11,37 +11,36 @@ interface NavLeaf {
   label: string
   href: string
   icon: React.ReactNode
+  ownerOnly?: boolean
 }
 
 const NAV: NavLeaf[] = [
-  { label: "Beranda", href: "/administratif", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Data Karyawan", href: "/administratif/karyawan", icon: <Users className="w-5 h-5" /> },
-  { label: "Absensi", href: "/administratif/absensi", icon: <CalendarCheck className="w-5 h-5" /> },
-  { label: "Surat Menyurat", href: "/administratif/surat", icon: <Mail className="w-5 h-5" /> },
+  { label: "Performa Iklan", href: "/meta-ads", icon: <LayoutGrid className="w-5 h-5" /> },
+  { label: "Pengaturan", href: "/meta-ads/settings", icon: <Settings className="w-5 h-5" />, ownerOnly: true },
 ]
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/administratif") return pathname === "/administratif"
+  if (href === "/meta-ads") return pathname === "/meta-ads"
   return pathname === href || pathname.startsWith(href + "/")
 }
 
-export const AdministratifShell: React.FC<{ userName: string; children: React.ReactNode }> = ({ userName, children }) => {
-  const pathname = usePathname() || "/administratif"
+export const MetaAdsShell: React.FC<{ userName: string; userRole: string; children: React.ReactNode }> = ({ userName, userRole, children }) => {
+  const pathname = usePathname() || "/meta-ads"
   const [menuOpen, setMenuOpen] = useState(false)
   const initial = userName.trim().charAt(0).toUpperCase() || "?"
-  const activeLabel = NAV.find((item) => isActivePath(pathname, item.href))?.label ?? "Administratif"
+  const nav = NAV.filter((item) => !item.ownerOnly || userRole === "owner")
+  const activeLabel = nav.find((item) => isActivePath(pathname, item.href))?.label ?? "Meta Ads"
 
   return (
     <div className="min-h-screen bg-app-mesh text-slate-800 font-sans flex relative overflow-x-clip">
-      {/* ---- Sidebar (desktop) ---- */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-60 flex-col justify-between bg-gradient-to-b from-[#0a2540] via-[#09356b] to-[#041c38] text-white shadow-2xl border-r border-blue-900/40">
         <div>
           <div className="h-20 px-5 flex flex-col justify-center border-b border-blue-800/40">
             <span className="font-black text-xl tracking-wide leading-none">SEVEN OS</span>
-            <span className="text-[10px] text-blue-200 font-semibold tracking-tight mt-0.5">Administratif</span>
+            <span className="text-[10px] text-blue-200 font-semibold tracking-tight mt-0.5">Meta Ads</span>
           </div>
           <nav className="px-3 py-6 space-y-1.5">
-            {NAV.map((item) => {
+            {nav.map((item) => {
               const active = isActivePath(pathname, item.href)
               return (
                 <Link
@@ -74,7 +73,6 @@ export const AdministratifShell: React.FC<{ userName: string; children: React.Re
         </div>
       </aside>
 
-      {/* ---- Konten ---- */}
       <div className="flex-1 lg:pl-60 flex flex-col min-w-0">
         <header className="h-16 glass-header sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between border-b border-white/60">
           <div className="flex flex-col min-w-0">
@@ -96,7 +94,7 @@ export const AdministratifShell: React.FC<{ userName: string; children: React.Re
                 <div className="px-3 py-2 border-b border-slate-200/60 mb-1">
                   <p className="text-xs font-bold text-slate-800">{userName}</p>
                 </div>
-                {NAV.map((item) => (
+                {nav.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -124,10 +122,9 @@ export const AdministratifShell: React.FC<{ userName: string; children: React.Re
         <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 relative z-10 max-w-6xl w-full mx-auto">{children}</main>
       </div>
 
-      {/* ---- Bottom nav (mobile) ---- */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 px-3 pb-3 pt-1">
         <div className="glass-header flex items-center justify-around rounded-2xl border border-white/70 shadow-xl px-1.5 py-2">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = isActivePath(pathname, item.href)
             return (
               <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-2 py-1 min-w-[58px]">

@@ -6,13 +6,14 @@ import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
 import { DomainSummaryCards } from "@/components/monitoring-keuangan/DomainSummaryCards"
-import { DomainExpiringSection, type DomainExpiringRow } from "@/components/dashboard/DashboardSections"
+import { DomainCardList } from "@/components/monitoring-keuangan/DomainCardList"
+import { type DomainExpiringRow } from "@/components/dashboard/DashboardSections"
 
 export default async function UangMasukPage() {
   const user = await getCurrentUser()
   const isOwner = user.role === "owner"
 
-  const [domains, serverCount, maintenanceCount, projectCount, clientOptions, accounts] = await Promise.all([
+  const [domains, serverCount, maintenanceCount, projectCount, clientOptions] = await Promise.all([
     // doubtfulAt/pendingAt: null — domain yang ditahan Owner sengaja dikeluarkan, sama pola
     // dengan Dashboard utama (lihat src/app/dashboard/page.tsx).
     prisma.domain.findMany({ where: { active: true, doubtfulAt: null, pendingAt: null }, include: { client: true }, orderBy: { name: "asc" } }),
@@ -20,7 +21,6 @@ export default async function UangMasukPage() {
     prisma.maintenance.count({ where: { active: true } }),
     prisma.project.count({ where: { status: "berjalan" } }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.account.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ])
 
   const domainRowsBase = domains.map((d) => {
@@ -152,12 +152,10 @@ export default async function UangMasukPage() {
 
       <DomainSummaryCards total={totalDomain} belumTagih={belumTagih} sudahDitagih={sudahDitagih} belumBayar={belumBayar} trend={domainTrend} />
 
-      <DomainExpiringSection
+      <DomainCardList
         rows={domainRows}
         clients={clientOptions}
-        accounts={accounts}
         isOwner={isOwner}
-        showSafeBucket
         title="Daftar Domain"
         description={`${totalDomain} domain aktif yang dikelola — urutkan berdasarkan prioritas penagihan`}
       />
