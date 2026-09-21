@@ -82,7 +82,9 @@ export const CekKonsistensiDataPanel: React.FC = () => {
             </Card>
           </div>
 
-          <ConsistencyFindingsList rows={findings} />
+          {/* key={checkedAt} — paksa remount tiap run baru, supaya state internal list (rows
+              yang berkurang lewat tombol Sinkronkan) tidak ketinggalan findings run sebelumnya. */}
+          <ConsistencyFindingsList key={checkedAt} rows={findings} />
         </>
       )}
     </div>

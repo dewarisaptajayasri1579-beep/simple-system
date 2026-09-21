@@ -9,6 +9,7 @@ export async function register() {
   const { runDashboardReport } = await import("@/lib/cron/dashboard-report")
   const { runWeeklyReport } = await import("@/lib/cron/weekly-report")
   const { runRecurringBillReminders } = await import("@/lib/cron/recurring-bill-reminders")
+  const { runDataConsistencySync } = await import("@/lib/cron/data-consistency-sync")
   const { runReceivableFollowups } = await import("@/lib/cron/receivable-followups")
   const { runMarketingFollowupReminders } = await import("@/lib/cron/marketing-followup-reminders")
   const { runMarketingEscalations } = await import("@/lib/marketing/escalation")
@@ -24,6 +25,18 @@ export async function register() {
 
   // Daftarkan ulang webhook WAHUB (sesi WA khusus simple-system) tiap kali server start.
   registerWahubWebhook().catch((e) => console.error("[wahub] registrasi webhook saat startup gagal:", e))
+
+  // Cek Konsistensi Data jam 05:30 WIB — auto-sinkronkan cost-link Domain/Server/Maintenance
+  // yang lupa ke-link saat Pembayaran (lihat lib/cost-link-sync.ts), lalu WA Owner kalau masih
+  // ada temuan lain yang perlu dicek manual. Sengaja SEBELUM laporan pagi jam 07:00 supaya
+  // angka yang dikirim di situ sudah bersih.
+  cron.schedule(
+    "30 5 * * *",
+    () => {
+      runDataConsistencySync().catch((e) => console.error("[cron] data-consistency-sync gagal:", e))
+    },
+    { timezone: "Asia/Jakarta" }
+  )
 
   // Laporan pagi jam 07:00 WIB ke grup WA internal (gambar + caption + link Dashboard).
   cron.schedule(

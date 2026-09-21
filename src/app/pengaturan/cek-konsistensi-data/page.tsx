@@ -14,7 +14,9 @@ export default async function CekKonsistensiDataPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Cek Konsistensi Data</h1>
             <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-              Pengecekan manual (read-only) lintas Invoice/Payment/Jurnal/SLA — lihat Konsistensi-Data.md untuk detail tiap invariant.
+              Pengecekan lintas Invoice/Payment/Jurnal/SLA — lihat Konsistensi-Data.md untuk detail tiap invariant. Temuan "Cost-link belum ke-sync"
+              dicek & disinkronkan otomatis tiap hari jam 05:30 WIB (kalau masih ada sisa, Owner dikabari lewat WA); jalankan manual di sini kapan saja
+              buat cek langsung atau sinkronkan satu-satu.
             </p>
           </div>
           <Link href="/pengaturan" className="text-xs sm:text-sm font-bold text-blue-700 hover:underline whitespace-nowrap">

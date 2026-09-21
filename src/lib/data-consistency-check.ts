@@ -10,6 +10,64 @@ export interface ConsistencyFinding {
   entityLabel: string
   description: string
   href: string | null
+  // Terisi kalau temuan ini bisa dibenerin lewat 1 aksi otomatis (tombol "Sinkronkan" di
+  // ConsistencyFindingsList.tsx, atau cron — lihat lib/cost-link-sync.ts). Sengaja generic
+  // (bukan langsung invoiceId) supaya bisa nambah jenis sync lain nanti tanpa ubah bentuk ini.
+  sync?: { kind: "cost-link"; invoiceId: string }
+}
+
+export interface StaleCostLinkedInvoice {
+  invoiceId: string
+  invoiceNumber: string
+  issuedAt: Date
+  costLinkType: "domain" | "server" | "maintenance"
+  costLinkId: string
+  itemName: string
+  itemLastPaidAt: Date | null
+}
+
+/** Invoice lunas+posted dengan cost-link (Domain/Server/Maintenance) yang tanggal terakhir bayar
+ *  item terkait belum ter-update — dipakai BERSAMA oleh checkStaleCostLink (deteksi) dan
+ *  lib/cost-link-sync.ts (perbaikan), supaya definisi "stale" cuma ada di SATU tempat. */
+export async function findStaleCostLinkedInvoices(): Promise<StaleCostLinkedInvoice[]> {
+  const paidInvoices = await prisma.invoice.findMany({
+    where: { postStatus: "posted", status: "paid", costLinkType: { not: null }, costLinkId: { not: null } },
+    select: { id: true, invoiceNumber: true, issuedAt: true, costLinkType: true, costLinkId: true },
+  })
+  if (paidInvoices.length === 0) return []
+
+  const idsByType: Record<string, string[]> = { domain: [], server: [], maintenance: [] }
+  for (const inv of paidInvoices) {
+    if (inv.costLinkType && inv.costLinkId) idsByType[inv.costLinkType]?.push(inv.costLinkId)
+  }
+
+  const [domains, servers, maintenances] = await Promise.all([
+    prisma.domain.findMany({ where: { id: { in: idsByType.domain } }, select: { id: true, lastPaidAt: true, name: true } }),
+    prisma.server.findMany({ where: { id: { in: idsByType.server } }, select: { id: true, lastPaidAt: true, name: true } }),
+    prisma.maintenance.findMany({ where: { id: { in: idsByType.maintenance } }, select: { id: true, lastPaidAt: true, name: true } }),
+  ])
+  const itemByKey = new Map<string, { lastPaidAt: Date | null; name: string }>()
+  for (const d of domains) itemByKey.set(`domain:${d.id}`, d)
+  for (const s of servers) itemByKey.set(`server:${s.id}`, s)
+  for (const m of maintenances) itemByKey.set(`maintenance:${m.id}`, m)
+
+  const stale: StaleCostLinkedInvoice[] = []
+  for (const inv of paidInvoices) {
+    const item = itemByKey.get(`${inv.costLinkType}:${inv.costLinkId}`)
+    if (!item) continue // item sudah dihapus — di luar cakupan check ini
+    if (!item.lastPaidAt || item.lastPaidAt.getTime() < inv.issuedAt.getTime()) {
+      stale.push({
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        issuedAt: inv.issuedAt,
+        costLinkType: inv.costLinkType as "domain" | "server" | "maintenance",
+        costLinkId: inv.costLinkId!,
+        itemName: item.name,
+        itemLastPaidAt: item.lastPaidAt,
+      })
+    }
+  }
+  return stale
 }
 
 const AMOUNT_TOLERANCE = 1 // rupiah — toleransi pembulatan
@@ -95,46 +153,20 @@ async function checkOverpayment(): Promise<ConsistencyFinding[]> {
 
 /** Invoice lunas dengan cost-link (Domain/Server/Maintenance) tapi item terkait kelihatan belum
  *  ke-update lastPaidAt-nya — indikasi staf lupa pilih cost-link di form Pembayaran (gap yang
- *  didokumentasikan di Konsistensi-Data.md §3). Heuristik, jadi "warning" bukan "error". */
+ *  didokumentasikan di Konsistensi-Data.md §3). Heuristik, jadi "warning" bukan "error". BISA
+ *  dibenerin otomatis (lihat field `sync` & lib/cost-link-sync.ts) — tombol "Sinkronkan" di UI,
+ *  atau cron harian (lihat lib/cron/data-consistency-sync.ts). */
 async function checkStaleCostLink(): Promise<ConsistencyFinding[]> {
-  const paidInvoices = await prisma.invoice.findMany({
-    where: { postStatus: "posted", status: "paid", costLinkType: { not: null }, costLinkId: { not: null } },
-    select: { id: true, invoiceNumber: true, issuedAt: true, costLinkType: true, costLinkId: true },
-  })
-  if (paidInvoices.length === 0) return []
-
-  const idsByType: Record<string, string[]> = { domain: [], server: [], maintenance: [] }
-  for (const inv of paidInvoices) {
-    if (inv.costLinkType && inv.costLinkId) idsByType[inv.costLinkType]?.push(inv.costLinkId)
-  }
-
-  const [domains, servers, maintenances] = await Promise.all([
-    prisma.domain.findMany({ where: { id: { in: idsByType.domain } }, select: { id: true, lastPaidAt: true, name: true } }),
-    prisma.server.findMany({ where: { id: { in: idsByType.server } }, select: { id: true, lastPaidAt: true, name: true } }),
-    prisma.maintenance.findMany({ where: { id: { in: idsByType.maintenance } }, select: { id: true, lastPaidAt: true, name: true } }),
-  ])
-  const lastPaidByKey = new Map<string, { lastPaidAt: Date | null; name: string }>()
-  for (const d of domains) lastPaidByKey.set(`domain:${d.id}`, d)
-  for (const s of servers) lastPaidByKey.set(`server:${s.id}`, s)
-  for (const m of maintenances) lastPaidByKey.set(`maintenance:${m.id}`, m)
-
-  const findings: ConsistencyFinding[] = []
-  for (const inv of paidInvoices) {
-    const item = lastPaidByKey.get(`${inv.costLinkType}:${inv.costLinkId}`)
-    if (!item) continue // item sudah dihapus — di luar cakupan check ini
-    const stale = !item.lastPaidAt || item.lastPaidAt.getTime() < inv.issuedAt.getTime()
-    if (stale) {
-      findings.push({
-        id: `stale-costlink-${inv.id}`,
-        checkLabel: "Cost-link kemungkinan belum ke-sync",
-        severity: "warning",
-        entityLabel: inv.invoiceNumber,
-        description: `Invoice sudah lunas & terkait ke ${inv.costLinkType} "${item.name}", tapi tanggal terakhir bayar item itu belum ter-update — kemungkinan cost-link belum dipilih saat Pelunasan`,
-        href: `/penjualan/${inv.id}`,
-      })
-    }
-  }
-  return findings
+  const stale = await findStaleCostLinkedInvoices()
+  return stale.map((s) => ({
+    id: `stale-costlink-${s.invoiceId}`,
+    checkLabel: "Cost-link kemungkinan belum ke-sync",
+    severity: "warning",
+    entityLabel: s.invoiceNumber,
+    description: `Invoice sudah lunas & terkait ke ${s.costLinkType} "${s.itemName}", tapi tanggal terakhir bayar item itu belum ter-update — kemungkinan cost-link belum dipilih saat Pelunasan`,
+    href: `/penjualan/${s.invoiceId}`,
+    sync: { kind: "cost-link", invoiceId: s.invoiceId },
+  }))
 }
 
 /** BillingFollowUp (SLA tracker) — satu (refType, refId) cuma boleh punya 1 siklus aktif. */

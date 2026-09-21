@@ -2240,3 +2240,42 @@ model LeadWebhookEvent {
   @@map("lead_webhook_events")
   @@schema("simple_system")
 }
+
+// ---------------------------------------------------------------------------
+// Modul Administratif — data karyawan (master data HRD) & log surat-menyurat.
+// v1: master data saja, belum ada absensi/cuti/upload file surat (menyusul kalau
+// dibutuhkan). Akses modul ini digate lewat User.modules (key "administratif").
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id        String    @id @default(uuid())
+  name      String
+  position  String?
+  status    String    @default("AKTIF") // "AKTIF" | "NONAKTIF" | "KONTRAK" | "TETAP"
+  joinDate  DateTime? @map("join_date")
+  phone     String?
+  email     String?
+  notes     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("employees")
+  @@schema("simple_system")
+}
+
+model CorrespondenceLog {
+  id        String   @id @default(uuid())
+  number    String
+  direction String // "MASUK" | "KELUAR"
+  subject   String
+  date      DateTime
+  party     String
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([direction, date])
+  @@map("correspondence_logs")
+  @@schema("simple_system")
+}
