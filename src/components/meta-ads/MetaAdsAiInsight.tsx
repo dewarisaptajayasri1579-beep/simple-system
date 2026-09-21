@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Sparkles, CheckCircle2, Info, TriangleAlert, OctagonAlert, ArrowRight } from "lucide-react"
 
 import { Alert, Button, Card, Spinner } from "@/components/ui"
@@ -18,14 +18,38 @@ const SEVERITY_STYLE: Record<Severity, { icon: typeof Info; label: string; wrap:
   critical: { icon: OctagonAlert, label: "Boros", wrap: "bg-rose-50 text-rose-700", ring: "border-rose-200" },
 }
 
+/** Analisa sekali jalan makan ~45 detik (tarik 7 endpoint Meta, lalu model mikir). Spinner polos
+ *  selama itu bikin user ngira nge-hang, jadi tahapannya diceritakan + ada penghitung detik.
+ *  Detik-detik di bawah cuma perkiraan urutan kerja, bukan progres asli dari server — tahap
+ *  terakhir sengaja tidak punya batas waktu supaya tidak pernah "mentok" kalau prosesnya lebih
+ *  lama dari biasanya. */
+const LOADING_STAGES: { until: number; text: string }[] = [
+  { until: 6, text: "Mengambil data campaign & tren harian dari Meta..." },
+  { until: 14, text: "Mengambil breakdown usia, gender, wilayah & penempatan..." },
+  { until: 30, text: "Membandingkan CTR, CPC, dan alokasi budget antar segmen..." },
+  { until: Infinity, text: "Menyusun kesimpulan dan langkah tindak lanjut..." },
+]
+
 export function MetaAdsAiInsight({ range }: { range: string }) {
   const [insight, setInsight] = useState<Insight | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Bersihkan interval kalau user pindah halaman saat analisa masih jalan.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
 
   async function runAnalysis() {
     setLoading(true)
     setError(null)
+    setElapsed(0)
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     try {
       const res = await fetch(`/api/meta-ads/ai-insight?range=${range}`, { method: "POST" })
       const body = await res.json()
@@ -34,6 +58,7 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menganalisa")
     } finally {
+      if (timerRef.current) clearInterval(timerRef.current)
       setLoading(false)
     }
   }
@@ -63,9 +88,40 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
         )}
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-10 gap-3">
+          <div className="py-8 flex flex-col items-center gap-4" role="status" aria-live="polite">
             <Spinner />
-            <p className="text-xs text-slate-500 font-semibold">Membaca angka dan menyusun kesimpulan...</p>
+
+            <div className="text-center">
+              <p className="text-sm font-bold text-slate-700">
+                {LOADING_STAGES.find((s) => elapsed < s.until)?.text ?? LOADING_STAGES[LOADING_STAGES.length - 1].text}
+              </p>
+              <p className="text-[11px] text-slate-500 font-semibold mt-1 tabular-nums">
+                {elapsed} detik berjalan — biasanya selesai sekitar 45 detik
+              </p>
+            </div>
+
+            {/* Checklist tahapan: yang sudah lewat dicentang, biar kelihatan jalan terus. */}
+            <ol className="w-full max-w-sm space-y-1.5">
+              {LOADING_STAGES.map((stage, i) => {
+                const prevUntil = i === 0 ? 0 : LOADING_STAGES[i - 1].until
+                const done = elapsed >= stage.until
+                const active = elapsed >= prevUntil && !done
+                return (
+                  <li key={i} className="flex items-start gap-2">
+                    <span
+                      className={`w-4 h-4 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center ${
+                        done ? "bg-emerald-100 text-emerald-700" : active ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {done ? <CheckCircle2 className="w-3 h-3" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                    </span>
+                    <span className={`text-[11px] leading-snug ${active ? "font-bold text-slate-700" : "font-semibold text-slate-400"}`}>
+                      {stage.text}
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
           </div>
         )}
 

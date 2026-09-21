@@ -88,6 +88,13 @@ export function MetaAdsDashboard() {
     }
   }, [range])
 
+  // Angka turunan buat keterangan di bawah tiap kartu — biar angka besarnya punya konteks
+  // ("66.938 tampil" sendirian tidak berarti apa-apa; "rata-rata 2,1x per orang" baru berarti).
+  const s = data?.summary
+  const avgCpc = s && s.totalClicks > 0 ? Math.round(s.totalSpend / s.totalClicks) : null
+  const avgCtr = s && s.totalImpressions > 0 ? ((s.totalClicks / s.totalImpressions) * 100).toFixed(2) : null
+  const frequency = s && s.totalReach > 0 ? (s.totalImpressions / s.totalReach).toFixed(1) : null
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -115,10 +122,34 @@ export function MetaAdsDashboard() {
       {data && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatTile label="Total Spend" value={formatCurrency(data.summary.totalSpend, data.summary.currency)} icon={Wallet} color="rose" />
-            <StatTile label="Impressions" value={formatNumber(data.summary.totalImpressions)} icon={Eye} color="blue" />
-            <StatTile label="Reach" value={formatNumber(data.summary.totalReach)} icon={Megaphone} color="purple" />
-            <StatTile label="Clicks" value={formatNumber(data.summary.totalClicks)} icon={MousePointerClick} color="emerald" />
+            <StatTile
+              label="Total Spend"
+              value={formatCurrency(data.summary.totalSpend, data.summary.currency)}
+              icon={Wallet}
+              color="rose"
+              hint={avgCpc !== null ? `Uang terpakai · Rp${formatNumber(avgCpc)} per klik` : "Uang yang sudah terpakai"}
+            />
+            <StatTile
+              label="Impressions"
+              value={formatNumber(data.summary.totalImpressions)}
+              icon={Eye}
+              color="blue"
+              hint={frequency !== null ? `Iklan tampil · rata-rata ${frequency}× per orang` : "Berapa kali iklan tampil di layar"}
+            />
+            <StatTile
+              label="Reach"
+              value={formatNumber(data.summary.totalReach)}
+              icon={Megaphone}
+              color="purple"
+              hint="Jumlah orang berbeda yang melihatnya"
+            />
+            <StatTile
+              label="Clicks"
+              value={formatNumber(data.summary.totalClicks)}
+              icon={MousePointerClick}
+              color="emerald"
+              hint={avgCtr !== null ? `Yang meng-klik · CTR ${avgCtr}%` : "Berapa kali iklan di-klik"}
+            />
           </div>
 
           <Card variant="feature" padding="none">
