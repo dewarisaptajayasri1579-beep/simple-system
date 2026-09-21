@@ -487,7 +487,13 @@ export const DomainExpiringSection: React.FC<{
   accounts: AccountOption[];
   isOwner: boolean;
   rangeToIso?: string | null;
-}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso }) => {
+  // Dipakai Monitoring Keuangan > Uang Masuk — di situ `rows` isinya SEMUA domain (bukan cuma
+  // yang lagi due), jadi butuh judul/deskripsi beda dan bucket "Aman" ikut tampil di pill filter
+  // meskipun rangeToIso tidak dipakai (bukan filter rentang tanggal, cuma "tampilkan semua").
+  title?: string;
+  description?: string;
+  showSafeBucket?: boolean;
+}> = ({ rows: initialRows, clients, accounts, isOwner, rangeToIso, title, description, showSafeBucket }) => {
   const rangeActive = Boolean(rangeToIso);
   const [rows, setRows] = useState(initialRows);
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all");
@@ -670,9 +676,9 @@ export const DomainExpiringSection: React.FC<{
     <Card {...CARD_PROPS}>
       <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{rangeActive ? `Domain — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Domain — Lewat / Bulan Ini / Bulan Depan"}</CardTitle>
+          <CardTitle>{title ?? (rangeActive ? `Domain — Sampai dengan Tanggal ${formatDate(rangeToIso ?? null)}` : "Domain — Lewat / Bulan Ini / Bulan Depan")}</CardTitle>
           <CardDescription>
-            {rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`}
+            {description ?? (rangeActive ? `${rows.length} domain jatuh tempo dalam rentang tanggal terpilih` : `${rows.length} domain sudah lewat tempo atau akan habis bulan ini/depan`)}
           </CardDescription>
         </div>
         <div className="flex items-start gap-2">
@@ -683,7 +689,7 @@ export const DomainExpiringSection: React.FC<{
       <StatusPills
         active={statusFilter}
         onChange={setStatusFilter}
-        options={rangeActive ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
+        options={rangeActive || showSafeBucket ? BUCKET_OPTIONS_WITH_SAFE : BUCKET_OPTIONS}
         counts={bucketCounts(rows)}
         total={rows.length}
       />

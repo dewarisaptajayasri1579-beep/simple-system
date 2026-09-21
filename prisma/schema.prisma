@@ -2286,8 +2286,147 @@ model Employee {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
+  // Kredensial login khusus app Android (Absensi) — TERPISAH dari User/Session (Employee
+  // tidak bisa & tidak perlu login ke web Internal). Nullable karena tidak semua karyawan
+  // otomatis dikasih akses Android saat dibuat — di-set belakangan lewat halaman Karyawan.
+  username     String? @unique @map("username")
+  passwordHash String? @map("password_hash")
+
+  sessions      EmployeeSession[]
+  attendances   AttendanceRecord[]
+  leaveRequests LeaveRequest[]
+  kasbons       EmployeeKasbon[]
+
   @@index([status])
   @@map("employees")
+  @@schema("simple_system")
+}
+
+// Token sesi login Employee dari app Android — pola mirip Session (User) tapi model
+// terpisah total, lihat catatan di Employee di atas.
+model EmployeeSession {
+  id         String   @id @default(uuid()) // dipakai langsung sebagai token
+  employeeId String   @map("employee_id")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@map("employee_sessions")
+  @@schema("simple_system")
+}
+
+// Pengganti m_log (jenis=1) sistem lama — 1 baris per hari per karyawan, DIBUAT SAAT absen
+// masuk (bukan pre-insert shell kosong tiap hari seperti sistem lama — lihat temuan data
+// quality di docs/administratif-hrd-absensi-penggajian.md §1.7: 53% baris m_log lama kosong
+// karena pola pre-insert itu). Status O(pen, shell awal)/I(n, sudah absen masuk)/C(omplete).
+model AttendanceRecord {
+  id                  String    @id @default(uuid())
+  employeeId          String    @map("employee_id")
+  date                DateTime  @map("date") // tanggal kalender (bukan datetime), 1 baris/hari/karyawan
+  status              String    @default("O") // "O" | "I" | "C"
+  checkInAt           DateTime? @map("check_in_at")
+  checkInLat          Float?    @map("check_in_lat")
+  checkInLng          Float?    @map("check_in_lng")
+  checkInAddress      String?   @map("check_in_address")
+  checkInPhotoUrl     String?   @map("check_in_photo_url")
+  checkInLate         Boolean   @default(false) @map("check_in_late")
+  checkInLateMinutes  Int?      @map("check_in_late_minutes")
+  checkOutAt          DateTime? @map("check_out_at")
+  checkOutLat         Float?    @map("check_out_lat")
+  checkOutLng         Float?    @map("check_out_lng")
+  checkOutAddress     String?   @map("check_out_address")
+  checkOutPhotoUrl    String?   @map("check_out_photo_url")
+  workDurationMinutes Int?      @map("work_duration_minutes")
+  source              String    @default("android") @map("source") // "android" | "manual" (koreksi HR)
+  createdById         String?   @map("created_by_id") // diisi kalau source="manual" (User HR yang input)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@map("attendance_records")
+  @@schema("simple_system")
+}
+
+model LeaveType {
+  id   String @id @default(uuid())
+  name String // "Sakit" | "Izin" | "Cuti" | custom
+
+  leaveRequests LeaveRequest[]
+
+  @@map("leave_types")
+  @@schema("simple_system")
+}
+
+// Pengajuan Izin/Sakit/Cuti — TANPA approval (keputusan bisnis final, lihat docs): HR/Admin
+// input, langsung dianggap sah, sama seperti sistem lama (yang approval-nya 0% pernah
+// dipakai meski field-nya ada di skema — di sini sengaja tidak dibuatkan field itu sejak awal).
+model LeaveRequest {
+  id          String   @id @default(uuid())
+  employeeId  String   @map("employee_id")
+  leaveTypeId String   @map("leave_type_id")
+  date        DateTime @map("date")
+  notes       String?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([employeeId, date])
+  @@map("leave_requests")
+  @@schema("simple_system")
+}
+
+model NationalHoliday {
+  id   String   @id @default(uuid())
+  date DateTime @unique
+  name String
+
+  @@map("national_holidays")
+  @@schema("simple_system")
+}
+
+// Setting global HRD, singleton (1 baris, id tetap "singleton") — pola sama seperti model
+// Settings yang sudah ada untuk split kas Internal.
+model HrSettings {
+  id              String   @id @default("singleton")
+  jamMasuk        String   @default("08:00") @map("jam_masuk") // "HH:mm"
+  jamPulang       String   @default("17:00") @map("jam_pulang")
+  toleransiJarakM Int      @default(100) @map("toleransi_jarak_m") // radius geofence, meter
+  kantorLat       Float?   @map("kantor_lat")
+  kantorLng       Float?   @map("kantor_lng")
+  tglCutoff       Int      @default(25) @map("tgl_cutoff")
+  nominalLembur   Float    @default(173) @map("nominal_lembur") // pembagi Kepmenakertrans No.102/MEN/VI/2004
+  premiKehadiran  Float    @default(100000) @map("premi_kehadiran")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("hr_settings")
+  @@schema("simple_system")
+}
+
+// Kasbon khusus Employee — mirror pola Kasbon (User) yang sudah ada: model ringan, uang
+// gerak dicatat sebagai Transaction refType="employee_kasbon" (bukan tabel repayment
+// terpisah). Disiapkan sekarang, dipakai penuh saat mesin hitung Payroll diimplementasi.
+model EmployeeKasbon {
+  id          String   @id @default(uuid())
+  employeeId  String   @map("employee_id")
+  amount      Float
+  description String?
+  occurredAt  DateTime @map("occurred_at")
+  status      String   @default("outstanding") // "outstanding" | "lunas"
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_kasbons")
   @@schema("simple_system")
 }
 

@@ -27,9 +27,12 @@ Dari pengalaman 14 tahun Ony di bisnis ini. Pengetahuan seperti ini bersifat **t
 |---|---|---|---|---|
 | Bengkel | — | — | — | — |
 | SevenRent / Rental | — | — | — | — |
-| Distribusi / Custom App | sebagian¹ | sebagian¹ | sebagian¹ | — |
+| Custom App / Distribusi | sebagian¹ | — | sebagian¹ | — |
+| Bengkel | ✅ | di-skip² | sebagian³ | — |
 | Gym | — | — | — | — |
 | SAP | — | — | — | — |
 | Absensi | — | — | — | — |
 
-¹ Dari Sesi 7 di `training-cika-log.md`: multi satuan/multi harga, stok di sales keliling, piutang tempo, dan cerita klien parfum konsinyasi.
+¹ Dari Sesi 6–7 di `training-cika-log.md`: multi satuan/multi harga, stok di sales keliling, piutang tempo, dan cerita klien parfum konsinyasi.
+² Ony sempat konfirmasi "Antrian Stall" lalu membatalkannya (keliru) — dilewati dulu, digali ulang nanti.
+³ Bukan cerita klien "sebelum-sesudah", tapi ide solusi konkret (QR code CS di invoice) dari Sesi 8.

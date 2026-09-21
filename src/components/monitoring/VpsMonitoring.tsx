@@ -1598,7 +1598,7 @@ export const VpsServerCard: React.FC<{
                       </div>
                     </div>
                     {/* Aksi */}
-                    <div className="flex lg:flex-col gap-2">
+                    <div className="flex flex-col sm:flex-row lg:flex-col gap-2">
                       <Button size="sm" variant="outline" onClick={() => setViewingApp(app)} leftIcon={<Eye className="w-3.5 h-3.5" />}>
                         Lihat Detail
                       </Button>
@@ -1650,9 +1650,8 @@ export const VpsServerCard: React.FC<{
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(
                     [
                       { value: "all", label: `Semua (${dbStats.total})` },
                       { value: "active", label: `Aktif (${dbStats.active})` },
@@ -1680,7 +1679,6 @@ export const VpsServerCard: React.FC<{
                     <option value="terbaru">Urutkan: Terbaru</option>
                     <option value="nama">Urutkan: Nama (A-Z)</option>
                   </select>
-                </div>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -1729,7 +1727,7 @@ export const VpsServerCard: React.FC<{
                         </div>
                         {/* Tipe */}
                         <div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block lg:hidden">Tipe</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Tipe</span>
                           <span className="text-xs font-semibold text-slate-700">{db.databaseType}</span>
                         </div>
                         {/* Terakhir Aktif */}
@@ -1782,7 +1780,7 @@ export const VpsServerCard: React.FC<{
                           </div>
                         </div>
                         {/* Aksi */}
-                        <div className="flex lg:flex-col gap-2">
+                        <div className="flex flex-col sm:flex-row lg:flex-col gap-2">
                           <Button size="sm" variant="outline" onClick={() => setViewingDb(db)} leftIcon={<Eye className="w-3.5 h-3.5" />}>
                             Lihat Detail
                           </Button>
