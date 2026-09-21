@@ -258,38 +258,40 @@ sebagai sumber, dengan catatan **filter baris `m_log` yang `jenis IS NULL`** (li
 
 ---
 
-## 5. Keputusan Bisnis yang Perlu Diambil untuk Sistem Baru
+## 5. Keputusan Bisnis untuk Sistem Baru (FINAL)
 
-Ini bukan lagi "belum tahu alurnya" — alurnya sudah jelas dari riset di atas. Yang tersisa
-murni **keputusan desain**, karena beberapa hal di sistem lama sengaja tidak dibawa
-apa adanya (rusak, tidak lengkap, atau tidak sesuai kebutuhan saat ini):
+Sudah dibahas & diputuskan dengan Owner (2026-09-21):
 
-1. **Approval izin/cuti** — sistem lama 0% pernah dipakai (langsung sah begitu HR input).
-   Apakah sistem baru **mau** approval sungguhan (mis. atasan approve di app/web), atau
-   tetap seperti sekarang (HR input = langsung sah)?
-2. **Self-service pengajuan izin dari Android** — sekarang cuma bisa lewat web oleh HR.
-   Apakah karyawan mau bisa ajukan izin/cuti langsung dari HP?
-3. **Validasi radius lokasi (geofence)** — datanya sudah ada (100m), tinggal diaktifkan
-   kalau mau. Aktifkan atau tetap longgar seperti sekarang?
-4. **Override aturan per-karyawan** (potongan telat, lembur, kerja Sabtu) — 4 kolom ada
-   di skema lama tapi tidak pernah dipakai (lihat 1.6). Dibutuhkan atau tidak?
-5. **PPh21** — sistem lama flat % dan sedang 0%. Kalau compliance pajak penting, pakai
-   skema **TER 2024** resmi, bukan replikasi logika lama.
-6. **Kasus gaji negatif** — dibawa sebagai hutang ke bulan berikutnya, atau dibiarkan
-   negatif di slip seperti sekarang?
-7. **Pembayaran gaji aktual + potong Kasbon** — modul lama rusak/tidak terpakai (2.5).
-   Sistem baru sudah punya model `Kasbon` (terhubung ke `User`, dipakai staf Internal
-   yang punya login) — perlu diputuskan: apakah semua karyawan HRD juga akan punya akun
-   `User`, atau `Employee` tetap terpisah dari `User` dan butuh mekanisme potongan
-   kasbon sendiri yang tidak bergantung pada login sistem?
-8. **Distribusi slip gaji** — lama cuma PDF via web admin, karyawan tidak akses in-app.
-   Apakah sistem baru mau kasih akses karyawan lihat slip sendiri (mis. lewat Modul
-   Administratif kalau karyawan dikasih akun `User`)?
-9. **Jurnal akuntansi** — apakah proses bayar gaji perlu otomatis bikin jurnal Kas Keluar
-   di modul Akuntansi/Keuangan (Internal) yang sudah ada, atau cukup dicatat di
-   Administratif saja tanpa terhubung ke pembukuan?
-10. **Multi-shift** — sistem lama cuma 1 jam kerja tunggal per tenant. Apakah dibutuhkan
-    lebih dari 1 shift di sistem baru?
+1. **Approval izin/cuti** → **Tanpa approval**, sama seperti sistem lama. HR/Admin input
+   lewat web, langsung dianggap sah. Tidak ada field/alur approve-reject di v1.
+2. **Akun login karyawan** → **Tidak ada.** `Employee` tetap terpisah total dari `User`.
+   Konsekuensi: tidak ada self-service (karyawan tidak absen dari app sendiri di v1 ini —
+   absensi & pengajuan izin tetap diinput/dikelola HR/Admin lewat web Administratif),
+   tidak ada distribusi slip gaji in-app (dicetak/dibagi HR di luar sistem, sama seperti
+   sekarang), dan model `Kasbon` yang sudah ada (terhubung ke `User`) **tidak dipakai
+   ulang** untuk karyawan HRD.
+3. **PPh21** → **Tidak dulu**, tetap 0% seperti tenant lama. Bisa ditambah nanti kalau
+   dibutuhkan, tidak jadi bagian v1.
+4. **Validasi radius lokasi (geofence)** → **Diaktifkan** di sistem baru (beda dari
+   sistem lama yang datanya ada tapi tidak ditegakkan). Karyawan cuma bisa absen kalau
+   berada dalam radius tertentu dari titik kantor — nominal radius & titik referensi jadi
+   bagian setting (`Ketentuan`/`Employee` per lokasi kerja).
+5. **Kasbon karyawan** → **Model baru khusus `Employee`** (bukan reuse `Kasbon` yang ada),
+   dipotong otomatis dari gaji tiap periode payroll.
+6. **Gaji negatif** → **Dibiarkan negatif di slip**, sama seperti sistem lama. Tidak ada
+   mekanisme bawa saldo hutang ke periode berikutnya di v1.
+7. **Jurnal akuntansi** → **Terhubung ke Akuntansi/Keuangan**: tiap gaji dibayar bikin
+   transaksi Kas Keluar kategori "Gaji" secara otomatis (perlu pelajari pola
+   `Transaction`/posting jurnal yang sudah ada di modul Internal sebelum implementasi).
+8. **Multi-shift** → **Tidak perlu**, 1 jam kerja tunggal untuk semua karyawan (sama
+   seperti sistem lama), radius geofence per lokasi kerja kalau ada lebih dari 1 kantor.
+
+Konsekuensi desain dari keputusan di atas: karena tidak ada akun login karyawan, **tidak
+ada app Android/mobile self-service di v1** — absen tetap dicatat manual/oleh admin lewat
+web (beda dari sistem lama yang justru absennya dari Android). Ini pergeseran besar dari
+alur lama yang perlu disadari: kalau nanti ternyata karyawan tetap perlu absen mandiri
+(bukan diinput HR), keputusan #2 harus ditinjau ulang dulu sebelum lanjut ke fase
+self-service.
 
 ---
 
@@ -297,10 +299,13 @@ apa adanya (rusak, tidak lengkap, atau tidak sesuai kebutuhan saat ini):
 
 1. ~~Dapat source code aplikasi lama~~ ✅ selesai — riset di `~/Documents/Projects/ABSENSI/docs/`.
 2. ~~Pelajari alur & business rule~~ ✅ selesai — dirangkum di dokumen ini.
-3. **Bahas bagian 5 (Keputusan Bisnis)** dengan user — tiap poin menentukan bentuk schema
-   & UI yang akan dibangun.
-4. Desain schema Prisma (`AttendanceRecord`/`m_log` pengganti, `PayrollPeriod`,
-   `PayrollComponent`, dst — nama final menyesuaikan hasil diskusi poin 3) mengikuti
-   konvensi Modul Administratif yang sudah ada (`Employee`, `CorrespondenceLog`).
-5. Implementasi halaman & API di `/administratif` (menyusul `karyawan/` dan `surat/`
-   yang sudah ada).
+3. ~~Bahas Keputusan Bisnis dengan Owner~~ ✅ selesai — lihat bagian 5 (final).
+4. Pelajari pola `Transaction`/posting jurnal di modul Internal (untuk keputusan #7)
+   sebelum desain schema payroll.
+5. Desain schema Prisma: `AttendanceRecord` (pengganti `m_log`, per `Employee`),
+   `LeaveRequest` (izin/sakit/cuti, tanpa approval), `PayrollPeriod` + `PayrollItem`
+   (mesin hitung bulanan), `EmployeeKasbon` (kasbon khusus karyawan) — mengikuti
+   konvensi yang sudah ada (`Employee`, `CorrespondenceLog`).
+6. Implementasi halaman & API di `/administratif` (menyusul `karyawan/` dan `surat/`
+   yang sudah ada): Absensi (input/rekap manual oleh HR), Penggajian (hitung → review →
+   posting → slip).
