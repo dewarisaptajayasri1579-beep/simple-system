@@ -5,6 +5,7 @@ import { Megaphone, MousePointerClick, Eye, Wallet, RefreshCw } from "lucide-rea
 
 import { Alert, Badge, Card, Select, Spinner, StatTile } from "@/components/ui"
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
+import { MetaAdsAnalysis } from "./MetaAdsAnalysis"
 
 type MetaCampaignRow = {
   campaignId: string
@@ -170,6 +171,8 @@ export function MetaAdsDashboard() {
               </TableContainer>
             )}
           </Card>
+
+          <MetaAdsAnalysis range={range} currency={data.summary.currency} />
         </>
       )}
     </div>

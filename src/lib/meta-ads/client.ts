@@ -134,6 +134,81 @@ export async function fetchAccountSummary(adAccountId: string, accessToken: stri
   }
 }
 
+/** Tren harian akun (bukan per-campaign) — dasar chart "Analisa Performa". `time_increment=1`
+ *  bikin Meta pecah 1 response jadi 1 baris per tanggal, jadi tetap 1 call API apa pun panjang
+ *  rentangnya. */
+export async function fetchDailyTrend(adAccountId: string, accessToken: string, datePreset: MetaAdsDatePreset): Promise<MetaAdsDailyPoint[]> {
+  const body = await graphGet(`/${adAccountId}/insights`, accessToken, {
+    date_preset: datePreset,
+    time_increment: "1",
+    fields: "spend,impressions,clicks,ctr,cpc",
+    limit: "500",
+  })
+
+  return (body.data ?? [])
+    .map((row: Record<string, unknown>) => ({
+      date: String(row.date_start),
+      spend: num(row.spend),
+      impressions: num(row.impressions),
+      clicks: num(row.clicks),
+      ctr: num(row.ctr),
+      cpc: num(row.cpc),
+    }))
+    .sort((a: MetaAdsDailyPoint, b: MetaAdsDailyPoint) => a.date.localeCompare(b.date))
+}
+
+const BREAKDOWN_FIELD: Record<Exclude<MetaAdsBreakdownDimension, "placement">, string> = {
+  age: "age",
+  gender: "gender",
+  region: "region",
+}
+
+const GENDER_LABEL: Record<string, string> = { male: "Laki-laki", female: "Perempuan", unknown: "Tidak diketahui" }
+
+/** Breakdown performa per segmen audiens ("Target Market") — dipakai buat lihat segmen umur/
+ *  gender/wilayah/penempatan mana yang CTR-nya paling tinggi / CPC-nya paling murah dari
+ *  campaign yang SUDAH jalan, sebagai dasar data nentuin target audience berikutnya. "placement"
+ *  gabungan 2 breakdown Meta (publisher_platform + platform_position) jadi 1 label supaya lebih
+ *  gampang dibaca ("Facebook Feed" dst). */
+export async function fetchBreakdownInsights(
+  adAccountId: string,
+  accessToken: string,
+  datePreset: MetaAdsDatePreset,
+  dimension: MetaAdsBreakdownDimension
+): Promise<MetaAdsBreakdownRow[]> {
+  const breakdowns = dimension === "placement" ? "publisher_platform,platform_position" : BREAKDOWN_FIELD[dimension]
+  const body = await graphGet(`/${adAccountId}/insights`, accessToken, {
+    date_preset: datePreset,
+    breakdowns,
+    fields: "spend,impressions,clicks,ctr,cpc",
+    limit: "500",
+  })
+
+  const rows: MetaAdsBreakdownRow[] = (body.data ?? []).map((row: Record<string, unknown>) => ({
+    label: labelForBreakdownRow(dimension, row),
+    spend: num(row.spend),
+    impressions: num(row.impressions),
+    clicks: num(row.clicks),
+    ctr: num(row.ctr),
+    cpc: num(row.cpc),
+  }))
+
+  return rows.sort((a, b) => b.ctr - a.ctr)
+}
+
+function labelForBreakdownRow(dimension: MetaAdsBreakdownDimension, row: Record<string, unknown>): string {
+  if (dimension === "gender") {
+    const gender = String(row.gender ?? "unknown")
+    return GENDER_LABEL[gender] ?? gender
+  }
+  if (dimension === "placement") {
+    const platform = String(row.publisher_platform ?? "-")
+    const position = String(row.platform_position ?? "-")
+    return `${platform} · ${position}`
+  }
+  return String(row[BREAKDOWN_FIELD[dimension as Exclude<MetaAdsBreakdownDimension, "placement">]] ?? "-")
+}
+
 /** Ambil akun Meta Ads yang aktif + validasi kredensial dengan 1 call ringan (`/me`) supaya
  *  error token expired/dicabut ketahuan cepat dan bisa dicatat ke lastSyncError (pola sama
  *  dengan VpsServer.coolifySyncError, lihat lib/monitoring/coolify.ts). */
