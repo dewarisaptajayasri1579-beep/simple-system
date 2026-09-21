@@ -16,9 +16,7 @@ import {
   ChevronRight,
   FolderKanban,
   Info,
-  RefreshCcw,
   ListChecks,
-  Receipt,
 } from "lucide-react";
 
 export interface NavItem {
@@ -34,16 +32,23 @@ export interface SidebarProps {
   userRole?: string;
 }
 
-// Role "admin" = staf penagihan: input Invoice, input Pembayaran, urusan Tagihan (Piutang/
-// Tindak Lanjut), plus input Kas Keluar. Akuntansi, Laporan, dan Proyek SENGAJA tidak ada di
-// sini — admin tidak boleh lihat angka pembukuan. "Keuangan" di-override langsung ke
-// /keuangan/kas-keluar, BUKAN hub-nya, karena hub itu juga memuat Kas Masuk, Pindah Buku,
-// Kasbon, dan Slotting Omset yang tetap Owner+Direktur saja. Pengaturan tetap boleh karena
-// tab-nya sudah dibatasi cuma "Master Data" untuk non-owner (lihat RESTRICTED_ROLE_TABS di
-// PengaturanPanel.tsx), dan itu sumber data Domain/Server/Maintenance yang ditagihkan.
+// Role "admin" = staf penagihan: input Invoice, input Pembayaran, plus input Kas Keluar.
+// Akuntansi, Laporan, dan Proyek SENGAJA tidak ada di sini — admin tidak boleh lihat angka
+// pembukuan. "Keuangan" di-override langsung ke /keuangan/kas-keluar, BUKAN hub-nya, karena hub
+// itu juga memuat Kas Masuk, Pindah Buku, Kasbon, dan Slotting Omset yang tetap Owner+Direktur
+// saja. Pengaturan tetap boleh karena tab-nya sudah dibatasi cuma "Master Data" untuk non-owner
+// (lihat RESTRICTED_ROLE_TABS di PengaturanPanel.tsx), dan itu sumber data Domain/Server/
+// Maintenance yang ditagihkan.
+//
+// "Tagihan" (hub /tagihan — Piutang/Tindak Lanjut/Piutang Ragu-Ragu) sengaja TIDAK ada di menu
+// ini atas permintaan Owner ("Menu Tagihan -> Hide") — halamannya sendiri TETAP hidup & bisa
+// diakses siapa pun (getCurrentUser, bukan requirePageRole), cuma sudah tidak ada tautan
+// permanen di Sidebar/BottomBar/Command Palette. Masih bisa dicapai dari Dashboard (badge "SLA
+// Lewat", "Ditahan", tombol "Lihat Piutang", dst).
+//
 // Restriksi sebenarnya tetap di masing-masing page.tsx (requirePageRole) — ini cuma soal menu
 // mana yang ditampilkan/kemana link-nya mengarah.
-const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Tagihan", "Keuangan", "Pengaturan"]);
+const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Pengaturan"]);
 const ADMIN_HREF_OVERRIDE: Record<string, string> = {
   Keuangan: "/keuangan/kas-keluar",
 };
@@ -57,10 +62,8 @@ export function navItemsForRole(role: string | undefined): NavItem[] {
 
 export const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutGrid className="w-5 h-5" /> },
-  { label: "Dashboard Finance", href: "/dashboard-finance", icon: <RefreshCcw className="w-5 h-5" /> },
   { label: "Invoice", href: "/penjualan", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Pembayaran", href: "/pembayaran", icon: <Wallet className="w-5 h-5" /> },
-  { label: "Tagihan", href: "/tagihan", icon: <Receipt className="w-5 h-5" /> },
   { label: "Keuangan", href: "/keuangan", icon: <Landmark className="w-5 h-5" /> },
   { label: "Proyek", href: "/proyek", icon: <FolderKanban className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },

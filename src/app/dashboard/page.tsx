@@ -23,9 +23,7 @@ import {
 import { ProjectTagihanSection, type ProjectTagihanRow } from "@/components/dashboard/ProjectTagihanSection"
 import { RevenueForecastSection } from "@/components/dashboard/RevenueForecastSection"
 import { DashboardNavBadges, type DashboardNavBadge } from "@/components/dashboard/DashboardNavBadges"
-import { FollowUpPanel } from "@/components/follow-up/FollowUpPanel"
 import { SendWhatsappReportButton } from "@/components/dashboard/SendWhatsappReportButton"
-import { DashboardDateRangeFilter } from "@/components/dashboard/DashboardDateRangeFilter"
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
@@ -57,10 +55,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // masuk lewat URL langsung, sama gate-nya dengan getCurrentUser() di lib/current-user.ts.
   if (user.role !== "owner" && !user.modules.includes("internal")) redirect("/modules")
 
-  // Filter jatuh tempo (opsional, lihat DashboardDateRangeFilter) — kalau diisi, section
-  // Domain/Server/Maintenance tampilkan SEMUA item jatuh tempo sampai tanggal ini, ganti window
-  // bawaan (lewat tempo/bulan ini/bulan depan). Item yang sudah lewat tempo/jatuh tempo hari ini
-  // selalu ikut tampil apa pun tanggal "sampai"-nya.
+  // Filter jatuh tempo lewat ?to= — kalau diisi, section Domain/Server/Maintenance tampilkan
+  // SEMUA item jatuh tempo sampai tanggal ini, ganti window bawaan (lewat tempo/bulan ini/bulan
+  // depan). Item yang sudah lewat tempo/jatuh tempo hari ini selalu ikut tampil apa pun tanggal
+  // "sampai"-nya. Card UI-nya (DashboardDateRangeFilter) sengaja di-hide dari Dashboard, tapi
+  // logikanya dibiarkan hidup — masih bisa dipakai lewat URL langsung kalau perlu.
   const dateToIso = params.to || ""
   const hasDateRange = Boolean(dateToIso)
   const rangeEnd = dateToIso ? jakartaTodayRange(parseJakartaDateIso(dateToIso)).end : null
@@ -85,7 +84,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     maintenances,
     bills,
     openInvoices,
-    followUps,
     projectSchedules,
     forecastProjectSchedules,
     heldInvoices,
@@ -110,10 +108,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       },
       orderBy: { dueDate: "asc" },
     }),
-    // Cuma yang terbaru — tabel ini catatan manual, terus nambah, tidak ada gunanya nge-load
-    // seluruh histori tiap kali Dashboard dibuka (lihat FollowUpPanel, cuma nampilin daftar
-    // pendek).
-    prisma.followUp.findMany({ orderBy: { followUpDate: "desc" }, take: 20 }),
     prisma.projectPaymentSchedule.findMany({
       // Reminder Dashboard: termin yang SUDAH ditagih tapi belum lunas, ATAU yang BELUM
       // ditagih sama sekali (invoiceId null) — dua-duanya tetap perlu diingatkan, difilter
@@ -401,13 +395,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     projectSchedules: forecastProjectSchedules.map((s) => ({ name: `${s.project.name} — ${s.label}`, amount: s.amount, dueDate: s.dueDate })),
   })
 
-  const followUpRows = followUps.map((f) => ({
-    id: f.id,
-    subject: f.subject,
-    note: f.note,
-    followUpDate: f.followUpDate.toISOString(),
-  }))
-
   const navBadges: DashboardNavBadge[] = [
     { label: "SLA Lewat", href: "/tagihan/tindak-lanjut", count: slaOverdueCount, color: "rose" },
     { label: "Prediksi", href: "#prediksi", count: revenueForecast.length, color: "emerald" },
@@ -435,11 +422,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
 
         <DashboardNavBadges items={navBadges} />
-
-        <Card variant="panel" padding="md">
-          <p className="text-xs font-bold text-slate-500 uppercase mb-3">Filter Jatuh Tempo Sampai (Domain, Server, Maintenance)</p>
-          <DashboardDateRangeFilter toIso={dateToIso} />
-        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           <Card variant="feature" padding="md">
@@ -479,9 +461,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         <div id="tagihan-project" className="scroll-mt-[150px]">
           <ProjectTagihanSection rows={projectTagihanRows} />
-        </div>
-        <div id="follow-up" className="scroll-mt-[150px]">
-          <FollowUpPanel rows={followUpRows} />
         </div>
 
         <Card variant="panel" padding="lg">

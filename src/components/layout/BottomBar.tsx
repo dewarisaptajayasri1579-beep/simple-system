@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Wallet, Landmark, ShoppingCart, MoreHorizontal, Receipt, X } from "lucide-react";
+import { LayoutGrid, Wallet, Landmark, ShoppingCart, MoreHorizontal, X } from "lucide-react";
 import { navItemsForRole } from "./Sidebar";
 
 export interface BottomNavItem {
@@ -23,14 +23,9 @@ export const BottomBar: React.FC<{ userRole?: string }> = ({ userRole }) => {
   const pathname = usePathname() || "/dashboard";
   const [showMore, setShowMore] = useState(false);
 
-  // Sama restriksi dengan Sidebar (lihat navItemsForRole) — admin sama sekali tidak boleh masuk
-  // Keuangan, jadi slot ke-4 diganti Tagihan (Piutang/Tindak Lanjut) yang memang kerjaannya.
-  const mainItems =
-    userRole === "admin"
-      ? bottomNavItems.map((item) =>
-          item.label === "Keuangan" ? { ...item, label: "Tagihan", href: "/tagihan", icon: <Receipt className="w-5 h-5" /> } : item
-        )
-      : bottomNavItems;
+  // Sama restriksi dengan Sidebar (lihat navItemsForRole) — admin diarahkan ke Kas Keluar
+  // langsung, bukan hub Keuangan yang juga ada Kas Masuk.
+  const mainItems = userRole === "admin" ? bottomNavItems.map((item) => (item.label === "Keuangan" ? { ...item, href: "/keuangan/kas-keluar" } : item)) : bottomNavItems;
 
   // Sisa menu (termasuk Laporan) masuk slot "Lainnya", sumbernya dari daftar menu Sidebar
   // per role supaya Owner tetap bisa akses semua modul (Proyek, Akuntansi, Pengaturan, dst) di mobile.

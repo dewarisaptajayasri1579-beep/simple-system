@@ -22,8 +22,8 @@ interface SectionItem {
 // admin tidak ngeklik menu yang cuma bakal melempar dia balik ke Dashboard.
 const SECTIONS: (SectionItem & { adminOk?: boolean })[] = [
   { label: "Dashboard", href: "/dashboard", adminOk: true },
-  { label: "Dashboard Finance", href: "/dashboard-finance" },
-  { label: "Tagihan", href: "/tagihan", adminOk: true },
+  // "Dashboard Finance" & hub "Tagihan" sengaja tidak ada di sini (Owner: "Hide") — sub-halaman
+  // Tagihan di bawah tetap dicari-kan, cuma pintu masuk hub/menunya yang disembunyikan.
   { label: "Piutang", href: "/tagihan/piutang", adminOk: true },
   { label: "Piutang Ragu-Ragu", href: "/tagihan/ragu-ragu", adminOk: true },
   { label: "Tindak Lanjut Tagihan", href: "/tagihan/tindak-lanjut", adminOk: true },
