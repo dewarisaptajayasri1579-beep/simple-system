@@ -7,7 +7,7 @@ import { Alert, Button, Card, Spinner } from "@/components/ui"
 
 type Severity = "good" | "info" | "warning" | "critical"
 type Finding = { title: string; severity: Severity; detail: string; action: string }
-type Insight = { headline: string; findings: Finding[]; caveat: string }
+type Insight = { headline: string; findings: Finding[]; caveat: string; createdAt?: string }
 
 /** Warna + ikon + label per severity. Ikon & label SELALU ikut ditampilkan (bukan cuma warna),
  *  supaya tingkat urgensi tetap kebaca buat yang buta warna atau saat di-print. */
@@ -44,6 +44,25 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
     }
   }, [])
 
+  // Ambil hasil analisa tersimpan terakhir untuk rentang ini — GET tidak memanggil model, jadi
+  // gratis & instan. Tanpa ini kesimpulan hilang tiap refresh (state cuma di memori browser).
+  useEffect(() => {
+    let cancelled = false
+    setInsight(null)
+    setError(null)
+    fetch(`/api/meta-ads/ai-insight?range=${range}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body) setInsight(body as Insight)
+      })
+      .catch(() => {
+        /* riwayat tidak wajib ada — diamkan, tombol Analisa tetap bisa dipakai */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [range])
+
   async function runAnalysis() {
     setLoading(true)
     setError(null)
@@ -71,7 +90,9 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
           <div>
             <h2 className="text-sm font-extrabold text-slate-800">Kesimpulan AI</h2>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-              Angka di atas dibaca otomatis — apa yang perlu diperbaiki dan kenapa.
+              {insight?.createdAt
+                ? `Dianalisa ${new Date(insight.createdAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })} — tersimpan, klik Analisa Ulang untuk angka terbaru.`
+                : "Angka di atas dibaca otomatis — apa yang perlu diperbaiki dan kenapa."}
             </p>
           </div>
         </div>

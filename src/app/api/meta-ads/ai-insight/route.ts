@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 
-import { generateMetaAdsInsight } from "@/lib/meta-ads/ai-insight"
+import { generateMetaAdsInsight, type MetaAdsFinding } from "@/lib/meta-ads/ai-insight"
 import { getMetaAdsApiUser } from "@/lib/meta-ads/access"
+import { prisma } from "@/lib/prisma"
 import {
   fetchAccountSummary,
   fetchBreakdownInsights,
@@ -25,6 +26,38 @@ const RANGE_LABEL: Record<MetaAdsDatePreset, string> = {
 }
 const DIMENSIONS: MetaAdsBreakdownDimension[] = ["age", "gender", "region", "placement"]
 
+function resolveRange(request: Request): MetaAdsDatePreset {
+  const raw = new URL(request.url).searchParams.get("range") ?? "last_30d"
+  return VALID_PRESETS.has(raw as MetaAdsDatePreset) ? (raw as MetaAdsDatePreset) : "last_30d"
+}
+
+/** GET — ambil hasil analisa TERSIMPAN terakhir untuk rentang ini (tidak memanggil model sama
+ *  sekali, jadi gratis & instan). Dipakai saat halaman dibuka supaya kesimpulan yang sudah pernah
+ *  dibuat tidak hilang cuma karena refresh. */
+export async function GET(request: Request) {
+  const user = await getMetaAdsApiUser()
+  if (!user) return NextResponse.json({ error: "Tidak punya akses ke modul ini" }, { status: 403 })
+
+  const range = resolveRange(request)
+  const account = await getActiveMetaAdsAccount()
+  if (!account) return NextResponse.json(null)
+
+  const run = await prisma.metaAdsInsightRun.findFirst({
+    where: { accountId: account.id, range },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, headline: true, findings: true, caveat: true, createdAt: true },
+  })
+  if (!run) return NextResponse.json(null)
+
+  return NextResponse.json({
+    id: run.id,
+    headline: run.headline,
+    findings: run.findings as unknown as MetaAdsFinding[],
+    caveat: run.caveat,
+    createdAt: run.createdAt,
+  })
+}
+
 /** POST (bukan GET) karena ini memanggil model berbayar — dibikin eksplisit dipicu tombol
  *  "Analisa dengan AI", bukan ikut jalan tiap halaman dibuka. Semua data ditarik ulang di server
  *  supaya angka yang dianalisa dijamin sama dengan yang dilihat user, bukan kiriman dari client
@@ -33,10 +66,7 @@ export async function POST(request: Request) {
   const user = await getMetaAdsApiUser()
   if (!user) return NextResponse.json({ error: "Tidak punya akses ke modul ini" }, { status: 403 })
 
-  const { searchParams } = new URL(request.url)
-  const rangeParam = searchParams.get("range") ?? "last_30d"
-  const range: MetaAdsDatePreset = VALID_PRESETS.has(rangeParam as MetaAdsDatePreset) ? (rangeParam as MetaAdsDatePreset) : "last_30d"
-
+  const range = resolveRange(request)
   const account = await getActiveMetaAdsAccount()
   if (!account) return NextResponse.json({ error: "Belum ada akun Meta Ads yang dikonek" }, { status: 404 })
 
@@ -59,7 +89,26 @@ export async function POST(request: Request) {
       breakdowns,
     })
 
-    return NextResponse.json(insight)
+    const saved = await prisma.metaAdsInsightRun.create({
+      data: {
+        accountId: account.id,
+        range,
+        headline: insight.headline,
+        findings: insight.findings as unknown as object,
+        caveat: insight.caveat,
+        snapshot: {
+          spend: summary.totalSpend,
+          impressions: summary.totalImpressions,
+          reach: summary.totalReach,
+          clicks: summary.totalClicks,
+          currency: summary.currency,
+        },
+        createdById: user.id,
+      },
+      select: { id: true, createdAt: true },
+    })
+
+    return NextResponse.json({ ...insight, id: saved.id, createdAt: saved.createdAt })
   } catch (err) {
     const message = err instanceof MetaAdsApiError ? err.message : err instanceof Error ? err.message : "Gagal menganalisa"
     return NextResponse.json({ error: message }, { status: 502 })

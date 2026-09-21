@@ -140,31 +140,31 @@ model Session {
 /// repo & domain per Application) serta cek expiry domain (RDAP) & terakhir diakses (log Traefik)
 /// jalan lewat cron harian (src/lib/cron/vps-monitoring.ts), bisa juga dipicu manual dari UI.
 model VpsServer {
-  id                    String        @id @default(uuid())
+  id                    String         @id @default(uuid())
   name                  String
   host                  String
-  sshPort               Int           @default(22) @map("ssh_port")
-  sshUser               String        @map("ssh_user")
-  sshPassword           String?       @map("ssh_password")
-  sshPrivateKey         String?       @map("ssh_private_key")
-  diskPath              String        @default("/") @map("disk_path")
-  backupCheckPath       String?       @map("backup_check_path")
-  proxyContainerName    String        @default("coolify-proxy") @map("proxy_container_name")
+  sshPort               Int            @default(22) @map("ssh_port")
+  sshUser               String         @map("ssh_user")
+  sshPassword           String?        @map("ssh_password")
+  sshPrivateKey         String?        @map("ssh_private_key")
+  diskPath              String         @default("/") @map("disk_path")
+  backupCheckPath       String?        @map("backup_check_path")
+  proxyContainerName    String         @default("coolify-proxy") @map("proxy_container_name")
   /// Jenis panel yang dipakai VPS ini (default "none" = tanpa panel, semua aplikasi diisi manual
   /// satu-satu) — dipilih waktu Tambah/Edit VPS, MENENTUKAN kredensial mana yang relevan
   /// ("coolify" pakai coolifyApiUrl/coolifyApiToken di bawah, "enhance" pakai
   /// enhanceApiUrl/enhanceApiToken/enhanceOrgId). Disk/RAM/CPU/backup via SSH tetap jalan sama
   /// untuk SEMUA jenis panel (panel-agnostic) — lihat percakapan monitoring 2026-09-20.
-  panelType             String        @default("none") @map("panel_type")
-  coolifyApiUrl         String?       @map("coolify_api_url")
-  coolifyApiToken       String?       @map("coolify_api_token")
+  panelType             String         @default("none") @map("panel_type")
+  coolifyApiUrl         String?        @map("coolify_api_url")
+  coolifyApiToken       String?        @map("coolify_api_token")
   /// Pesan error terakhir dari sync Coolify (mis. "Coolify API error 401 (...)") — null kalau
   /// sync terakhir sukses atau belum pernah sync. Diisi otomatis di syncCoolifyApplications()
   /// supaya token yang rusak (dicabut/expired/direinstall di sisi Coolify) ketahuan LANGSUNG
   /// sebagai warning di kartu VPS (lihat computeVpsHealth di VpsMonitoring.tsx) — bukan baru
   /// ketahuan pas user coba aksi manual seperti "Backup Sekarang" (kejadian nyata 2026-09-21).
-  coolifySyncError      String?       @map("coolify_sync_error")
-  coolifySyncCheckedAt  DateTime?     @map("coolify_sync_checked_at")
+  coolifySyncError      String?        @map("coolify_sync_error")
+  coolifySyncCheckedAt  DateTime?      @map("coolify_sync_checked_at")
   /// Cursor: sampai jam berapa (persis) log Traefik VPS ini SUDAH diproses ke ApplicationDailyStat
   /// — dipakai runApplicationTrafficIncrement() supaya window [cursor, now) TIDAK PERNAH tumpang
   /// tindih antar-jalan cron per jam (kalau pakai window mundur tetap, mis. 130 menit, requestCount
@@ -172,44 +172,44 @@ model VpsServer {
   /// ketahuan 2026-09-21 pas testing manual). Null = belum pernah jalan sama sekali, fallback
   /// mundur 130 menit dari sekarang. Kalau 1 kali jalan ke-skip (server sibuk dsb), cursor lama
   /// otomatis bikin window berikutnya mundur lebih jauh buat nutup celahnya, bukan kehilangan data.
-  trafficCollectedUntil DateTime?     @map("traffic_collected_until")
+  trafficCollectedUntil DateTime?      @map("traffic_collected_until")
   /// Kredensial API Enhance (enhance.com) — user cuma isi API URL + Token (disepakati 2026-09-21,
   /// bukan diminta manual cari Organization ID). Sync otomatis (mapping Website Enhance ke
   /// Application) BELUM diimplementasi — field ini baru disimpan buat dipakai di pengembangan
   /// lanjutan.
-  enhanceApiUrl         String?       @map("enhance_api_url")
-  enhanceApiToken       String?       @map("enhance_api_token")
+  enhanceApiUrl         String?        @map("enhance_api_url")
+  enhanceApiToken       String?        @map("enhance_api_token")
   /// TIDAK diisi lewat form — Enhance API butuh Organization ID selain token, rencana diisi
   /// OTOMATIS pas sync pertama kali (panggil endpoint list org pakai token di atas, ambil org
   /// pertama/satu-satunya), bukan diminta user cari manual dari UI Enhance.
-  enhanceOrgId          String?       @map("enhance_org_id")
+  enhanceOrgId          String?        @map("enhance_org_id")
   /// Jumlah resource Database di Coolify VPS ini (bukan jumlah Application) — diisi waktu sync
   /// Coolify berhasil manggil GET /databases (lihat syncCoolifyApplications() di
   /// src/lib/monitoring/coolify.ts). Null kalau belum pernah sync sama sekali.
-  coolifyDatabaseCount  Int?          @map("coolify_database_count")
+  coolifyDatabaseCount  Int?           @map("coolify_database_count")
   /// Daftar mentah resource Database dari GET /databases Coolify (lihat syncCoolifyApplications()
   /// di src/lib/monitoring/coolify.ts) — bentuknya { uuid, name, databaseType }[]. Dipakai buat
   /// nampilin database yang TIDAK dipakai aplikasi manapun (tidak ke-match lewat DATABASE_URL env
   /// var aplikasi mana pun) supaya tidak hilang begitu saja dari monitoring.
-  coolifyDatabasesCache Json?         @map("coolify_databases_cache")
+  coolifyDatabasesCache Json?          @map("coolify_databases_cache")
   /// Cache hasil `docker system df` + `docker ps -s` (lihat getVpsDockerDiskUsage() di
   /// src/lib/monitoring/ssh.ts) — bentuknya { dockerDisk: DockerDiskEntry[], appDiskUsage:
   /// AppContainerDisk[] }. SENGAJA di-cache (bukan live tiap load halaman) karena command ini
   /// lambat (~20-25 detik) — cuma di-refresh lewat cron harian atau tombol manual "Cek Sekarang".
-  dockerDiskCache       Json?         @map("docker_disk_cache")
-  dockerDiskCheckedAt   DateTime?     @map("docker_disk_checked_at")
+  dockerDiskCache       Json?          @map("docker_disk_cache")
+  dockerDiskCheckedAt   DateTime?      @map("docker_disk_checked_at")
   /// UUID S3 Storage yang dibuat otomatis di Coolify (nunjuk ke bucket R2 yang sama dipakai
   /// backup app ini sendiri, lihat lib/backup/r2.ts) — dibuat sekali oleh ensureDatabaseBackups()
   /// di src/lib/monitoring/coolify.ts, disimpan di sini supaya tidak bikin S3 Storage baru
   /// berulang kali tiap cron jalan. Butuh VpsServer.coolifyApiToken dengan ability `write`.
-  coolifyS3StorageUuid  String?       @map("coolify_s3_storage_uuid")
+  coolifyS3StorageUuid  String?        @map("coolify_s3_storage_uuid")
   /// Nama bucket R2 khusus VPS ini (mis. "7smartscoolifybackup") — kalau null, fallback ke bucket
   /// global default (env R2_BACKUP_BUCKET, dipakai VPS Dewari & backup app ini sendiri). Diisi
   /// waktu owner sengaja mau pisah bucket per VPS (lihat ensureDatabaseBackupsOnBucket() di
   /// src/lib/monitoring/coolify.ts) — bucket-nya dibuat otomatis di R2 kalau belum ada.
-  r2BucketName          String?       @map("r2_bucket_name")
-  createdById           String?       @map("created_by_id")
-  createdAt             DateTime      @default(now()) @map("created_at")
+  r2BucketName          String?        @map("r2_bucket_name")
+  createdById           String?        @map("created_by_id")
+  createdAt             DateTime       @default(now()) @map("created_at")
   applications          Application[]
   githubSources         GithubSource[]
 
@@ -2574,7 +2574,7 @@ model PayrollItem {
   daysLeave           Int      @default(0) @map("days_leave")
   daysAbsent          Int      @default(0) @map("days_absent")
   grossPay            Float    @map("gross_pay")
-  totalDeduction       Float   @map("total_deduction")
+  totalDeduction      Float    @map("total_deduction")
   netPay              Float    @map("net_pay") // boleh negatif (keputusan bisnis final, lihat docs)
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
@@ -2609,6 +2609,36 @@ model CorrespondenceLog {
 // di sini. accessToken dienkripsi (lihat lib/crypto.ts, pola sama dengan
 // VpsServer.sshPassword/coolifyApiToken).
 // ---------------------------------------------------------------------------
+// Riwayat hasil analisa AI (lihat lib/meta-ads/ai-insight.ts). Disimpan karena sekali analisa
+// makan ~45 detik + biaya API, jadi sayang kalau hilang tiap refresh — DAN supaya jadi catatan
+// tindak lanjut: bisa dilihat lagi bulan depan "dulu disarankan apa, sudah dikerjakan belum".
+// Data MENTAH Meta (spend/impressions/CTR) sengaja TIDAK disimpan: Meta masih merevisi angka
+// 1-3 hari terakhir, jadi salinan di DB kita bakal beda dengan Ads Manager dan bikin bingung.
+model MetaAdsInsightRun {
+  id          String   @id @default(uuid())
+  accountId   String   @map("account_id")
+  /// date_preset yang dianalisa ("last_30d", "this_month", dst) — hasil analisa cuma valid
+  /// untuk rentang yang sama, makanya ikut jadi kunci pencarian riwayat terakhir.
+  range       String
+  headline    String
+  /// Array temuan { title, severity, detail, action } — disimpan apa adanya sebagai JSON
+  /// karena bentuknya ditentukan schema output model, bukan relasi yang perlu di-query per field.
+  findings    Json
+  caveat      String
+  /// Ringkasan angka saat analisa dibuat, supaya kesimpulan lama tetap bisa dibaca konteksnya
+  /// walau angka di Meta sudah berubah.
+  snapshot    Json?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, range, createdAt])
+  @@index([createdAt])
+  @@map("meta_ads_insight_runs")
+  @@schema("simple_system")
+}
+
 model MetaAdsAccount {
   id                String    @id @default(uuid())
   name              String // label bebas, mis. "Blesscom - Ads Utama"
@@ -2619,6 +2649,8 @@ model MetaAdsAccount {
   lastSyncCheckedAt DateTime? @map("last_sync_checked_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  insightRuns MetaAdsInsightRun[]
 
   @@index([isActive])
   @@map("meta_ads_accounts")
