@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { Search, ExternalLink, Globe } from "lucide-react"
-import { Card, CardTitle, CardDescription, Button, Badge, Input, Select } from "@/components/ui"
+import { Card, CardTitle, CardDescription, Button, Badge, Input, Select, Pagination } from "@/components/ui"
 import { StatusBadge } from "@/components/ui/StatusBadge"
 import { FollowUpButtons } from "@/components/dashboard/FollowUpButtons"
 import { EditablePicInfo } from "@/components/dashboard/EditablePicInfo"
@@ -48,6 +48,8 @@ const BUCKET_DATE_CLASS: Record<ExpiryBucket, string> = {
   safe: "text-slate-800",
 }
 
+const PAGE_SIZE = 10
+
 const STATUS_FILTER_OPTIONS: { value: ExpiryBucket | "all"; label: string }[] = [
   { value: "all", label: "Semua Status" },
   { value: "expired", label: bucketLabel.expired },
@@ -66,6 +68,7 @@ export const DomainCardList: React.FC<{
   const [rows, setRows] = useState(initialRows)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ExpiryBucket | "all">("all")
+  const [page, setPage] = useState(1)
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -73,6 +76,10 @@ export const DomainCardList: React.FC<{
       .filter((r) => statusFilter === "all" || r.bucket === statusFilter)
       .filter((r) => !q || r.name.toLowerCase().includes(q) || r.owner.toLowerCase().includes(q))
   }, [rows, query, statusFilter])
+
+  const pageCount = Math.max(Math.ceil(filteredRows.length / PAGE_SIZE), 1)
+  const currentPage = Math.min(page, pageCount)
+  const pageRows = filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return (
     <Card variant="panel" padding="none" className="overflow-hidden">
@@ -86,13 +93,25 @@ export const DomainCardList: React.FC<{
 
       <div className="px-5 sm:px-6 pb-4 flex flex-wrap gap-3">
         <div className="flex-1 min-w-[220px]">
-          <Input sizeVariant="sm" placeholder="Cari domain atau client..." leftIcon={<Search className="w-4 h-4" />} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input
+            sizeVariant="sm"
+            placeholder="Cari domain atau client..."
+            leftIcon={<Search className="w-4 h-4" />}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPage(1)
+            }}
+          />
         </div>
         <div className="w-full sm:w-52">
           <Select
             sizeVariant="sm"
             value={statusFilter}
-            onChange={(value) => setStatusFilter(value as ExpiryBucket | "all")}
+            onChange={(value) => {
+              setStatusFilter(value as ExpiryBucket | "all")
+              setPage(1)
+            }}
             options={STATUS_FILTER_OPTIONS}
             searchable={false}
           />
@@ -100,12 +119,12 @@ export const DomainCardList: React.FC<{
       </div>
 
       <div className="px-5 sm:px-6 pb-5 sm:pb-6 flex flex-col gap-3">
-        {filteredRows.length === 0 ? (
+        {pageRows.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 text-center text-slate-400 text-xs font-semibold py-8">
             {rows.length === 0 ? "Belum ada domain." : "Tidak ada domain yang cocok dengan pencarian/filter."}
           </div>
         ) : (
-          filteredRows.map((r) => (
+          pageRows.map((r) => (
             <div key={r.id} className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 sm:p-5">
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-4 lg:gap-5 lg:items-start">
                 {/* Domain: nama + owner + PIC + follow-up WA */}
@@ -263,6 +282,7 @@ export const DomainCardList: React.FC<{
           ))
         )}
       </div>
+      <Pagination page={currentPage} totalPages={pageCount} totalItems={filteredRows.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </Card>
   )
 }

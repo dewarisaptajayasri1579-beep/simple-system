@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { Card, CardDescription } from "@/components/ui"
 import { Globe, Server as ServerIcon, Wrench, FolderKanban, TrendingUp } from "lucide-react"
@@ -5,14 +6,19 @@ import { getCurrentUser } from "@/lib/current-user"
 import { resolveDomainExpiry, getExpiryBucket } from "@/lib/domain-status"
 import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } from "@/lib/billing-follow-up"
 import { buildRevenueForecast } from "@/lib/revenue-forecast"
+import { getFinanceTopStats } from "@/lib/finance-top-stats"
 import { DomainSummaryCards } from "@/components/monitoring-keuangan/DomainSummaryCards"
 import { DomainCardList, type DomainCardRow } from "@/components/monitoring-keuangan/DomainCardList"
+
+function formatRupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)
+}
 
 export default async function UangMasukPage() {
   const user = await getCurrentUser()
   const isOwner = user.role === "owner"
 
-  const [domains, serverCount, maintenanceCount, projectCount, clientOptions] = await Promise.all([
+  const [domains, serverCount, maintenanceCount, projectCount, clientOptions, topStats] = await Promise.all([
     // doubtfulAt/pendingAt: null — domain yang ditahan Owner sengaja dikeluarkan, sama pola
     // dengan Dashboard utama (lihat src/app/dashboard/page.tsx). clientId: not null — domain
     // Internal (7Smarts, tanpa Client) itu biaya bukan pendapatan, jadi tidak masuk Uang Masuk
@@ -22,6 +28,7 @@ export default async function UangMasukPage() {
     prisma.maintenance.count({ where: { active: true } }),
     prisma.project.count({ where: { status: "berjalan" } }),
     prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getFinanceTopStats(),
   ])
 
   const domainRowsBase = domains.map((d) => {
@@ -125,6 +132,30 @@ export default async function UangMasukPage() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card variant="feature" padding="md">
+          <CardDescription>Piutang Outstanding</CardDescription>
+          <p className="text-2xl font-black text-rose-700 mt-1">{formatRupiah(topStats.totalOutstanding)}</p>
+          {topStats.totalHeld > 0 && (
+            <Link href="/tagihan/ragu-ragu" className="block text-[11px] font-bold text-amber-700 mt-1 hover:underline">
+              + {formatRupiah(topStats.totalHeld)} ditahan ({topStats.pendingHeldCount} pending, {topStats.doubtfulHeldCount} ragu-ragu) — tidak dihitung
+            </Link>
+          )}
+        </Card>
+        <Card variant="feature" padding="md">
+          <CardDescription>Tagihan yang Belum Ditagih</CardDescription>
+          <p className="text-2xl font-black text-slate-900 mt-1">{formatRupiah(topStats.belumDitagihNominal)}</p>
+        </Card>
+        <Card variant="feature" padding="md">
+          <CardDescription>Domain Habis Bulan Ini/Depan</CardDescription>
+          <p className="text-2xl font-black text-amber-700 mt-1">{topStats.domainExpiringThisMonth + topStats.domainExpiringNextMonth}</p>
+        </Card>
+        <Card variant="feature" padding="md">
+          <CardDescription>Biaya Berkala Jatuh Tempo</CardDescription>
+          <p className="text-2xl font-black text-amber-700 mt-1">{topStats.billOverdue + topStats.billDueSoon}</p>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card variant="feature" padding="md">
           <div className="flex items-center gap-3">
