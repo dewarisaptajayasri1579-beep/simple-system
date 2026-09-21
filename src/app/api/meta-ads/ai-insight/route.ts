@@ -42,11 +42,24 @@ export async function GET(request: Request) {
   const account = await getActiveMetaAdsAccount()
   if (!account) return NextResponse.json(null)
 
-  const run = await prisma.metaAdsInsightRun.findFirst({
-    where: { accountId: account.id, range },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, headline: true, findings: true, caveat: true, createdAt: true },
-  })
+  // Hasil terakhir + total biaya bulan berjalan diambil sekaligus (aggregate di database, bukan
+  // tarik semua baris lalu dijumlah di JS) supaya tetap murah walau riwayatnya sudah ratusan.
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const [run, monthly] = await Promise.all([
+    prisma.metaAdsInsightRun.findFirst({
+      where: { accountId: account.id, range },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, headline: true, findings: true, caveat: true, createdAt: true, costIdr: true },
+    }),
+    prisma.metaAdsInsightRun.aggregate({
+      where: { accountId: account.id, createdAt: { gte: startOfMonth } },
+      _sum: { costIdr: true },
+      _count: true,
+    }),
+  ])
   if (!run) return NextResponse.json(null)
 
   return NextResponse.json({
@@ -55,6 +68,9 @@ export async function GET(request: Request) {
     findings: run.findings as unknown as MetaAdsFinding[],
     caveat: run.caveat,
     createdAt: run.createdAt,
+    costIdr: run.costIdr,
+    monthlyCostIdr: monthly._sum.costIdr ?? 0,
+    monthlyRuns: monthly._count,
   })
 }
 
@@ -103,6 +119,9 @@ export async function POST(request: Request) {
           clicks: summary.totalClicks,
           currency: summary.currency,
         },
+        inputTokens: insight.usage.inputTokens,
+        outputTokens: insight.usage.outputTokens,
+        costIdr: insight.usage.costIdr,
         createdById: user.id,
       },
       select: { id: true, createdAt: true },

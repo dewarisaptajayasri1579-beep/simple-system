@@ -7,7 +7,25 @@ import { Alert, Button, Card, Spinner } from "@/components/ui"
 
 type Severity = "good" | "info" | "warning" | "critical"
 type Finding = { title: string; severity: Severity; detail: string; action: string }
-type Insight = { headline: string; findings: Finding[]; caveat: string; createdAt?: string }
+type Insight = {
+  headline: string
+  findings: Finding[]
+  caveat: string
+  createdAt?: string
+  /** Biaya sekali analisa ini, dalam Rupiah. Null untuk riwayat lama sebelum biaya dicatat. */
+  costIdr?: number | null
+  monthlyCostIdr?: number
+  monthlyRuns?: number
+  usage?: { costIdr: number }
+}
+
+/** Perkiraan biaya sekali klik — ditampilkan di tombol SEBELUM dijalankan, supaya user tahu apa
+ *  yang dia keluarkan sebelum memutuskan, bukan baru tahu setelah terlanjur. Angka ini dari
+ *  pengukuran run nyata (~3.100 token masuk + ~3.100 token keluar di Claude Opus). Biaya yang
+ *  BENAR-BENAR terpakai tetap ditampilkan terpisah setelah analisa selesai. */
+const ESTIMATED_COST_IDR = 1600
+
+const rupiah = (n: number) => `Rp${n.toLocaleString("id-ID")}`
 
 /** Warna + ikon + label per severity. Ikon & label SELALU ikut ditampilkan (bukan cuma warna),
  *  supaya tingkat urgensi tetap kebaca buat yang buta warna atau saat di-print. */
@@ -96,9 +114,14 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
             </p>
           </div>
         </div>
-        <Button onClick={runAnalysis} disabled={loading} variant={insight ? "secondary" : "primary"}>
-          {loading ? "Menganalisa..." : insight ? "Analisa Ulang" : "Analisa dengan AI"}
-        </Button>
+        <div className="flex flex-col items-stretch sm:items-end gap-1 flex-shrink-0">
+          <Button onClick={runAnalysis} disabled={loading} variant={insight ? "secondary" : "primary"}>
+            {loading ? "Menganalisa..." : insight ? "Analisa Ulang" : "Analisa dengan AI"}
+          </Button>
+          <p className="text-[10px] text-slate-400 font-semibold text-center sm:text-right">
+            ± {rupiah(ESTIMATED_COST_IDR)} sekali jalan
+          </p>
+        </div>
       </div>
 
       <div className="p-4 sm:p-5">
@@ -185,9 +208,19 @@ export function MetaAdsAiInsight({ range }: { range: string }) {
               })}
             </div>
 
-            <p className="text-[11px] text-slate-500 font-medium border-t border-slate-200/60 pt-3 leading-relaxed">
-              <span className="font-bold">Catatan:</span> {insight.caveat}
-            </p>
+            <div className="border-t border-slate-200/60 pt-3 space-y-1.5">
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                <span className="font-bold">Catatan:</span> {insight.caveat}
+              </p>
+              {(insight.costIdr ?? insight.usage?.costIdr) != null && (
+                <p className="text-[11px] text-slate-400 font-semibold tabular-nums">
+                  Biaya analisa ini: {rupiah(insight.costIdr ?? insight.usage!.costIdr)}
+                  {insight.monthlyRuns
+                    ? ` · bulan ini ${insight.monthlyRuns}× analisa, total ${rupiah(insight.monthlyCostIdr ?? 0)}`
+                    : ""}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -2615,21 +2615,26 @@ model CorrespondenceLog {
 // Data MENTAH Meta (spend/impressions/CTR) sengaja TIDAK disimpan: Meta masih merevisi angka
 // 1-3 hari terakhir, jadi salinan di DB kita bakal beda dengan Ads Manager dan bikin bingung.
 model MetaAdsInsightRun {
-  id          String   @id @default(uuid())
-  accountId   String   @map("account_id")
+  id           String   @id @default(uuid())
+  accountId    String   @map("account_id")
   /// date_preset yang dianalisa ("last_30d", "this_month", dst) — hasil analisa cuma valid
   /// untuk rentang yang sama, makanya ikut jadi kunci pencarian riwayat terakhir.
-  range       String
-  headline    String
+  range        String
+  headline     String
   /// Array temuan { title, severity, detail, action } — disimpan apa adanya sebagai JSON
   /// karena bentuknya ditentukan schema output model, bukan relasi yang perlu di-query per field.
-  findings    Json
-  caveat      String
+  findings     Json
+  caveat       String
   /// Ringkasan angka saat analisa dibuat, supaya kesimpulan lama tetap bisa dibaca konteksnya
   /// walau angka di Meta sudah berubah.
-  snapshot    Json?
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  snapshot     Json?
+  /// Pemakaian token + biaya SEKALI analisa ini (dihitung saat dibuat, bukan belakangan — kalau
+  /// harga model atau kurs berubah, biaya run lama tetap tercatat sesuai tarif saat itu).
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  costIdr      Int?     @map("cost_idr")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 

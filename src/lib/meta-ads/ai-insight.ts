@@ -26,6 +26,28 @@ export type MetaAdsAiInsight = {
   caveat: string
 }
 
+export type MetaAdsInsightUsage = {
+  inputTokens: number
+  outputTokens: number
+  /** Biaya sekali analisa dalam Rupiah, dibulatkan ke atas. Lihat catatan tarif di bawah. */
+  costIdr: number
+}
+
+/** Harga list Claude Opus 5 per 1 juta token (USD) — sumber: platform.claude.com/docs pricing.
+ *  Kalau Anthropic mengubah harga atau kita pindah model, ubah dua angka ini saja. */
+const USD_PER_MTOK_INPUT = 5
+const USD_PER_MTOK_OUTPUT = 25
+
+/** Kurs untuk menampilkan biaya ke user. SENGAJA hardcode, bukan tarik dari API kurs: angkanya
+ *  cuma dipakai buat ancar-ancar "sekali klik habis berapa", bukan buat pembukuan — tagihan
+ *  aslinya tetap dalam USD dari Anthropic. Perbarui manual kalau kurs bergerak jauh. */
+const IDR_PER_USD = 16_500
+
+function computeCost(inputTokens: number, outputTokens: number): MetaAdsInsightUsage {
+  const usd = (inputTokens / 1_000_000) * USD_PER_MTOK_INPUT + (outputTokens / 1_000_000) * USD_PER_MTOK_OUTPUT
+  return { inputTokens, outputTokens, costIdr: Math.ceil(usd * IDR_PER_USD) }
+}
+
 const OUTPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -117,7 +139,7 @@ function buildPayload({ currency, rangeLabel, summary, campaigns, trend, breakdo
   }
 }
 
-export async function generateMetaAdsInsight(input: BuildInput): Promise<MetaAdsAiInsight> {
+export async function generateMetaAdsInsight(input: BuildInput): Promise<MetaAdsAiInsight & { usage: MetaAdsInsightUsage }> {
   const payload = buildPayload(input)
 
   const response = await anthropic.messages.create({
@@ -142,5 +164,6 @@ export async function generateMetaAdsInsight(input: BuildInput): Promise<MetaAds
 
   if (!text.trim()) throw new Error("Model tidak mengembalikan hasil analisa")
 
-  return JSON.parse(text) as MetaAdsAiInsight
+  const parsed = JSON.parse(text) as MetaAdsAiInsight
+  return { ...parsed, usage: computeCost(response.usage.input_tokens, response.usage.output_tokens) }
 }
