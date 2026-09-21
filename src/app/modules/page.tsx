@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Landmark, Megaphone, ServerCog, ClipboardList } from "lucide-react"
+import { Landmark, Megaphone, ServerCog, ClipboardList, Table2 } from "lucide-react"
 
 import { Card, CardTitle, CardDescription } from "@/components/ui"
 import { AppLogo } from "@/components/ui/AppLogo"
@@ -13,6 +13,7 @@ const MODULE_CARDS: { key: ModuleKey; href: string; title: string; desc: string;
   { key: "marketing", href: "/marketing", title: "Marketing", desc: "Kelola Lead — prospek, follow-up, konversi.", icon: Megaphone },
   { key: "monitoring", href: "/monitoring", title: "Monitoring Server", desc: "Status & kesehatan server yang dipantau.", icon: ServerCog },
   { key: "administratif", href: "/administratif", title: "Administratif", desc: "Data karyawan & log surat-menyurat.", icon: ClipboardList },
+  { key: "spreadsheet", href: "/spreadsheet", title: "From Spreadsheet", desc: "Lihat isi Google Sheets yang di-link.", icon: Table2 },
 ]
 
 /** Halaman antara login dan masuk ke 1 modul — SENGAJA tidak pakai getCurrentUser() (itu

@@ -16,7 +16,7 @@ export async function GET() {
   return NextResponse.json(users)
 }
 
-const VALID_MODULES = ["internal", "marketing", "monitoring"]
+const VALID_MODULES = ["internal", "marketing", "monitoring", "administratif", "spreadsheet"]
 
 export async function POST(request: Request) {
   const user = await getApiUser()

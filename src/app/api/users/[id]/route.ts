@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (typeof body?.phoneNumber === "string") data.phoneNumber = body.phoneNumber || null
   if (Array.isArray(body?.modules)) {
-    const valid = ["internal", "marketing", "monitoring"]
+    const valid = ["internal", "marketing", "monitoring", "administratif", "spreadsheet"]
     if (body.modules.some((m: unknown) => !valid.includes(m as string))) {
       return NextResponse.json({ error: "Modul tidak valid" }, { status: 400 })
     }
