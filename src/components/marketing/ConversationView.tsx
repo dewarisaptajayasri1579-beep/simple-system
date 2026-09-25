@@ -461,7 +461,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-[calc(100vh-8rem)]">
       {/* header lead — tombol kembali ada di header shell */}
-      <div className="flex flex-col lg:flex-row lg:items-start gap-3 pb-3 border-b border-slate-200">
+      <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
@@ -492,41 +492,12 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
               }}
             />
           </div>
-        </div>
-        {/* kolom kanan: tombol aksi, lalu panel Catatan yang langsung kelihatan di bawahnya */}
-        <div className="flex flex-col gap-2 flex-shrink-0 w-full lg:w-80">
-        <div className="flex items-center gap-2 flex-wrap lg:justify-end mt-0.5">
-          {/* SPV/Manager sering menemukan lead yang perlu didahulukan justru saat membaca chat,
-              bukan saat membuka Detail Lead — jadi tombolnya disediakan di sini juga. */}
-          <PriorityPinButton
-            leadId={lead.id}
-            pinnedAt={lead.priorityPinnedAt}
-            pinNote={lead.priorityPinNote}
-            pinnedByName={lead.priorityPinnedByName}
-            currentPicId={meta.pic?.id ?? null}
-            viewerRole={meta.viewerRole}
-            onDone={() => load(true)}
-          />
-          {/* Lead nyasar paling sering ketahuan justru saat baca chatnya, bukan di Detail Lead —
-              jadi tombolnya disediakan di sini juga supaya tidak perlu pindah halaman dulu. */}
-          {meta.canAct && lead.outcome === "OPEN" && disqualifyReasons.length > 0 && (
-            <button
-              onClick={() => setDisqualifyOpen((v) => !v)}
-              className="text-xs font-bold text-slate-400 hover:text-slate-700"
-            >
-              Bukan Prospek
-            </button>
-          )}
-          <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline">
-            Detail
-          </Link>
-        </div>
 
           {/* Catatan internal — freeform, dicap waktu+tanggal otomatis, TANPA tombol buka/tutup:
-              ditaruh nempel di kanan atas biar isinya kebaca duluan sebelum mulai chat (dulu
-              kolaps di atas timeline & sering kelewat). Bisa dilampiri 1 gambar per catatan,
-              mis. screenshot GetContact nomor lead. */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              ditaruh persis di bawah nama lead biar isinya kebaca duluan sebelum mulai chat
+              (dulu kolaps di atas timeline & sering kelewat). Bisa dilampiri 1 gambar per
+              catatan, mis. screenshot GetContact nomor lead. */}
+          <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-xs font-black text-amber-900">
               <NotebookPen className="w-3.5 h-3.5" />
               Catatan{notes.length > 0 ? ` (${notes.length})` : ""}
@@ -535,7 +506,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             {notes.length === 0 ? (
               <p className="text-xs text-amber-700/70 mt-1.5">Belum ada catatan.</p>
             ) : (
-              <ul className="flex flex-col gap-1.5 mt-2 max-h-56 overflow-y-auto">
+              <ul className="flex flex-col gap-1.5 mt-2 max-h-72 overflow-y-auto">
                 {notes.map((n) => (
                   <li key={n.id} className="text-xs bg-white border border-amber-200 rounded-xl px-3 py-2">
                     {n.body && <p className="whitespace-pre-wrap break-words text-slate-700">{n.body}</p>}
@@ -543,14 +514,16 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
                       <button
                         type="button"
                         onClick={() => setPreviewImage(n.imageUrl)}
-                        className={`block w-full ${n.body ? "mt-1.5" : ""}`}
+                        className={`block ${n.body ? "mt-1.5" : ""}`}
                         title="Klik untuk lihat ukuran penuh"
                       >
+                        {/* Pratinjau sengaja agak besar (bukan thumbnail kecil) biar screenshot
+                            GetContact sudah kebaca tanpa harus diklik dulu. */}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={n.imageUrl}
                           alt="lampiran catatan"
-                          className="w-full max-h-48 object-cover object-top rounded-lg border border-slate-200"
+                          className="max-w-full sm:max-w-xs max-h-64 object-contain rounded-lg border border-slate-200 bg-white"
                         />
                       </button>
                     )}
@@ -629,6 +602,32 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
               </div>
             )}
           </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0 mt-0.5">
+          {/* SPV/Manager sering menemukan lead yang perlu didahulukan justru saat membaca chat,
+              bukan saat membuka Detail Lead — jadi tombolnya disediakan di sini juga. */}
+          <PriorityPinButton
+            leadId={lead.id}
+            pinnedAt={lead.priorityPinnedAt}
+            pinNote={lead.priorityPinNote}
+            pinnedByName={lead.priorityPinnedByName}
+            currentPicId={meta.pic?.id ?? null}
+            viewerRole={meta.viewerRole}
+            onDone={() => load(true)}
+          />
+          {/* Lead nyasar paling sering ketahuan justru saat baca chatnya, bukan di Detail Lead —
+              jadi tombolnya disediakan di sini juga supaya tidak perlu pindah halaman dulu. */}
+          {meta.canAct && lead.outcome === "OPEN" && disqualifyReasons.length > 0 && (
+            <button
+              onClick={() => setDisqualifyOpen((v) => !v)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-700"
+            >
+              Bukan Prospek
+            </button>
+          )}
+          <Link href={`/marketing/leads/${lead.id}`} className="text-xs font-bold text-blue-700 hover:underline">
+            Detail
+          </Link>
         </div>
       </div>
 
