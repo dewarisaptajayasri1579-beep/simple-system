@@ -7,9 +7,10 @@ import { prisma } from "@/lib/prisma"
 /**
  * GET  — daftar catatan internal lead (terbaru dulu, maks 50). Role SALES cuma boleh lihat
  *        lead yang dia PIC-nya (404 kalau bukan) — sama seperti leads/[id]/route.ts.
- * POST — tambah catatan bebas teks, dicap waktu otomatis. Wajib PIC / SPV / Manager
- *        (`canActOnLead`) → 403 kalau bukan. Beda dari LeadActivity: tidak ada efek samping
- *        (tidak geser stage, tidak recalc priority, tidak auto-jadwal follow up).
+ * POST — tambah catatan bebas teks (+ opsional 1 lampiran gambar, mis. screenshot GetContact),
+ *        dicap waktu otomatis. Wajib PIC / SPV / Manager (`canActOnLead`) → 403 kalau bukan.
+ *        Beda dari LeadActivity: tidak ada efek samping (tidak geser stage, tidak recalc
+ *        priority, tidak auto-jadwal follow up).
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getMarketingApiUser()
@@ -29,11 +30,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     where: { leadId: id },
     orderBy: { createdAt: "desc" },
     take: 50,
-    select: { id: true, body: true, createdAt: true, authorUser: { select: { id: true, name: true } } },
+    select: { id: true, body: true, imageUrl: true, createdAt: true, authorUser: { select: { id: true, name: true } } },
   })
 
   return NextResponse.json({
-    notes: notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), author: n.authorUser })),
+    notes: notes.map((n) => ({
+      id: n.id,
+      body: n.body,
+      imageUrl: n.imageUrl,
+      createdAt: n.createdAt.toISOString(),
+      author: n.authorUser,
+    })),
   })
 }
 
@@ -46,17 +53,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Kamu bukan PIC lead ini." }, { status: 403 })
   }
 
-  const body = (await request.json().catch(() => null)) as { body?: unknown } | null
+  const body = (await request.json().catch(() => null)) as { body?: unknown; imageUrl?: unknown } | null
   const text = typeof body?.body === "string" ? body.body.trim() : ""
-  if (!text) return NextResponse.json({ error: "Catatan tidak boleh kosong" }, { status: 400 })
+  const rawImage = typeof body?.imageUrl === "string" ? body.imageUrl.trim() : ""
+  const imageUrl = /^https?:\/\//.test(rawImage) ? rawImage : null
+  // Catatan boleh isi teks saja, gambar saja (screenshot GetContact tanpa komentar), atau dua-duanya.
+  if (!text && !imageUrl) return NextResponse.json({ error: "Catatan tidak boleh kosong" }, { status: 400 })
 
   const note = await prisma.leadNote.create({
-    data: { leadId: id, authorUserId: user.id, body: text },
-    select: { id: true, body: true, createdAt: true, authorUser: { select: { id: true, name: true } } },
+    data: { leadId: id, authorUserId: user.id, body: text, imageUrl },
+    select: { id: true, body: true, imageUrl: true, createdAt: true, authorUser: { select: { id: true, name: true } } },
   })
 
   return NextResponse.json(
-    { note: { id: note.id, body: note.body, createdAt: note.createdAt.toISOString(), author: note.authorUser } },
+    {
+      note: {
+        id: note.id,
+        body: note.body,
+        imageUrl: note.imageUrl,
+        createdAt: note.createdAt.toISOString(),
+        author: note.authorUser,
+      },
+    },
     { status: 201 },
   )
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, Check, CheckCheck, Clock, NotebookPen, Paperclip, Pencil, Plus, Send, Sparkles, Trash2, Zap } from "lucide-react"
+import { AlertCircle, Check, CheckCheck, Clock, ImagePlus, NotebookPen, Paperclip, Pencil, Plus, Send, Sparkles, Trash2, Zap } from "lucide-react"
 
 import { Alert, Badge, Button, SkeletonList } from "@/components/ui"
 import { CompleteFollowUpForm } from "./CompleteFollowUpForm"
@@ -65,6 +65,7 @@ interface ConversationMeta {
 interface LeadNote {
   id: string
   body: string
+  imageUrl: string | null
   createdAt: string
   author: { id: string; name: string }
 }
@@ -103,7 +104,12 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [typing, setTyping] = useState(false)
   const [notes, setNotes] = useState<LeadNote[]>([])
-  const [notesOpen, setNotesOpen] = useState(false)
+  const [noteImage, setNoteImage] = useState<{ url: string; name: string } | null>(null)
+  const [uploadingNoteImage, setUploadingNoteImage] = useState(false)
+  const noteFileInputRef = useRef<HTMLInputElement | null>(null)
+  // URL gambar yang sedang dibuka besar (lightbox) — screenshot GetContact biasanya tidak kebaca
+  // di ukuran thumbnail, jadi harus bisa dilihat penuh tanpa pindah tab.
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [completingFu, setCompletingFu] = useState(false)
   const [resultTypes, setResultTypes] = useState<{ id: string; name: string }[]>([])
   const [disqualifyReasons, setDisqualifyReasons] = useState<{ id: string; name: string }[]>([])
@@ -247,14 +253,14 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
 
   const addNote = async () => {
     const text = noteDraft.trim()
-    if (!text || !leadId || savingNote) return
+    if ((!text && !noteImage) || !leadId || savingNote) return
     setSavingNote(true)
     setError(null)
     try {
       const res = await fetch(`/api/marketing/leads/${leadId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: text }),
+        body: JSON.stringify({ body: text, imageUrl: noteImage?.url }),
       })
       const d = await res.json()
       if (!res.ok) {
@@ -263,10 +269,32 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       }
       setNotes((prev) => [d.note, ...prev])
       setNoteDraft("")
+      setNoteImage(null)
     } catch {
       setError("Gagal menghubungi server saat menyimpan catatan")
     } finally {
       setSavingNote(false)
+    }
+  }
+
+  const uploadNoteImage = async (file: File) => {
+    if (!leadId) return
+    setUploadingNoteImage(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`/api/marketing/leads/${leadId}/notes/upload`, { method: "POST", body: form })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error || "Gagal upload gambar")
+        return
+      }
+      setNoteImage({ url: d.url, name: file.name })
+    } catch {
+      setError("Gagal upload gambar")
+    } finally {
+      setUploadingNoteImage(false)
     }
   }
 
@@ -433,7 +461,7 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-[calc(100vh-8rem)]">
       {/* header lead — tombol kembali ada di header shell */}
-      <div className="flex items-start gap-3 pb-3 border-b border-slate-200">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-3 pb-3 border-b border-slate-200">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-black text-slate-900">{lead.displayName}</p>
@@ -465,7 +493,9 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+        {/* kolom kanan: tombol aksi, lalu panel Catatan yang langsung kelihatan di bawahnya */}
+        <div className="flex flex-col gap-2 flex-shrink-0 w-full lg:w-80">
+        <div className="flex items-center gap-2 flex-wrap lg:justify-end mt-0.5">
           {/* SPV/Manager sering menemukan lead yang perlu didahulukan justru saat membaca chat,
               bukan saat membuka Detail Lead — jadi tombolnya disediakan di sini juga. */}
           <PriorityPinButton
@@ -491,7 +521,145 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
             Detail
           </Link>
         </div>
+
+          {/* Catatan internal — freeform, dicap waktu+tanggal otomatis, TANPA tombol buka/tutup:
+              ditaruh nempel di kanan atas biar isinya kebaca duluan sebelum mulai chat (dulu
+              kolaps di atas timeline & sering kelewat). Bisa dilampiri 1 gambar per catatan,
+              mis. screenshot GetContact nomor lead. */}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-xs font-black text-amber-900">
+              <NotebookPen className="w-3.5 h-3.5" />
+              Catatan{notes.length > 0 ? ` (${notes.length})` : ""}
+            </p>
+
+            {notes.length === 0 ? (
+              <p className="text-xs text-amber-700/70 mt-1.5">Belum ada catatan.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5 mt-2 max-h-56 overflow-y-auto">
+                {notes.map((n) => (
+                  <li key={n.id} className="text-xs bg-white border border-amber-200 rounded-xl px-3 py-2">
+                    {n.body && <p className="whitespace-pre-wrap break-words text-slate-700">{n.body}</p>}
+                    {n.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage(n.imageUrl)}
+                        className={`block w-full ${n.body ? "mt-1.5" : ""}`}
+                        title="Klik untuk lihat ukuran penuh"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={n.imageUrl}
+                          alt="lampiran catatan"
+                          className="w-full max-h-48 object-cover object-top rounded-lg border border-slate-200"
+                        />
+                      </button>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-1">{n.author.name} · {noteTimestamp(n.createdAt)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {meta.canAct && (
+              <div className="mt-2 flex flex-col gap-1.5">
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  // Screenshot biasanya masih di clipboard (habis di-crop dari HP/desktop) — paste
+                  // langsung di sini jadi tidak perlu simpan file dulu baru pilih lewat dialog.
+                  onPaste={(e) => {
+                    const img = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"))
+                    if (!img) return
+                    e.preventDefault()
+                    uploadNoteImage(img)
+                  }}
+                  rows={2}
+                  placeholder="Tulis catatan / tempel screenshot…"
+                  className="resize-none max-h-24 px-3 py-2 rounded-xl border border-amber-200 bg-white text-xs outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10"
+                />
+                <input
+                  ref={noteFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ""
+                    if (file) uploadNoteImage(file)
+                  }}
+                />
+                {noteImage && (
+                  <div className="flex items-start gap-2">
+                    <button type="button" onClick={() => setPreviewImage(noteImage.url)} className="flex-shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={noteImage.url}
+                        alt="pratinjau lampiran"
+                        className="w-16 h-16 object-cover object-top rounded-lg border border-slate-200"
+                      />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-slate-500 truncate">{noteImage.name}</p>
+                      <button onClick={() => setNoteImage(null)} className="text-[10px] font-bold text-rose-600">
+                        hapus gambar
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => noteFileInputRef.current?.click()}
+                    disabled={uploadingNoteImage}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 disabled:opacity-50"
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    {uploadingNoteImage ? "Mengunggah…" : noteImage ? "Ganti gambar" : "Lampirkan gambar"}
+                  </button>
+                  <Button
+                    size="sm"
+                    onClick={addNote}
+                    isLoading={savingNote}
+                    disabled={(!noteDraft.trim() && !noteImage) || uploadingNoteImage}
+                    className="flex-shrink-0"
+                  >
+                    Simpan
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* lightbox — klik gambar catatan buat lihat ukuran penuh (screenshot GetContact kecil banget
+          kalau cuma thumbnail). Klik area gelap / Esc buat menutup. */}
+      {previewImage && (
+        <div
+          role="button"
+          tabIndex={-1}
+          onClick={() => setPreviewImage(null)}
+          onKeyDown={(e) => { if (e.key === "Escape") setPreviewImage(null) }}
+          className="fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center p-4"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewImage}
+            alt="lampiran catatan"
+            className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <a
+            href={previewImage}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-4 text-xs font-bold text-white/80 hover:text-white underline"
+          >
+            Buka di tab baru
+          </a>
+        </div>
+      )}
 
       {disqualifyOpen && (
         <div className="border-b border-slate-200 py-2 flex items-center gap-2 flex-wrap">
@@ -558,49 +726,6 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
           )}
         </div>
       )}
-
-      {/* catatan internal — freeform, dicap waktu+tanggal otomatis. Ditaruh di sini (bukan di
-          paling bawah dekat composer) karena ini yang paling sering diisi Sales sambil chat. */}
-      <div className="border-b border-slate-200 py-2">
-        <button
-          onClick={() => setNotesOpen((v) => !v)}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-600"
-        >
-          <NotebookPen className="w-3.5 h-3.5" />
-          Catatan{notes.length > 0 ? ` (${notes.length})` : ""}
-          <span className="text-slate-400 font-medium">{notesOpen ? "— tutup" : "— lihat/tambah"}</span>
-        </button>
-        {notesOpen && (
-          <div className="mt-2 flex flex-col gap-2">
-            {meta.canAct && (
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  rows={1}
-                  placeholder="Tulis catatan tambahan…"
-                  className="flex-1 resize-none max-h-24 px-3 py-2 rounded-xl border border-slate-200 bg-white/70 text-xs outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                />
-                <Button size="sm" onClick={addNote} isLoading={savingNote} disabled={!noteDraft.trim()} className="flex-shrink-0">
-                  Simpan
-                </Button>
-              </div>
-            )}
-            {notes.length === 0 ? (
-              <p className="text-xs text-slate-400">Belum ada catatan.</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-                {notes.map((n) => (
-                  <li key={n.id} className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                    <p className="whitespace-pre-wrap break-words text-slate-700">{n.body}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">{n.author.name} · {noteTimestamp(n.createdAt)}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* timeline */}
       <div ref={timelineRef} className="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
