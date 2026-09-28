@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { getMarketingApiUser } from "@/lib/marketing/auth"
 import { marketingWhatsappWebhookUrl, newWahubSessionId } from "@/lib/marketing/whatsapp-connection"
 import { prisma } from "@/lib/prisma"
-import { getWahubSessionStatus, startWahubSession } from "@/lib/wahub"
+import { syncConnectionStatus } from "@/lib/marketing/whatsapp-status"
+import { startWahubSession } from "@/lib/wahub"
 
 /** List semua koneksi WA milik Sales yang sedang login — sinkron status ke DB tiap dipanggil
  *  (per koneksi) supaya UI lain (mis. badge di header) bisa baca dari DB tanpa hit WAHUB langsung. */
@@ -16,24 +17,13 @@ export async function GET() {
     orderBy: { createdAt: "asc" },
   })
 
+  // Halaman WhatsApp = tempat orang datang justru buat memastikan status, jadi paksa cek ulang
+  // (maxAgeMs 0) walau baru saja disegarkan oleh jalur lain.
   const updated = await Promise.all(
     connections.map(async (connection) => {
-      try {
-        const remote = await getWahubSessionStatus(connection.wahubSessionId)
-        const status = remote?.status ? remote.status.toUpperCase() : "DISCONNECTED"
-        return prisma.whatsappConnection.update({
-          where: { id: connection.id },
-          data: {
-            status,
-            phoneNumber: status === "READY" ? (remote?.phoneNumber ?? connection.phoneNumber) : connection.phoneNumber,
-            lastStatusCheckAt: new Date(),
-            lastConnectedAt: status === "READY" ? new Date() : connection.lastConnectedAt,
-          },
-        })
-      } catch {
-        return connection
-      }
-    })
+      const status = await syncConnectionStatus(connection, { maxAgeMs: 0 })
+      return { ...connection, status }
+    }),
   )
 
   return NextResponse.json({ connections: updated })

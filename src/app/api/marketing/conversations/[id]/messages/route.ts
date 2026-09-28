@@ -9,6 +9,7 @@ import { publishMarketingEvent } from "@/lib/marketing/realtime"
 import { recalcLeadDerived } from "@/lib/marketing/recalc"
 import { prisma } from "@/lib/prisma"
 import { resolveUserNames } from "@/lib/user-names"
+import { isWahubSessionDeadError, syncConnectionStatus } from "@/lib/marketing/whatsapp-status"
 import { extractWahubMessageId, sendWhatsappMediaFromSession, sendWhatsappMessageFromSession } from "@/lib/wahub"
 
 /**
@@ -30,7 +31,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       leadId: true,
       unreadCustomerCount: true,
       whatsappConnectionId: true,
-      whatsappConnection: { select: { status: true, label: true, phoneNumber: true } },
+      whatsappConnection: {
+        select: {
+          id: true,
+          wahubSessionId: true,
+          status: true,
+          label: true,
+          phoneNumber: true,
+          lastStatusCheckAt: true,
+          lastConnectedAt: true,
+          user: { select: { name: true } },
+        },
+      },
       lead: {
         select: {
           id: true,
@@ -61,6 +73,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     })
     if (!assigned) return NextResponse.json({ error: "Percakapan tidak ditemukan" }, { status: 404 })
   }
+
+  // Status koneksi di DB bisa nyangkut "READY" walau sesi WAHUB-nya sudah mati (lihat
+  // syncConnectionStatus) — cek ulang di sini, throttled, supaya composer tidak menjanjikan
+  // "bisa dibalas" lalu gagal di WAHUB dengan error session.
+  const liveConnectionStatus = conversation.whatsappConnection
+    ? await syncConnectionStatus(conversation.whatsappConnection)
+    : null
 
   const { searchParams } = new URL(request.url)
   const limit = Math.min(200, Math.max(1, Number(searchParams.get("limit")) || 100))
@@ -140,9 +159,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         : null,
       hasWhatsappConnection: conversation.whatsappConnectionId != null,
       // Status koneksi WA yang dipakai percakapan ini (null = belum tertaut ke koneksi mana pun).
-      whatsappStatus: conversation.whatsappConnection?.status ?? null,
-      whatsappConnected: conversation.whatsappConnection?.status === "READY",
-      whatsappConnectionLabel: conversation.whatsappConnection?.label ?? conversation.whatsappConnection?.phoneNumber ?? null,
+      whatsappStatus: liveConnectionStatus,
+      whatsappConnected: liveConnectionStatus === "READY",
+      whatsappConnectionLabel:
+        conversation.whatsappConnection?.label ??
+        conversation.whatsappConnection?.phoneNumber ??
+        conversation.whatsappConnection?.user.name ??
+        null,
     },
     messages: desc.reverse().map(messageDto),
     hasMoreOlder: desc.length === limit,
@@ -171,7 +194,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       id: true,
       leadId: true,
       lead: { select: { whatsappNumber: true } },
-      whatsappConnection: { select: { wahubSessionId: true, status: true } },
+      whatsappConnection: { select: { id: true, wahubSessionId: true, status: true, label: true, phoneNumber: true } },
     },
   })
   if (!conversation) return NextResponse.json({ error: "Percakapan tidak ditemukan" }, { status: 404 })
@@ -196,10 +219,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : await sendWhatsappMessageFromSession(session, number, text)
     wahubMessageId = extractWahubMessageId(result)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal mengirim ke WhatsApp" },
-      { status: 502 },
-    )
+    const raw = error instanceof Error ? error.message : "Gagal mengirim ke WhatsApp"
+    // Sesi WAHUB sudah mati padahal DB masih bilang READY (mis. nomor itu logout dari HP) —
+    // tandai DISCONNECTED biar UI semua orang langsung jujur, dan ganti error mentah WAHUB
+    // ("Session is not ready or does not exist") jadi keterangan yang bisa ditindaklanjuti.
+    if (isWahubSessionDeadError(raw)) {
+      const conn = conversation.whatsappConnection
+      await prisma.whatsappConnection
+        .update({ where: { id: conn.id }, data: { status: "DISCONNECTED", lastStatusCheckAt: new Date() } })
+        .catch(() => {})
+      const who = conn.label ?? conn.phoneNumber ?? "nomor ini"
+      return NextResponse.json(
+        { error: `WhatsApp ${who} sudah tidak tersambung — pemilik nomor perlu scan ulang di Marketing > WhatsApp sebelum chat ini bisa dibalas.` },
+        { status: 409 },
+      )
+    }
+    return NextResponse.json({ error: raw }, { status: 502 })
   }
 
   const message = await prisma.message.create({

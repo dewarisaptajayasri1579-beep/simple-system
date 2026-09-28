@@ -105,7 +105,7 @@ export async function GET(request: Request) {
           },
         },
         messages: { take: 1, orderBy: { sentAt: "desc" }, select: { body: true, direction: true } },
-        whatsappConnection: { select: { label: true, phoneNumber: true } },
+        whatsappConnection: { select: { label: true, phoneNumber: true, user: { select: { name: true } } } },
       },
     }),
   ])
@@ -155,7 +155,11 @@ export async function GET(request: Request) {
       segmentName: r.lead.segment?.name ?? null,
     },
     pic: picByLead.get(r.leadId) ?? null,
-    whatsappConnectionLabel: r.whatsappConnection?.label ?? r.whatsappConnection?.phoneNumber ?? null,
+    // Nama pemilik sebagai cadangan terakhir: lead yang chat ke dua nomor punya dua baris di
+    // Inbox, dan tanpa badge ini keduanya kelihatan identik. Koneksi lama bisa belum punya
+    // label maupun phoneNumber (belum pernah READY sejak label diwajibkan).
+    whatsappConnectionLabel:
+      r.whatsappConnection?.label ?? r.whatsappConnection?.phoneNumber ?? r.whatsappConnection?.user.name ?? null,
     lastMessageAt: r.lastMessageAt?.toISOString() ?? null,
     lastMessagePreview: r.messages[0] ?? null,
     /** Hanya terisi saat `q` dipakai: pesan di dalam chat yang cocok dengan kata kunci. */

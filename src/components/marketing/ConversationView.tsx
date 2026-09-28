@@ -81,6 +81,14 @@ function clockTime(iso: string) {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
 }
 
+/** Status koneksi WA apa adanya dari WAHUB → kalimat yang bisa ditindaklanjuti Sales. */
+function connectionStateLabel(status: string | null) {
+  if (status === "QR_READY") return "menunggu scan QR"
+  if (status === "STARTING") return "sedang menyambung"
+  if (status === "FAILED") return "gagal tersambung"
+  return "terputus"
+}
+
 function noteTimestamp(iso: string) {
   return new Date(iso).toLocaleString("id-ID", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })
 }
@@ -783,7 +791,21 @@ export const ConversationView: React.FC<{ conversationId: string }> = ({ convers
       </div>
 
       {/* composer / banner */}
-      {meta.canAct && <WhatsappStatusBanner className="pb-2" />}
+      {/* Chat ini menempel ke SATU nomor WA (koneksi tempat chatnya masuk) — dan nomor itu bisa
+          punya pemilik lain (mis. lead yang chat ke nomor Ayu dan ke nomor Candra punya dua chat
+          terpisah). Jadi yang relevan di sini status nomor CHAT INI, bukan status nomor si
+          pembaca — WhatsappStatusBanner (yang cek nomor sendiri) cuma dipakai kalau chat ini
+          belum tertaut ke koneksi mana pun. */}
+      {meta.canAct && !meta.hasWhatsappConnection && <WhatsappStatusBanner className="pb-2" />}
+      {meta.canAct && meta.hasWhatsappConnection && !meta.whatsappConnected && (
+        <div className="pb-2">
+          <Alert variant="warning">
+            Nomor WhatsApp{meta.whatsappConnectionLabel ? ` ${meta.whatsappConnectionLabel}` : ""} yang dipakai chat ini{" "}
+            {connectionStateLabel(meta.whatsappStatus)} — balasan tidak bisa dikirim sampai pemilik nomor itu scan ulang
+            di Marketing › WhatsApp.
+          </Alert>
+        </div>
+      )}
       {error && <div className="pb-2"><Alert variant="error">{error}</Alert></div>}
 
       {meta.canAct && (
