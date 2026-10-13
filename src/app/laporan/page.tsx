@@ -2,7 +2,7 @@ import Link from "next/link"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardTitle, CardDescription } from "@/components/ui"
 import { requirePageRole } from "@/lib/current-user"
-import { ShoppingCart, Landmark, Scale, TrendingUp, BookOpen, LineChart, Wallet } from "lucide-react"
+import { ShoppingCart, Landmark, Scale, TrendingUp, BookOpen, LineChart, Wallet, Banknote } from "lucide-react"
 
 const REPORTS = [
   {
@@ -10,6 +10,12 @@ const REPORTS = [
     icon: Wallet,
     title: "Arus Kas Mingguan",
     desc: "Proyeksi pemasukan vs pengeluaran per minggu, dengan saldo kas/bank berjalan.",
+  },
+  {
+    href: "/laporan/uang-masuk",
+    icon: Banknote,
+    title: "Uang Masuk",
+    desc: "Rincian pelunasan yang diterima per bulan — no invoice, keterangan, nominal.",
   },
   { href: "/laporan/penjualan", icon: ShoppingCart, title: "Laporan Penjualan", desc: "Total invoice, tertagih, dan outstanding per periode." },
   { href: "/laporan/keuangan", icon: Landmark, title: "Laporan Keuangan", desc: "Rekap pemasukan & pengeluaran per kategori." },
