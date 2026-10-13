@@ -214,8 +214,8 @@ export function HitungHargaPanel() {
           </div>
         </div>
         {started && (
-          <Button variant="ghost" size="sm" onClick={reset}>
-            <RotateCcw className="w-4 h-4 mr-1" /> Mulai Ulang
+          <Button variant="ghost" size="sm" onClick={reset} leftIcon={<RotateCcw className="w-4 h-4" />}>
+            Mulai Ulang
           </Button>
         )}
       </div>
@@ -321,8 +321,8 @@ export function HitungHargaPanel() {
                   )
                 })}
 
-                <Button variant="outline" size="sm" onClick={addJob}>
-                  <Plus className="w-4 h-4 mr-1" /> Tambah Pekerjaan Manual
+                <Button variant="outline" size="sm" onClick={addJob} leftIcon={<Plus className="w-4 h-4" />}>
+                  Tambah Pekerjaan Manual
                 </Button>
               </div>
             )}
@@ -424,8 +424,11 @@ export function HitungHargaPanel() {
             <div className="w-full sm:w-52">
               <Input placeholder="Nama client (opsional)" sizeVariant="sm" value={clientName} onChange={(e) => setClientName(e.target.value)} />
             </div>
-            <Button onClick={saveSimulation} disabled={saving || saved || jobs.length === 0}>
-              {saving ? <Spinner size="sm" color="white" className="mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            <Button
+              onClick={saveSimulation}
+              disabled={saving || saved || jobs.length === 0}
+              leftIcon={saving ? <Spinner size="sm" color="white" /> : <Save className="w-4 h-4" />}
+            >
               {saved ? "Tersimpan" : "Simpan"}
             </Button>
           </div>

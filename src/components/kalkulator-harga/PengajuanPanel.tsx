@@ -77,12 +77,12 @@ export function PengajuanPanel({ rows, formUrl, passwordSet, canManage }: { rows
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={salinLink}>
-              <Copy className="w-4 h-4 mr-1" /> Salin
+            <Button variant="outline" size="sm" onClick={salinLink} leftIcon={<Copy className="w-4 h-4" />}>
+              Salin
             </Button>
             {canManage && (
-              <Button size="sm" onClick={() => setModalOpen(true)}>
-                <KeyRound className="w-4 h-4 mr-1" /> {passwordSet ? "Ganti Password" : "Atur Password"}
+              <Button size="sm" onClick={() => setModalOpen(true)} leftIcon={<KeyRound className="w-4 h-4" />}>
+                {passwordSet ? "Ganti Password" : "Atur Password"}
               </Button>
             )}
           </div>
@@ -139,8 +139,11 @@ export function PengajuanPanel({ rows, formUrl, passwordSet, canManage }: { rows
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Batal
             </Button>
-            <Button onClick={simpanPassword} disabled={saving || password.trim().length < 6}>
-              {saving ? <Spinner size="sm" color="white" className="mr-2" /> : null}
+            <Button
+              onClick={simpanPassword}
+              disabled={saving || password.trim().length < 6}
+              leftIcon={saving ? <Spinner size="sm" color="white" /> : undefined}
+            >
               Simpan
             </Button>
           </div>

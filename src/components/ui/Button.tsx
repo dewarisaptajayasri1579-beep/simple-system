@@ -27,8 +27,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
+    // `whitespace-nowrap`: tanpa ini, tombol yang isinya ikon + teks pecah jadi 2 baris saat
+    // ruangnya sempit (ikon di atas, teks di bawah) sementara tingginya tetap dipatok min-h,
+    // jadi teksnya kelihatan gepeng. Tombol memang tidak seharusnya wrap — kalau teksnya
+    // kepanjangan, pendekkan labelnya, jangan biarkan melipat.
     const baseStyles =
-      "relative inline-flex items-center justify-center font-bold tracking-wide transition-all duration-200 focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]";
+      "relative inline-flex items-center justify-center whitespace-nowrap font-bold tracking-wide transition-all duration-200 focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.98]";
 
     const variants = {
       primary:

@@ -54,8 +54,12 @@ export function FormGate({ configured }: { configured: boolean }) {
               autoFocus
             />
             {error && <Alert variant="error">{error}</Alert>}
-            <Button className="w-full" onClick={masuk} disabled={loading || !password}>
-              {loading ? <Spinner size="sm" color="white" className="mr-2" /> : null}
+            <Button
+              fullWidth
+              onClick={masuk}
+              disabled={loading || !password}
+              leftIcon={loading ? <Spinner size="sm" color="white" /> : undefined}
+            >
               Masuk
             </Button>
           </div>

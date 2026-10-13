@@ -43,8 +43,8 @@ export function SimulasiPanel({ rows }: { rows: SimulasiRow[] }) {
           Hasil diskusi dengan AI yang sudah disimpan — klik untuk lihat obrolan &amp; rincian bobotnya.
         </p>
         <Link href="/kalkulator-harga/hitung-harga">
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-1" /> Simulasi Baru
+          <Button size="sm" leftIcon={<Plus className="w-4 h-4" />}>
+            Simulasi Baru
           </Button>
         </Link>
       </div>

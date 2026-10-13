@@ -283,8 +283,8 @@ export function FormPekerjaanClient() {
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Daftar Pekerjaan ({items.length})</h2>
           {!chatOpen && (
-            <Button size="sm" onClick={openChat}>
-              <Plus className="w-4 h-4 mr-1" /> Tambah Pekerjaan
+            <Button size="sm" onClick={openChat} leftIcon={<Plus className="w-4 h-4" />}>
+              Tambah Pekerjaan
             </Button>
           )}
         </div>
@@ -361,8 +361,8 @@ export function FormPekerjaanClient() {
               {chatDone ? (
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <p className="text-xs text-emerald-700 font-semibold flex-1">Pekerjaan sudah dicatat &amp; tersimpan.</p>
-                  <Button size="sm" variant="outline" onClick={openChat}>
-                    <Plus className="w-4 h-4 mr-1" /> Tambah Lagi
+                  <Button size="sm" variant="outline" onClick={openChat} leftIcon={<Plus className="w-4 h-4" />}>
+                    Tambah Lagi
                   </Button>
                   <Button size="sm" onClick={() => setChatOpen(false)}>
                     Selesai
@@ -380,7 +380,7 @@ export function FormPekerjaanClient() {
                       }
                     }}
                     rows={2}
-                    placeholder="Contoh: Client minta tambah laporan stok per gudang, bisa difilter per bulan."
+                    placeholder="Contoh: tambah laporan stok per gudang, difilter per bulan."
                     className="flex-1 resize-none max-h-32 overflow-y-auto px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                     autoFocus
                   />
@@ -453,8 +453,11 @@ export function FormPekerjaanClient() {
           <p className="text-xs text-slate-600 font-medium">
             Pastikan semua pekerjaan sudah masuk sebelum memposting — setelah diposting tidak bisa diubah lagi.
           </p>
-          <Button onClick={kirimPosting} disabled={posting || items.length === 0 || !clientName.trim() || !programmerName.trim()}>
-            {posting ? <Spinner size="sm" color="white" className="mr-2" /> : null}
+          <Button
+            onClick={kirimPosting}
+            disabled={posting || items.length === 0 || !clientName.trim() || !programmerName.trim()}
+            leftIcon={posting ? <Spinner size="sm" color="white" /> : undefined}
+          >
             Posting
           </Button>
         </div>
