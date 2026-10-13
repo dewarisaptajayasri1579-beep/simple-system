@@ -8,6 +8,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = "claude-sonnet-5"
 const MAX_TOKENS = 4000
 
+/** Maksimal pertanyaan klarifikasi dalam 1 obrolan sebelum AI WAJIB menyimpulkan harga, sesuai
+ *  permintaan Owner — obrolan panjang bikin staf malas pakai fiturnya. */
+export const MAX_QUESTIONS = 5
+
 export type WorkPriceCatalogItem = {
   id: string
   groupName: string
@@ -23,52 +27,83 @@ export type WorkPriceMatchedItem = {
   alasan: string
 }
 
-export type WorkPriceMatchResult = {
-  items: WorkPriceMatchedItem[]
-  ringkasan: string
+export type WorkPriceChatTurn = {
+  role: "user" | "assistant"
+  text: string
 }
 
-const SYSTEM_PROMPT = `Kamu membantu staf software house Indonesia memperkirakan harga request custom pekerjaan dari client, berdasarkan pricelist internal yang levelnya sudah ditentukan.
+export type WorkPriceChatResult =
+  | { status: "tanya"; pertanyaan: string }
+  | { status: "selesai"; items: WorkPriceMatchedItem[]; ringkasan: string }
 
-Tugasmu: baca deskripsi pekerjaan bebas dari staf, lalu cocokkan ke satu atau lebih item di pricelist (dengan quantity-nya) yang paling pas menggambarkan pekerjaan itu.
+const SYSTEM_PROMPT = `Kamu membantu staf software house Indonesia memperkirakan harga request custom pekerjaan dari client, lewat obrolan singkat, berdasarkan pricelist internal yang level & kriterianya sudah ditentukan.
 
 Cara kerja:
-1. Pecah deskripsi jadi beberapa kebutuhan kalau memang menyebut beberapa hal sekaligus (mis. "bikin master data supplier dan laporan penjualan bulanan" = 1 item Master Data + 1 item Laporan).
-2. Pilih level berdasarkan kompleksitas yang tersirat dari deskripsi, bandingkan dengan "keterangan" tiap item di pricelist — JANGAN asal pilih level tengah.
-3. Qty > 1 kalau deskripsi jelas menyebut pekerjaan itu berulang (mis. "5 master data" = qty 5).
-4. Kalau ada item di pricelist dengan harga 0 (belum ada acuan harga) dan itu yang paling cocok, tetap pilih itu — staf akan tahu dari harga 0 bahwa perlu nego manual.
-5. Kalau deskripsi terlalu kabur untuk dipetakan ke pricelist sama sekali, kembalikan items kosong dan jelaskan kenapa di ringkasan.
-6. itemId WAJIB persis salah satu id dari daftar pricelist yang diberikan — jangan mengarang id.
+1. Staf kasih deskripsi awal pekerjaan — biasanya kurang detail untuk menentukan level dengan yakin.
+2. Kalau informasi belum cukup untuk memilih level secara yakin (cocokkan ke kriteria tiap item di pricelist, yang sudah ditulis terukur: jumlah tabel, jumlah field, ada approval atau tidak, dsb), ajukan SATU pertanyaan paling penting dulu — yang jawabannya paling menentukan level mana yang cocok. Pertanyaan harus konkret dan gampang dijawab staf (hindari pertanyaan terbuka yang susah dijawab singkat), dan idealnya mengarah ke pilihan ya/tidak atau angka.
+3. Kamu HANYA boleh bertanya maksimal ${MAX_QUESTIONS} kali total dalam satu obrolan. Sistem akan kasih tahu di setiap giliran sudah berapa kali kamu bertanya. Begitu sudah mencapai batas, kamu WAJIB langsung simpulkan dengan asumsi terbaik dari jawaban yang sudah ada — jangan tanya lagi walau belum yakin 100%.
+4. Begitu cukup yakin (atau sudah mentok pertanyaan), simpulkan: pecah jadi satu atau lebih item pricelist dengan qty-nya kalau deskripsi menyebut beberapa kebutuhan sekaligus, kasih alasan singkat tiap item merujuk ke kriteria & jawaban staf, dan satu ringkasan akhir.
+5. Kalau ada item di pricelist dengan harga 0 (belum ada acuan harga) dan itu yang paling cocok, tetap pilih itu — staf akan tahu dari harga 0 bahwa perlu nego manual.
+6. Kalau deskripsi+jawaban staf tetap tidak bisa dipetakan ke pricelist sama sekali, kembalikan items kosong dan jelaskan kenapa di ringkasan.
+7. itemId WAJIB persis salah satu id dari daftar pricelist yang diberikan — jangan mengarang id.
 
-Tulis "alasan" tiap item singkat (1 kalimat) kenapa level itu yang dipilih, merujuk ke kata kunci dari deskripsi staf. Tulis "ringkasan" 1-2 kalimat total untuk staf.`
+Format jawaban WAJIB ikut skema JSON yang diberikan:
+- status "tanya": isi "pertanyaan", kosongkan "items" (array kosong) dan "ringkasan" (string kosong).
+- status "selesai": kosongkan "pertanyaan" (string kosong), isi "items" dan "ringkasan".
+
+Bahasa Indonesia santai tapi profesional, seperti bicara ke rekan kerja.`
+
+const OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["status", "pertanyaan", "items", "ringkasan"],
+  properties: {
+    status: { type: "string", enum: ["tanya", "selesai"], description: "'tanya' kalau masih perlu klarifikasi, 'selesai' kalau sudah bisa kasih estimasi." },
+    pertanyaan: { type: "string", description: "Satu pertanyaan klarifikasi ke staf. String kosong kalau status 'selesai'." },
+    items: {
+      type: "array",
+      description: "Item pricelist yang cocok. Kosongkan (array kosong) kalau status 'tanya'.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["itemId", "qty", "alasan"],
+        properties: {
+          itemId: { type: "string" },
+          qty: { type: "integer", description: "Jumlah unit pekerjaan ini, minimal 1." },
+          alasan: { type: "string" },
+        },
+      },
+    },
+    ringkasan: { type: "string", description: "Ringkasan akhir ke staf. String kosong kalau status 'tanya'." },
+  },
+} as const
 
 function buildOutputSchema(validIds: string[]) {
   return {
-    type: "object",
-    additionalProperties: false,
-    required: ["items", "ringkasan"],
+    ...OUTPUT_SCHEMA,
     properties: {
+      ...OUTPUT_SCHEMA.properties,
       items: {
-        type: "array",
-        description: "Item pricelist yang cocok dengan deskripsi pekerjaan, bisa kosong kalau tidak ada yang cocok.",
+        ...OUTPUT_SCHEMA.properties.items,
         items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["itemId", "qty", "alasan"],
+          ...OUTPUT_SCHEMA.properties.items.items,
           properties: {
+            ...OUTPUT_SCHEMA.properties.items.items.properties,
             itemId: { type: "string", enum: validIds, description: "Id item pricelist yang dipilih." },
-            qty: { type: "integer", description: "Jumlah unit pekerjaan ini, minimal 1." },
-            alasan: { type: "string" },
           },
         },
       },
-      ringkasan: { type: "string" },
     },
   } as const
 }
 
-export async function matchWorkPriceItems(description: string, catalog: WorkPriceCatalogItem[]): Promise<WorkPriceMatchResult> {
+export async function continueWorkPriceChat(
+  history: WorkPriceChatTurn[],
+  catalog: WorkPriceCatalogItem[],
+  questionsAsked: number
+): Promise<WorkPriceChatResult> {
   if (catalog.length === 0) throw new Error("Pricelist belum ada datanya")
+  if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
 
   const payload = catalog.map((c) => ({
     id: c.id,
@@ -79,17 +114,21 @@ export async function matchWorkPriceItems(description: string, catalog: WorkPric
     harga: c.price,
   }))
 
+  const statusNote =
+    questionsAsked >= MAX_QUESTIONS
+      ? `Kamu sudah bertanya ${questionsAsked}/${MAX_QUESTIONS} kali. WAJIB kembalikan status "selesai" sekarang — jangan bertanya lagi.`
+      : `Kamu sudah bertanya ${questionsAsked}/${MAX_QUESTIONS} kali di obrolan ini.`
+
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-    output_config: { format: { type: "json_schema", schema: buildOutputSchema(catalog.map((c) => c.id)) as unknown as Record<string, unknown> } },
-    messages: [
-      {
-        role: "user",
-        content: `Daftar pricelist (JSON):\n${JSON.stringify(payload, null, 2)}\n\nDeskripsi pekerjaan dari staf:\n"""${description}"""`,
-      },
+    system: [
+      { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: `Daftar pricelist (JSON):\n${JSON.stringify(payload, null, 2)}`, cache_control: { type: "ephemeral" } },
+      { type: "text", text: statusNote },
     ],
+    output_config: { format: { type: "json_schema", schema: buildOutputSchema(catalog.map((c) => c.id)) as unknown as Record<string, unknown> } },
+    messages: history.map((h) => ({ role: h.role, content: h.text })),
   })
 
   if (response.stop_reason === "refusal") throw new Error("Analisa ditolak oleh filter keamanan model")
@@ -101,5 +140,14 @@ export async function matchWorkPriceItems(description: string, catalog: WorkPric
 
   if (!text.trim()) throw new Error("Model tidak mengembalikan hasil analisa")
 
-  return JSON.parse(text) as WorkPriceMatchResult
+  const parsed = JSON.parse(text) as { status: "tanya" | "selesai"; pertanyaan: string; items: WorkPriceMatchedItem[]; ringkasan: string }
+
+  // Jaring pengaman: kalau model tetap ngotot nanya padahal sudah mentok limit, paksa selesai
+  // supaya staf tidak kejebak obrolan tanpa akhir.
+  if (parsed.status === "tanya" && questionsAsked >= MAX_QUESTIONS) {
+    return { status: "selesai", items: [], ringkasan: "Belum cukup yakin menentukan levelnya dari jawaban yang ada — perlu dicek manual oleh staf/Owner." }
+  }
+
+  if (parsed.status === "tanya") return { status: "tanya", pertanyaan: parsed.pertanyaan }
+  return { status: "selesai", items: parsed.items, ringkasan: parsed.ringkasan }
 }
