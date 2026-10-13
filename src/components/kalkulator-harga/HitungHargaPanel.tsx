@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, ChevronDown, ChevronRight, Plus, Save, Send, Sparkles, Trash2 } from "lucide-react"
-import { Alert, Button, Card, Input, Select, Spinner, Textarea } from "@/components/ui"
+import { Check, ChevronDown, ChevronRight, Plus, RotateCcw, Save, Send, Sparkles, Trash2 } from "lucide-react"
+import { Alert, Button, Input, Select, Spinner } from "@/components/ui"
 import { PARAMETER_CODES, POINT_VALUE_IDR, RUBRIC, priceFromPoints, totalPoints, type ParameterCode, type WeightScores } from "@/lib/work-price/rubric"
 
 interface ChatMessage {
@@ -26,12 +26,21 @@ const MAX_QUESTIONS = 5
 
 const EMPTY_SCORES: WeightScores = { P1: "none", P2: "none", P3: "none", P4: "none", P5: "none", P6: "none", P7: "display", P8: "reuse" }
 
+const STARTER_HINTS = [
+  "Client minta bikin master data supplier, lalu laporan penjualan bulanan per sales.",
+  "Tambah fitur cetak surat jalan PDF dari data pengiriman yang sudah ada.",
+  "Kirim notifikasi WhatsApp otomatis ke customer tiap ada invoice baru.",
+]
+
 function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 }
 
 export function HitungHargaPanel() {
   const router = useRouter()
+  const timelineRef = useRef<HTMLDivElement | null>(null)
+  const lastCountRef = useRef(0)
+
   const [description, setDescription] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [answerType, setAnswerType] = useState<AnswerType>("text")
@@ -53,6 +62,17 @@ export function HitungHargaPanel() {
 
   const totalPoin = jobs.reduce((sum, j) => sum + totalPoints(j.scores) * j.qty, 0)
   const total = jobs.reduce((sum, j) => sum + priceFromPoints(totalPoints(j.scores)) * j.qty, 0)
+
+  // Scroll kontainer timeline-nya sendiri, BUKAN scrollIntoView() — scrollIntoView ikut nge-scroll
+  // semua ancestor termasuk window, jadi halaman ikut melompat saat balasan baru masuk.
+  useEffect(() => {
+    const count = messages.length + jobs.length + (loading ? 1 : 0)
+    if (count !== lastCountRef.current) {
+      lastCountRef.current = count
+      const el = timelineRef.current
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+    }
+  }, [messages, jobs, loading])
 
   async function sendToAi(history: ChatMessage[]) {
     setLoading(true)
@@ -95,9 +115,11 @@ export function HitungHargaPanel() {
     }
   }
 
-  async function startChat() {
-    if (!description.trim()) return
-    const history: ChatMessage[] = [{ role: "user", text: description }]
+  async function startChat(text?: string) {
+    const first = (text ?? description).trim()
+    if (!first) return
+    setDescription(first)
+    const history: ChatMessage[] = [{ role: "user", text: first }]
     setMessages(history)
     setJobs([])
     setRingkasan(null)
@@ -129,6 +151,7 @@ export function HitungHargaPanel() {
     setError(null)
     setClientName("")
     setSaved(false)
+    lastCountRef.current = 0
   }
 
   function updateJob(key: string, patch: Partial<JobRow>) {
@@ -173,221 +196,241 @@ export function HitungHargaPanel() {
     }
   }
 
+  // Tinggi dipatok ke viewport supaya HALAMAN tidak ikut scroll — yang scroll cuma timeline di
+  // dalam. Angka mobile lebih besar karena AppLayout menyisakan pb-28 untuk BottomBar.
   return (
-    <div className="space-y-6">
-      {!started ? (
-        <Card padding="lg">
-          <div className="space-y-4">
-            <Textarea
-              label="Pekerjaan apa yang diminta client?"
-              placeholder="Contoh: Client minta bikin master data supplier, lalu laporan penjualan bulanan per sales dengan grafik."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-            />
-            <Button onClick={startChat} disabled={loading || !description.trim()}>
-              {loading ? <Spinner size="sm" color="white" className="mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              Mulai Analisa
-            </Button>
-            {error && <Alert variant="error">{error}</Alert>}
+    <div className="flex flex-col h-[calc(100vh-20rem)] lg:h-[calc(100vh-18rem)] min-h-[24rem] glass-panel rounded-3xl border border-white/80 shadow-md overflow-hidden">
+      {/* Header percakapan */}
+      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200/70 bg-white/60 backdrop-blur-md flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-8 h-8 rounded-xl bg-blue-600/10 text-blue-700 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-800 truncate">Asisten Hitung Harga</p>
+            <p className="text-[11px] text-slate-500 font-medium">
+              {!started ? "Siap menerima deskripsi pekerjaan" : done ? "Analisa selesai" : `${questionsAsked}/${MAX_QUESTIONS} pertanyaan`}
+            </p>
           </div>
-        </Card>
-      ) : (
-        <Card padding="lg">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                Obrolan dengan AI {questionsAsked > 0 && `— ${questionsAsked}/${MAX_QUESTIONS} pertanyaan`}
-              </span>
-              <Button variant="ghost" size="sm" onClick={reset}>
-                Mulai Ulang
-              </Button>
-            </div>
+        </div>
+        {started && (
+          <Button variant="ghost" size="sm" onClick={reset}>
+            <RotateCcw className="w-4 h-4 mr-1" /> Mulai Ulang
+          </Button>
+        )}
+      </div>
 
-            <div className="space-y-3">
-              <div className="rounded-2xl bg-slate-100/80 px-4 py-3 text-sm font-medium text-slate-700 max-w-xl">{description}</div>
-              {messages.slice(1).map((m, i) => (
-                <div
-                  key={i}
-                  className={`rounded-2xl px-4 py-3 text-sm font-medium max-w-xl ${m.role === "assistant" ? "bg-blue-50 text-blue-900" : "bg-slate-100/80 text-slate-700 ml-auto"}`}
+      {/* Timeline percakapan */}
+      <div ref={timelineRef} className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+        {!started ? (
+          <div className="m-auto text-center max-w-md space-y-4">
+            <span className="w-14 h-14 rounded-2xl bg-blue-600/10 text-blue-700 flex items-center justify-center mx-auto">
+              <Sparkles className="w-6 h-6" />
+            </span>
+            <div>
+              <p className="text-base font-bold text-slate-800">Pekerjaan apa yang diminta client?</p>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Tulis sebisanya — nanti aku tanya balik yang masih kurang jelas, maksimal {MAX_QUESTIONS} pertanyaan.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {STARTER_HINTS.map((h) => (
+                <button
+                  key={h}
+                  onClick={() => startChat(h)}
+                  className="text-left rounded-xl border border-slate-200/80 bg-white/70 hover:bg-blue-50 hover:border-blue-400 px-3 py-2 text-xs font-medium text-slate-600 transition-colors"
                 >
-                  {m.text}
-                </div>
+                  {h}
+                </button>
               ))}
             </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`rounded-2xl px-4 py-2.5 text-sm font-medium max-w-[85%] sm:max-w-xl whitespace-pre-wrap ${
+                  m.role === "assistant" ? "bg-blue-50 text-blue-900 self-start" : "bg-slate-800 text-white self-end"
+                }`}
+              >
+                {m.text}
+              </div>
+            ))}
 
             {loading && (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium self-start">
                 <Spinner size="sm" />
-                AI sedang menganalisa...
+                sedang menganalisa...
               </div>
             )}
 
-            {!done && !loading && answerType === "radio" && choices.length > 0 && (
-              <div className="space-y-2">
-                {choices.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => submitAnswer(c)}
-                    className="w-full text-left rounded-xl border border-slate-200/80 bg-white/70 hover:bg-blue-50 hover:border-blue-400 px-4 py-3 text-sm font-medium text-slate-700 transition-colors"
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Hasil penilaian bobot — muncul di dalam alur obrolan, bisa dikoreksi staf */}
+            {done && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 space-y-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Rincian Bobot &amp; Harga</p>
 
-            {!done && !loading && answerType === "checkbox" && choices.length > 0 && (
-              <div className="space-y-2">
-                {choices.map((c) => {
-                  const active = picked.includes(c)
+                {jobs.length === 0 && <p className="text-sm text-slate-500 font-medium">Belum ada pekerjaan — tambahkan manual kalau perlu.</p>}
+
+                {jobs.map((job) => {
+                  const poin = totalPoints(job.scores)
+                  const hargaSatuan = priceFromPoints(poin)
                   return (
-                    <button
-                      key={c}
-                      onClick={() => setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))}
-                      className={`w-full flex items-center gap-3 text-left rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
-                        active ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
-                        {active && <Check className="w-3.5 h-3.5 text-white" />}
-                      </span>
-                      {c}
-                    </button>
-                  )
-                })}
-                <Button onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
-                  Kirim Jawaban
-                </Button>
-              </div>
-            )}
-
-            {!done && !loading && answerType === "text" && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
-                  placeholder="Jawab pertanyaan AI di sini..."
-                  className="flex-1 h-12 rounded-xl border border-slate-200/80 bg-white/60 px-4 text-sm font-medium focus:outline-none focus:border-blue-600"
-                  autoFocus
-                />
-                <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-
-            {error && <Alert variant="error">{error}</Alert>}
-          </div>
-        </Card>
-      )}
-
-      {done && ringkasan && <Alert variant="info">{ringkasan}</Alert>}
-
-      {done && (
-        <>
-          <Card padding="lg">
-            <div className="space-y-4">
-              {jobs.length === 0 && <p className="text-sm text-slate-500 font-medium">AI tidak bisa menilai bobotnya — tambahkan manual kalau perlu.</p>}
-
-              {jobs.map((job) => {
-                const poin = totalPoints(job.scores)
-                const hargaSatuan = priceFromPoints(poin)
-                return (
-                  <div key={job.key} className="border-b border-slate-200/70 pb-4 last:border-0 last:pb-0">
-                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                      <button
-                        onClick={() => updateJob(job.key, { open: !job.open })}
-                        className="flex items-center gap-2 flex-1 text-left"
-                        aria-label="Lihat rincian bobot"
-                      >
-                        {job.open ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                        <span className="text-sm font-bold text-slate-800">{job.nama}</span>
-                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5">{poin} poin</span>
-                      </button>
-                      <div className="w-full sm:w-24">
+                    <div key={job.key} className="border-b border-slate-200/70 pb-3 last:border-0 last:pb-0">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                        <button onClick={() => updateJob(job.key, { open: !job.open })} className="flex items-center gap-2 flex-1 text-left min-w-0" aria-label="Lihat rincian bobot">
+                          {job.open ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+                          <span className="text-sm font-bold text-slate-800 truncate">{job.nama}</span>
+                          <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 flex-shrink-0">{poin} poin</span>
+                        </button>
                         <input
                           type="number"
                           min={1}
                           value={job.qty}
                           onChange={(e) => updateJob(job.key, { qty: Math.max(1, Number(e.target.value) || 1) })}
-                          className="w-full h-10 rounded-xl border border-slate-200/80 bg-white/60 px-3 text-sm font-medium focus:outline-none focus:border-blue-600"
+                          className="w-20 h-9 rounded-xl border border-slate-200/80 bg-white/60 px-3 text-sm font-medium focus:outline-none focus:border-blue-600"
                           aria-label="Qty"
                         />
+                        <span className="w-36 text-sm font-semibold text-slate-700">{formatRupiah(hargaSatuan * job.qty)}</span>
+                        <Button variant="ghost" size="sm" onClick={() => setJobs((prev) => prev.filter((j) => j.key !== job.key))} aria-label="Hapus pekerjaan">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <div className="w-full sm:w-44 text-sm font-semibold text-slate-700">{formatRupiah(hargaSatuan * job.qty)}</div>
-                      <Button variant="ghost" size="sm" onClick={() => setJobs((prev) => prev.filter((j) => j.key !== job.key))} aria-label="Hapus pekerjaan">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
 
-                    {job.alasan && !job.open && <p className="text-xs text-slate-500 italic mt-1 ml-6">AI: {job.alasan}</p>}
+                      {job.alasan && !job.open && <p className="text-xs text-slate-500 italic mt-1 ml-6">{job.alasan}</p>}
 
-                    {job.open && (
-                      <div className="mt-3 ml-6 space-y-3">
-                        {job.alasan && <p className="text-xs text-slate-500 italic">AI: {job.alasan}</p>}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                          {PARAMETER_CODES.map((code) => (
-                            <Select
-                              key={code}
-                              label={`${code}. ${RUBRIC[code].name}`}
-                              sizeVariant="sm"
-                              searchable={false}
-                              options={RUBRIC[code].options.map((o) => ({ value: o.code, label: `${o.label} (${o.points})` }))}
-                              value={job.scores[code]}
-                              onChange={(value) => updateScore(job.key, code, value)}
-                            />
-                          ))}
+                      {job.open && (
+                        <div className="mt-3 ml-6 space-y-3">
+                          {job.alasan && <p className="text-xs text-slate-500 italic">{job.alasan}</p>}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {PARAMETER_CODES.map((code) => (
+                              <Select
+                                key={code}
+                                label={`${code}. ${RUBRIC[code].name}`}
+                                sizeVariant="sm"
+                                searchable={false}
+                                options={RUBRIC[code].options.map((o) => ({ value: o.code, label: `${o.label} (${o.points})` }))}
+                                value={job.scores[code]}
+                                onChange={(value) => updateScore(job.key, code, value)}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                <Button variant="outline" size="sm" onClick={addJob}>
+                  <Plus className="w-4 h-4 mr-1" /> Tambah Pekerjaan Manual
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Composer / pilihan jawaban / panel simpan */}
+      <div className="border-t border-slate-200/70 bg-white/70 backdrop-blur-md px-5 py-3 flex-shrink-0 space-y-2.5">
+        {error && <Alert variant="error">{error}</Alert>}
+
+        {!started && (
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  startChat()
+                }
+              }}
+              rows={2}
+              placeholder="Tulis pekerjaan yang diminta client..."
+              className="flex-1 resize-none max-h-32 overflow-y-auto px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white/70 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            />
+            <Button onClick={() => startChat()} disabled={loading || !description.trim()}>
+              {loading ? <Spinner size="sm" color="white" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+        )}
+
+        {started && !done && !loading && answerType === "radio" && choices.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {choices.map((c) => (
+              <button
+                key={c}
+                onClick={() => submitAnswer(c)}
+                className="rounded-full border border-slate-200/80 bg-white/80 hover:bg-blue-50 hover:border-blue-400 px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 transition-colors text-left"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {started && !done && !loading && answerType === "checkbox" && choices.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {choices.map((c) => {
+                const active = picked.includes(c)
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm font-medium transition-colors ${
+                      active ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200/80 bg-white/80 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                      {active && <Check className="w-3 h-3 text-white" />}
+                    </span>
+                    {c}
+                  </button>
                 )
               })}
-
-              <Button variant="outline" size="sm" onClick={addJob}>
-                <Plus className="w-4 h-4 mr-1" /> Tambah Pekerjaan Manual
-              </Button>
             </div>
-          </Card>
+            <Button size="sm" onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
+              Kirim Jawaban
+            </Button>
+          </div>
+        )}
 
-          <Card padding="lg" variant="panel">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold text-slate-600">Total Estimasi</span>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {totalPoin} poin × {formatRupiah(POINT_VALUE_IDR)}/poin
-                </p>
-              </div>
-              <span className="text-2xl font-extrabold text-slate-900">{formatRupiah(total)}</span>
-            </div>
-          </Card>
+        {started && !done && !loading && answerType === "text" && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
+              placeholder="Ketik jawabanmu..."
+              className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white/70 px-4 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              autoFocus
+            />
+            <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
 
-          <Card padding="lg">
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-              <div className="flex-1">
-                <Input
-                  label="Nama client (opsional)"
-                  placeholder="Mis. PT Maju Jaya"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </div>
-              <Button onClick={saveSimulation} disabled={saving || saved || jobs.length === 0}>
-                {saving ? <Spinner size="sm" color="white" className="mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {saved ? "Tersimpan" : "Simpan Simulasi"}
-              </Button>
-            </div>
-            {saved && (
-              <p className="text-xs text-emerald-700 font-semibold mt-3">
-                Simulasi tersimpan — bisa dilihat di Acuan Level → tab Simulasi Kalkulator.
+        {done && (
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <div className="flex-1">
+              <p className="text-[11px] text-slate-500 font-semibold">
+                {totalPoin} poin × {formatRupiah(POINT_VALUE_IDR)}
               </p>
-            )}
-          </Card>
-        </>
-      )}
+              <p className="text-xl font-extrabold text-slate-900 leading-tight">{formatRupiah(total)}</p>
+            </div>
+            <div className="w-full sm:w-52">
+              <Input placeholder="Nama client (opsional)" sizeVariant="sm" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+            </div>
+            <Button onClick={saveSimulation} disabled={saving || saved || jobs.length === 0}>
+              {saving ? <Spinner size="sm" color="white" className="mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              {saved ? "Tersimpan" : "Simpan"}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

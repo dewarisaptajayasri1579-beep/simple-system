@@ -1,11 +1,9 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react"
-import { Alert, Button, Card } from "@/components/ui"
-import { PARAMETER_CODES, RUBRIC, labelForOption, type ParameterCode } from "@/lib/work-price/rubric"
+import { ChevronRight, MessageSquareText, Plus } from "lucide-react"
+import { Button, Card } from "@/components/ui"
 
 export interface SimulasiItemRow {
   id: string
@@ -38,31 +36,11 @@ function formatTanggal(iso: string): string {
 }
 
 export function SimulasiPanel({ rows }: { rows: SimulasiRow[] }) {
-  const router = useRouter()
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  async function hapus(id: string) {
-    setDeletingId(id)
-    setError(null)
-    try {
-      const res = await fetch(`/api/kalkulator-harga/simulasi/${id}`, { method: "DELETE" })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error ?? "Gagal menghapus")
-      router.refresh()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal menghapus")
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs sm:text-sm text-slate-600 font-medium">
-          Hasil diskusi dengan AI yang sudah disimpan — rincian pekerjaan, bobot, dan harganya.
+          Hasil diskusi dengan AI yang sudah disimpan — klik untuk lihat obrolan &amp; rincian bobotnya.
         </p>
         <Link href="/kalkulator-harga/hitung-harga">
           <Button size="sm">
@@ -71,69 +49,40 @@ export function SimulasiPanel({ rows }: { rows: SimulasiRow[] }) {
         </Link>
       </div>
 
-      {error && <Alert variant="error">{error}</Alert>}
-
       {rows.length === 0 ? (
-        <Card padding="lg" variant="feature">
+        <Card padding="lg" variant="feature" className="text-center">
+          <span className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-700 flex items-center justify-center mx-auto mb-3">
+            <MessageSquareText className="w-5 h-5" />
+          </span>
           <p className="text-sm font-semibold text-slate-700">Belum ada simulasi tersimpan.</p>
           <p className="text-xs text-slate-500 mt-1">
             Klik <strong>Simulasi Baru</strong> untuk mulai diskusi dengan AI — hasilnya bisa disimpan di sini.
           </p>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {rows.map((row) => {
-            const open = openId === row.id
-            return (
-              <Card key={row.id} padding="md">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <button onClick={() => setOpenId(open ? null : row.id)} className="flex items-start gap-2 flex-1 text-left">
-                    {open ? <ChevronDown className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />}
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">{row.title}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {row.clientName ? `${row.clientName} · ` : ""}
-                        {formatTanggal(row.createdAtIso)}
-                        {row.createdByName ? ` · ${row.createdByName}` : ""} · {row.items.length} pekerjaan · {row.totalPoints} poin
-                      </p>
-                    </div>
-                  </button>
-                  <div className="text-base font-extrabold text-slate-900 whitespace-nowrap">{formatRupiah(row.totalPrice)}</div>
-                  <Button variant="ghost" size="sm" onClick={() => hapus(row.id)} disabled={deletingId === row.id} aria-label="Hapus simulasi">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {open && (
-                  <div className="mt-4 ml-6 space-y-4">
-                    {row.summary && <p className="text-xs text-slate-600 italic">{row.summary}</p>}
-                    {row.items.map((item) => (
-                      <div key={item.id} className="border-t border-slate-200/70 pt-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-slate-800">
-                            {item.nama} {item.qty > 1 && <span className="text-slate-500">× {item.qty}</span>}
-                          </span>
-                          <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
-                            {item.points} poin · {formatRupiah(item.unitPrice * item.qty)}
-                          </span>
-                        </div>
-                        {item.reason && <p className="text-xs text-slate-500 italic mt-1">{item.reason}</p>}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-2">
-                          {PARAMETER_CODES.map((code) => (
-                            <div key={code} className="flex justify-between gap-2 text-xs">
-                              <span className="text-slate-500">{code}. {RUBRIC[code].name}</span>
-                              <span className="text-slate-700 font-medium text-right">{labelForOption(code as ParameterCode, item.scores[code] ?? "")}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+        <ul className="flex flex-col gap-1.5">
+          {rows.map((row) => (
+            <li key={row.id}>
+              <Link href={`/kalkulator-harga/simulasi/${row.id}`}>
+                <Card variant="solid" padding="sm" hoverable className="!rounded-2xl flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-700 flex items-center justify-center flex-shrink-0">
+                    <MessageSquareText className="w-4 h-4" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 truncate">{row.title}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
+                      {row.clientName ? `${row.clientName} · ` : ""}
+                      {formatTanggal(row.createdAtIso)}
+                      {row.createdByName ? ` · ${row.createdByName}` : ""} · {row.items.length} pekerjaan · {row.totalPoints} poin
+                    </p>
                   </div>
-                )}
-              </Card>
-            )
-          })}
-        </div>
+                  <span className="text-sm font-extrabold text-slate-900 whitespace-nowrap">{formatRupiah(row.totalPrice)}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                </Card>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
