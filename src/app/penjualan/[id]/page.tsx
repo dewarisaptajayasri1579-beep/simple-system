@@ -6,6 +6,7 @@ import { StatusBadge, type StatusBadgeType } from "@/components/ui/StatusBadge"
 import { PrintButton } from "@/components/penjualan/PrintButton"
 import { InvoiceWhatsAppButton } from "@/components/penjualan/InvoiceWhatsAppButton"
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
+import { PrincipleLampiranPrintable } from "@/components/blesscom/PrincipleLampiranPrintable"
 import { InvoicePostButton } from "@/components/penjualan/InvoicePostButton"
 import { InvoiceDeleteButton } from "@/components/penjualan/InvoiceDeleteButton"
 import { InvoiceEditableDetail } from "@/components/penjualan/InvoiceEditableDetail"
@@ -15,6 +16,7 @@ import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
 import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
 import { invoiceCashDue } from "@/lib/invoice-due"
+import { principleMonthLabel } from "@/lib/principle-billing"
 import { resolveUserNames } from "@/lib/user-names"
 import { AuditTrail } from "@/components/shared/AuditTrail"
 import { ArrowLeft } from "lucide-react"
@@ -35,7 +37,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const [invoice, settings] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
-      include: { client: true, lines: true, payments: { include: { account: true, payment: true }, orderBy: { paidAt: "asc" } } },
+      include: {
+        client: true,
+        lines: true,
+        payments: { include: { account: true, payment: true }, orderBy: { paidAt: "asc" } },
+        // Invoice Over Principle (menu Blesscom) — lampiran daftar principle ikut tercetak di
+        // halaman kedua, lihat PrincipleLampiranPrintable.
+        principleInvoice: { include: { company: { select: { name: true } }, items: { orderBy: { sortOrder: "asc" } } } },
+      },
     }),
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
   ])
@@ -171,6 +180,16 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         {/* Cuma tampil saat print (lihat .print-only di globals.css) — format nota sesuai
            referensi lama (nota/Format Nota.png), tidak pernah dilihat staf di layar. */}
         <NotaPrintable invoice={invoice} bank={bank} bankIntl={bankIntl} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
+        {invoice.principleInvoice && (
+          <PrincipleLampiranPrintable
+            invoiceNumber={invoice.invoiceNumber}
+            dateLabel={invoice.issuedAt.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" })}
+            clientName={invoice.client.name}
+            companyName={invoice.principleInvoice.company.name}
+            periodLabel={principleMonthLabel(invoice.principleInvoice.periodMonth)}
+            principles={invoice.principleInvoice.items.map((i) => ({ name: i.name, appUrl: i.appUrl }))}
+          />
+        )}
 
         {invoice.payments.length > 0 && (
           <Card variant="panel" padding="none" className="no-print">

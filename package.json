@@ -12,6 +12,7 @@
     "migrate:legacy-sales": "tsx scripts/migrate-legacy-sales.ts",
     "seed:owner": "tsx prisma/seed.ts",
     "seed:marketing": "tsx scripts/seed-marketing.ts",
+    "seed:principles": "tsx scripts/seed-principles.ts",
     "seed:slotting": "tsx scripts/seed-slotting.ts",
     "test": "vitest run",
     "test:watch": "vitest"

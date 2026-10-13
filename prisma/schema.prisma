@@ -448,6 +448,7 @@ model Client {
   servers           Server[]
   maintenances      Maintenance[]
   projects          Project[]
+  principleCompanies PrincipleCompany[]
   legacySalesClient LegacySalesClient? @relation(fields: [legacySalesClientId], references: [id])
 
   @@map("clients")
@@ -937,6 +938,7 @@ model Invoice {
   lines                  InvoiceLine[]
   payments               InvoicePayment[]
   projectPaymentSchedule ProjectPaymentSchedule?
+  principleInvoice       PrincipleInvoice?
 
   @@index([clientId])
   // Dipakai di SEMUA query piutang (`doubtfulAt: null`) — Dashboard, Piutang, Neraca, Arus Kas,
@@ -2682,5 +2684,125 @@ model MetaAdsAccount {
 
   @@index([isActive])
   @@map("meta_ads_accounts")
+  @@schema("simple_system")
+}
+
+/// Perusahaan yang model tagihannya "per principle" — isinya Blesscom & Blessfull (lihat menu
+/// Blesscom). Keduanya Client 7Smarts biasa; yang khusus cuma CARA hitung tagihan bulanannya:
+/// bukan harga flat seperti Maintenance, tapi jumlah principle (client-nya mereka) yang aktif
+/// di bulan itu dikali tabel tingkatan harga (PrinciplePriceTier).
+///
+/// `clientId` menunjuk Client yang ditagih — invoice Over Principle tetap Invoice biasa milik
+/// Client itu (tembus ke menu Invoice, Piutang, Pembayaran, laporan), bukan tagihan paralel.
+model PrincipleCompany {
+  id        String   @id @default(uuid())
+  name      String // "Blesscom" | "Blessfull"
+  clientId  String?  @map("client_id")
+  active    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client     Client?             @relation(fields: [clientId], references: [id])
+  principles Principle[]
+  priceTiers PrinciplePriceTier[]
+  invoices   PrincipleInvoice[]
+
+  @@index([clientId])
+  @@map("principle_companies")
+  @@schema("simple_system")
+}
+
+/// Satu principle = satu client-nya Blesscom/Blessfull, biasanya satu aplikasi
+/// (mis. "Cimory" → cimory.blesscomapps.com). Jumlah principle yang aktif di sebuah bulan =
+/// dasar hitungan tagihan bulan itu (lihat lib/principle-billing.ts).
+///
+/// `deactivatedAt` = tanggal non-aktif yang diisi staf saat menekan "Non Aktif". Aturannya:
+/// principle TIDAK ditagih mulai bulan tanggal non-aktif itu (bukan pro-rata, bukan ditagih
+/// penuh dulu) — jadi menonaktifkan 10 Okt berarti invoice Oktober sudah tanpa dia.
+model Principle {
+  id            String    @id @default(uuid())
+  companyId     String    @map("company_id")
+  name          String
+  appUrl        String?   @map("app_url")
+  /// Tanggal mulai berlangganan — diisi saat "Tambah", murni informasi (hitungan tagihan
+  /// pakai status aktif + deactivatedAt, lihat isPrincipleBillableForMonth).
+  startedAt     DateTime? @map("started_at")
+  active        Boolean   @default(true)
+  deactivatedAt DateTime? @map("deactivated_at")
+  sortOrder     Int       @default(0) @map("sort_order")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  company        PrincipleCompany         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceEntries PrincipleInvoiceItem[]
+
+  @@index([companyId, active])
+  @@index([companyId, sortOrder])
+  @@map("principles")
+  @@schema("simple_system")
+}
+
+/// Tingkatan harga per principle, per perusahaan — DIATUR DARI UI (bukan hardcode) karena tiap
+/// perusahaan beda kesepakatan: Blesscom 1–10 @500rb lalu 11+ @400rb (bertingkat/marginal),
+/// Blessfull semua @400rb sejak principle pertama. `label` dipakai apa adanya sebagai keterangan
+/// baris invoice. `toCount` null = tanpa batas atas.
+model PrinciplePriceTier {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  label     String
+  fromCount Int      @map("from_count") // 1-based, inklusif
+  toCount   Int?     @map("to_count") // inklusif; null = tak terbatas
+  unitPrice Float    @map("unit_price")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company PrincipleCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, fromCount])
+  @@map("principle_price_tiers")
+  @@schema("simple_system")
+}
+
+/// Header lampiran "Invoice Over Principle": menandai satu Invoice sebagai tagihan per-principle
+/// bulan tertentu, plus SNAPSHOT daftar principle yang ikut ditagih (PrincipleInvoiceItem).
+/// Snapshot, bukan join live, karena daftar principle berubah tiap bulan — lampiran yang sudah
+/// dicetak & dikirim ke client tidak boleh ikut berubah belakangan.
+model PrincipleInvoice {
+  id             String   @id @default(uuid())
+  invoiceId      String   @unique @map("invoice_id")
+  companyId      String   @map("company_id")
+  periodMonth    String   @map("period_month") // "YYYY-MM"
+  principleCount Int      @map("principle_count")
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  invoice Invoice                @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  company PrincipleCompany       @relation(fields: [companyId], references: [id])
+  items   PrincipleInvoiceItem[]
+
+  @@index([companyId, periodMonth])
+  @@map("principle_invoices")
+  @@schema("simple_system")
+}
+
+/// Satu baris lampiran daftar principle di sebuah Invoice Over Principle. `principleId` boleh
+/// null (principle-nya dihapus belakangan) — nama & link disimpan sebagai teks supaya lampiran
+/// lama tetap bisa dicetak utuh.
+model PrincipleInvoiceItem {
+  id                 String  @id @default(uuid())
+  principleInvoiceId String  @map("principle_invoice_id")
+  principleId        String? @map("principle_id")
+  name               String
+  appUrl             String? @map("app_url")
+  sortOrder          Int     @default(0) @map("sort_order")
+
+  principleInvoice PrincipleInvoice @relation(fields: [principleInvoiceId], references: [id], onDelete: Cascade)
+  principle        Principle?       @relation(fields: [principleId], references: [id])
+
+  @@index([principleInvoiceId])
+  @@index([principleId])
+  @@map("principle_invoice_items")
   @@schema("simple_system")
 }

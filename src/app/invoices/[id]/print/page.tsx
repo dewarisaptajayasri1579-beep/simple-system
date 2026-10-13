@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation"
 import { NotaPrintable } from "@/components/penjualan/NotaPrintable"
+import { PrincipleLampiranPrintable } from "@/components/blesscom/PrincipleLampiranPrintable"
 import { prisma } from "@/lib/prisma"
 import { invoiceVerifyUrl, qrCodeDataUrl } from "@/lib/verify-url"
+import { principleMonthLabel } from "@/lib/principle-billing"
 
 /** Halaman publik (tanpa login, tanpa AppLayout) yang cuma me-render NotaPrintable —
  *  satu-satunya tujuannya dibuka headless Chromium (lihat api/invoices/[id]/pdf/route.ts)
@@ -15,7 +17,13 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const [invoice, settings] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
-      include: { client: true, lines: true, payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } } },
+      include: {
+        client: true,
+        lines: true,
+        payments: { where: { OR: [{ paymentId: null }, { payment: { is: { postStatus: "posted" } } }] } },
+        // Invoice Over Principle (menu Blesscom) bawa lampiran daftar principle di halaman kedua.
+        principleInvoice: { include: { company: { select: { name: true } }, items: { orderBy: { sortOrder: "asc" } } } },
+      },
     }),
     prisma.settings.upsert({ where: { id: "default" }, update: {}, create: { id: "default" } }),
   ])
@@ -36,5 +44,19 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const qrDataUrl = await qrCodeDataUrl(invoiceVerifyUrl(invoice.invoiceNumber))
   const paid = invoice.payments.reduce((sum, p) => sum + p.amount, 0)
 
-  return <NotaPrintable invoice={invoice} bank={bank} bankIntl={bankIntl} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
+  return (
+    <>
+      <NotaPrintable invoice={invoice} bank={bank} bankIntl={bankIntl} qrDataUrl={qrDataUrl} paid={paid} dpAmount={invoice.dpAmount} />
+      {invoice.principleInvoice && (
+        <PrincipleLampiranPrintable
+          invoiceNumber={invoice.invoiceNumber}
+          dateLabel={invoice.issuedAt.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" })}
+          clientName={invoice.client.name}
+          companyName={invoice.principleInvoice.company.name}
+          periodLabel={principleMonthLabel(invoice.principleInvoice.periodMonth)}
+          principles={invoice.principleInvoice.items.map((i) => ({ name: i.name, appUrl: i.appUrl }))}
+        />
+      )}
+    </>
+  )
 }
