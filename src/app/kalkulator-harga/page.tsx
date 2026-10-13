@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ListChecks, Sparkles } from "lucide-react"
+import { Inbox, ListChecks, Sparkles } from "lucide-react"
 
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardDescription, CardTitle } from "@/components/ui"
@@ -17,6 +17,12 @@ const MENUS = [
     icon: Sparkles,
     title: "Hitung Harga",
     desc: "Tulis deskripsi pekerjaan request client, AI akan menganalisa dan memperkirakan harganya.",
+  },
+  {
+    href: "/kalkulator-harga/pengajuan",
+    icon: Inbox,
+    title: "Pengajuan Pekerjaan",
+    desc: "Pekerjaan yang diposting programmer lewat form — lengkap dengan bobot dan total harganya.",
   },
 ]
 

@@ -97,6 +97,17 @@ Format jawaban WAJIB ikut skema JSON:
 
 Bahasa Indonesia santai tapi profesional, seperti bicara ke rekan kerja.`
 
+/** Tambahan instruksi untuk form pengajuan yang diisi programmer. Programmer TIDAK boleh tahu
+ *  harga maupun kategori/level pricelist — penilaian bobot tetap jalan di balik layar, tapi yang
+ *  dia baca cuma konfirmasi bahwa pekerjaannya sudah dimengerti. */
+const FORM_MODE_PROMPT = `KONTEKS KHUSUS: lawan bicaramu adalah PROGRAMMER yang mencatat permintaan client, BUKAN staf penjualan.
+
+Aturan tambahan yang WAJIB dipatuhi:
+- JANGAN pernah menyebut harga, poin, bobot, biaya, kategori pricelist, atau nama level apa pun (mis. "LEV-2", "Transaksi LEV-3") di "pertanyaan" maupun "ringkasan". Programmer tidak boleh tahu soal harga.
+- "ringkasan" ditulis sebagai KONFIRMASI PEMAHAMAN: tulis ulang pekerjaannya dengan bahasa teknis yang jelas — apa yang dibuat, data apa yang terlibat, aturan/alurnya bagaimana — supaya programmer bisa mengoreksi kalau ada yang salah tangkap. 2-4 kalimat.
+- "alasan" tiap pekerjaan juga JANGAN menyebut level/harga; isi dengan ringkasan singkat ciri teknis pekerjaan itu.
+- Penilaian 8 parameter tetap kamu isi seperti biasa (itu dipakai sistem di balik layar), cuma jangan dibahas dalam kalimat ke programmer.`
+
 function buildOutputSchema() {
   const scoreProps: Record<string, unknown> = {}
   for (const code of PARAMETER_CODES) {
@@ -142,7 +153,8 @@ type RawJob = { nama: string; qty: number; alasan: string; acuan: string | null 
 export async function continueWorkPriceChat(
   history: WorkPriceChatTurn[],
   catalog: WorkPriceCatalogItem[],
-  questionsAsked: number
+  questionsAsked: number,
+  mode: "internal" | "form" = "internal"
 ): Promise<WorkPriceChatResult> {
   if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
 
@@ -158,6 +170,7 @@ export async function continueWorkPriceChat(
       { type: "text", text: SYSTEM_PROMPT },
       { type: "text", text: `RUBRIK BOBOT:\n\n${rubricText()}`, cache_control: { type: "ephemeral" } },
       { type: "text", text: `CONTOH PEKERJAAN TERKALIBRASI:\n${calibrationText(catalog)}`, cache_control: { type: "ephemeral" } },
+      ...(mode === "form" ? [{ type: "text" as const, text: FORM_MODE_PROMPT }] : []),
       { type: "text", text: statusNote },
     ],
     output_config: { format: { type: "json_schema", schema: buildOutputSchema() as unknown as Record<string, unknown> } },

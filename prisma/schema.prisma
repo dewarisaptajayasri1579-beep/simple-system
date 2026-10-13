@@ -2876,3 +2876,72 @@ model WorkPriceSimulationItem {
   @@map("work_price_simulation_items")
   @@schema("simple_system")
 }
+
+/// Pengaturan form pengajuan pekerjaan (1 baris, id "default"). Password dipakai BERSAMA semua
+/// programmer — identitas orangnya datang dari isian "Nama Programmer" di form, bukan dari akun.
+/// Password belum di-set = form ditutup.
+model WorkRequestSetting {
+  id           String   @id @default("default")
+  passwordHash String?  @map("password_hash")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("work_request_settings")
+  @@schema("simple_system")
+}
+
+/// Sesi akses form — melekat ke BROWSER yang sudah memasukkan password, bukan ke User. Sengaja
+/// tabel sendiri (bukan Session) supaya programmer tidak pernah punya akun di sistem internal,
+/// dan semua akses form bisa dicabut sekaligus dengan menghapus baris di sini.
+model WorkFormSession {
+  id        String   @id @default(uuid())
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("work_form_sessions")
+  @@schema("simple_system")
+}
+
+/// Satu pengajuan pekerjaan yang diisi programmer lewat form publik. Poin & harga TETAP dihitung
+/// dan disimpan di sini, tapi TIDAK pernah dikirim balik ke form — programmer tidak boleh tahu
+/// harga, cuma admin yang lihat setelah pengajuan di-posting.
+model WorkRequest {
+  id             String    @id @default(uuid())
+  clientName     String    @map("client_name")
+  programmerName String    @map("programmer_name")
+  /// "draft" (masih diisi, auto-save) | "posted" (sudah dikirim ke admin)
+  status         String    @default("draft")
+  postedAt       DateTime? @map("posted_at")
+  totalPoints    Float     @default(0) @map("total_points")
+  totalPrice     Int       @default(0) @map("total_price")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  items WorkRequestItem[]
+
+  @@index([status, createdAt])
+  @@map("work_requests")
+  @@schema("simple_system")
+}
+
+/// Satu pekerjaan di dalam pengajuan, beserta transkrip obrolan AI yang memperjelasnya.
+model WorkRequestItem {
+  id         String  @id @default(uuid())
+  requestId  String  @map("request_id")
+  nama       String
+  qty        Int     @default(1)
+  /// Ringkasan pemahaman AI atas pekerjaan ini — ini yang dilihat programmer (tanpa harga).
+  summary    String?
+  transcript Json?
+  scores     Json?
+  points     Float   @default(0)
+  unitPrice  Int     @default(0) @map("unit_price")
+  reason     String?
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  request WorkRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("work_request_items")
+  @@schema("simple_system")
+}
