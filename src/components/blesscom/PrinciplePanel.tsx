@@ -104,8 +104,12 @@ export const PrinciplePanel: React.FC<{
           />
         </div>
         {canEdit && companyId && (
-          <Button size="sm" className="whitespace-nowrap" onClick={() => setAddForm({ name: "", appUrl: "", startedAt: todayInputValue() })}>
-            <Plus className="w-4 h-4" /> Tambah Principle
+          <Button
+            size="sm"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setAddForm({ name: "", appUrl: "", startedAt: todayInputValue() })}
+          >
+            Tambah Principle
           </Button>
         )}
       </div>

@@ -124,8 +124,13 @@ export const PerusahaanPanel: React.FC<{
             </CardDescription>
           </div>
           {canEdit && (
-            <Button size="sm" onClick={() => setForm({ id: null, name: "", clientId: "" })} className="flex-shrink-0 whitespace-nowrap">
-              <Plus className="w-4 h-4" /> Tambah
+            <Button
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => setForm({ id: null, name: "", clientId: "" })}
+              className="flex-shrink-0"
+            >
+              Tambah
             </Button>
           )}
         </CardHeader>

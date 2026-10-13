@@ -88,8 +88,12 @@ export const BuatInvoicePrincipleButton: React.FC<{
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} disabled={lines.length === 0 || !clientId}>
-        <FileText className="w-4 h-4" /> Buat Invoice {monthLabel}
+      <Button
+        onClick={() => setOpen(true)}
+        disabled={lines.length === 0 || !clientId}
+        leftIcon={<FileText className="w-4 h-4" />}
+      >
+        Buat Invoice {monthLabel}
       </Button>
 
       <Modal
