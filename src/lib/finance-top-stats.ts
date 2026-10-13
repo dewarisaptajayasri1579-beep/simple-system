@@ -5,11 +5,6 @@ import { ensureBillingFollowUps, computeSlaStatus, type BillingFollowUpRef } fro
 import { jakartaRangeFromToday } from "@/lib/datetime"
 import { invoiceCashDue } from "@/lib/invoice-due"
 
-// TEMPORARY: sama dengan src/app/dashboard/page.tsx — Maintenance "Blesscom" dikecualikan dari
-// nominal "Tagihan Belum Ditagih" (pencatatan & alur penagihannya beda, belum ada menu khusus).
-// HAPUS baris ini begitu menu Tagihan Blesscom ada — sama-sama di dua tempat ini.
-const TEMP_EXCLUDED_BELUM_DITAGIH_IDS = new Set(["03d9eb5f-ffdb-4b48-9107-a85ce8de5c24"])
-
 export interface FinanceTopStats {
   totalOutstanding: number
   totalHeld: number
@@ -107,7 +102,6 @@ export async function getFinanceTopStats(): Promise<FinanceTopStats> {
 
   const belumDitagihNominal =
     dueItems
-      .filter((r) => !TEMP_EXCLUDED_BELUM_DITAGIH_IDS.has(r.id))
       .filter((r) => {
         const record = followUpByRef.get(`${r.refType}:${r.id}`)
         const sla = record ? computeSlaStatus(record) : null
