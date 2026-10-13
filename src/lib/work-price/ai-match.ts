@@ -154,7 +154,9 @@ export async function continueWorkPriceChat(
   history: WorkPriceChatTurn[],
   catalog: WorkPriceCatalogItem[],
   questionsAsked: number,
-  mode: "internal" | "form" = "internal"
+  mode: "internal" | "form" = "internal",
+  /** Override model — dipakai script perbandingan model (scripts/compare-ai-model.ts). */
+  modelOverride?: string
 ): Promise<WorkPriceChatResult> {
   if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
 
@@ -164,7 +166,7 @@ export async function continueWorkPriceChat(
       : `Kamu sudah bertanya ${questionsAsked}/${MAX_QUESTIONS} kali di obrolan ini.`
 
   const response = await anthropic.messages.create({
-    model: MODEL,
+    model: modelOverride ?? MODEL,
     max_tokens: MAX_TOKENS,
     system: [
       { type: "text", text: SYSTEM_PROMPT },
