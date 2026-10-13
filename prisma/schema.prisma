@@ -2819,6 +2819,12 @@ model WorkPriceItem {
   price       Int
   active      Boolean  @default(true)
   sortOrder   Int      @default(0) @map("sort_order")
+  /// Bobot pekerjaan dalam poin; harga = poin x tarif poin (lihat lib/work-price/rubric.ts).
+  /// Null untuk item yang harganya paket tetap (Setup Website/Android), bukan hasil hitung bobot.
+  weightPoints Float? @map("weight_points")
+  /// Skor per parameter rubrik, mis. { "P1": "one", "P2": "few", ... } — disimpan supaya rincian
+  /// "kenapa item ini sekian poin" bisa ditampilkan & dihitung ulang kalau rubriknya berubah.
+  weightDetail Json?  @map("weight_detail")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

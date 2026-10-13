@@ -11,6 +11,7 @@ export interface AcuanLevelRow {
   label: string
   description: string | null
   price: number
+  weightPoints: number | null
 }
 
 function formatRupiah(n: number): string {
@@ -70,6 +71,7 @@ export function AcuanLevelPanel({ items, canEdit }: { items: AcuanLevelRow[]; ca
                 <TableRow>
                   <TableHead>Level</TableHead>
                   <TableHead>Keterangan</TableHead>
+                  <TableHead className="w-20">Bobot</TableHead>
                   <TableHead>Harga</TableHead>
                   {canEdit && <TableHead>Aksi</TableHead>}
                 </TableRow>
@@ -86,6 +88,9 @@ export function AcuanLevelPanel({ items, canEdit }: { items: AcuanLevelRow[]; ca
                         ) : (
                           <span className="text-slate-600">{row.description ?? "-"}</span>
                         )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-slate-500">
+                        {row.weightPoints !== null ? `${row.weightPoints} poin` : "paket"}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {isEditing ? (

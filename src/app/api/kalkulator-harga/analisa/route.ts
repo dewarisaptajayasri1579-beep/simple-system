@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   const catalog = await prisma.workPriceItem.findMany({
     where: { active: true },
     orderBy: { sortOrder: "asc" },
+    select: { id: true, groupName: true, level: true, label: true, description: true, price: true, weightPoints: true, weightDetail: true },
   })
 
   const questionsAsked = history.filter((h) => h.role === "assistant").length

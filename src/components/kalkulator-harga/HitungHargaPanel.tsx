@@ -1,54 +1,47 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
-import { Plus, Send, Sparkles, Trash2 } from "lucide-react"
+import React, { useState } from "react"
+import { ChevronDown, ChevronRight, Plus, Send, Sparkles, Trash2 } from "lucide-react"
 import { Alert, Button, Card, Select, Spinner, Textarea } from "@/components/ui"
-
-export interface WorkPriceItemRow {
-  id: string
-  groupName: string
-  level: string | null
-  label: string
-  price: number
-}
-
-interface CartRow {
-  key: string
-  itemId: string
-  qty: number
-  alasan?: string
-}
+import { PARAMETER_CODES, POINT_VALUE_IDR, RUBRIC, priceFromPoints, totalPoints, type ParameterCode, type WeightScores } from "@/lib/work-price/rubric"
 
 interface ChatMessage {
   role: "user" | "assistant"
   text: string
 }
 
+interface JobRow {
+  key: string
+  nama: string
+  qty: number
+  scores: WeightScores
+  alasan?: string
+  open: boolean
+}
+
 const MAX_QUESTIONS = 5
+
+const EMPTY_SCORES: WeightScores = { P1: "none", P2: "none", P3: "none", P4: "none", P5: "none", P6: "none", P7: "display", P8: "reuse" }
 
 function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 }
 
-export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
+export function HitungHargaPanel() {
   const [description, setDescription] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [answer, setAnswer] = useState("")
-  const [rows, setRows] = useState<CartRow[]>([])
+  const [jobs, setJobs] = useState<JobRow[]>([])
   const [ringkasan, setRingkasan] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
-  const options = useMemo(
-    () => items.map((i) => ({ value: i.id, label: `${i.groupName}${i.level ? ` - ${i.level}` : ""} — ${formatRupiah(i.price)}` })),
-    [items]
-  )
-
-  const total = rows.reduce((sum, r) => sum + (itemsById.get(r.itemId)?.price ?? 0) * r.qty, 0)
   const questionsAsked = messages.filter((m) => m.role === "assistant").length
   const started = messages.length > 0
+
+  const totalPoin = jobs.reduce((sum, j) => sum + totalPoints(j.scores) * j.qty, 0)
+  const total = jobs.reduce((sum, j) => sum + priceFromPoints(totalPoints(j.scores)) * j.qty, 0)
 
   async function sendToAi(history: ChatMessage[]) {
     setLoading(true)
@@ -67,12 +60,16 @@ export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
         return
       }
 
-      // status selesai
-      const matched: CartRow[] = (body.items as { itemId: string; qty: number; alasan: string }[])
-        .filter((it) => itemsById.has(it.itemId))
-        .map((it) => ({ key: crypto.randomUUID(), itemId: it.itemId, qty: Math.max(1, Math.round(it.qty) || 1), alasan: it.alasan }))
+      const scored: JobRow[] = (body.pekerjaan as { nama: string; qty: number; scores: WeightScores; alasan: string }[]).map((j) => ({
+        key: crypto.randomUUID(),
+        nama: j.nama,
+        qty: j.qty,
+        scores: j.scores,
+        alasan: j.alasan,
+        open: false,
+      }))
       setMessages([...history, { role: "assistant", text: body.ringkasan || "Selesai." }])
-      setRows(matched)
+      setJobs(scored)
       setRingkasan(body.ringkasan ?? null)
       setDone(true)
     } catch (e) {
@@ -86,7 +83,7 @@ export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
     if (!description.trim()) return
     const history: ChatMessage[] = [{ role: "user", text: description }]
     setMessages(history)
-    setRows([])
+    setJobs([])
     setRingkasan(null)
     setDone(false)
     await sendToAi(history)
@@ -104,22 +101,22 @@ export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
     setDescription("")
     setMessages([])
     setAnswer("")
-    setRows([])
+    setJobs([])
     setRingkasan(null)
     setDone(false)
     setError(null)
   }
 
-  function addRow() {
-    setRows((prev) => [...prev, { key: crypto.randomUUID(), itemId: items[0]?.id ?? "", qty: 1 }])
+  function updateJob(key: string, patch: Partial<JobRow>) {
+    setJobs((prev) => prev.map((j) => (j.key === key ? { ...j, ...patch } : j)))
   }
 
-  function removeRow(key: string) {
-    setRows((prev) => prev.filter((r) => r.key !== key))
+  function updateScore(key: string, code: ParameterCode, optionCode: string) {
+    setJobs((prev) => prev.map((j) => (j.key === key ? { ...j, scores: { ...j.scores, [code]: optionCode } } : j)))
   }
 
-  function updateRow(key: string, patch: Partial<CartRow>) {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  function addJob() {
+    setJobs((prev) => [...prev, { key: crypto.randomUUID(), nama: "Pekerjaan baru", qty: 1, scores: { ...EMPTY_SCORES }, open: true }])
   }
 
   return (
@@ -156,7 +153,10 @@ export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
             <div className="space-y-3">
               <div className="rounded-2xl bg-slate-100/80 px-4 py-3 text-sm font-medium text-slate-700 max-w-xl">{description}</div>
               {messages.slice(1).map((m, i) => (
-                <div key={i} className={`rounded-2xl px-4 py-3 text-sm font-medium max-w-xl ${m.role === "assistant" ? "bg-blue-50 text-blue-900 ml-0" : "bg-slate-100/80 text-slate-700 ml-auto"}`}>
+                <div
+                  key={i}
+                  className={`rounded-2xl px-4 py-3 text-sm font-medium max-w-xl ${m.role === "assistant" ? "bg-blue-50 text-blue-900" : "bg-slate-100/80 text-slate-700 ml-auto"}`}
+                >
                   {m.text}
                 </div>
               ))}
@@ -197,45 +197,75 @@ export function HitungHargaPanel({ items }: { items: WorkPriceItemRow[] }) {
         <>
           <Card padding="lg">
             <div className="space-y-4">
-              {rows.length === 0 && <p className="text-sm text-slate-500 font-medium">AI tidak menemukan item yang cocok — tambahkan manual kalau perlu.</p>}
-              {rows.map((row) => {
-                const item = itemsById.get(row.itemId)
-                const subtotal = (item?.price ?? 0) * row.qty
+              {jobs.length === 0 && <p className="text-sm text-slate-500 font-medium">AI tidak bisa menilai bobotnya — tambahkan manual kalau perlu.</p>}
+
+              {jobs.map((job) => {
+                const poin = totalPoints(job.scores)
+                const hargaSatuan = priceFromPoints(poin)
                 return (
-                  <div key={row.key} className="flex flex-col gap-2 border-b border-slate-200/70 pb-4 last:border-0 last:pb-0">
-                    <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                      <div className="flex-1">
-                        <Select label="Jenis Pekerjaan" options={options} value={row.itemId} onChange={(value) => updateRow(row.key, { itemId: value })} />
-                      </div>
-                      <div className="w-full sm:w-28">
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Qty</label>
+                  <div key={job.key} className="border-b border-slate-200/70 pb-4 last:border-0 last:pb-0">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <button
+                        onClick={() => updateJob(job.key, { open: !job.open })}
+                        className="flex items-center gap-2 flex-1 text-left"
+                        aria-label="Lihat rincian bobot"
+                      >
+                        {job.open ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                        <span className="text-sm font-bold text-slate-800">{job.nama}</span>
+                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5">{poin} poin</span>
+                      </button>
+                      <div className="w-full sm:w-24">
                         <input
                           type="number"
                           min={1}
-                          value={row.qty}
-                          onChange={(e) => updateRow(row.key, { qty: Math.max(1, Number(e.target.value) || 1) })}
-                          className="w-full h-12 rounded-xl border border-slate-200/80 bg-white/60 px-3 text-sm font-medium focus:outline-none focus:border-blue-600"
+                          value={job.qty}
+                          onChange={(e) => updateJob(job.key, { qty: Math.max(1, Number(e.target.value) || 1) })}
+                          className="w-full h-10 rounded-xl border border-slate-200/80 bg-white/60 px-3 text-sm font-medium focus:outline-none focus:border-blue-600"
+                          aria-label="Qty"
                         />
                       </div>
-                      <div className="w-full sm:w-44 text-sm font-semibold text-slate-700 sm:pb-3">{formatRupiah(subtotal)}</div>
-                      <Button variant="ghost" size="sm" onClick={() => removeRow(row.key)} aria-label="Hapus baris">
+                      <div className="w-full sm:w-44 text-sm font-semibold text-slate-700">{formatRupiah(hargaSatuan * job.qty)}</div>
+                      <Button variant="ghost" size="sm" onClick={() => setJobs((prev) => prev.filter((j) => j.key !== job.key))} aria-label="Hapus pekerjaan">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    {row.alasan && <p className="text-xs text-slate-500 italic">AI: {row.alasan}</p>}
+
+                    {job.alasan && !job.open && <p className="text-xs text-slate-500 italic mt-1 ml-6">AI: {job.alasan}</p>}
+
+                    {job.open && (
+                      <div className="mt-3 ml-6 space-y-3">
+                        {job.alasan && <p className="text-xs text-slate-500 italic">AI: {job.alasan}</p>}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                          {PARAMETER_CODES.map((code) => (
+                            <Select
+                              key={code}
+                              label={`${code}. ${RUBRIC[code].name}`}
+                              sizeVariant="sm"
+                              searchable={false}
+                              options={RUBRIC[code].options.map((o) => ({ value: o.code, label: `${o.label} (${o.points})` }))}
+                              value={job.scores[code]}
+                              onChange={(value) => updateScore(job.key, code, value)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
 
-              <Button variant="outline" size="sm" onClick={addRow}>
-                <Plus className="w-4 h-4 mr-1" /> Tambah Manual
+              <Button variant="outline" size="sm" onClick={addJob}>
+                <Plus className="w-4 h-4 mr-1" /> Tambah Pekerjaan Manual
               </Button>
             </div>
           </Card>
 
           <Card padding="lg" variant="panel">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-600">Total Estimasi</span>
+              <div>
+                <span className="text-sm font-semibold text-slate-600">Total Estimasi</span>
+                <p className="text-xs text-slate-500 mt-0.5">{totalPoin} poin × {formatRupiah(POINT_VALUE_IDR)}/poin</p>
+              </div>
               <span className="text-2xl font-extrabold text-slate-900">{formatRupiah(total)}</span>
             </div>
           </Card>
