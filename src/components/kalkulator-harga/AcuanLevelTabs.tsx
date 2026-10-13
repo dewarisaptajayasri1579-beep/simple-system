@@ -3,14 +3,24 @@
 import React from "react"
 import { AcuanLevelPanel, type AcuanLevelRow } from "@/components/kalkulator-harga/AcuanLevelPanel"
 import { RubrikBobotPanel } from "@/components/kalkulator-harga/RubrikBobotPanel"
+import { SimulasiPanel, type SimulasiRow } from "@/components/kalkulator-harga/SimulasiPanel"
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from "@/components/ui"
 
-export function AcuanLevelTabs({ items, canEdit }: { items: AcuanLevelRow[]; canEdit: boolean }) {
+export function AcuanLevelTabs({
+  items,
+  simulations,
+  canEdit,
+}: {
+  items: AcuanLevelRow[]
+  simulations: SimulasiRow[]
+  canEdit: boolean
+}) {
   return (
     <Tabs defaultValue="rubrik">
       <TabList>
         <Tab value="rubrik">Rubrik Bobot</Tab>
         <Tab value="contoh">Contoh per Kategori</Tab>
+        <Tab value="simulasi">Simulasi Kalkulator</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="rubrik">
@@ -18,6 +28,9 @@ export function AcuanLevelTabs({ items, canEdit }: { items: AcuanLevelRow[]; can
         </TabPanel>
         <TabPanel value="contoh">
           <AcuanLevelPanel items={items} canEdit={canEdit} />
+        </TabPanel>
+        <TabPanel value="simulasi">
+          <SimulasiPanel rows={simulations} />
         </TabPanel>
       </TabPanels>
     </Tabs>

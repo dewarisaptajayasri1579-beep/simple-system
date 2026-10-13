@@ -45,8 +45,12 @@ export type WorkPriceScoredJob = {
   subtotal: number
 }
 
+/** Cara staf menjawab pertanyaan AI. "radio" = pilih satu, "checkbox" = boleh pilih beberapa,
+ *  "text" = ketik bebas (dipakai kalau pertanyaannya memang tidak bisa dibuat pilihan). */
+export type WorkPriceAnswerType = "radio" | "checkbox" | "text"
+
 export type WorkPriceChatResult =
-  | { status: "tanya"; pertanyaan: string }
+  | { status: "tanya"; pertanyaan: string; tipeJawaban: WorkPriceAnswerType; pilihan: string[] }
   | { status: "selesai"; pekerjaan: WorkPriceScoredJob[]; ringkasan: string; totalPoin: number; total: number }
 
 function rubricText(): string {
@@ -77,6 +81,10 @@ Harga TIDAK dipilih dari daftar, tapi DIHITUNG dari bobot pekerjaan. Tugasmu: ga
 Cara kerja:
 1. Staf kasih deskripsi awal pekerjaan — biasanya kurang detail untuk menilai semua parameter dengan yakin.
 2. Kalau masih ada parameter penting yang belum jelas, ajukan SATU pertanyaan yang paling menentukan harga. Boleh gabung 2 parameter dalam 1 pertanyaan kalau nyambung. Pertanyaan harus konkret & gampang dijawab singkat.
+2b. SELALU sediakan pilihan jawaban supaya staf tinggal klik, jangan suruh mengetik kalau tidak perlu:
+   - "radio" (pilih satu) untuk pertanyaan yang jawabannya saling meniadakan — ini yang PALING SERING dipakai. Isi "pilihan" dengan 2-5 jawaban yang mencerminkan opsi parameter terkait, ditulis dalam bahasa staf (bukan kode parameter). Selalu sisipkan opsi "Belum tahu / tentukan saja yang wajar" kalau masuk akal.
+   - "checkbox" (boleh beberapa) untuk pertanyaan "apa saja yang dibutuhkan".
+   - "text" HANYA kalau jawabannya benar-benar tidak bisa dibuat pilihan (mis. minta sebutkan nama data). Untuk "text", kosongkan "pilihan".
 3. Kamu HANYA boleh bertanya maksimal ${MAX_QUESTIONS} kali total. Sistem kasih tahu tiap giliran sudah berapa kali kamu bertanya. Begitu mentok, WAJIB langsung simpulkan dengan asumsi paling masuk akal dari jawaban yang ada.
 4. Parameter yang sudah jelas dari deskripsi JANGAN ditanyakan lagi — simpulkan sendiri.
 5. Saat menyimpulkan: pecah jadi beberapa unit pekerjaan kalau deskripsi menyebut beberapa kebutuhan terpisah (mis. "master data supplier + laporan penjualan" = 2 unit). Tiap unit dinilai 8 parameternya sendiri.
@@ -84,8 +92,8 @@ Cara kerja:
 7. "alasan" tiap unit: 1 kalimat, sebut parameter yang paling menentukan dan kenapa, merujuk ke jawaban staf.
 
 Format jawaban WAJIB ikut skema JSON:
-- status "tanya": isi "pertanyaan", kosongkan "pekerjaan" (array kosong) dan "ringkasan" (string kosong).
-- status "selesai": kosongkan "pertanyaan" (string kosong), isi "pekerjaan" dan "ringkasan".
+- status "tanya": isi "pertanyaan", "tipeJawaban", dan "pilihan"; kosongkan "pekerjaan" (array kosong) dan "ringkasan" (string kosong).
+- status "selesai": kosongkan "pertanyaan" (string kosong), "pilihan" (array kosong), isi "pekerjaan" dan "ringkasan".
 
 Bahasa Indonesia santai tapi profesional, seperti bicara ke rekan kerja.`
 
@@ -98,10 +106,16 @@ function buildOutputSchema() {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["status", "pertanyaan", "pekerjaan", "ringkasan"],
+    required: ["status", "pertanyaan", "tipeJawaban", "pilihan", "pekerjaan", "ringkasan"],
     properties: {
       status: { type: "string", enum: ["tanya", "selesai"], description: "'tanya' kalau masih perlu klarifikasi, 'selesai' kalau sudah bisa dinilai." },
       pertanyaan: { type: "string", description: "Satu pertanyaan klarifikasi. String kosong kalau status 'selesai'." },
+      tipeJawaban: { type: "string", enum: ["radio", "checkbox", "text"], description: "Cara staf menjawab: radio (pilih satu), checkbox (boleh beberapa), text (ketik bebas)." },
+      pilihan: {
+        type: "array",
+        description: "Pilihan jawaban dalam bahasa staf. Kosongkan untuk tipeJawaban 'text' atau status 'selesai'.",
+        items: { type: "string" },
+      },
       pekerjaan: {
         type: "array",
         description: "Unit pekerjaan beserta skor bobotnya. Array kosong kalau status 'tanya'.",
@@ -159,7 +173,14 @@ export async function continueWorkPriceChat(
 
   if (!text.trim()) throw new Error("Model tidak mengembalikan hasil analisa")
 
-  const parsed = JSON.parse(text) as { status: "tanya" | "selesai"; pertanyaan: string; pekerjaan: RawJob[]; ringkasan: string }
+  const parsed = JSON.parse(text) as {
+    status: "tanya" | "selesai"
+    pertanyaan: string
+    tipeJawaban: WorkPriceAnswerType
+    pilihan: string[]
+    pekerjaan: RawJob[]
+    ringkasan: string
+  }
 
   // Jaring pengaman: kalau model tetap ngotot nanya padahal sudah mentok limit, paksa selesai
   // supaya staf tidak kejebak obrolan tanpa akhir.
@@ -167,7 +188,13 @@ export async function continueWorkPriceChat(
     return { status: "selesai", pekerjaan: [], ringkasan: "Belum cukup yakin menilai bobotnya dari jawaban yang ada — perlu dicek manual oleh staf/Owner.", totalPoin: 0, total: 0 }
   }
 
-  if (parsed.status === "tanya") return { status: "tanya", pertanyaan: parsed.pertanyaan }
+  if (parsed.status === "tanya") {
+    const pilihan = (parsed.pilihan ?? []).filter((p) => p.trim())
+    // Model kadang bilang "radio"/"checkbox" tapi lupa mengisi pilihannya — jatuhkan ke input
+    // teks daripada menampilkan daftar pilihan kosong yang bikin staf mentok.
+    const tipeJawaban: WorkPriceAnswerType = parsed.tipeJawaban === "text" || pilihan.length === 0 ? "text" : parsed.tipeJawaban
+    return { status: "tanya", pertanyaan: parsed.pertanyaan, tipeJawaban, pilihan }
+  }
 
   const pekerjaan: WorkPriceScoredJob[] = (parsed.pekerjaan ?? []).map((job) => {
     const scores = Object.fromEntries(PARAMETER_CODES.map((code) => [code, String(job[code] ?? "")])) as WeightScores

@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState } from "react"
-import { ChevronDown, ChevronRight, Plus, Send, Sparkles, Trash2 } from "lucide-react"
-import { Alert, Button, Card, Select, Spinner, Textarea } from "@/components/ui"
+import { useRouter } from "next/navigation"
+import { Check, ChevronDown, ChevronRight, Plus, Save, Send, Sparkles, Trash2 } from "lucide-react"
+import { Alert, Button, Card, Input, Select, Spinner, Textarea } from "@/components/ui"
 import { PARAMETER_CODES, POINT_VALUE_IDR, RUBRIC, priceFromPoints, totalPoints, type ParameterCode, type WeightScores } from "@/lib/work-price/rubric"
 
 interface ChatMessage {
@@ -19,6 +20,8 @@ interface JobRow {
   open: boolean
 }
 
+type AnswerType = "radio" | "checkbox" | "text"
+
 const MAX_QUESTIONS = 5
 
 const EMPTY_SCORES: WeightScores = { P1: "none", P2: "none", P3: "none", P4: "none", P5: "none", P6: "none", P7: "display", P8: "reuse" }
@@ -28,14 +31,22 @@ function formatRupiah(n: number): string {
 }
 
 export function HitungHargaPanel() {
+  const router = useRouter()
   const [description, setDescription] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [answerType, setAnswerType] = useState<AnswerType>("text")
+  const [choices, setChoices] = useState<string[]>([])
+  const [picked, setPicked] = useState<string[]>([])
   const [answer, setAnswer] = useState("")
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [ringkasan, setRingkasan] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [clientName, setClientName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const questionsAsked = messages.filter((m) => m.role === "assistant").length
   const started = messages.length > 0
@@ -57,6 +68,10 @@ export function HitungHargaPanel() {
 
       if (body.status === "tanya") {
         setMessages([...history, { role: "assistant", text: body.pertanyaan }])
+        setAnswerType((body.tipeJawaban as AnswerType) ?? "text")
+        setChoices(body.pilihan ?? [])
+        setPicked([])
+        setAnswer("")
         return
       }
 
@@ -71,6 +86,7 @@ export function HitungHargaPanel() {
       setMessages([...history, { role: "assistant", text: body.ringkasan || "Selesai." }])
       setJobs(scored)
       setRingkasan(body.ringkasan ?? null)
+      setChoices([])
       setDone(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal menganalisa")
@@ -86,14 +102,18 @@ export function HitungHargaPanel() {
     setJobs([])
     setRingkasan(null)
     setDone(false)
+    setSaved(false)
     await sendToAi(history)
   }
 
-  async function sendAnswer() {
-    if (!answer.trim()) return
-    const history: ChatMessage[] = [...messages, { role: "user", text: answer }]
+  async function submitAnswer(textOverride?: string) {
+    const text = (textOverride ?? answer).trim()
+    if (!text) return
+    const history: ChatMessage[] = [...messages, { role: "user", text }]
     setMessages(history)
     setAnswer("")
+    setPicked([])
+    setChoices([])
     await sendToAi(history)
   }
 
@@ -101,10 +121,14 @@ export function HitungHargaPanel() {
     setDescription("")
     setMessages([])
     setAnswer("")
+    setChoices([])
+    setPicked([])
     setJobs([])
     setRingkasan(null)
     setDone(false)
     setError(null)
+    setClientName("")
+    setSaved(false)
   }
 
   function updateJob(key: string, patch: Partial<JobRow>) {
@@ -119,13 +143,43 @@ export function HitungHargaPanel() {
     setJobs((prev) => [...prev, { key: crypto.randomUUID(), nama: "Pekerjaan baru", qty: 1, scores: { ...EMPTY_SCORES }, open: true }])
   }
 
+  async function saveSimulation() {
+    if (jobs.length === 0) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/kalkulator-harga/simulasi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: description.slice(0, 160),
+          summary: ringkasan,
+          clientName: clientName || null,
+          transcript: messages,
+          items: jobs.map((j) => {
+            const points = totalPoints(j.scores)
+            return { nama: j.nama, qty: j.qty, scores: j.scores, points, unitPrice: priceFromPoints(points), reason: j.alasan ?? null }
+          }),
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? "Gagal menyimpan simulasi")
+      setSaved(true)
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan simulasi")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {!started ? (
         <Card padding="lg">
           <div className="space-y-4">
             <Textarea
-              label="Tulis Pekerjaan"
+              label="Pekerjaan apa yang diminta client?"
               placeholder="Contoh: Client minta bikin master data supplier, lalu laporan penjualan bulanan per sales dengan grafik."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -169,18 +223,57 @@ export function HitungHargaPanel() {
               </div>
             )}
 
-            {!done && !loading && (
+            {!done && !loading && answerType === "radio" && choices.length > 0 && (
+              <div className="space-y-2">
+                {choices.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => submitAnswer(c)}
+                    className="w-full text-left rounded-xl border border-slate-200/80 bg-white/70 hover:bg-blue-50 hover:border-blue-400 px-4 py-3 text-sm font-medium text-slate-700 transition-colors"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!done && !loading && answerType === "checkbox" && choices.length > 0 && (
+              <div className="space-y-2">
+                {choices.map((c) => {
+                  const active = picked.includes(c)
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))}
+                      className={`w-full flex items-center gap-3 text-left rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
+                        active ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200/80 bg-white/70 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                        {active && <Check className="w-3.5 h-3.5 text-white" />}
+                      </span>
+                      {c}
+                    </button>
+                  )
+                })}
+                <Button onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
+                  Kirim Jawaban
+                </Button>
+              </div>
+            )}
+
+            {!done && !loading && answerType === "text" && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendAnswer()}
+                  onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
                   placeholder="Jawab pertanyaan AI di sini..."
                   className="flex-1 h-12 rounded-xl border border-slate-200/80 bg-white/60 px-4 text-sm font-medium focus:outline-none focus:border-blue-600"
                   autoFocus
                 />
-                <Button onClick={sendAnswer} disabled={!answer.trim()}>
+                <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
@@ -264,10 +357,34 @@ export function HitungHargaPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-sm font-semibold text-slate-600">Total Estimasi</span>
-                <p className="text-xs text-slate-500 mt-0.5">{totalPoin} poin × {formatRupiah(POINT_VALUE_IDR)}/poin</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {totalPoin} poin × {formatRupiah(POINT_VALUE_IDR)}/poin
+                </p>
               </div>
               <span className="text-2xl font-extrabold text-slate-900">{formatRupiah(total)}</span>
             </div>
+          </Card>
+
+          <Card padding="lg">
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div className="flex-1">
+                <Input
+                  label="Nama client (opsional)"
+                  placeholder="Mis. PT Maju Jaya"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <Button onClick={saveSimulation} disabled={saving || saved || jobs.length === 0}>
+                {saving ? <Spinner size="sm" color="white" className="mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {saved ? "Tersimpan" : "Simpan Simulasi"}
+              </Button>
+            </div>
+            {saved && (
+              <p className="text-xs text-emerald-700 font-semibold mt-3">
+                Simulasi tersimpan — bisa dilihat di Acuan Level → tab Simulasi Kalkulator.
+              </p>
+            )}
           </Card>
         </>
       )}

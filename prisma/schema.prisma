@@ -2832,3 +2832,47 @@ model WorkPriceItem {
   @@map("work_price_items")
   @@schema("simple_system")
 }
+
+/// Hasil simulasi Kalkulator Harga yang disimpan staf — satu baris = satu sesi obrolan dengan
+/// AI yang sudah selesai. `transcript` menyimpan percakapannya supaya bisa dibuka & ditelusuri
+/// lagi ("kenapa dulu dihargai segini"), karena rubrik bisa berubah di kemudian hari.
+model WorkPriceSimulation {
+  id          String   @id @default(uuid())
+  title       String
+  summary     String?
+  clientName  String?  @map("client_name")
+  totalPoints Float    @map("total_points")
+  totalPrice  Int      @map("total_price")
+  transcript  Json?
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items WorkPriceSimulationItem[]
+
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("work_price_simulations")
+  @@schema("simple_system")
+}
+
+/// Satu unit pekerjaan di dalam sebuah simulasi, lengkap dengan skor 8 parameternya. Poin &
+/// harga ikut disnapshot (bukan dihitung ulang dari rubrik saat dibaca) supaya simulasi lama
+/// tetap menunjukkan angka yang dulu disepakati walau rubrik/tarif poin sudah berubah.
+model WorkPriceSimulationItem {
+  id           String  @id @default(uuid())
+  simulationId String  @map("simulation_id")
+  nama         String
+  qty          Int     @default(1)
+  scores       Json
+  points       Float
+  unitPrice    Int     @map("unit_price")
+  reason       String?
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  simulation WorkPriceSimulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+
+  @@index([simulationId])
+  @@map("work_price_simulation_items")
+  @@schema("simple_system")
+}
