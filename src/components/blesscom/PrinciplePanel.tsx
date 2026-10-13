@@ -92,16 +92,19 @@ export const PrinciplePanel: React.FC<{
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <Select
-          label="Perusahaan"
-          sizeVariant="sm"
-          options={companies.map((c) => ({ value: c.id, label: c.name }))}
-          value={companyId}
-          onChange={(v) => router.push(`${pathname}?companyId=${v}`)}
-          className="min-w-56"
-        />
+        {/* Select-nya w-full bawaan — dibungkus div berlebar tetap, kalau tidak dia mendorong
+            tombol Tambah ke baris berikutnya. */}
+        <div className="w-full sm:w-64">
+          <Select
+            label="Perusahaan"
+            sizeVariant="sm"
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            value={companyId}
+            onChange={(v) => router.push(`${pathname}?companyId=${v}`)}
+          />
+        </div>
         {canEdit && companyId && (
-          <Button size="sm" onClick={() => setAddForm({ name: "", appUrl: "", startedAt: todayInputValue() })}>
+          <Button size="sm" className="whitespace-nowrap" onClick={() => setAddForm({ name: "", appUrl: "", startedAt: todayInputValue() })}>
             <Plus className="w-4 h-4" /> Tambah Principle
           </Button>
         )}
@@ -159,7 +162,9 @@ export const PrinciplePanel: React.FC<{
                     ) : (
                       <div className="flex flex-col gap-0.5">
                         <Badge variant="secondary" size="sm">Non Aktif</Badge>
-                        <span className="text-[11px] text-slate-400">sejak {formatTanggal(p.deactivatedAtIso)}</span>
+                        {p.deactivatedAtIso && (
+                          <span className="text-[11px] text-slate-400">sejak {formatTanggal(p.deactivatedAtIso)}</span>
+                        )}
                       </div>
                     )}
                   </TableCell>

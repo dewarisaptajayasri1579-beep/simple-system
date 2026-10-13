@@ -2806,3 +2806,22 @@ model PrincipleInvoiceItem {
   @@map("principle_invoice_items")
   @@schema("simple_system")
 }
+
+/// Master pricelist pekerjaan custom request client (bukan paket standar) — dasar untuk menu
+/// Kalkulator Harga Pekerjaan. `groupName` = kategori ("Master Data", "Transaksi", dst),
+/// `level` opsional (null untuk item yang tidak bertingkat, mis. "Setup Website").
+model WorkPriceItem {
+  id        String   @id @default(uuid())
+  groupName String   @map("group_name")
+  level     String?
+  label     String
+  price     Int
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([groupName])
+  @@map("work_price_items")
+  @@schema("simple_system")
+}

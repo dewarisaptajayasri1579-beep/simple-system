@@ -19,6 +19,7 @@ import {
   ListChecks,
   ActivitySquare,
   Building2,
+  Calculator,
 } from "lucide-react";
 
 export interface NavItem {
@@ -75,6 +76,7 @@ export const navItems: NavItem[] = [
   { label: "Monitoring Keuangan", href: "/monitoring-keuangan", icon: <ActivitySquare className="w-5 h-5" /> },
   { label: "Proyek", href: "/proyek", icon: <FolderKanban className="w-5 h-5" /> },
   { label: "Blesscom", href: "/blesscom", icon: <Building2 className="w-5 h-5" /> },
+  { label: "Kalkulator Harga", href: "/kalkulator-harga", icon: <Calculator className="w-5 h-5" /> },
   { label: "Laporan", href: "/laporan", icon: <BarChart2 className="w-5 h-5" /> },
   { label: "Akuntansi", href: "/akuntansi", icon: <BookOpen className="w-5 h-5" /> },
   { label: "Pengaturan", href: "/pengaturan", icon: <Settings className="w-5 h-5" /> },
