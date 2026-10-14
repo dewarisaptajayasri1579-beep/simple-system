@@ -51,7 +51,21 @@ export interface SidebarProps {
 //
 // Restriksi sebenarnya tetap di masing-masing page.tsx (requirePageRole) — ini cuma soal menu
 // mana yang ditampilkan/kemana link-nya mengarah.
-const ADMIN_ALLOWED_LABELS = new Set(["Dashboard", "Invoice", "Pembayaran", "Keuangan", "Monitoring Keuangan", "Pengaturan"]);
+const ADMIN_ALLOWED_LABELS = new Set([
+  "Dashboard",
+  "Invoice",
+  "Pembayaran",
+  "Keuangan",
+  "Monitoring Keuangan",
+  // Blesscom & Kalkulator Harga: admin ikut menagih dan ikut mencatat request pekerjaan client,
+  // jadi dua menu ini memang bagian kerjanya. Halamannya sendiri tidak pernah memblokir admin
+  // (pakai getCurrentUser, bukan requirePageRole) — yang membatasi cuma daftar ini, dan Command
+  // Palette sudah lama mengizinkan Blesscom (adminOk), jadi menyembunyikannya di sidebar justru
+  // bikin tidak konsisten.
+  "Blesscom",
+  "Kalkulator Harga",
+  "Pengaturan",
+]);
 const ADMIN_HREF_OVERRIDE: Record<string, string> = {
   Keuangan: "/keuangan/kas-keluar",
 };
