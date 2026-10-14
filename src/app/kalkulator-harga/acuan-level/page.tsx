@@ -15,6 +15,9 @@ export default async function AcuanLevelPage() {
   const [items, simulations] = await Promise.all([
     prisma.workPriceItem.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.workPriceSimulation.findMany({
+      // Hanya simulasi berbasis bobot — pengajuan Blesscom (kind "level") punya halaman riwayat
+      // sendiri di /blesscom/pengajuan, supaya dua acuan yang berbeda tidak tercampur.
+      where: { kind: "bobot" },
       orderBy: { createdAt: "desc" },
       take: SIMULATION_LIMIT,
       include: { items: { orderBy: { sortOrder: "asc" } } },

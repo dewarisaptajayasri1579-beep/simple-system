@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Building2, FileText, Users } from "lucide-react"
+import { Building2, Calculator, FileText, Users } from "lucide-react"
 
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardDescription, CardTitle } from "@/components/ui"
@@ -23,6 +23,12 @@ const MENUS = [
     icon: FileText,
     title: "Invoice Blesscom",
     desc: "Invoice Over Principle per bulan — nominal dihitung otomatis, lampiran daftar principle ikut tercetak.",
+  },
+  {
+    href: "/blesscom/pengajuan",
+    icon: Calculator,
+    title: "Pengajuan Pekerjaan",
+    desc: "Diskusi dengan AI untuk menentukan kategori & level pekerjaan — acuan Blesscom murni level, tanpa hitung bobot.",
   },
 ]
 

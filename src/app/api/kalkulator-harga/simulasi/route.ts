@@ -17,6 +17,8 @@ type SaveBody = {
   summary?: string | null
   clientName?: string | null
   transcript?: unknown
+  /** "bobot" (Kalkulator Harga umum) | "level" (Pengajuan Pekerjaan Blesscom). */
+  kind?: string
   items?: SaveItem[]
 }
 
@@ -54,6 +56,7 @@ export async function POST(request: Request) {
       title,
       summary: body?.summary?.trim() || null,
       clientName: body?.clientName?.trim() || null,
+      kind: body?.kind === "level" ? "level" : "bobot",
       transcript: (body?.transcript ?? null) as object | undefined,
       totalPoints,
       totalPrice,
