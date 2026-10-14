@@ -20,36 +20,43 @@ function formatRupiah(n: number) {
 
 const columns: FilterableColumn<UangMasukRow>[] = [
   {
-    key: "invoiceNumber",
-    header: "No Invoice",
-    filterValue: (r) => r.invoiceNumber ?? "",
-    cellClassName: "font-semibold whitespace-nowrap",
+    key: "paidAt",
+    header: "Tanggal",
+    filterValue: (r) => r.paidAtLabel,
+    cellClassName: "whitespace-nowrap font-semibold text-slate-700",
+    cell: (r) => r.paidAtLabel,
+  },
+  {
+    key: "clientName",
+    header: "Client",
+    filterValue: (r) => `${r.clientName} ${r.invoiceNumber ?? ""}`,
+    cellClassName: "font-semibold text-slate-900",
     cell: (r) => (
       <>
-        <span>{r.invoiceNumber ?? "—"}</span>
-        {/* Tanggal ditaruh di sini (bukan kolom sendiri) supaya tabel tetap 3 kolom seperti
-            yang diminta, tapi tanggal uang masuk tidak hilang dari laporan. */}
-        <span className="block text-[11px] font-medium text-slate-400">{r.paidAtLabel}</span>
+        <span>{r.clientName}</span>
+        {/* No invoice ditempel di bawah nama client, bukan kolom sendiri — biar kolom
+            utamanya tetap empat seperti yang diminta, tapi nomor invoicenya tidak hilang
+            (dipakai buat mencocokkan ke menu Invoice). */}
+        <span className="block text-[11px] font-medium text-slate-400">
+          {r.invoiceNumber ?? "tanpa rincian invoice"}
+        </span>
       </>
     ),
   },
   {
     key: "keterangan",
     header: "Keterangan",
-    filterValue: (r) => `${r.clientName} ${r.paymentNumber} ${r.notes ?? ""}`,
+    filterValue: (r) => `${r.notes ?? ""} ${r.paymentNumber}`,
     cell: (r) => (
       <>
-        <span className="font-semibold text-slate-800">{r.clientName}</span>
-        <span className="block text-[11px] font-medium text-slate-400">
-          Kwitansi {r.paymentNumber}
-          {r.notes ? ` · ${r.notes}` : ""}
-        </span>
+        <span className="text-slate-700">{r.notes || "—"}</span>
+        <span className="block text-[11px] font-medium text-slate-400">Kwitansi {r.paymentNumber}</span>
       </>
     ),
   },
   {
     key: "amount",
-    header: "Nominal",
+    header: "Total Nominal",
     cellClassName: "font-bold text-emerald-700 whitespace-nowrap",
     cell: (r) => formatRupiah(r.amount),
   },
@@ -62,7 +69,7 @@ export const UangMasukTable: React.FC<{ rows: UangMasukRow[] }> = ({ rows }) => 
     rowKey={(r) => r.id}
     pageSize={25}
     mobileCardMode
-    searchPlaceholder="Cari no invoice / client / keterangan..."
+    searchPlaceholder="Cari tanggal / client / keterangan / no invoice..."
     emptyMessage="Belum ada uang masuk pada bulan ini."
   />
 )

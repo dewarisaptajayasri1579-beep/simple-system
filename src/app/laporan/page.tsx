@@ -15,7 +15,7 @@ const REPORTS = [
     href: "/laporan/uang-masuk",
     icon: Banknote,
     title: "Uang Masuk",
-    desc: "Rincian pelunasan yang diterima per bulan — no invoice, keterangan, nominal.",
+    desc: "Rincian uang masuk per bulan — tanggal, client, keterangan, dan nominalnya.",
   },
   { href: "/laporan/penjualan", icon: ShoppingCart, title: "Laporan Penjualan", desc: "Total invoice, tertagih, dan outstanding per periode." },
   { href: "/laporan/keuangan", icon: Landmark, title: "Laporan Keuangan", desc: "Rekap pemasukan & pengeluaran per kategori." },

@@ -43,11 +43,39 @@ export default async function LaporanUangMasukPage({
           amount: true,
           kursRate: true,
           notes: true,
-          invoice: { select: { invoiceNumber: true } },
+          invoice: { select: { id: true, invoiceNumber: true } },
         },
       },
     },
   })
+
+  // Keterangan kwitansi sering dikosongkan — jadi dipakai isi invoice-nya sebagai cadangan
+  // ("Maintenance Blesscafe", "Over Principle …") supaya kolom Keterangan tidak melompong.
+  // Satu query untuk semua baris (bukan per baris) — lihat aturan N+1 di CLAUDE.md.
+  const invoiceIds = payments.flatMap((p) => p.invoicePayments.map((ip) => ip.invoice.id))
+  const lines = invoiceIds.length
+    ? await prisma.invoiceLine.findMany({
+        where: { invoiceId: { in: invoiceIds } },
+        select: { invoiceId: true, description: true },
+      })
+    : []
+  const lineDescByInvoice = new Map<string, string[]>()
+  for (const l of lines) {
+    const list = lineDescByInvoice.get(l.invoiceId) ?? []
+    list.push(l.description)
+    lineDescByInvoice.set(l.invoiceId, list)
+  }
+  /** Pilih teks pertama yang benar-benar berisi — catatan di DB banyak yang string KOSONG
+   *  (bukan null), jadi `??` saja tidak cukup buat jatuh ke cadangan berikutnya. */
+  const firstFilled = (...values: (string | null | undefined)[]) =>
+    values.find((v) => v && v.trim().length > 0)?.trim() ?? null
+
+  /** Ringkas beberapa baris invoice jadi satu keterangan: "A", atau "A (+2 item lain)". */
+  const describeInvoice = (invoiceId: string) => {
+    const list = lineDescByInvoice.get(invoiceId)
+    if (!list || list.length === 0) return null
+    return list.length === 1 ? list[0] : `${list[0]} (+${list.length - 1} item lain)`
+  }
 
   const rows: UangMasukRow[] = []
   for (const p of payments) {
@@ -60,7 +88,7 @@ export default async function LaporanUangMasukPage({
         invoiceNumber: null,
         paymentNumber: p.paymentNumber,
         clientName: p.client.name,
-        notes: p.notes,
+        notes: firstFilled(p.notes),
         paidAtLabel,
         amount: p.totalAmount,
       })
@@ -72,7 +100,7 @@ export default async function LaporanUangMasukPage({
         invoiceNumber: ip.invoice.invoiceNumber,
         paymentNumber: p.paymentNumber,
         clientName: p.client.name,
-        notes: ip.notes ?? p.notes,
+        notes: firstFilled(ip.notes, p.notes, describeInvoice(ip.invoice.id)),
         paidAtLabel,
         // `amount` disimpan dalam currency invoice (mis. JPY); kas riil = amount × kurs. Invoice
         // IDR kursRate-nya null → dianggap 1. Pola sama dengan cashAmount di POST /api/payments.
@@ -113,7 +141,8 @@ export default async function LaporanUangMasukPage({
           <CardHeader className="p-5 sm:p-6 mb-0">
             <CardTitle>Rincian {month.label}</CardTitle>
             <CardDescription>
-              Satu baris per invoice yang dilunasi. Kwitansi draft & yang dibatalkan (voided) tidak dihitung.
+              Satu baris per invoice yang dilunasi — tanggal uang diterima, client, keterangan, dan nominalnya.
+              Kwitansi draft & yang dibatalkan (voided) tidak dihitung.
             </CardDescription>
           </CardHeader>
           <UangMasukTable rows={rows} />
