@@ -20,21 +20,31 @@ const HARGA: { groupName: string; level: string | null; label?: string; price: n
   { groupName: "Transaksi", level: "LEV-1", price: 475_000 },
   { groupName: "Transaksi", level: "LEV-2", price: 712_500 },
   { groupName: "Transaksi", level: "LEV-3", price: 950_000 },
-  { groupName: "Transaksi", level: "LEV-4", price: 0 },
-  { groupName: "Transaksi", level: "LEV-5", price: 0 },
+  // LEV-4 & LEV-5 kosong di hargablesscom.md — diisi mengikuti pola kenaikan Transaksi yang
+  // linear +237.500 tiap level (475rb → 712,5rb → 950rb). BELUM dikonfirmasi ke client.
+  { groupName: "Transaksi", level: "LEV-4", price: 1_187_500 },
+  { groupName: "Transaksi", level: "LEV-5", price: 1_425_000 },
   { groupName: "Laporan", level: "LEV-1", price: 380_000 },
   { groupName: "Laporan", level: "LEV-2", price: 712_500 },
   { groupName: "Laporan", level: "LEV-3", price: 855_000 },
   { groupName: "Chart/Tabel", level: "LEV-1", price: 190_000 },
   { groupName: "Chart/Tabel", level: "LEV-2", price: 332_500 },
   { groupName: "Chart/Tabel", level: "LEV-3", price: 475_000 },
-  { groupName: "Update Kolom", level: null, label: "Update Kolom", price: 0 },
+  // Kosong di hargablesscom.md — disetarakan dengan pekerjaan sekelasnya (Mandatory LEV-1 &
+  // Minor Update LEV-2, sama-sama Rp95.000): menyentuh struktur tabel, tapi tanpa logic.
+  // BELUM dikonfirmasi ke client.
+  { groupName: "Update Kolom", level: null, label: "Update Kolom", price: 95_000 },
   { groupName: "Mandatory", level: "LEV-1", price: 95_000 },
   { groupName: "Mandatory", level: "LEV-2", price: 190_000 },
-  { groupName: "Mandatory", level: "LEV-3", price: 0 },
+  // Kosong di hargablesscom.md — pola Mandatory naik +95.000 tiap level (95rb → 190rb).
+  // BELUM dikonfirmasi ke client.
+  { groupName: "Mandatory", level: "LEV-3", price: 285_000 },
   { groupName: "Setup", level: null, label: "Setup Website", price: 950_000 },
   { groupName: "Setup", level: null, label: "Setup Android", price: 1_425_000 },
-  { groupName: "Minor Update", level: "LEV-1", price: 0 },
+  // Tertulis 0 di hargablesscom.md — pola Minor Update naik +47.500 tiap level
+  // (LEV-2 95rb → LEV-3 142,5rb), jadi LEV-1 satu tingkat di bawah LEV-2.
+  // BELUM dikonfirmasi ke client.
+  { groupName: "Minor Update", level: "LEV-1", price: 47_500 },
   { groupName: "Minor Update", level: "LEV-2", price: 95_000 },
   { groupName: "Minor Update", level: "LEV-3", price: 142_500 },
   { groupName: "Update Filter", level: null, label: "Update Filter", price: 190_000 },
