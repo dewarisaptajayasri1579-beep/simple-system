@@ -2801,6 +2801,11 @@ model WorkPriceItem {
   label       String
   description String?
   price       Int
+  /// Harga khusus client Blesscom — SUDAH JADI KESEPAKATAN, jadi tidak boleh ikut berubah saat
+  /// rubrik bobot dikalibrasi ulang (itu yang mengubah `price`). Null = level ini memang tidak
+  /// ada di daftar harga Blesscom, jadi tidak ditawarkan di menu Pengajuan Pekerjaan Blesscom.
+  /// Sumbernya hargablesscom.md, dikelola lewat Acuan Level -> tab "Level Harga Blesscom".
+  blesscomPrice Int?   @map("blesscom_price")
   active      Boolean  @default(true)
   sortOrder   Int      @default(0) @map("sort_order")
   /// Bobot pekerjaan dalam poin; harga = poin x tarif poin (lihat lib/work-price/rubric.ts).

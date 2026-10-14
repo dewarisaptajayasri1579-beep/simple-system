@@ -19,11 +19,22 @@ export async function POST(request: Request) {
   const history = body?.history
   if (!history || history.length === 0) return NextResponse.json({ error: "Deskripsi pekerjaan wajib diisi" }, { status: 400 })
 
-  const catalog = await prisma.workPriceItem.findMany({
-    where: { active: true },
+  // Hanya level yang ada di daftar harga Blesscom, dan harganya pakai harga Blesscom — bukan
+  // `price` yang merupakan turunan rubrik bobot. Daftar ini dikelola di
+  // Acuan Level -> tab "Level Harga Blesscom".
+  const rows = await prisma.workPriceItem.findMany({
+    where: { active: true, blesscomPrice: { not: null } },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, groupName: true, level: true, label: true, description: true, price: true },
+    select: { id: true, groupName: true, level: true, label: true, description: true, blesscomPrice: true },
   })
+  const catalog = rows.map((r) => ({
+    id: r.id,
+    groupName: r.groupName,
+    level: r.level,
+    label: r.label,
+    description: r.description,
+    price: r.blesscomPrice as number,
+  }))
 
   const questionsAsked = history.filter((h) => h.role === "assistant").length
 

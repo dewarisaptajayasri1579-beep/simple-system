@@ -12,7 +12,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const { id } = await params
-  const body = (await request.json().catch(() => null)) as { price?: number; description?: string | null } | null
+  const body = (await request.json().catch(() => null)) as
+    | { price?: number; description?: string | null; blesscomPrice?: number | null }
+    | null
   if (!body) return NextResponse.json({ error: "Body tidak valid" }, { status: 400 })
 
   const item = await prisma.workPriceItem.update({
@@ -20,6 +22,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: {
       ...(body.price !== undefined ? { price: Math.max(0, Math.round(body.price)) } : {}),
       ...(body.description !== undefined ? { description: body.description?.trim() || null } : {}),
+      // Harga Blesscom berdiri sendiri — diubah di sini tidak menyentuh `price` (turunan bobot),
+      // dan sebaliknya kalibrasi bobot tidak menyentuh harga Blesscom.
+      ...(body.blesscomPrice !== undefined
+        ? { blesscomPrice: body.blesscomPrice === null ? null : Math.max(0, Math.round(body.blesscomPrice)) }
+        : {}),
     },
   })
   return NextResponse.json(item)

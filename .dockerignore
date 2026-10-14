@@ -1,0 +1,19 @@
+# Konteks build sengaja dikecilkan — node_modules (±970 MB) & .next (±1 GB saat ada artefak
+# dev) tidak boleh ikut terkirim ke daemon Docker; dua-duanya dibangun ulang di dalam image.
+node_modules
+.next
+.git
+.github
+*.log
+.DS_Store
+
+# Secret jangan pernah masuk image. Build tidak butuh database/env apa pun (sudah dites);
+# semua env diisi Coolify saat runtime.
+.env
+.env.*
+!.env.example
+
+# File kerja yang tidak ada hubungannya dengan runtime/build
+scripts/tmp-*
+docs
+nota

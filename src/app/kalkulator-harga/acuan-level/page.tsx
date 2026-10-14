@@ -74,6 +74,17 @@ export default async function AcuanLevelPage() {
               price: i.price,
               weightPoints: i.weightPoints,
             }))}
+            // Hanya level yang memang ada di daftar harga Blesscom.
+            blesscomRows={items
+              .filter((i) => i.blesscomPrice !== null)
+              .map((i) => ({
+                id: i.id,
+                groupName: i.groupName,
+                level: i.level,
+                label: i.label,
+                description: i.description,
+                blesscomPrice: i.blesscomPrice as number,
+              }))}
             simulations={simulationRows}
             canEdit={["owner", "admin", "direktur"].includes(user.role)}
           />
