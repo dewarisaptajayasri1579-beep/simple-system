@@ -16,6 +16,14 @@
 #
 # `next build` TIDAK butuh database (sudah diverifikasi dengan DATABASE_URL palsu) — tidak ada
 # secret yang perlu dikirim saat build; semua env diisi Coolify saat runtime.
+#
+# KENAPA `npm ci` CUMA SEKALI (tidak ada stage prod-deps terpisah):
+# Diukur dari deploy nyata 14 Okt 2026 — di VPS ini tahap install makan ±10 menit, sementara
+# `next build` ±5 menit (lokal cuma 44 detik; mesinnya memang load 6-7 dari 8 core). Menjalankan
+# `npm ci --omit=dev` lagi cuma buat memangkas image 969 MB -> 841 MB (13%) berarti menambah satu
+# install penuh lagi — jauh lebih mahal daripada manfaatnya. `npm prune --omit=dev` juga tidak
+# dipakai karena berisiko menghapus node_modules/.prisma (Prisma Client hasil generate) yang tidak
+# terdaftar di lockfile.
 
 FROM node:22-bookworm-slim AS base
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -30,13 +38,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
-
-# ---------- prod-deps: node_modules yang benar-benar dibawa ke runtime ----------
-FROM base AS prod-deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-COPY prisma ./prisma
-RUN npm ci --omit=dev
 
 # ---------- builder ----------
 FROM base AS builder
@@ -63,7 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libgbm1 libasound2 libpango-1.0-0 libcairo2 libexpat1 \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json

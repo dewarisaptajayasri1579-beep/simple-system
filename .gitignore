@@ -14,3 +14,7 @@ node_modules
 
 # File gambar laporan WA sementara — di-generate & dihapus otomatis oleh runDashboardReport()
 public/reports/
+
+# Catatan berisi token/kredensial yang sengaja ditaruh di root saat kerja — JANGAN ikut ter-commit.
+# Repo ini konvensinya `git add -A` tiap commit, jadi file semacam ini harus di-ignore eksplisit.
+tokencoolify.md
