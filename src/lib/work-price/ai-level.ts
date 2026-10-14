@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 
+import { recordAiUsage, type AiFeature } from "@/lib/ai-usage"
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const MODEL = "claude-sonnet-5"
@@ -35,6 +37,9 @@ export type LevelChatOptions = {
   maxQuestions?: number
   forceConclude?: boolean
   modelOverride?: string
+  /** Fitur pemanggil, untuk pencatatan biaya. Dikosongkan = tidak dicatat. */
+  feature?: AiFeature
+  userId?: string | null
 }
 
 /**
@@ -107,7 +112,7 @@ export async function continueLevelChat(
   questionsAsked: number,
   options: LevelChatOptions = {}
 ): Promise<LevelChatResult> {
-  const { maxQuestions, forceConclude = false, modelOverride } = options
+  const { maxQuestions, forceConclude = false, modelOverride, feature, userId } = options
   const limit = Math.max(1, maxQuestions ?? MAX_QUESTIONS)
   if (catalog.length === 0) throw new Error("Daftar kategori/level belum ada datanya")
   if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
@@ -132,6 +137,9 @@ export async function continueLevelChat(
     },
     messages: history.map((h) => ({ role: h.role, content: h.text })),
   })
+
+  // Dicatat lebih dulu: token sudah dipakai walau jawabannya ditolak atau terpotong.
+  if (feature) await recordAiUsage({ feature, model: modelOverride ?? MODEL, usage: response.usage, userId })
 
   if (response.stop_reason === "refusal") throw new Error("Analisa ditolak oleh filter keamanan model")
   if (response.stop_reason === "max_tokens") {

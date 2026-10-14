@@ -39,6 +39,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       mode: "form",
       maxQuestions: Math.min(15, Math.max(1, Math.round(body?.maxQuestions ?? 5))),
       forceConclude: body?.forceConclude === true,
+      feature: "form-pekerjaan",
+      // Programmer mengisi lewat gerbang password, bukan akun user — jadi tidak ada userId.
+      userId: null,
     })
 
     if (result.status === "tanya") {

@@ -2870,6 +2870,29 @@ model WorkPriceSimulationItem {
   @@schema("simple_system")
 }
 
+/// Catatan pemakaian AI per panggilan — supaya biaya fitur AI kelihatan, bukan cuma muncul di
+/// tagihan Anthropic akhir bulan tanpa tahu fitur mana yang memakannya. Biaya dihitung saat
+/// dicatat (lihat lib/ai-usage.ts) dan disnapshot dalam Rupiah, jadi perubahan tarif atau kurs
+/// di kemudian hari tidak mengubah angka historis.
+model AiUsageLog {
+  id               String   @id @default(uuid())
+  /// "kalkulator-harga" | "form-pekerjaan" | "blesscom-pengajuan"
+  feature          String
+  model            String
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  cacheReadTokens  Int      @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int      @default(0) @map("cache_write_tokens")
+  costIdr          Int      @map("cost_idr")
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([feature, createdAt])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+  @@schema("simple_system")
+}
+
 /// Pengaturan form pengajuan pekerjaan (1 baris, id "default"). Password dipakai BERSAMA semua
 /// programmer — identitas orangnya datang dari isian "Nama Programmer" di form, bukan dari akun.
 /// Password belum di-set = form ditutup.

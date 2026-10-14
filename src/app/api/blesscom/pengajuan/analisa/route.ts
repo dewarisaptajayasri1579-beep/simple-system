@@ -43,6 +43,8 @@ export async function POST(request: Request) {
       // Dipatok di server supaya obrolan tak terbatas tidak bisa dipicu dari browser.
       maxQuestions: Math.min(15, Math.max(1, Math.round(body?.maxQuestions ?? 5))),
       forceConclude: body?.forceConclude === true,
+      feature: "blesscom-pengajuan",
+      userId: user.id,
     })
 
     if (result.status === "tanya") return NextResponse.json(result)

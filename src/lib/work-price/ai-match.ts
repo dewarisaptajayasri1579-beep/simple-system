@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
+import { recordAiUsage, type AiFeature } from "@/lib/ai-usage"
 import { PARAMETER_CODES, RUBRIC, optionCodes, priceFromPoints, totalPoints, type WeightScores } from "@/lib/work-price/rubric"
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -163,6 +164,11 @@ export type WorkPriceChatOptions = {
   maxQuestions?: number
   /** Staf menekan "Simpulkan Sekarang" — AI wajib berhenti bertanya walau batas belum tercapai. */
   forceConclude?: boolean
+  /** Fitur pemanggil, untuk pencatatan biaya. Dikosongkan = tidak dicatat (dipakai script
+   *  perbandingan model supaya tidak mengotori data biaya). */
+  feature?: AiFeature
+  /** User yang memicu panggilan — null untuk form programmer yang tanpa akun. */
+  userId?: string | null
 }
 
 export async function continueWorkPriceChat(
@@ -171,7 +177,7 @@ export async function continueWorkPriceChat(
   questionsAsked: number,
   options: WorkPriceChatOptions = {}
 ): Promise<WorkPriceChatResult> {
-  const { mode = "internal", modelOverride, maxQuestions, forceConclude = false } = options
+  const { mode = "internal", modelOverride, maxQuestions, forceConclude = false, feature, userId } = options
   const limit = Math.max(1, maxQuestions ?? MAX_QUESTIONS)
   if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
 
@@ -199,6 +205,10 @@ export async function continueWorkPriceChat(
     },
     messages: history.map((h) => ({ role: h.role, content: h.text })),
   })
+
+  // Dicatat sebelum pengecekan apa pun: token sudah telanjur dipakai & dibayar, bahkan saat
+  // jawabannya ditolak atau terpotong.
+  if (feature) await recordAiUsage({ feature, model: modelOverride ?? MODEL, usage: response.usage, userId })
 
   if (response.stop_reason === "refusal") throw new Error("Analisa ditolak oleh filter keamanan model")
   // Dicek SEBELUM JSON.parse — jawaban terpotong bikin parse gagal dengan pesan tidak berguna

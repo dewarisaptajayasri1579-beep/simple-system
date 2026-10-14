@@ -86,7 +86,8 @@ export default async function AcuanLevelPage() {
                 blesscomPrice: i.blesscomPrice as number,
               }))}
             simulations={simulationRows}
-            canEdit={["owner", "admin", "direktur"].includes(user.role)}
+            // Sejajar dengan API-nya: admin boleh membaca acuan, tapi tidak mengubahnya.
+            canEdit={["owner", "direktur"].includes(user.role)}
           />
         )}
       </div>

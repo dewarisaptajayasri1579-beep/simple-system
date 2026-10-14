@@ -7,8 +7,12 @@ import { prisma } from "@/lib/prisma"
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getApiUser()
   if (!user) return NextResponse.json({ error: "Belum login" }, { status: 401 })
-  if (!["owner", "admin", "direktur"].includes(user.role)) {
-    return NextResponse.json({ error: "Cuma Owner/Direktur/Admin yang bisa mengubah acuan level" }, { status: 403 })
+  // Admin sengaja TIDAK termasuk: mengubah satu angka di sini menggeser harga semua pekerjaan
+  // di kategori itu untuk tiap simulasi & pengajuan berikutnya — dan untuk Blesscom bahkan
+  // menyentuh angka yang sudah disepakati dengan client. Admin tetap bisa membaca seluruh
+  // rubrik & harganya, cuma tidak bisa mengubah.
+  if (!["owner", "direktur"].includes(user.role)) {
+    return NextResponse.json({ error: "Cuma Owner/Direktur yang bisa mengubah acuan harga" }, { status: 403 })
   }
 
   const { id } = await params

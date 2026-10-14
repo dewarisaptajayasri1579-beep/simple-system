@@ -28,6 +28,8 @@ export async function POST(request: Request) {
       // browser — tiap pertanyaan adalah satu panggilan API berbayar.
       maxQuestions: Math.min(15, Math.max(1, Math.round(body?.maxQuestions ?? 5))),
       forceConclude: body?.forceConclude === true,
+      feature: "kalkulator-harga",
+      userId: user.id,
     })
     return NextResponse.json(result)
   } catch (err) {
