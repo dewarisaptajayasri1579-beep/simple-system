@@ -7,7 +7,11 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 /** Sonnet 5 — tugasnya menilai 8 parameter bobot dari obrolan (butuh nalar & kalibrasi ke
  *  contoh), bukan olah data numerik berat seperti meta-ads/ai-insight.ts yang pakai Opus. */
 const MODEL = "claude-sonnet-5"
-const MAX_TOKENS = 4000
+/** Sonnet 5 menyalakan thinking secara default, dan `max_tokens` membatasi thinking + jawaban
+ *  SEKALIGUS. Dengan 4000 token, thinking sempat menghabiskan jatah sampai JSON jawabannya
+ *  terpotong di tengah ("Unterminated string in JSON"). Dinaikkan supaya jawaban selalu muat;
+ *  effort "medium" menahan thinking-nya tetap wajar supaya tidak boros. */
+const MAX_TOKENS = 16000
 
 /** Maksimal pertanyaan klarifikasi dalam 1 obrolan sebelum AI WAJIB menyimpulkan harga, sesuai
  *  permintaan Owner — obrolan panjang bikin staf malas pakai fiturnya. 5 pertanyaan cukup untuk
@@ -85,7 +89,7 @@ Cara kerja:
    - "radio" (pilih satu) untuk pertanyaan yang jawabannya saling meniadakan — ini yang PALING SERING dipakai. Isi "pilihan" dengan 2-5 jawaban yang mencerminkan opsi parameter terkait, ditulis dalam bahasa staf (bukan kode parameter). Selalu sisipkan opsi "Belum tahu / tentukan saja yang wajar" kalau masuk akal.
    - "checkbox" (boleh beberapa) untuk pertanyaan "apa saja yang dibutuhkan".
    - "text" HANYA kalau jawabannya benar-benar tidak bisa dibuat pilihan (mis. minta sebutkan nama data). Untuk "text", kosongkan "pilihan".
-3. Kamu HANYA boleh bertanya maksimal ${MAX_QUESTIONS} kali total. Sistem kasih tahu tiap giliran sudah berapa kali kamu bertanya. Begitu mentok, WAJIB langsung simpulkan dengan asumsi paling masuk akal dari jawaban yang ada.
+3. Ada batas berapa kali kamu boleh bertanya dalam satu obrolan. Sistem kasih tahu tiap giliran sudah berapa kali kamu bertanya dan berapa batasnya. Begitu mentok, WAJIB langsung simpulkan dengan asumsi paling masuk akal dari jawaban yang ada. Tetap hemat: jangan pakai jatah pertanyaan kalau informasinya sudah cukup.
 4. Parameter yang sudah jelas dari deskripsi JANGAN ditanyakan lagi — simpulkan sendiri.
 5. Saat menyimpulkan: pecah jadi beberapa unit pekerjaan kalau deskripsi menyebut beberapa kebutuhan terpisah (mis. "master data supplier + laporan penjualan" = 2 unit). Tiap unit dinilai 8 parameternya sendiri.
 6. Pakai contoh terkalibrasi sebagai pembanding: cari pekerjaan sejenis di daftar contoh, lalu sesuaikan skormu supaya adil dibanding contoh itu. Isi "acuan" dengan id contoh terdekat (atau null kalau memang tidak ada yang mirip).
@@ -150,20 +154,32 @@ function buildOutputSchema() {
 
 type RawJob = { nama: string; qty: number; alasan: string; acuan: string | null } & Record<string, string | number | null>
 
+export type WorkPriceChatOptions = {
+  mode?: "internal" | "form"
+  /** Override model — dipakai script perbandingan model (scripts/compare-ai-model.ts). */
+  modelOverride?: string
+  /** Batas pertanyaan untuk obrolan ini. Default MAX_QUESTIONS, tapi staf boleh memperpanjang
+   *  lewat tombol "Lanjut Diskusi" kalau pekerjaannya memang perlu digali lebih dalam. */
+  maxQuestions?: number
+  /** Staf menekan "Simpulkan Sekarang" — AI wajib berhenti bertanya walau batas belum tercapai. */
+  forceConclude?: boolean
+}
+
 export async function continueWorkPriceChat(
   history: WorkPriceChatTurn[],
   catalog: WorkPriceCatalogItem[],
   questionsAsked: number,
-  mode: "internal" | "form" = "internal",
-  /** Override model — dipakai script perbandingan model (scripts/compare-ai-model.ts). */
-  modelOverride?: string
+  options: WorkPriceChatOptions = {}
 ): Promise<WorkPriceChatResult> {
+  const { mode = "internal", modelOverride, maxQuestions, forceConclude = false } = options
+  const limit = Math.max(1, maxQuestions ?? MAX_QUESTIONS)
   if (history.length === 0) throw new Error("Deskripsi pekerjaan wajib diisi")
 
-  const statusNote =
-    questionsAsked >= MAX_QUESTIONS
-      ? `Kamu sudah bertanya ${questionsAsked}/${MAX_QUESTIONS} kali. WAJIB kembalikan status "selesai" sekarang — jangan bertanya lagi.`
-      : `Kamu sudah bertanya ${questionsAsked}/${MAX_QUESTIONS} kali di obrolan ini.`
+  const statusNote = forceConclude
+    ? "Staf minta kamu langsung menyimpulkan sekarang. WAJIB kembalikan status \"selesai\" — jangan bertanya lagi, pakai asumsi paling masuk akal untuk yang belum jelas."
+    : questionsAsked >= limit
+      ? `Kamu sudah bertanya ${questionsAsked}/${limit} kali. WAJIB kembalikan status "selesai" sekarang — jangan bertanya lagi.`
+      : `Kamu sudah bertanya ${questionsAsked}/${limit} kali di obrolan ini.`
 
   const response = await anthropic.messages.create({
     model: modelOverride ?? MODEL,
@@ -175,11 +191,21 @@ export async function continueWorkPriceChat(
       ...(mode === "form" ? [{ type: "text" as const, text: FORM_MODE_PROMPT }] : []),
       { type: "text", text: statusNote },
     ],
-    output_config: { format: { type: "json_schema", schema: buildOutputSchema() as unknown as Record<string, unknown> } },
+    output_config: {
+      // Thinking dibatasi "medium": penilaian bobot butuh nalar, tapi tanpa batas ini thinking
+      // bisa menghabiskan max_tokens sampai jawaban JSON-nya terpotong.
+      effort: "medium",
+      format: { type: "json_schema", schema: buildOutputSchema() as unknown as Record<string, unknown> },
+    },
     messages: history.map((h) => ({ role: h.role, content: h.text })),
   })
 
   if (response.stop_reason === "refusal") throw new Error("Analisa ditolak oleh filter keamanan model")
+  // Dicek SEBELUM JSON.parse — jawaban terpotong bikin parse gagal dengan pesan tidak berguna
+  // ("Unterminated string in JSON at position ..."), yang menyesatkan saat menelusuri masalah.
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("Jawaban AI kepanjangan dan terpotong. Coba pecah pekerjaannya jadi beberapa bagian, atau ulangi.")
+  }
 
   const text = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -199,7 +225,7 @@ export async function continueWorkPriceChat(
 
   // Jaring pengaman: kalau model tetap ngotot nanya padahal sudah mentok limit, paksa selesai
   // supaya staf tidak kejebak obrolan tanpa akhir.
-  if (parsed.status === "tanya" && questionsAsked >= MAX_QUESTIONS) {
+  if (parsed.status === "tanya" && (forceConclude || questionsAsked >= limit)) {
     return { status: "selesai", pekerjaan: [], ringkasan: "Belum cukup yakin menilai bobotnya dari jawaban yang ada — perlu dicek manual oleh staf/Owner.", totalPoin: 0, total: 0 }
   }
 

@@ -53,7 +53,7 @@ async function main() {
 
     for (const model of MODELS) {
       try {
-        const r = await continueWorkPriceChat([{ role: "user", text: teks }], catalog, 0, "internal", model)
+        const r = await continueWorkPriceChat([{ role: "user", text: teks }], catalog, 0, { modelOverride: model })
         if (r.status === "tanya") {
           console.log(`    ${model.padEnd(18)} -> malah bertanya: "${r.pertanyaan.slice(0, 60)}..."`)
           continue
@@ -88,7 +88,7 @@ async function main() {
     console.log(`\n"${teks}"`)
     for (const model of MODELS) {
       try {
-        const r = await continueWorkPriceChat([{ role: "user", text: teks }], catalog, 0, "internal", model)
+        const r = await continueWorkPriceChat([{ role: "user", text: teks }], catalog, 0, { modelOverride: model })
         if (r.status !== "tanya") {
           console.log(`    ${model.padEnd(18)} -> langsung simpulkan (tidak bertanya): ${r.totalPoin} poin = Rp${rupiah(r.total)}`)
           continue

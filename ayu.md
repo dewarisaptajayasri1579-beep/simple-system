@@ -98,5 +98,17 @@ nanti sdh otomatis hitung Nominalnya, di halaman selanjutnya ada lampiran Daftar
 
 begitupun untuk yang Blessfull
 
+CAtatan Tambahan Untuk Hitung HArga
+
+Untuk Blesscom. acuannya adalah Level 
+
+Kalau yang lain acuan nya level dan bobot
+nanti di hasil chat atau pekerjaan
+tampilkan juga bobotnya.
+
+untuk Chat dengan AI,tambahi fasilitas Free Text. 
+
+jika mmasih perlu ulik lebih dalam. 
+Percakapan bisa lebih dari 5x diskusi
 
 

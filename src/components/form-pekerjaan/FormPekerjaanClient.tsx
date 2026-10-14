@@ -44,6 +44,9 @@ export function FormPekerjaanClient() {
   const [chatLoading, setChatLoading] = useState(false)
   const [chatDone, setChatDone] = useState(false)
   const [chatSummary, setChatSummary] = useState<string | null>(null)
+  /** Batas pertanyaan AI; programmer bisa menaikkan lewat "Lanjut diskusi" kalau pekerjaannya
+   *  memang perlu dikorek lebih dalam. */
+  const [maxQuestions, setMaxQuestions] = useState(MAX_QUESTIONS)
 
   const timelineRef = useRef<HTMLDivElement | null>(null)
   const lastCountRef = useRef(0)
@@ -128,10 +131,11 @@ export function FormPekerjaanClient() {
     setAnswer("")
     setChatDone(false)
     setChatSummary(null)
+    setMaxQuestions(MAX_QUESTIONS)
     lastCountRef.current = 0
   }
 
-  async function sendToAi(history: ChatMessage[]) {
+  async function sendToAi(history: ChatMessage[], opts: { conclude?: boolean } = {}) {
     if (!requestId) return
     setChatLoading(true)
     setError(null)
@@ -139,7 +143,7 @@ export function FormPekerjaanClient() {
       const res = await fetch(`/api/form/pengajuan/${requestId}/pekerjaan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history }),
+        body: JSON.stringify({ history, maxQuestions, forceConclude: opts.conclude === true }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Gagal memproses")
@@ -174,7 +178,7 @@ export function FormPekerjaanClient() {
     await sendToAi(history)
   }
 
-  async function submitAnswer(textOverride?: string) {
+  async function submitAnswer(textOverride?: string, opts: { conclude?: boolean } = {}) {
     const text = (textOverride ?? answer).trim()
     if (!text) return
     const history: ChatMessage[] = [...messages, { role: "user", text }]
@@ -182,7 +186,7 @@ export function FormPekerjaanClient() {
     setAnswer("")
     setPicked([])
     setChoices([])
-    await sendToAi(history)
+    await sendToAi(history, opts)
   }
 
   async function hapusItem(itemId: string) {
@@ -388,57 +392,77 @@ export function FormPekerjaanClient() {
                     {chatLoading ? <Spinner size="sm" color="white" /> : <Send className="w-4 h-4" />}
                   </Button>
                 </div>
-              ) : chatLoading ? null : answerType === "radio" && choices.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {choices.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => submitAnswer(c)}
-                      className="rounded-full border border-slate-200/80 bg-white/80 hover:bg-blue-50 hover:border-blue-400 px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 transition-colors text-left"
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              ) : answerType === "checkbox" && choices.length > 0 ? (
+              ) : chatLoading ? null : (
                 <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {choices.map((c) => {
-                      const active = picked.includes(c)
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))}
-                          className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm font-medium transition-colors ${
-                            active ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200/80 bg-white/80 text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
-                            {active && <Check className="w-3 h-3 text-white" />}
-                          </span>
-                          {c}
-                        </button>
-                      )
-                    })}
+                  {/* Pilihan cepat — tetap berdampingan dengan kolom ketik, karena pilihan yang
+                      disodorkan AI tidak selalu mewakili kasus yang sebenarnya di lapangan. */}
+                  {choices.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {choices.map((c) => {
+                          const active = answerType === "checkbox" && picked.includes(c)
+                          return (
+                            <button
+                              key={c}
+                              onClick={() =>
+                                answerType === "checkbox"
+                                  ? setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))
+                                  : submitAnswer(c)
+                              }
+                              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm font-medium transition-colors text-left ${
+                                active
+                                  ? "border-blue-500 bg-blue-50 text-blue-900"
+                                  : "border-slate-200/80 bg-white/80 text-slate-700 hover:bg-blue-50 hover:border-blue-400"
+                              }`}
+                            >
+                              {answerType === "checkbox" && (
+                                <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                                  {active && <Check className="w-3 h-3 text-white" />}
+                                </span>
+                              )}
+                              {c}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {answerType === "checkbox" && (
+                        <Button size="sm" onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
+                          Kirim Pilihan
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
+                      placeholder={choices.length > 0 ? "...atau jelaskan dengan kata-katamu sendiri" : "Ketik jawabanmu..."}
+                      className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white/70 px-4 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      autoFocus
+                    />
+                    <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
+                      <Send className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button size="sm" onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
-                    Kirim Jawaban
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
-                    placeholder="Ketik jawabanmu..."
-                    className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white/70 px-4 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                    autoFocus
-                  />
-                  <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
-                    <Send className="w-4 h-4" />
-                  </Button>
+
+                  {questionsAsked > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => submitAnswer("Sudah cukup, catat saja pekerjaannya.", { conclude: true })}>
+                        Sudah Cukup
+                      </Button>
+                      {questionsAsked >= maxQuestions && (
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Batas {maxQuestions} pertanyaan tercapai.{" "}
+                          <button onClick={() => setMaxQuestions((n) => Math.min(15, n + 5))} className="text-blue-700 font-bold hover:underline">
+                            Lanjut diskusi
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

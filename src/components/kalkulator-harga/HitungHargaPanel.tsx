@@ -53,6 +53,10 @@ export function HitungHargaPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /** Batas pertanyaan AI. Default 5 biar obrolan tidak bertele-tele, tapi staf bisa menaikkan
+   *  lewat "Gali lebih dalam" kalau pekerjaannya memang perlu dikorek lebih jauh. */
+  const [maxQuestions, setMaxQuestions] = useState(MAX_QUESTIONS)
+
   const [clientName, setClientName] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -74,14 +78,14 @@ export function HitungHargaPanel() {
     }
   }, [messages, jobs, loading])
 
-  async function sendToAi(history: ChatMessage[]) {
+  async function sendToAi(history: ChatMessage[], opts: { conclude?: boolean } = {}) {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch("/api/kalkulator-harga/analisa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history }),
+        body: JSON.stringify({ history, maxQuestions, forceConclude: opts.conclude === true }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? "Gagal menganalisa")
@@ -128,7 +132,7 @@ export function HitungHargaPanel() {
     await sendToAi(history)
   }
 
-  async function submitAnswer(textOverride?: string) {
+  async function submitAnswer(textOverride?: string, opts: { conclude?: boolean } = {}) {
     const text = (textOverride ?? answer).trim()
     if (!text) return
     const history: ChatMessage[] = [...messages, { role: "user", text }]
@@ -136,7 +140,7 @@ export function HitungHargaPanel() {
     setAnswer("")
     setPicked([])
     setChoices([])
-    await sendToAi(history)
+    await sendToAi(history, opts)
   }
 
   function reset() {
@@ -151,6 +155,7 @@ export function HitungHargaPanel() {
     setError(null)
     setClientName("")
     setSaved(false)
+    setMaxQuestions(MAX_QUESTIONS)
     lastCountRef.current = 0
   }
 
@@ -209,7 +214,7 @@ export function HitungHargaPanel() {
           <div className="min-w-0">
             <p className="text-sm font-bold text-slate-800 truncate">Asisten Hitung Harga</p>
             <p className="text-[11px] text-slate-500 font-medium">
-              {!started ? "Siap menerima deskripsi pekerjaan" : done ? "Analisa selesai" : `${questionsAsked}/${MAX_QUESTIONS} pertanyaan`}
+              {!started ? "Siap menerima deskripsi pekerjaan" : done ? "Analisa selesai" : `${questionsAsked}/${maxQuestions} pertanyaan`}
             </p>
           </div>
         </div>
@@ -230,7 +235,7 @@ export function HitungHargaPanel() {
             <div>
               <p className="text-base font-bold text-slate-800">Pekerjaan apa yang diminta client?</p>
               <p className="text-xs text-slate-500 font-medium mt-1">
-                Tulis sebisanya — nanti aku tanya balik yang masih kurang jelas, maksimal {MAX_QUESTIONS} pertanyaan.
+                Tulis sebisanya — nanti aku tanya balik yang masih kurang jelas, maksimal {MAX_QUESTIONS} pertanyaan (bisa diperpanjang kalau perlu).
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -355,61 +360,77 @@ export function HitungHargaPanel() {
           </div>
         )}
 
-        {started && !done && !loading && answerType === "radio" && choices.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {choices.map((c) => (
-              <button
-                key={c}
-                onClick={() => submitAnswer(c)}
-                className="rounded-full border border-slate-200/80 bg-white/80 hover:bg-blue-50 hover:border-blue-400 px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 transition-colors text-left"
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {started && !done && !loading && answerType === "checkbox" && choices.length > 0 && (
+        {/* Pilihan cepat — selalu berdampingan dengan kolom ketik di bawahnya, karena pilihan
+            yang disodorkan AI tidak selalu mewakili kasus yang sebenarnya. */}
+        {started && !done && !loading && choices.length > 0 && (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               {choices.map((c) => {
-                const active = picked.includes(c)
+                const active = answerType === "checkbox" && picked.includes(c)
                 return (
                   <button
                     key={c}
-                    onClick={() => setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))}
-                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm font-medium transition-colors ${
-                      active ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200/80 bg-white/80 text-slate-700 hover:bg-slate-50"
+                    onClick={() =>
+                      answerType === "checkbox"
+                        ? setPicked((prev) => (active ? prev.filter((p) => p !== c) : [...prev, c]))
+                        : submitAnswer(c)
+                    }
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs sm:text-sm font-medium transition-colors text-left ${
+                      active
+                        ? "border-blue-500 bg-blue-50 text-blue-900"
+                        : "border-slate-200/80 bg-white/80 text-slate-700 hover:bg-blue-50 hover:border-blue-400"
                     }`}
                   >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
-                      {active && <Check className="w-3 h-3 text-white" />}
-                    </span>
+                    {answerType === "checkbox" && (
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${active ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                        {active && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                    )}
                     {c}
                   </button>
                 )
               })}
             </div>
-            <Button size="sm" onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
-              Kirim Jawaban
-            </Button>
+            {answerType === "checkbox" && (
+              <Button size="sm" onClick={() => submitAnswer(picked.join(", "))} disabled={picked.length === 0}>
+                Kirim Pilihan
+              </Button>
+            )}
           </div>
         )}
 
-        {started && !done && !loading && answerType === "text" && (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
-              placeholder="Ketik jawabanmu..."
-              className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white/70 px-4 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-              autoFocus
-            />
-            <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
-              <Send className="w-4 h-4" />
-            </Button>
+        {started && !done && !loading && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
+                placeholder={choices.length > 0 ? "...atau jelaskan dengan kata-katamu sendiri" : "Ketik jawabanmu..."}
+                className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white/70 px-4 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                autoFocus
+              />
+              <Button onClick={() => submitAnswer()} disabled={!answer.trim()}>
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {questionsAsked > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => submitAnswer("Langsung simpulkan saja dengan informasi yang sudah ada.", { conclude: true })}>
+                  Simpulkan Sekarang
+                </Button>
+                {questionsAsked >= maxQuestions && (
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Batas {maxQuestions} pertanyaan tercapai — jawaban berikutnya akan langsung disimpulkan.{" "}
+                    <button onClick={() => setMaxQuestions((n) => Math.min(15, n + 5))} className="text-blue-700 font-bold hover:underline">
+                      Gali lebih dalam
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 

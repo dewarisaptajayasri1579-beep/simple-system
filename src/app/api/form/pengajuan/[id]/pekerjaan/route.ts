@@ -16,7 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!(await hasFormAccess())) return NextResponse.json({ error: "Sesi form habis — masukkan password lagi" }, { status: 401 })
 
   const { id } = await params
-  const body = (await request.json().catch(() => null)) as { history?: WorkPriceChatTurn[] } | null
+  const body = (await request.json().catch(() => null)) as
+    | { history?: WorkPriceChatTurn[]; maxQuestions?: number; forceConclude?: boolean }
+    | null
   const history = body?.history
   if (!history || history.length === 0) return NextResponse.json({ error: "Deskripsi pekerjaan wajib diisi" }, { status: 400 })
 
@@ -33,7 +35,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const questionsAsked = history.filter((h) => h.role === "assistant").length
 
   try {
-    const result = await continueWorkPriceChat(history, catalog, questionsAsked, "form")
+    const result = await continueWorkPriceChat(history, catalog, questionsAsked, {
+      mode: "form",
+      maxQuestions: Math.min(15, Math.max(1, Math.round(body?.maxQuestions ?? 5))),
+      forceConclude: body?.forceConclude === true,
+    })
 
     if (result.status === "tanya") {
       return NextResponse.json({ status: "tanya", pertanyaan: result.pertanyaan, tipeJawaban: result.tipeJawaban, pilihan: result.pilihan })
