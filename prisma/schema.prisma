@@ -496,22 +496,6 @@ model Vendor {
 /// generik — belum ada mapping field ke model lain). Akses baca sheet-nya pakai 1 Service
 /// Account app-wide (lihat GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON di .env) yang harus di-share
 /// manual ke tiap sheet, jadi baris ini tidak nyimpan secret apa pun.
-model LinkedSpreadsheet {
-  id            String   @id @default(uuid())
-  name          String
-  spreadsheetId String   @map("spreadsheet_id")
-  sourceUrl     String   @map("source_url")
-  category      String?
-  description   String?
-  createdById   String?  @map("created_by_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@index([createdById])
-  @@map("linked_spreadsheets")
-  @@schema("simple_system")
-}
-
 model BillingPeriod {
   id                 String @id @default(uuid())
   legacyId           Int?   @unique @map("legacy_id")
@@ -2841,6 +2825,10 @@ model WorkPriceSimulation {
   title       String
   summary     String?
   clientName  String?  @map("client_name")
+  /// "bobot" = hasil Kalkulator Harga umum (dinilai lewat rubrik 8 parameter).
+  /// "level" = hasil Pengajuan Pekerjaan Blesscom, yang acuannya MURNI kategori + level —
+  /// Blesscom sengaja tidak pakai bobot, jadi riwayatnya dipisah supaya tidak tercampur.
+  kind        String   @default("bobot")
   totalPoints Float    @map("total_points")
   totalPrice  Int      @map("total_price")
   transcript  Json?
@@ -2851,7 +2839,7 @@ model WorkPriceSimulation {
   items WorkPriceSimulationItem[]
 
   @@index([createdById])
-  @@index([createdAt])
+  @@index([kind, createdAt])
   @@map("work_price_simulations")
   @@schema("simple_system")
 }

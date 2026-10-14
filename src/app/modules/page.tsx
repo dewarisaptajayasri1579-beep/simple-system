@@ -14,7 +14,6 @@ const MODULE_CARDS: { key: ModuleKey; href: string; title: string; desc: string;
   { key: "marketing", href: "/marketing", title: "Marketing", desc: "Kelola Lead — prospek, follow-up, konversi.", icon: Megaphone },
   { key: "monitoring", href: "/monitoring", title: "Monitoring Server", desc: "Status & kesehatan server yang dipantau.", icon: ServerCog },
   { key: "administratif", href: "/administratif", title: "Administratif", desc: "Data karyawan & log surat-menyurat.", icon: ClipboardList },
-  { key: "spreadsheet", href: "/spreadsheet", title: "From Spreadsheet", desc: "Lihat isi Google Sheets yang di-link.", icon: Table2 },
   { key: "meta-ads", href: "/meta-ads", title: "Meta Ads", desc: "Performa iklan Facebook & Instagram Ads.", icon: LineChart },
 ]
 
