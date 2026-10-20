@@ -43,6 +43,9 @@ export interface FilterableTableProps<T> {
   mobileCardMode?: boolean;
   /** Extra className per row (mis. beda background/font buat baris induk di tabel hierarkis). */
   rowClassName?: (row: T) => string;
+  /** Kalau diisi, seluruh baris (dan kartu di mobile) jadi bisa diklik — mis. buka halaman
+   *  detail/edit. Cell yang punya link/tombol sendiri perlu stopPropagation sendiri. */
+  onRowClick?: (row: T) => void;
 }
 
 export function FilterableTable<T>({
@@ -55,6 +58,7 @@ export function FilterableTable<T>({
   searchPlaceholder = "Cari...",
   mobileCardMode = false,
   rowClassName,
+  onRowClick,
 }: FilterableTableProps<T>) {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
@@ -116,7 +120,11 @@ export function FilterableTable<T>({
         {mobileCardMode && (
           <div className="block md:hidden p-3 sm:p-4 space-y-3">
             {pageRows.map((row, i) => (
-              <div key={rowKey(row)} className={`rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm ${rowClassName?.(row) ?? ""}`}>
+              <div
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={`rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm ${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
+              >
                 <div className="space-y-3">
                   {columns.map((col) => (
                     <div key={col.key} className="flex items-start justify-between gap-3">
@@ -181,7 +189,11 @@ export function FilterableTable<T>({
             </TableHeader>
             <TableBody>
               {pageRows.map((row, i) => (
-                <TableRow key={rowKey(row)} className={rowClassName?.(row)}>
+                <TableRow
+                  key={rowKey(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={`${onRowClick ? "cursor-pointer" : ""} ${rowClassName?.(row) ?? ""}`}
+                >
                   {columns.map((col) => (
                     <TableCell key={col.key} className={col.cellClassName}>
                       {col.cell(row, pagination.start + i)}

@@ -923,6 +923,7 @@ model Invoice {
   payments               InvoicePayment[]
   projectPaymentSchedule ProjectPaymentSchedule?
   principleInvoice       PrincipleInvoice?
+  blesscomWorkOrders     BlesscomWorkOrder[]
 
   @@index([clientId])
   // Dipakai di SEMUA query piutang (`doubtfulAt: null`) — Dashboard, Piutang, Neraca, Arus Kas,
@@ -2721,6 +2722,7 @@ model Principle {
 
   company        PrincipleCompany         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoiceEntries PrincipleInvoiceItem[]
+  workOrders     BlesscomWorkOrder[]
 
   @@index([companyId, active])
   @@index([companyId, sortOrder])
@@ -2791,6 +2793,61 @@ model PrincipleInvoiceItem {
   @@schema("simple_system")
 }
 
+/// Satu transaksi pencatatan pekerjaan custom request untuk SATU principle Blesscom/Blessfull
+/// (menu Blesscom -> Daftar Pekerjaan). Master: tanggal + principle; detail: daftar pekerjaannya
+/// (BlesscomWorkOrderItem). Beda dari WorkPriceSimulation (menu Pengajuan Pekerjaan) yang cuma
+/// catatan obrolan penentuan level — ini pekerjaan yang benar-benar dikerjakan & akan ditagih.
+///
+/// `invoiceId` terisi saat transaksi ditagihkan. Satu invoice = satu principle, tapi boleh berisi
+/// beberapa transaksi principle yang sama sekaligus (makanya one-to-many, bukan `@unique`). Begitu
+/// terisi, detail transaksinya DIKUNCI dari UI supaya nominal yang sudah dikirim ke client tidak
+/// bisa berubah diam-diam.
+model BlesscomWorkOrder {
+  id          String    @id @default(uuid())
+  principleId String    @map("principle_id")
+  workDate    DateTime  @map("work_date")
+  notes       String?
+  invoiceId   String?   @map("invoice_id")
+  invoicedAt  DateTime? @map("invoiced_at")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  principle Principle               @relation(fields: [principleId], references: [id])
+  invoice   Invoice?                @relation(fields: [invoiceId], references: [id])
+  items     BlesscomWorkOrderItem[]
+
+  @@index([principleId, workDate])
+  @@index([workDate])
+  @@index([invoiceId])
+  @@map("blesscom_work_orders")
+  @@schema("simple_system")
+}
+
+/// Satu baris pekerjaan di dalam transaksi. `levelLabel` & `amount` adalah SNAPSHOT dari level
+/// harga Blesscom saat diinput (pola sama dengan WorkPriceSimulationItem): pricelist bisa
+/// dikalibrasi ulang belakangan, transaksi yang sudah disepakati tidak boleh ikut berubah.
+/// `refAmount` = harga acuan level saat itu, dipakai cuma buat nampilin penanda "nominalnya
+/// diubah dari harga acuan". `workPriceItemId` nullable — level-nya bisa dihapus dari pricelist.
+model BlesscomWorkOrderItem {
+  id              String  @id @default(uuid())
+  workOrderId     String  @map("work_order_id")
+  name            String
+  workPriceItemId String? @map("work_price_item_id")
+  levelLabel      String  @map("level_label")
+  amount          Int
+  refAmount       Int?    @map("ref_amount")
+  sortOrder       Int     @default(0) @map("sort_order")
+
+  workOrder     BlesscomWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  workPriceItem WorkPriceItem?    @relation(fields: [workPriceItemId], references: [id])
+
+  @@index([workOrderId])
+  @@index([workPriceItemId])
+  @@map("blesscom_work_order_items")
+  @@schema("simple_system")
+}
+
 /// Master pricelist pekerjaan custom request client (bukan paket standar) — dasar untuk menu
 /// Kalkulator Harga Pekerjaan. `groupName` = kategori ("Master Data", "Transaksi", dst),
 /// `level` opsional (null untuk item yang tidak bertingkat, mis. "Setup Website").
@@ -2816,6 +2873,8 @@ model WorkPriceItem {
   weightDetail Json?  @map("weight_detail")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+
+  blesscomWorkOrderItems BlesscomWorkOrderItem[]
 
   @@index([groupName])
   @@map("work_price_items")
