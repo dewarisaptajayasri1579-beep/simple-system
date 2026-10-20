@@ -7,7 +7,8 @@ export const BLESSCOM_WORK_ROLES = ["owner", "admin", "direktur"]
 export interface ItemInput {
   name?: string
   workPriceItemId?: string | null
-  levelLabel?: string
+  categoryName?: string
+  levelName?: string
   amount?: number
   refAmount?: number | null
 }
@@ -15,7 +16,8 @@ export interface ItemInput {
 export interface ParsedItem {
   name: string
   workPriceItemId: string | null
-  levelLabel: string
+  categoryName: string
+  levelName: string
   amount: number
   refAmount: number | null
   sortOrder: number
@@ -27,15 +29,18 @@ export function parseWorkOrderItems(raw: unknown): { items: ParsedItem[] } | { e
   const items: ParsedItem[] = []
   for (const [i, r] of (raw as ItemInput[]).entries()) {
     const name = typeof r?.name === "string" ? r.name.trim() : ""
-    const levelLabel = typeof r?.levelLabel === "string" ? r.levelLabel.trim() : ""
+    const categoryName = typeof r?.categoryName === "string" ? r.categoryName.trim() : ""
+    const levelName = typeof r?.levelName === "string" ? r.levelName.trim() : ""
     const amount = Math.round(Number(r?.amount) || 0)
     if (!name) return { error: `Nama pekerjaan baris ${i + 1} wajib diisi` }
-    if (!levelLabel) return { error: `Level baris ${i + 1} wajib dipilih` }
+    if (!categoryName) return { error: `Kategori baris ${i + 1} wajib dipilih` }
+    if (!levelName) return { error: `Level baris ${i + 1} wajib dipilih` }
     if (amount <= 0) return { error: `Nominal baris ${i + 1} wajib lebih dari 0` }
     items.push({
       name,
       workPriceItemId: r?.workPriceItemId || null,
-      levelLabel,
+      categoryName,
+      levelName,
       amount,
       refAmount: r?.refAmount == null ? null : Math.round(Number(r.refAmount) || 0),
       sortOrder: i,

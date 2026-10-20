@@ -1,29 +1,10 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react"
+import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, RotateCcw, Save, Send, Sparkles, Trash2 } from "lucide-react"
 import { Alert, Button, Input, Spinner } from "@/components/ui"
-
-interface ChatMessage {
-  role: "user" | "assistant"
-  text: string
-}
-
-interface HasilItem {
-  key: string
-  itemId: string
-  groupName: string
-  level: string | null
-  label: string
-  qty: number
-  unitPrice: number
-  alasan: string
-}
-
-type AnswerType = "radio" | "checkbox" | "text"
-
-const MAX_QUESTIONS = 5
+import { levelLabel, useLevelChat } from "@/lib/use-level-chat"
 
 const STARTER_HINTS = [
   "Client minta tambah master data produk yang ada kategori dan satuannya.",
@@ -35,120 +16,49 @@ function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 }
 
-/** Label kategori+level — ini "hasil akhir" yang dicari di menu Blesscom. */
-function levelLabel(it: { groupName: string; level: string | null; label: string }): string {
-  return it.level ? `${it.groupName} — ${it.level}` : it.label
-}
-
 export function PengajuanBlesscomPanel() {
   const router = useRouter()
-  const timelineRef = useRef<HTMLDivElement | null>(null)
-  const lastCountRef = useRef(0)
-
-  const [description, setDescription] = useState("")
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [answerType, setAnswerType] = useState<AnswerType>("text")
-  const [choices, setChoices] = useState<string[]>([])
-  const [picked, setPicked] = useState<string[]>([])
-  const [answer, setAnswer] = useState("")
-  const [items, setItems] = useState<HasilItem[]>([])
-  const [ringkasan, setRingkasan] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [maxQuestions, setMaxQuestions] = useState(MAX_QUESTIONS)
+  const chat = useLevelChat()
+  const {
+    timelineRef,
+    description,
+    setDescription,
+    messages,
+    answerType,
+    choices,
+    picked,
+    setPicked,
+    answer,
+    setAnswer,
+    items,
+    setItems,
+    ringkasan,
+    done,
+    loading,
+    error,
+    setError,
+    maxQuestions,
+    setMaxQuestions,
+    questionsAsked,
+    started,
+    submitAnswer,
+  } = chat
 
   const [clientName, setClientName] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const questionsAsked = messages.filter((m) => m.role === "assistant").length
-  const started = messages.length > 0
   const total = items.reduce((sum, it) => sum + it.unitPrice * it.qty, 0)
 
-  // Scroll kontainer timeline-nya sendiri, bukan scrollIntoView() — itu ikut menggeser window.
-  useEffect(() => {
-    const count = messages.length + items.length + (loading ? 1 : 0)
-    if (count !== lastCountRef.current) {
-      lastCountRef.current = count
-      const el = timelineRef.current
-      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
-    }
-  }, [messages, items, loading])
-
-  async function sendToAi(history: ChatMessage[], opts: { conclude?: boolean } = {}) {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch("/api/blesscom/pengajuan/analisa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history, maxQuestions, forceConclude: opts.conclude === true }),
-      })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error ?? "Gagal menganalisa")
-
-      if (body.status === "tanya") {
-        setMessages([...history, { role: "assistant", text: body.pertanyaan }])
-        setAnswerType((body.tipeJawaban as AnswerType) ?? "text")
-        setChoices(body.pilihan ?? [])
-        setPicked([])
-        setAnswer("")
-        return
-      }
-
-      setMessages([...history, { role: "assistant", text: body.ringkasan || "Selesai." }])
-      setItems(
-        (body.items as Omit<HasilItem, "key">[]).map((it) => ({ ...it, key: crypto.randomUUID() }))
-      )
-      setRingkasan(body.ringkasan ?? null)
-      setChoices([])
-      setDone(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal menganalisa")
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function startChat(text?: string) {
-    const first = (text ?? description).trim()
-    if (!first) return
-    setDescription(first)
-    const history: ChatMessage[] = [{ role: "user", text: first }]
-    setMessages(history)
-    setItems([])
-    setRingkasan(null)
-    setDone(false)
     setSaved(false)
-    await sendToAi(history)
-  }
-
-  async function submitAnswer(textOverride?: string, opts: { conclude?: boolean } = {}) {
-    const text = (textOverride ?? answer).trim()
-    if (!text) return
-    const history: ChatMessage[] = [...messages, { role: "user", text }]
-    setMessages(history)
-    setAnswer("")
-    setPicked([])
-    setChoices([])
-    await sendToAi(history, opts)
+    await chat.startChat(text)
   }
 
   function reset() {
-    setDescription("")
-    setMessages([])
-    setAnswer("")
-    setChoices([])
-    setPicked([])
-    setItems([])
-    setRingkasan(null)
-    setDone(false)
-    setError(null)
+    chat.reset()
     setClientName("")
     setSaved(false)
-    setMaxQuestions(MAX_QUESTIONS)
-    lastCountRef.current = 0
   }
 
   async function simpan() {

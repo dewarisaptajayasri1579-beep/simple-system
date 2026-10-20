@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma"
+/** Tipe & helper label level harga Blesscom — sengaja TANPA import prisma supaya aman dipakai
+ *  komponen client juga (query katalognya ada di blesscom-level-catalog.ts, server-only). */
 
 export interface BlesscomLevelOption {
   id: string
@@ -14,22 +15,8 @@ export function blesscomLevelLabel(it: { groupName: string; level: string | null
   return it.level ? `${it.groupName} — ${it.level}` : it.label
 }
 
-/**
- * Daftar level yang boleh dipakai untuk pekerjaan Blesscom: HANYA item pricelist yang punya
- * `blesscomPrice` (harga yang sudah jadi kesepakatan). Item tanpa blesscomPrice memang tidak ada
- * di daftar harga Blesscom, jadi tidak ditawarkan — lihat komentar WorkPriceItem.blesscomPrice.
- */
-export async function getBlesscomLevelOptions(): Promise<BlesscomLevelOption[]> {
-  const rows = await prisma.workPriceItem.findMany({
-    where: { active: true, blesscomPrice: { not: null } },
-    orderBy: [{ groupName: "asc" }, { sortOrder: "asc" }],
-    select: { id: true, groupName: true, level: true, label: true, blesscomPrice: true },
-  })
-  return rows.map((r) => ({
-    id: r.id,
-    groupName: r.groupName,
-    level: r.level,
-    label: r.label,
-    price: r.blesscomPrice as number,
-  }))
+/** Isi kolom "Level": nama levelnya, atau label itemnya untuk item yang tidak bertingkat
+ *  (mis. "Setup Website") — supaya kolom Level tidak pernah kosong. */
+export function blesscomLevelName(it: { level: string | null; label: string }): string {
+  return it.level ?? it.label
 }

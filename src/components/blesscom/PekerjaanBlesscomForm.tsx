@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Sparkles, Trash2 } from "lucide-react"
 
+import { SaranLevelDialog, type SaranLevelPick } from "@/components/blesscom/SaranLevelDialog"
 import {
   Alert,
   Button,
@@ -16,7 +17,7 @@ import {
   Select,
   Textarea,
 } from "@/components/ui"
-import type { BlesscomLevelOption } from "@/lib/blesscom-work-level"
+import { blesscomLevelName, type BlesscomLevelOption } from "@/lib/blesscom-work-level"
 
 export interface PrincipleOption {
   value: string
@@ -26,7 +27,8 @@ export interface PrincipleOption {
 export interface DetailDraft {
   name: string
   workPriceItemId: string | null
-  levelLabel: string
+  categoryName: string
+  levelName: string
   amount: number
   /** Harga acuan level saat dipilih — dipakai buat penanda "diubah dari harga acuan". */
   refAmount: number | null
@@ -50,15 +52,18 @@ function todayWib(): string {
 }
 
 function emptyDetail(): DetailDraft {
-  return { name: "", workPriceItemId: null, levelLabel: "", amount: 0, refAmount: null }
+  return { name: "", workPriceItemId: null, categoryName: "", levelName: "", amount: 0, refAmount: null }
 }
 
 /**
- * Form transaksi pekerjaan Blesscom — master (tanggal + principle) dan detail pekerjaannya.
- * Dipakai untuk "baru" maupun "edit"; bedanya cuma ada/tidaknya `initial`.
+ * Form transaksi pekerjaan Blesscom — master (tanggal + principle) dan detail pekerjaannya
+ * (pekerjaan, kategori, level, harga). Dipakai untuk "baru" maupun "edit"; bedanya cuma
+ * ada/tidaknya `initial`.
  *
- * Nominal terisi otomatis dari harga level Blesscom (`blesscomPrice`) tapi tetap bisa ditimpa —
- * yang disimpan adalah angka di form (snapshot), bukan harga live dari pricelist.
+ * Kategori & level bisa dipilih sendiri dari pricelist Blesscom, atau ditentukan lewat
+ * "Saran Perhitungan" (obrolan AI yang sama dengan menu Pengajuan Pekerjaan). Harga ikut terisi
+ * dari harga level (`blesscomPrice`) tapi tetap bisa ditimpa — yang disimpan adalah angka di form
+ * (snapshot), bukan harga live dari pricelist.
  */
 export const PekerjaanBlesscomForm: React.FC<{
   principleOptions: PrincipleOption[]
@@ -75,31 +80,55 @@ export const PekerjaanBlesscomForm: React.FC<{
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  /** Index baris yang sedang minta saran AI — null = dialognya tertutup. */
+  const [saranFor, setSaranFor] = useState<number | null>(null)
 
-  const levelSelectOptions = useMemo(
-    () =>
-      levelOptions.map((l) => ({
-        value: l.id,
-        label: `${l.level ? `${l.groupName} — ${l.level}` : l.label} · ${formatRupiah(l.price)}`,
-      })),
-    [levelOptions],
-  )
+  const categoryOptions = useMemo(() => {
+    const names = [...new Set(levelOptions.map((l) => l.groupName))]
+    // Kategori dari transaksi lama yang levelnya sudah tidak ada di pricelist tetap ikut, supaya
+    // isian lamanya tidak hilang dari dropdown saat diedit.
+    for (const it of items) if (it.categoryName && !names.includes(it.categoryName)) names.push(it.categoryName)
+    return names.map((n) => ({ value: n, label: n }))
+  }, [levelOptions, items])
 
   const total = items.reduce((sum, it) => sum + it.amount, 0)
 
   const patchItem = (index: number, patch: Partial<DetailDraft>) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
 
+  /** Ganti kategori = level sebelumnya tidak berlaku lagi, jadi level & harganya dikosongkan. */
+  const pickCategory = (index: number, categoryName: string) =>
+    patchItem(index, { categoryName, levelName: "", workPriceItemId: null, amount: 0, refAmount: null })
+
   const pickLevel = (index: number, levelId: string) => {
     const level = levelOptions.find((l) => l.id === levelId)
     if (!level) return
     patchItem(index, {
       workPriceItemId: level.id,
-      levelLabel: level.level ? `${level.groupName} — ${level.level}` : level.label,
+      categoryName: level.groupName,
+      levelName: blesscomLevelName(level),
       amount: level.price,
       refAmount: level.price,
     })
   }
+
+  const applySaran = (index: number, pick: SaranLevelPick) =>
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === index
+          ? {
+              ...it,
+              // Nama pekerjaan yang sudah diisi staf tidak ditimpa — saran cuma mengisi yang kosong.
+              name: it.name.trim() || pick.label,
+              workPriceItemId: pick.itemId,
+              categoryName: pick.groupName,
+              levelName: pick.level ?? pick.label,
+              amount: pick.price,
+              refAmount: pick.price,
+            }
+          : it,
+      ),
+    )
 
   const addItem = () => setItems((prev) => [...prev, emptyDetail()])
   const removeItem = (index: number) => setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))
@@ -179,51 +208,77 @@ export const PekerjaanBlesscomForm: React.FC<{
         </CardHeader>
 
         <div className="space-y-3">
-          {items.map((item, index) => (
-            <div key={index} className="p-4 rounded-2xl bg-white/60 border border-slate-200/70 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500">Pekerjaan {index + 1}</span>
-                <button
+          {items.map((item, index) => {
+            const levelSelectOptions = levelOptions
+              .filter((l) => l.groupName === item.categoryName)
+              .map((l) => ({ value: l.id, label: `${blesscomLevelName(l)} · ${formatRupiah(l.price)}` }))
+
+            return (
+              <div key={index} className="p-4 rounded-2xl bg-white/60 border border-slate-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-500">Pekerjaan {index + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(index)}
+                    className="text-rose-500 hover:text-rose-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={items.length === 1}
+                    aria-label="Hapus baris"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <Input
+                  label="Pekerjaan"
+                  placeholder="mis. Master Data Supplier"
+                  value={item.name}
+                  onChange={(e) => patchItem(index, { name: e.target.value })}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Select
+                    label="Kategori"
+                    options={categoryOptions}
+                    value={item.categoryName}
+                    onChange={(v) => pickCategory(index, v)}
+                    placeholder="Pilih kategori"
+                    searchable
+                    searchPlaceholder="Cari kategori..."
+                  />
+                  <Select
+                    label="Level"
+                    options={levelSelectOptions}
+                    value={item.workPriceItemId ?? ""}
+                    onChange={(v) => pickLevel(index, v)}
+                    placeholder={item.levelName || (item.categoryName ? "Pilih level" : "Pilih kategori dulu")}
+                    disabled={!item.categoryName}
+                    searchable
+                    searchPlaceholder="Cari level..."
+                  />
+                  <CurrencyInput
+                    label="Harga"
+                    value={item.amount}
+                    onChange={(v) => patchItem(index, { amount: v })}
+                    helperText={
+                      item.refAmount != null && item.amount !== item.refAmount
+                        ? `Diubah dari harga acuan ${formatRupiah(item.refAmount)}`
+                        : undefined
+                    }
+                  />
+                </div>
+
+                <Button
                   type="button"
-                  onClick={() => removeItem(index)}
-                  className="text-rose-500 hover:text-rose-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  disabled={items.length === 1}
-                  aria-label="Hapus baris"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSaranFor(index)}
+                  leftIcon={<Sparkles className="w-4 h-4" />}
                 >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                  Saran Perhitungan
+                </Button>
               </div>
-
-              <Input
-                label="Pekerjaan"
-                placeholder="mis. Master Data Supplier"
-                value={item.name}
-                onChange={(e) => patchItem(index, { name: e.target.value })}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Select
-                  label="Kategori & Level"
-                  options={levelSelectOptions}
-                  value={item.workPriceItemId ?? ""}
-                  onChange={(v) => pickLevel(index, v)}
-                  placeholder={item.levelLabel || "Pilih level"}
-                  searchable
-                  searchPlaceholder="Cari level..."
-                />
-                <CurrencyInput
-                  label="Nominal"
-                  value={item.amount}
-                  onChange={(v) => patchItem(index, { amount: v })}
-                  helperText={
-                    item.refAmount != null && item.amount !== item.refAmount
-                      ? `Diubah dari harga acuan ${formatRupiah(item.refAmount)}`
-                      : undefined
-                  }
-                />
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="mt-3">
@@ -261,6 +316,15 @@ export const PekerjaanBlesscomForm: React.FC<{
           </Button>
         </div>
       </div>
+
+      {saranFor !== null && (
+        <SaranLevelDialog
+          isOpen
+          onClose={() => setSaranFor(null)}
+          prefill={items[saranFor]?.name || undefined}
+          onPick={(pick) => applySaran(saranFor, pick)}
+        />
+      )}
 
       <Modal
         isOpen={confirmDelete}

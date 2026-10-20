@@ -10,7 +10,7 @@ export interface InvoiceKandidat {
   id: string
   /** ISO date */
   workDate: string
-  items: { name: string; levelLabel: string; amount: number }[]
+  items: { name: string; categoryName: string; levelName: string; amount: number }[]
 }
 
 function formatRupiah(n: number) {
@@ -63,7 +63,7 @@ export const BuatInvoicePekerjaanButton: React.FC<{
     try {
       const lines = selected.flatMap((o) =>
         o.items.map((it) => ({
-          description: `${principleName} — ${it.name} (${it.levelLabel})`,
+          description: `${principleName} — ${it.name} (${it.categoryName} · ${it.levelName})`,
           qty: 1,
           unitPrice: it.amount,
         })),
@@ -175,7 +175,7 @@ export const BuatInvoicePekerjaanButton: React.FC<{
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{it.name}</p>
                     <p className="text-xs text-slate-500">
-                      {it.levelLabel} · {formatDate(o.workDate)}
+                      {it.categoryName} · {it.levelName} · {formatDate(o.workDate)}
                     </p>
                   </div>
                   <p className="text-sm font-bold text-slate-900 whitespace-nowrap">{formatRupiah(it.amount)}</p>

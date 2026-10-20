@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout"
 import { PekerjaanBlesscomForm } from "@/components/blesscom/PekerjaanBlesscomForm"
-import { getBlesscomLevelOptions } from "@/lib/blesscom-work-level"
+import { getBlesscomLevelOptions } from "@/lib/blesscom-level-catalog"
 import { getCurrentUser } from "@/lib/current-user"
 import { getPrincipleOptions } from "@/lib/blesscom-principle-options"
 

@@ -2824,9 +2824,14 @@ model BlesscomWorkOrder {
   @@schema("simple_system")
 }
 
-/// Satu baris pekerjaan di dalam transaksi. `levelLabel` & `amount` adalah SNAPSHOT dari level
-/// harga Blesscom saat diinput (pola sama dengan WorkPriceSimulationItem): pricelist bisa
-/// dikalibrasi ulang belakangan, transaksi yang sudah disepakati tidak boleh ikut berubah.
+/// Satu baris pekerjaan di dalam transaksi. `categoryName`, `levelName` & `amount` adalah SNAPSHOT
+/// dari level harga Blesscom saat diinput (pola sama dengan WorkPriceSimulationItem): pricelist
+/// bisa dikalibrasi ulang belakangan, transaksi yang sudah disepakati tidak boleh ikut berubah.
+///
+/// `categoryName` = WorkPriceItem.groupName ("Master Data", "Transaksi", dst); `levelName` =
+/// WorkPriceItem.level, atau label itemnya untuk item yang memang tidak bertingkat (mis. "Setup
+/// Website") supaya kolom Level di UI tidak pernah kosong.
+///
 /// `refAmount` = harga acuan level saat itu, dipakai cuma buat nampilin penanda "nominalnya
 /// diubah dari harga acuan". `workPriceItemId` nullable — level-nya bisa dihapus dari pricelist.
 model BlesscomWorkOrderItem {
@@ -2834,7 +2839,8 @@ model BlesscomWorkOrderItem {
   workOrderId     String  @map("work_order_id")
   name            String
   workPriceItemId String? @map("work_price_item_id")
-  levelLabel      String  @map("level_label")
+  categoryName    String  @map("category_name")
+  levelName       String  @map("level_name")
   amount          Int
   refAmount       Int?    @map("ref_amount")
   sortOrder       Int     @default(0) @map("sort_order")

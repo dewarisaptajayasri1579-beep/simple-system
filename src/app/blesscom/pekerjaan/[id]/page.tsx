@@ -6,7 +6,7 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { BuatInvoicePekerjaanButton } from "@/components/blesscom/BuatInvoicePekerjaanButton"
 import { PekerjaanBlesscomForm } from "@/components/blesscom/PekerjaanBlesscomForm"
 import { Alert, Card, CardHeader, CardTitle } from "@/components/ui"
-import { getBlesscomLevelOptions } from "@/lib/blesscom-work-level"
+import { getBlesscomLevelOptions } from "@/lib/blesscom-level-catalog"
 import { getPrincipleOptions } from "@/lib/blesscom-principle-options"
 import { getCurrentUser } from "@/lib/current-user"
 import { prisma } from "@/lib/prisma"
@@ -37,7 +37,7 @@ export default async function PekerjaanBlesscomEditPage({ params }: { params: Pr
       },
       items: {
         orderBy: { sortOrder: "asc" },
-        select: { name: true, levelLabel: true, amount: true, refAmount: true, workPriceItemId: true },
+        select: { name: true, categoryName: true, levelName: true, amount: true, refAmount: true, workPriceItemId: true },
       },
     },
   })
@@ -57,7 +57,7 @@ export default async function PekerjaanBlesscomEditPage({ params }: { params: Pr
         select: {
           id: true,
           workDate: true,
-          items: { orderBy: { sortOrder: "asc" }, select: { name: true, levelLabel: true, amount: true } },
+          items: { orderBy: { sortOrder: "asc" }, select: { name: true, categoryName: true, levelName: true, amount: true } },
         },
       })
 
@@ -94,7 +94,12 @@ export default async function PekerjaanBlesscomEditPage({ params }: { params: Pr
               current={{
                 id: order.id,
                 workDate: order.workDate.toISOString(),
-                items: order.items.map((it) => ({ name: it.name, levelLabel: it.levelLabel, amount: it.amount })),
+                items: order.items.map((it) => ({
+                  name: it.name,
+                  categoryName: it.categoryName,
+                  levelName: it.levelName,
+                  amount: it.amount,
+                })),
               }}
               others={others.map((o) => ({ ...o, workDate: o.workDate.toISOString() }))}
               principleName={order.principle.name}
@@ -159,7 +164,9 @@ export default async function PekerjaanBlesscomEditPage({ params }: { params: Pr
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-800 truncate">{it.name}</p>
-                      <p className="text-xs text-slate-500">{it.levelLabel}</p>
+                      <p className="text-xs text-slate-500">
+                        {it.categoryName} · {it.levelName}
+                      </p>
                     </div>
                     <p className="text-sm font-bold text-slate-900 whitespace-nowrap">{formatRupiah(it.amount)}</p>
                   </div>
@@ -183,7 +190,8 @@ export default async function PekerjaanBlesscomEditPage({ params }: { params: Pr
               items: order.items.map((it) => ({
                 name: it.name,
                 workPriceItemId: it.workPriceItemId,
-                levelLabel: it.levelLabel,
+                categoryName: it.categoryName,
+                levelName: it.levelName,
                 amount: it.amount,
                 refAmount: it.refAmount,
               })),
