@@ -57,7 +57,9 @@ export function HargaBlesscomPanel({ rows: initial, canEdit }: { rows: HargaBles
         <p className="text-xs text-slate-500 mt-1">
           Acuannya <strong>murni kategori &amp; level</strong>, bukan bobot — dan angkanya sudah jadi kesepakatan dengan
           client, jadi tidak ikut berubah saat rubrik bobot dikalibrasi ulang. Daftar inilah yang dipakai menu{" "}
-          <strong>Blesscom → Pengajuan Pekerjaan</strong>.
+          <strong>Blesscom → Daftar Pekerjaan</strong> &amp; <strong>Pengajuan Pekerjaan</strong>. Menambah,
+          mengubah, atau mengeluarkan level dari daftar ini dilakukan di{" "}
+          <strong>Blesscom → Kategori &amp; Level Pekerjaan</strong>; di sini cuma penyesuaian harganya.
         </p>
       </Card>
 

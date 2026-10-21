@@ -38,6 +38,7 @@ const SECTIONS: (SectionItem & { adminOk?: boolean })[] = [
   { label: "Blesscom — Principle", href: "/blesscom/principle", adminOk: true },
   { label: "Blesscom — Invoice", href: "/blesscom/invoice", adminOk: true },
   { label: "Blesscom — Daftar Pekerjaan", href: "/blesscom/pekerjaan", adminOk: true },
+  { label: "Blesscom — Kategori & Level Pekerjaan", href: "/blesscom/kategori-level", adminOk: true },
   { label: "Blesscom — Pengajuan Pekerjaan", href: "/blesscom/pengajuan", adminOk: true },
   { label: "Kalkulator Harga", href: "/kalkulator-harga", adminOk: true },
   { label: "Kalkulator Harga — Acuan Level", href: "/kalkulator-harga/acuan-level", adminOk: true },

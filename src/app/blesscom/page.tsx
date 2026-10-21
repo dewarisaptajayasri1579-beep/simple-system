@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Building2, Calculator, ClipboardList, FileText, Users } from "lucide-react"
+import { Building2, Calculator, ClipboardList, FileText, Tags, Users } from "lucide-react"
 
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Card, CardDescription, CardTitle } from "@/components/ui"
@@ -29,6 +29,12 @@ const MENUS = [
     icon: ClipboardList,
     title: "Daftar Pekerjaan",
     desc: "Pencatatan pekerjaan per principle — tanggal, level, nominal, sampai ditagihkan jadi invoice.",
+  },
+  {
+    href: "/blesscom/kategori-level",
+    icon: Tags,
+    title: "Kategori & Level Pekerjaan",
+    desc: "Daftar kategori, level, dan harga kesepakatan Blesscom — acuan harga di Daftar Pekerjaan.",
   },
   {
     href: "/blesscom/pengajuan",
